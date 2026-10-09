@@ -48,6 +48,10 @@ Q_REF="25" Q_DEV="26" Q_VAL="27" bash "$D"; out="$(launched)"
 setup; machine $'pool: 4\nstages: {deployar: 0}'; Q_PROD="47" bash "$D"
 [ -z "$(launched)" ] && pass "stage with 0 slots" || fail "deployed with 0 slots: $(launched)"
 
+# a card with a live run of any pipeline gets no second run (they would share its worktree)
+setup; mkdir -p "$FACTORY_HOME/locks/desenvolver-36.lock"; echo "$$ $(date +%s) 36" > "$FACTORY_HOME/locks/desenvolver-36.lock/info"
+Q_VAL="36" bash "$D"; [ -z "$(launched)" ] && pass "busy card skipped" || fail "second run on a busy card: $(launched)"
+
 # an invalid machine config launches nothing
 setup; machine 'pool: 0'; Q_REF="25" bash "$D"; code=$?
 [ -z "$(launched)" ] && [ "$code" -ne 0 ] && pass "invalid machine config → nothing, non-zero" || fail "launched with an invalid machine config (exit $code)"

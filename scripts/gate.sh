@@ -103,12 +103,21 @@ code_lines() {  # code_lines <file> <comment prefix>: lines that are not comment
 }
 
 migration_versions() {  # migration_versions <layer> <base> <ERE>: unique versions, new ones after every existing one
-  # E = on the base (merged, maybe applied); N = added since. Parallel cards collide here.
-  local layer="$1" base="$2" re="$3"
+  # E = on the base or on origin/<main> (merged, maybe applied); N = the card's own. Parallel cards
+  # collide here, even before the card merges main: origin/<main> is read directly.
+  local layer="$1" base="$2" re="$3" main_ref="" rev
+  git rev-parse -q --verify "origin/$MAIN^{commit}" >/dev/null && main_ref="origin/$MAIN"
   {
-    g ls-tree -r -z --name-only "$base" | tr '\0' '\n' | grep -E -- "$re" | sed 's/^/E\t/'
+    for rev in "$base" $main_ref; do
+      g ls-tree -r -z --name-only "$rev" | tr '\0' '\n' | grep -E -- "$re"
+    done | sort -u | sed 's/^/E\t/'
     { g ls-files -z; g ls-files -z --others --exclude-standard; } | tr '\0' '\n' | sort -u | grep -E -- "$re" \
-      | while IFS= read -r f; do [ -f "$f" ] && ! git cat-file -e "$base:$f" 2>/dev/null && printf 'N\t%s\n' "$f"; done
+      | while IFS= read -r f; do
+          [ -f "$f" ] || continue
+          git cat-file -e "$base:$f" 2>/dev/null && continue
+          [ -n "$main_ref" ] && git cat-file -e "$main_ref:$f" 2>/dev/null && continue
+          printf 'N\t%s\n' "$f"
+        done
   } | mylos_cfg migration-check "$layer" \
     || { echo "migration: versions of layer '$layer' must be unique and newer than the base's" >&2; return 1; }
 }
@@ -116,6 +125,9 @@ migration_versions() {  # migration_versions <layer> <base> <ERE>: unique versio
 gate_migration() {  # every layer's migrations: applied ones are immutable, destructive ones need a rollback
   require_rev "${1:-}"
   local base="$1" spec="${2:-}" destructive="" f layer files
+  # the order check trusts the base: it must be on this branch's history
+  git merge-base --is-ancestor "$base" HEAD 2>/dev/null || { echo "migration: base $base is not an ancestor of HEAD" >&2; exit 2; }
+  MAIN="$(q get project.main)" || exit 2
   files="$(changed_files "$base")"
   for layer in $ALL_LAYERS; do
     layer_fields "$layer" _migrations_re migrations.comment || exit 2

@@ -53,6 +53,12 @@ running_issues() {  # running_issues <pipeline>: issue numbers with a live lock 
   done
 }
 
+card_busy() {  # card_busy <issue>: a live run of any pipeline holds this card (its worktree and tmp)
+  local d
+  for d in "$HOME_DIR"/locks/[a-z]*-"$1".lock; do [ -d "$d" ] && lock_live "$d" && return 0; done
+  return 1
+}
+
 live_runs() {  # live_runs [stage]: live runs on this machine (every project), of one stage or all
   local d n=0 seen=" "
   local stage="${1:-}"; [ -n "$stage" ] || stage="[a-z]*"  # left unquoted below so it globs
@@ -122,6 +128,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs> <wip-limit> <orphan c
     for n in $cards; do
       { [ "$free" -le 0 ] || [ "$GLOBAL" -le 0 ]; } && return 0
       printf '%s\n' "$running" | grep -qx "$n" && continue
+      card_busy "$n" && continue
       start_run "$n" orphan || return 1
     done
   done
@@ -140,6 +147,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs> <wip-limit> <orphan c
   for n in $cards; do
     { [ "$slots" -le 0 ] || [ "$GLOBAL" -le 0 ]; } && break
     printf '%s\n' "$running" | grep -qx "$n" && continue
+    card_busy "$n" && continue
     start_run "$n" || return 1; slots=$((slots - 1))
   done
   return 0

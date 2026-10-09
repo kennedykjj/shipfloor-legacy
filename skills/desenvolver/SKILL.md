@@ -22,7 +22,7 @@ Owner of a file: `mylos-config.sh layer-of <repo-relative path>` (e.g. `web/app/
 - Worktree `<worktrees>/<n>` on `feat/<n>-<slug>` (reuse it; else create it from `origin/feat/<n>-<slug>` when that exists, else from `origin/<main>`). `base=$(git -C <wt> rev-parse HEAD)`. Spec = the `<specs>*-<slug>-design.md` on the branch.
 
 ## 1b. Resuming a card
-The card may already have work: commits on the branch, a plan, acceptance tests. Continue from the first step whose output is missing; do not redo finished steps. A card that already has an open PR (sent back by validar or deployar) goes through step 5 again and then back to Validation; read the newest factory comment on the issue for what to fix and pass it as `findings`.
+The card may already have work: commits on the branch, a plan, acceptance tests. Continue from the first step whose output is missing; do not redo finished steps. A card that already has an open PR (sent back by deployar) goes through step 5 again and then back to Validation; read the newest factory comment on the issue for what to fix and pass it as `findings`.
 
 ## 2. Plan
 Write `<plans><today>-<slug>.md`: tasks by layer (layer names from describe), dependencies, owner agent, files. `gate.sh -C <worktree> scope techlead <base>`; commit `docs(<slug>): plan for #<n>`; `plan=$(git -C <wt> rev-parse HEAD)` (on a resumed card: the plan commit).
@@ -41,11 +41,11 @@ Call `qa-engineer` with `issue spec plan worktree tmp` and the layers block of d
 
 ## 5. Up to date with main
 Other cards merge while this one is built; the branch must work on top of them.
-- `git -C <wt> fetch origin` and `git -C <wt> merge --no-edit origin/<main>`. Conflicts → each file to its owner agent with the conflict hunks as `findings` (never drop main's changes); commit the merge.
-- `mb=$(git -C <wt> merge-base HEAD origin/<main>)`; then `gate.sh -C <wt> migration <mb> <spec>` (a migration version main took meanwhile fails here: the owner agent renumbers the card's migration above main's newest), `gate.sh -C <wt> acceptance-intact <qa>`, `gate.sh -C <wt> build <mb>` and every `green` gate. Failures follow the step 4 rule.
+- `git -C <wt> fetch origin` and `git -C <wt> merge --no-edit -m "Merge origin/<main> into feat/<n>-<slug>" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" origin/<main>`. Conflicts → each file to its owner agent with the conflict hunks as `findings` (never drop main's changes); commit the merge.
+- `mb=$(git -C <wt> merge-base HEAD origin/<main>)`; then `gate.sh -C <wt> forbidden <mb>`, `gate.sh -C <wt> migration <mb> <spec>` (a migration version main took meanwhile fails here: the owner agent renumbers the card's migration above main's newest), `gate.sh -C <wt> acceptance-intact <qa>`, `gate.sh -C <wt> build <mb>` and every `green` gate. Failures follow the step 4 rule.
 
 ## 6. Hand over to validation
-`git -C <wt> push -u origin feat/<n>-<slug>`; `board.sh move <n> Validation`. The validar pipeline reviews it, opens the PR and stages it.
+`git -C <wt> push -u origin feat/<n>-<slug>`; write the report (step 8); then `board.sh move <n> Validation` as the last action (another pipeline may start on the card right after). The validar pipeline reviews it, opens the PR and stages it.
 
 ## 7. Failure rule
 Label `blocked`, comment step + gate output (no personal data) + what was tried, leave the card, report `outcome: blocked`. Infrastructure errors are not rounds.
