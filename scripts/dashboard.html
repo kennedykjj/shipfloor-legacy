@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aghanim's Anvil</title>
+<style>
+:root {
+  --ground: #0d1014;
+  --panel: #151a21;
+  --panel-hi: #1b212a;
+  --edge: #262e39;
+  --edge-hi: #36404e;
+  --text: #ebe5d5;
+  --muted: #8f8b80;
+  --faint: #5f6068;
+  --gold: #e2b356;
+  --gold-soft: rgba(226, 179, 86, .28);
+  --azure: #63b2ff;
+  --azure-soft: rgba(99, 178, 255, .16);
+  --azure-ink: #0b2440;
+  --ok: #7cc58a;
+  --bad: #f06a5f;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --ground: #e9ecf0;
+    --panel: #f5f7f9;
+    --panel-hi: #ffffff;
+    --edge: #d8dde4;
+    --edge-hi: #c3cad4;
+    --text: #23262b;
+    --muted: #6b6a66;
+    --faint: #9b9890;
+    --gold: #855a0c;
+    --gold-soft: rgba(154, 107, 18, .25);
+    --azure: #1f6fd1;
+    --azure-soft: rgba(31, 111, 209, .1);
+    --azure-ink: #ffffff;
+    --ok: #2f7d43;
+    --bad: #c23b31;
+    --shadow: 0 10px 30px rgba(40, 36, 28, .14);
+    color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--ground); color: var(--text);
+  font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+::selection { background: var(--azure-soft); color: var(--text); }
+a { color: inherit; text-decoration-color: var(--edge-hi); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+button, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--azure); outline-offset: 2px; border-radius: 3px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.gold { color: var(--gold); }
+.coin::before {
+  content: ""; display: inline-block; width: .5em; height: .5em; margin-right: .32em;
+  border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 1px var(--gold-soft); vertical-align: .08em;
+}
+.est { color: var(--faint); font-size: 11px; margin-left: 4px; font-family: var(--sans); letter-spacing: 0; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 8px; border: 2px solid var(--ground); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* top strip */
+header {
+  display: flex; align-items: stretch; gap: 0; padding: 0 20px;
+  border-bottom: 1px solid var(--edge); background: var(--panel); flex: none;
+}
+.brand { display: flex; align-items: center; padding-right: 22px; margin-right: 6px; border-right: 1px solid var(--edge); }
+.brand b { font-weight: 600; letter-spacing: .01em; }
+.stat { padding: 11px 18px; border-right: 1px solid var(--edge); display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.stat .v { font-size: 19px; font-weight: 600; line-height: 1.15; white-space: nowrap; }
+.stat .v small { font-size: 13px; color: var(--faint); font-weight: 500; }
+.stat .k { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
+.slots { display: flex; gap: 14px; }
+.slot .v { font-size: 15px; }
+.meter { height: 3px; background: var(--edge); border-radius: 2px; margin-top: 5px; overflow: hidden; width: 100%; }
+.meter i { display: block; height: 100%; background: var(--text); opacity: .75; }
+.await .v { color: var(--azure); }
+.await .list { display: flex; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+.await .list button {
+  border: 1px solid var(--azure-soft); background: var(--azure-soft); color: var(--azure);
+  border-radius: 4px; padding: 0 6px; font: 12px var(--mono); cursor: pointer;
+}
+.await .list button:hover { border-color: var(--azure); }
+.state { margin-left: auto; border-right: 0; align-items: flex-end; text-align: right; }
+.flags { display: flex; gap: 8px; justify-content: flex-end; }
+.flag { font-size: 12px; padding: 1px 7px; border-radius: 4px; border: 1px solid var(--edge-hi); color: var(--muted); }
+.flag.warn { color: var(--gold); border-color: var(--gold-soft); }
+.flag.bad { color: var(--bad); border-color: currentColor; }
+select { background: var(--panel-hi); border: 1px solid var(--edge); border-radius: 4px; padding: 2px 6px; }
+
+/* board */
+main { flex: 1; display: flex; min-height: 0; position: relative; }
+.board { flex: 1; display: flex; overflow-x: auto; min-width: 0; }
+.col { flex: 1 1 180px; min-width: 166px; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--edge); }
+.col.none { flex: 0 0 92px; min-width: 92px; }
+.col.none h2 { white-space: normal; line-height: 1.3; }
+.col:last-child { border-right: 0; }
+.col h2 {
+  margin: 0; padding: 14px 14px 10px; font-size: 12px; font-weight: 600; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: baseline; flex: none;
+}
+.col h2 .n { color: var(--faint); font-weight: 500; }
+.col.owner h2 { color: var(--text); }
+.col .cards { overflow-y: auto; padding: 0 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.col .empty { color: var(--faint); font-size: 12px; padding: 4px 4px 0; }
+
+.card {
+  flex: none; position: relative; display: block; width: 100%; text-align: left; cursor: pointer;
+  background: linear-gradient(180deg, var(--panel-hi), var(--panel));
+  border: 1px solid var(--edge); border-top-color: var(--edge-hi); border-radius: 6px;
+  padding: 9px 10px 9px; overflow: hidden; transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+.card:hover { border-color: var(--edge-hi); transform: translateY(-1px); box-shadow: var(--shadow); }
+.card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card .no { font-size: 12.5px; color: var(--muted); }
+.card .cost { font-size: 12.5px; }
+.card .title { margin-top: 3px; font-size: 13px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .run { margin-top: 6px; font-size: 11.5px; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.card .run .dial {
+  width: 13px; height: 13px; border-radius: 50%; flex: none;
+  background: conic-gradient(var(--gold) var(--sweep, 90deg), var(--edge-hi) 0);
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--gold-soft);
+  animation: sweep 6s linear infinite;
+}
+@property --sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes sweep { from { --sweep: 0deg; } to { --sweep: 360deg; } }
+.card.running { border-color: var(--edge-hi); }
+.card.await { border-color: var(--azure); box-shadow: 0 0 0 1px var(--azure) inset; background: linear-gradient(180deg, var(--azure-soft), var(--panel)); }
+.card.await .waits { margin-top: 6px; font-size: 11.5px; color: var(--azure); }
+.card.moving { opacity: .55; }
+.card.open { border-color: var(--gold); }
+@media (prefers-reduced-motion: reduce) {
+  .card .run .dial { animation: none; --sweep: 90deg; }
+  .card, .drawer { transition: none; }
+}
+
+/* drawer: the item tooltip */
+.drawer {
+  width: 0; flex: none; overflow: hidden; border-left: 1px solid var(--edge); background: var(--panel);
+  display: flex; flex-direction: column;
+}
+.drawer.open { width: min(660px, 52vw); }
+.drawer.wide { width: min(1180px, 72vw); }
+.tip-head { padding: 16px 20px 12px; border-bottom: 1px solid var(--gold-soft); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); flex: none; }
+.tip-head .row1 { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.tip-head h3 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3; }
+.tip-head h3 .num { color: var(--muted); font-weight: 500; margin-right: 6px; }
+.tip-head .total { font-size: 20px; font-weight: 600; white-space: nowrap; }
+.tip-head .meta { margin-top: 6px; font-size: 12.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+.tip-head .close { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; }
+.tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--edge); flex: none; }
+.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 10px 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--gold); }
+.tabs button .b { margin-left: 5px; font: 11px var(--mono); color: var(--faint); }
+.pane { flex: 1; overflow: auto; min-height: 0; }
+.section-k { font-size: 11px; color: var(--azure); letter-spacing: .02em; margin: 14px 20px 6px; font-weight: 600; }
+
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th { text-align: right; font-weight: 500; color: var(--faint); font-size: 11px; padding: 10px 6px 6px; border-bottom: 1px solid var(--edge); white-space: nowrap; position: sticky; top: 0; background: var(--panel); }
+td { text-align: right; padding: 7px 6px; border-bottom: 1px solid var(--edge); white-space: nowrap; }
+th:first-child, td:first-child { padding-left: 20px; text-align: left; }
+th:last-child, td:last-child { padding-right: 20px; }
+th.l, td.l { text-align: left; }
+tbody tr.session { cursor: pointer; }
+tbody tr.session:hover td { background: var(--azure-soft); }
+tr.sub td { color: var(--muted); font-size: 12px; border-bottom-style: dashed; }
+tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
+.subtoggle { background: none; border: 1px solid var(--edge); border-radius: 4px; padding: 0 5px; font: 11px var(--mono); color: var(--muted); cursor: pointer; margin-left: 6px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); } .muted { color: var(--muted); }
+.unpriced { color: var(--gold); cursor: help; text-decoration: underline dotted; }
+
+.log { margin: 0; padding: 14px 20px 30px; font: 12px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--text); }
+.logbar { display: flex; gap: 10px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); position: sticky; top: 0; background: var(--panel); }
+
+.gate-run { padding: 4px 20px 14px; border-bottom: 1px solid var(--edge); }
+.gate-run .h { display: flex; justify-content: space-between; font-size: 13px; padding-top: 10px; }
+.gate-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.gate { font: 11.5px var(--mono); padding: 2px 7px; border-radius: 4px; border: 1px solid var(--edge); }
+.gate.pass { color: var(--ok); }
+.gate.fail { color: var(--bad); border-color: currentColor; }
+.notes { margin-top: 8px; color: var(--muted); font-size: 12.5px; }
+
+.decide { padding: 14px 20px; border-bottom: 1px solid var(--edge); display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; flex: none; }
+.btn { border-radius: 5px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--edge-hi); background: var(--panel-hi); white-space: nowrap; }
+.btn:hover { border-color: var(--text); }
+.btn.approve { background: var(--azure); border-color: var(--azure); color: var(--azure-ink); font-weight: 600; box-shadow: 0 0 0 1px var(--gold-soft); }
+.btn.approve:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .5; cursor: progress; }
+textarea { width: 100%; min-height: 38px; height: 38px; resize: vertical; background: var(--ground); border: 1px solid var(--edge); border-radius: 5px; padding: 7px 9px; }
+textarea:focus { height: 90px; }
+.notice { grid-column: 1 / -1; font-size: 12.5px; color: var(--bad); }
+.notice.good { color: var(--ok); }
+iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
+.review { display: flex; flex-direction: column; height: 100%; }
+.placeholder { padding: 20px; color: var(--muted); }
+.skeleton { height: 14px; margin: 14px 20px; border-radius: 4px; background: linear-gradient(90deg, var(--edge), var(--panel-hi), var(--edge)); background-size: 200% 100%; animation: shimmer 1.2s ease infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+@media (max-width: 860px) {
+  header { flex-wrap: wrap; padding: 0 12px; }
+  .brand { width: 100%; border-right: 0; padding: 10px 0 2px; }
+  .stat { padding: 8px 12px 8px 0; border-right: 0; }
+  .state { margin-left: 0; align-items: flex-start; text-align: left; }
+  .drawer.open, .drawer.wide { position: absolute; inset: 0; width: 100%; z-index: 2; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>Aghanim's Anvil</b></div>
+  <div class="stat"><div class="v num" id="pool">–</div><div class="k">pool in use</div></div>
+  <div class="stat"><div class="slots" id="slots"></div></div>
+  <div class="stat"><div class="v num" id="today">–</div><div class="k" id="today-k">runs today</div></div>
+  <div class="stat"><div class="v num gold" id="cost">–</div><div class="k">spent today <span class="est">est.</span></div></div>
+  <div class="stat await"><div class="v num" id="await-n">–</div><div class="k">awaiting you</div><div class="list" id="await-list"></div></div>
+  <div class="stat state"><div class="flags" id="flags"></div><div class="k" id="age"></div></div>
+</header>
+<main>
+  <section class="board" id="board" aria-label="Board"></section>
+  <aside class="drawer" id="drawer" aria-label="Card"></aside>
+</main>
+<script>
+"use strict";
+const COLUMNS = ["Inbox", "Ready for Refinement", "Technical Refinement", "Spec Review", "Ready for Dev", "Coding", "Validation", "Staged", "Ready for Prod", "Done"];
+const OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
+const token = new URLSearchParams(location.search).get("t") || "";
+const S = { overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, expanded: {} };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+async function api(path, opts = {}) {
+  try {
+    const r = await fetch(path, { ...opts, headers: { "X-Aghanim-Token": token, "Content-Type": "application/json", ...(opts.headers || {}) } });
+    const body = await r.json().catch(() => ({}));
+    setOffline(false);
+    return { status: r.status, body };
+  } catch (e) {
+    setOffline(true);
+    return { status: 0, body: { error: "the dashboard server is not answering" } };
+  }
+}
+function setOffline(v) { if (S.offline !== v) { S.offline = v; renderFlags(); } }
+
+const money = (v) => v == null ? '<span class="unpriced" title="A model in this card has no price. Add it to ~/.aghanim/prices.yml.">$ ?</span>' : `<span class="coin">${v.toFixed(2)}</span>`;
+function tok(n) { if (!n) return "–"; if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
+function when(iso) { if (!iso) return "–"; const d = new Date(iso); const t = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }) + " " + t; }
+function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
+function ago(s) { if (s == null) return "no board snapshot yet"; if (s < 90) return `board read ${s}s ago`; return `board read ${Math.round(s / 60)} min ago`; }
+const model = (m) => (m || "").replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, " $1.$2");
+
+/* overview */
+async function loadOverview() {
+  const { status, body } = await api("/api/overview");
+  if (status !== 200) return;
+  S.overview = body;
+  if (!S.project || !body.projects.some((p) => p.slug === S.project)) S.project = body.projects[0]?.slug || null;
+  for (const key of Object.keys(S.moving)) {
+    const [p, n] = key.split("/"); const card = cardOf(p, +n);
+    if (!card || card.column !== S.moving[key]) delete S.moving[key];
+  }
+  renderStrip(); renderBoard();
+}
+const project = () => S.overview?.projects.find((p) => p.slug === S.project);
+const cardOf = (p, n) => S.overview?.projects.find((x) => x.slug === p)?.cards.find((c) => c.issue === n);
+
+function renderStrip() {
+  const o = S.overview;
+  $("pool").innerHTML = `${o.pool.used}<small>/${o.pool.size}</small>`;
+  $("slots").innerHTML = Object.entries(o.pool.stages).map(([st, v]) =>
+    `<div class="slot"><div class="v num">${v.running}<small>/${v.slots}</small></div><div class="k">${esc(st)}</div><div class="meter"><i style="width:${v.slots ? Math.round(100 * v.running / v.slots) : 0}%"></i></div></div>`).join("");
+  $("today").innerHTML = `${o.today.runs}`;
+  $("today-k").innerHTML = `runs today · <span class="ok">${o.today.ok} ok</span>${o.today.failed ? ` · <span class="bad">${o.today.failed} failed</span>` : ""}`;
+  $("cost").innerHTML = `<span class="coin">${o.today.cost.toFixed(2)}</span>`;
+  const waiting = o.projects.flatMap((p) => p.cards.filter((c) => c.awaiting).map((c) => ({ ...c, p: p.slug })));
+  $("await-n").textContent = waiting.length;
+  $("await-list").innerHTML = waiting.map((c) => `<button data-open="${esc(c.p)}/${c.issue}" title="${esc(c.column)}: ${esc(c.title)}">#${c.issue}</button>`).join("");
+  renderFlags();
+}
+function renderFlags() {
+  const o = S.overview; const f = [];
+  if (S.offline) f.push('<span class="flag bad">offline</span>');
+  if (o?.paused) f.push('<span class="flag warn">paused</span>');
+  if (o?.usage_limited) f.push('<span class="flag warn">usage limit hit</span>');
+  const orphans = (o?.runs || []).filter((r) => r.orphan);
+  if (orphans.length) f.push(`<span class="flag warn" title="${orphans.map((r) => `${r.stage}-${r.issue}.lock`).join(", ")}">${orphans.length} orphaned lock${orphans.length > 1 ? "s" : ""}</span>`);
+  if (o && o.projects.length > 1) f.push(`<select id="proj" aria-label="Project">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select>`);
+  if (!f.length) f.push('<span class="flag">running</span>');
+  $("flags").innerHTML = f.join("");
+  const p = project();
+  $("age").textContent = p ? ago(p.board_age_s) + (p.paused ? " · project paused" : "") : "";
+}
+
+function renderBoard() {
+  const p = project();
+  if (!p) { $("board").innerHTML = '<p class="placeholder">No project registered. Run <code>aghanim add &lt;repo&gt;</code>.</p>'; return; }
+  const by = Object.fromEntries(COLUMNS.map((c) => [c, []]));
+  for (const c of p.cards) (by[c.column] ||= []).push(c);
+  $("board").innerHTML = COLUMNS.map((col) => {
+    const cards = by[col];
+    return `<div class="col ${OWNER[col] ? "owner" : ""} ${cards.length ? "" : "none"}"><h2>${esc(col)}<span class="n num">${cards.length || ""}</span></h2><div class="cards">${
+      cards.map((c) => cardHtml(p.slug, c)).join("")}</div></div>`;
+  }).join("");
+}
+function cardHtml(slug, c) {
+  const key = `${slug}/${c.issue}`; const moving = key in S.moving;
+  const cls = ["card", c.running ? "running" : "", c.awaiting && !moving ? "await" : "", moving ? "moving" : "", S.open === key ? "open" : ""].join(" ");
+  const extra = moving ? '<div class="waits">moving…</div>'
+    : c.running ? `<div class="run"><span class="dial" aria-hidden="true"></span>${esc(c.running)} running</div>`
+    : c.awaiting ? `<div class="waits">${c.column === "Staged" ? "ready to ship" : "spec to review"}</div>` : "";
+  return `<button class="${cls}" data-open="${esc(key)}"><div class="top"><span class="no num">#${c.issue}</span><span class="cost num gold">${c.cost ? money(c.cost) : ""}</span></div>
+    <div class="title">${esc(c.title) || `Issue #${c.issue}`}</div>${extra}</button>`;
+}
+
+/* drawer */
+async function openCard(key, tab) {
+  S.open = key; S.tab = tab || (S.open === key && S.tab) || "sessions"; S.card = null; S.log = null; S.logNext = -1; S.logText = "";
+  renderBoard(); renderDrawer(); await loadCard();
+}
+function closeCard() { S.open = null; S.card = null; renderBoard(); renderDrawer(); }
+async function loadCard() {
+  if (!S.open) return;
+  const [p, n] = S.open.split("/");
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}`);
+  if (status !== 200 || S.open !== `${p}/${n}`) return;
+  S.card = body;
+  if (!S.log) S.log = [...body.runs].reverse()[0]?.log || null;
+  renderDrawer();
+}
+function renderDrawer() {
+  const d = $("drawer");
+  d.className = "drawer" + (S.open ? " open" : "") + (S.open && S.tab === "review" ? " wide" : "");
+  if (!S.open) { d.innerHTML = ""; return; }
+  const c = S.card; const [p, n] = S.open.split("/"); const ov = cardOf(p, +n);
+  const column = c?.column || ov?.column || "";
+  const sessions = c?.sessions || [];
+  const span = sessions.length ? dur(sessions[0].start, sessions[sessions.length - 1].end) : "–";
+  const issue = c?.repo ? `<a href="https://github.com/${esc(c.repo)}/issues/${n}" target="_blank" rel="noopener">issue</a>` : "";
+  const tabs = [["sessions", "Sessions", sessions.length], ["log", "Log", ""], ["gates", "Gates", c?.reports.length || ""], ["review", "Review", ""]];
+  d.innerHTML = `<div class="tip-head"><div class="row1"><h3><span class="num">#${n}</span>${esc(c?.title || ov?.title || "")}</h3>
+      <div><span class="total num gold">${c ? money(c.total) : ""}</span><span class="est">est.</span> <button class="close" data-close aria-label="Close">Close</button></div></div>
+      <div class="meta"><span>${esc(column)}</span>${issue ? `<span>${issue}</span>` : ""}<span>${sessions.length} session${sessions.length === 1 ? "" : "s"}</span><span>first to last run ${span}</span>${ov?.running ? `<span>${esc(ov.running)} running</span>` : ""}</div></div>
+    <nav class="tabs" role="tablist">${tabs.map(([id, label, b]) => `<button role="tab" aria-selected="${S.tab === id}" data-tab="${id}">${label}${b !== "" ? `<span class="b">${b}</span>` : ""}</button>`).join("")}</nav>
+    <div class="pane" id="pane">${c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>'}</div>`;
+}
+function pane(c, p, n, column) {
+  if (S.tab === "sessions") return sessionsPane(c);
+  if (S.tab === "log") return logPane(c);
+  if (S.tab === "gates") return gatesPane(c);
+  return reviewPane(c, p, n, column);
+}
+function sessionsPane(c) {
+  if (!c.sessions.length) return '<p class="placeholder">No factory session for this card yet. Sessions appear here once the dispatcher runs a stage for it.</p>';
+  const rows = c.sessions.map((s) => {
+    const m = Object.keys(s.tokens); const t = sum(s.tokens);
+    const subs = s.subagents.length ? `<button class="subtoggle" data-sub="${esc(s.id)}">+${s.subagents.length} sub</button>` : "";
+    const exit = s.exit == null ? (s.log ? '<span class="gold">running</span>' : "–") : s.exit === 0 ? '<span class="ok">ok</span>' : `<span class="bad">exit ${s.exit}</span>`;
+    let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(new Date(s.start).toLocaleString())}">${when(s.start)}</td><td class="l">${esc(s.stage)} <span class="muted">${esc(m.map(model).join(", "))}</span>${subs}</td>
+      <td class="num">${tok(t.input)}</td><td class="num">${tok(t.cache_write_5m + t.cache_write_1h)}</td><td class="num">${tok(t.cache_read)}</td><td class="num">${tok(t.output)}</td>
+      <td class="num">${dur(s.start, s.end)}</td><td>${exit}</td><td class="num gold">${money(s.cost)}</td></tr>`;
+    if (S.expanded[s.id]) html += s.subagents.map((a) => { const u = sum(a.tokens); return `<tr class="sub"><td class="l"></td><td class="l">subagent <span class="muted">${esc(Object.keys(a.tokens).map(model).join(", "))}</span></td>
+      <td class="num">${tok(u.input)}</td><td class="num">${tok(u.cache_write_5m + u.cache_write_1h)}</td><td class="num">${tok(u.cache_read)}</td><td class="num">${tok(u.output)}</td><td></td><td></td><td class="num">${money(a.cost)}</td></tr>`; }).join("");
+    return html;
+  }).join("");
+  return `<div class="section-k">Cost by session</div><table><thead><tr><th class="l">start</th><th class="l">stage · model</th><th>input</th><th>cache write</th><th>cache read</th><th>output</th><th>time</th><th>result</th><th>cost <span class="est">est.</span></th></tr></thead>
+    <tbody>${rows}<tr class="total"><td class="l" colspan="8">Total, Inbox to now</td><td class="num gold">${money(c.total)}</td></tr></tbody></table>`;
+}
+function sum(tokens) {
+  const t = { input: 0, cache_write_5m: 0, cache_write_1h: 0, cache_read: 0, output: 0 };
+  for (const m of Object.values(tokens)) for (const k in t) t[k] += m[k] || 0;
+  return t;
+}
+function logPane(c) {
+  const logs = [...new Set(c.runs.map((r) => r.log))].reverse();
+  if (!logs.length) return '<p class="placeholder">No log for this card yet.</p>';
+  return `<div class="logbar">Log <select id="logsel" aria-label="Log file">${logs.map((l) => `<option ${l === S.log ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><span>follows while open</span></div>
+    <pre class="log" id="log">${esc(S.logText) || "Loading…"}</pre>`;
+}
+function gatesPane(c) {
+  if (!c.reports.length) return '<p class="placeholder">No report yet. Each stage writes one when it ends.</p>';
+  return [...c.reports].reverse().map((r) => {
+    const gates = Object.entries(r.gates || {});
+    const failed = new Set(r.failed_gates || []);
+    return `<div class="gate-run"><div class="h"><b>${esc(r.pipeline)}</b><span class="${r.outcome === "ok" ? "ok" : "bad"}">${esc(r.outcome)}</span></div>
+      <div class="gate-list">${gates.map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`).join("") || '<span class="notes">No gates recorded.</span>'}</div>
+      ${r.notes ? `<div class="notes">${esc(r.notes)}</div>` : ""}</div>`;
+  }).join("");
+}
+function reviewPane(c, p, n, column) {
+  const moves = OWNER[column];
+  const decide = moves ? `<div class="decide"><button class="btn approve" data-act="approve">Approve → ${esc(moves[0])}</button>
+      <textarea id="changes" placeholder="What should change (posted as a comment on the issue)"></textarea>
+      <button class="btn" data-act="request-changes">Request changes → ${esc(moves[1])}</button><div class="notice" id="notice"></div></div>`
+    : `<div class="decide"><div class="notice" style="color:var(--muted)">Nothing to decide: the card is in ${esc(column || "no column")}. Approval opens in Spec Review and Staged.</div></div>`;
+  const page = c.review ? `<iframe title="Review page" src="/review/${encodeURIComponent(p)}/${n}?t=${encodeURIComponent(token)}"></iframe>` : '<p class="placeholder">No review page for this card. Refine builds it when the spec is ready.</p>';
+  return `<div class="review">${decide}${page}</div>`;
+}
+
+async function act(action, moveOnly) {
+  const [p, n] = S.open.split("/"); const column = S.card?.column;
+  const text = $("changes")?.value || "";
+  const notice = $("notice");
+  document.querySelectorAll(".decide .btn").forEach((b) => (b.disabled = true));
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${action}`, { method: "POST", body: JSON.stringify({ column, text, move_only: !!moveOnly }) });
+  document.querySelectorAll(".decide .btn").forEach((b) => (b.disabled = false));
+  if (status === 200) {
+    S.moving[`${p}/${n}`] = body.moved_to;
+    notice.className = "notice good"; notice.textContent = `Moved to ${body.moved_to}. The board confirms it on the dispatcher's next read.`;
+    renderBoard(); return;
+  }
+  notice.className = "notice";
+  if (status === 502 && body.commented) {
+    notice.innerHTML = `${esc(body.error)}. The comment is on the issue. <button class="btn" data-retry="${esc(action)}">Retry the move</button>`;
+  } else {
+    notice.textContent = body.error || "The action failed.";
+    if (status === 409) loadCard();
+  }
+}
+
+async function followLog() {
+  if (!S.open || S.tab !== "log" || !S.log) return;
+  const [p] = S.open.split("/");
+  const { status, body } = await api(`/api/log/${encodeURIComponent(p)}/${encodeURIComponent(S.log)}?from=${S.logNext}`);
+  if (status !== 200) return;
+  if (body.text) {
+    S.logText += body.text; const pre = $("log");
+    if (pre) { const atEnd = pre.parentElement.scrollTop + pre.parentElement.clientHeight >= pre.parentElement.scrollHeight - 40; pre.textContent = S.logText; if (atEnd) pre.parentElement.scrollTop = pre.parentElement.scrollHeight; }
+  } else if ($("log") && !S.logText) $("log").textContent = "(empty)";
+  S.logNext = body.next;
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-open],[data-close],[data-tab],[data-sub],[data-act],[data-retry],tr.session");
+  if (!t) return;
+  if (t.dataset.open) openCard(t.dataset.open);
+  else if (t.hasAttribute("data-close")) closeCard();
+  else if (t.dataset.tab) { S.tab = t.dataset.tab; renderDrawer(); if (S.tab === "log") followLog(); }
+  else if (t.dataset.sub) { e.stopPropagation(); S.expanded[t.dataset.sub] = !S.expanded[t.dataset.sub]; renderDrawer(); }
+  else if (t.dataset.act) act(t.dataset.act);
+  else if (t.dataset.retry) act(t.dataset.retry, true);
+  else if (t.matches("tr.session") && t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; S.tab = "log"; renderDrawer(); followLog(); }
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "logsel") { S.log = e.target.value; S.logNext = -1; S.logText = ""; renderDrawer(); followLog(); }
+  if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.open && document.activeElement?.id !== "changes") closeCard(); });
+
+loadOverview();
+setInterval(loadOverview, 5000);
+setInterval(() => { if (S.open && (S.tab === "sessions" || S.tab === "gates")) loadCard(); }, 5000);
+setInterval(followLog, 2000);
+</script>
+</body>
+</html>
