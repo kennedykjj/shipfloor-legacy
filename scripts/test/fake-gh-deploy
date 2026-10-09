@@ -6,7 +6,7 @@ remote="$(cat "$d/remote")"; pr="$(cat "$d/pr")"; branch="$(cat "$d/branch")"
 head() { if [ -e "$d/prhead" ]; then cat "$d/prhead"; else git --git-dir="$remote" rev-parse "refs/heads/$branch" 2>/dev/null; fi; }
 case "$args" in
   "api user"*) echo factory ;;
-  "pr list"*"--state open"*) [ -e "$d/no-pr" ] || [ -e "$d/merged" ] || printf '%s\t%s\tfalse\n' "$pr" "$branch" ;;
+  "pr list"*"--state open"*) [ -e "$d/no-pr" ] || [ -e "$d/merged" ] || printf '%s\t%s\tfalse\t%s\n' "$pr" "$branch" "$(head)" ;;
   "pr list"*"--state merged"*) if [ -e "$d/merged" ]; then printf '%s\t%s\t%s\n' "$pr" "$branch" "$(cat "$d/merged")"; fi ;;
   "pr view $pr"*"headRefOid,statusCheckRollup"*) printf '%s %s\n' "$(head)" "$(cat "$d/ci")" ;;
   "pr view $pr"*"mergeCommit"*) cat "$d/merged" 2>/dev/null ;;

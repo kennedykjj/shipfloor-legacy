@@ -26,6 +26,10 @@ TRAILER="Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 START="$(date +%s)"; BRANCH=""; PR=""
 polls() { local secs="$1"; [ "$POLL" -gt 0 ] && echo $(( secs / POLL + 1 )) || echo 60; }
 
+TAB=$'\t'
+# the PR's branch as one whole tab-separated field; inside a bracket expression "\t" is a backslash
+# and a "t", not a tab, so the tab is spliced in
+PR_FIELD="${TAB}(feat/$n-[^${TAB}]*|revert/$n)${TAB}"
 say() { echo "deploy #$n: $*"; }
 g() { git -C "$WT" "$@"; }
 comment() { "$GH" issue comment "$n" --repo "$REPO" --body "$1" >/dev/null || { say "could not comment on #$n"; return 1; }; }
@@ -65,14 +69,14 @@ elif [ "$status" != "Ready for Prod" ]; then
   say "#$n is in '$status', not Ready for Prod"; exit 2
 fi
 ME="$("$GH" api user --jq .login)" || retry_later "cannot read the GitHub user"
-list="$("$GH" pr list --repo "$REPO" --state open --base "$MAIN" --json number,headRefName,isCrossRepository \
-  --jq '.[] | "\(.number)\t\(.headRefName)\t\(.isCrossRepository)"')" || retry_later "cannot list PRs"
-prs="$(printf '%s\n' "$list" | grep -E $'\t'"(feat/$n-[^\t]*|revert/$n)"$'\t' || true)"
+list="$("$GH" pr list --repo "$REPO" --state open --base "$MAIN" --json number,headRefName,isCrossRepository,headRefOid \
+  --jq '.[] | "\(.number)\t\(.headRefName)\t\(.isCrossRepository)\t\(.headRefOid)"')" || retry_later "cannot list PRs"
+prs="$(printf '%s\n' "$list" | grep -E -- "$PR_FIELD" || true)"
 
 resume_merged() {  # the PR was merged by an earlier run that stopped before production was checked
   local m; m="$("$GH" pr list --repo "$REPO" --state merged --base "$MAIN" --json number,headRefName,mergeCommit \
     --jq '.[] | "\(.number)\t\(.headRefName)\t\(.mergeCommit.oid // "")"')" || retry_later "cannot list merged PRs"
-  m="$(printf '%s\n' "$m" | grep -E $'\t'"(feat/$n-[^\t]*|revert/$n)"$'\t' | head -1)"
+  m="$(printf '%s\n' "$m" | grep -E -- "$PR_FIELD" | head -1)"
   [ -n "$m" ] || return 1
   PR="${m%%$'\t'*}"; m="${m#*$'\t'}"; BRANCH="${m%%$'\t'*}"; MERGED="${m#*$'\t'}"
   [[ "$MERGED" =~ ^[0-9a-f]{40}$ ]] || return 1
@@ -85,12 +89,11 @@ if [ "$(printf '%s' "$prs" | grep -c .)" -ne 1 ]; then
   if [ -z "$prs" ] && resume_merged; then RESUMED=1; else block "expected one open PR for #$n, found: ${prs:-none}"; fi
 else
   RESUMED=0
-  PR="${prs%%$'\t'*}"; rest="${prs#*$'\t'}"; BRANCH="${rest%%$'\t'*}"
-  [ "${rest#*$'\t'}" = false ] || block "PR #$PR comes from a fork; the factory deploys only its own branches"
+  IFS=$'\t' read -r PR BRANCH cross HEAD_SHA <<< "$prs"
+  [ "$cross" = false ] || block "PR #$PR comes from a fork; the factory deploys only its own branches"
 fi
 
 if [ "$RESUMED" = 0 ]; then
-  HEAD_SHA="$("$GH" pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)" || retry_later "cannot read PR #$PR"
   [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || retry_later "PR #$PR has no head sha"
 
   # 2. approval: the factory's own comments only. The newest staged-head is the owner-approved commit
@@ -174,11 +177,7 @@ fast_gates() {  # deterministic checks only: CI runs build and tests on this exa
   esac
   slug="${BRANCH#feat/$n-}"; spec="$(ls "$WT/$SPECS"*-"$slug"-design.md 2>/dev/null | head -1)"
   qa="$(g log --format=%H -1 -E --grep "acceptance tests for #$n([^0-9]|\$)" "$mb..HEAD")"
-  {
-    bash "$GATE" -C "$WT" forbidden "$mb" &&
-    bash "$GATE" -C "$WT" migration "$mb" "${spec:-/dev/null}" &&
-    { [ -z "$qa" ] || bash "$GATE" -C "$WT" acceptance-intact "$qa"; }
-  } >"$TMP/gates.txt" 2>&1
+  bash "$GATE" -C "$WT" fast "$mb" "${spec:-/dev/null}" $qa >"$TMP/gates.txt" 2>&1
 }
 
 wait_checks() {  # wait_checks <sha>: 0 green, 1 red or timed out

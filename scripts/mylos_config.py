@@ -502,6 +502,12 @@ def main(argv):
         if not mig:
             return 0
         return migration_check(mig["version"], sys.stdin.read().splitlines())
+    if cmd == "migration-layers" and not rest:  # main branch, then <layer>	<ERE>	<comment> per layer with migrations
+        print(cfg.data["project"]["main"])
+        for l in cfg.layers:
+            if l["migrations"]:
+                print(f"{l['name']}	{l['_migrations_re']}	{l['migrations']['comment']}")
+        return 0
     if cmd == "regex" and rest == ["tests-only"]:  # areas only QA writes, even inside an implementer's path
         print(any_of([t for l in cfg.layers if l["tests_only"] for t in l["tests"]])); return 0
     if cmd == "regex" and rest == ["test-config"]:
