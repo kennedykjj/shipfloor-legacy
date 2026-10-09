@@ -62,6 +62,18 @@ assert_exit 0 bash "$M" migrate-home "$old"
 assert_exit 0 git -C "$AGHANIM_HOME/projects/shop/control" status
 case "$(git -C "$repo" worktree list --porcelain)" in *prunable*) fail "worktree left prunable" ;; *) pass "worktree relinked" ;; esac
 
+# the registry follows the move, and card worktrees under wt/ stay linked
+read -r old repo <<< "$(mk_old)"
+git -C "$repo" worktree add -q -b feat/12-x "$old/projects/shop/wt/12" main
+printf 'shop	%s	%s	main
+' "$repo" "$old/projects/shop/wt" > "$old/registry.tsv"
+export AGHANIM_HOME="$(mktemp -d)/.aghanim"
+assert_exit 0 bash "$M" migrate-home "$old"
+assert_contains "$(cat "$AGHANIM_HOME/registry.tsv")" "$AGHANIM_HOME/projects/shop/wt"
+case "$(cat "$AGHANIM_HOME/registry.tsv")" in *"$old"*) fail "registry still points at the old home" ;; *) pass "registry rewritten" ;; esac
+case "$(git -C "$repo" worktree list --porcelain)" in *prunable*) fail "card worktree left prunable" ;; *) pass "card worktree relinked" ;; esac
+assert_exit 0 git -C "$AGHANIM_HOME/projects/shop/wt/12" status
+
 # refuses while a run holds a lock
 read -r old repo <<< "$(mk_old)"; mkdir "$old/projects/shop/locks/develop-12.lock"
 export AGHANIM_HOME="$(mktemp -d)/.aghanim"
@@ -76,4 +88,11 @@ assert_exit 1 bash "$M" migrate-home "$old"
 
 # missing old home
 assert_exit 1 bash "$M" migrate-home "$(mktemp -d)/nope"
+
+# install drops files the plugin no longer ships (the old mylos scripts after migrate-home)
+export AGHANIM_HOME="$(mktemp -d)"; mkdir -p "$AGHANIM_HOME/factory"
+echo stale > "$AGHANIM_HOME/factory/mylos-dispatch.sh"
+assert_exit 0 bash "$M" install
+[ ! -e "$AGHANIM_HOME/factory/mylos-dispatch.sh" ] && pass "stale installed file removed" || fail "stale installed file kept"
+[ -f "$AGHANIM_HOME/factory/gate.sh" ] && [ -f "$AGHANIM_HOME/factory/.source" ] && pass "install still complete" || fail "install incomplete"
 finish
