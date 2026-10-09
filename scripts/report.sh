@@ -3,9 +3,11 @@
 # report.json schema: {"issue","slug","pipeline","started_at","finished_at","outcome":"ok|blocked",
 #   "agents":[{"role","tokens","duration_s"}],"rounds":{step:n},"gates_failed":[...],"manual_edit":true|false|null}
 set -euo pipefail
+source "$(dirname "$0")/lib/project.sh"
+mylos_resolve . || exit 2
 [ $# -eq 5 ] || { echo "usage: report.sh <issue> <slug> <pipeline> <report.json> <report.md>" >&2; exit 2; }
 issue="$1" slug="$2" pipeline="$3" json="$4" md="$5"
-HOME_DIR="${FACTORY_HOME:-$HOME/.pickio-factory}"
+HOME_DIR="$FACTORY_HOME"
 REPO="${FACTORY_REPO:-$(git rev-parse --show-toplevel)}"
 WT="$HOME_DIR/reports-wt"
 BR=factory-reports

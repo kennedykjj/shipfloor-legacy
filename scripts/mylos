@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# mylos: installs the factory scripts and manages the projects the dispatcher serves.
+#   install                       copy scripts and templates to ~/.mylos/factory
+#   doctor                        check tools, the installed copy and every project's config
+#   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .mylos/factory.yml
+#   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+source "$HERE/lib/project.sh"
+REGISTRY="$MYLOS_HOME/registry.tsv"
+INSTALLED="$MYLOS_HOME/factory"
+
+die() { echo "mylos: $1" >&2; exit "${2:-1}"; }
+entry() { [ -f "$REGISTRY" ] && awk -F'\t' -v s="$1" '$1==s' "$REGISTRY"; }
+use() {  # use <slug>: export that project's settings or fail
+  local line; line="$(entry "$1")"; [ -n "$line" ] || die "no project '$1' (mylos list)"
+  local slug repo wt main; IFS=$'\t' read -r slug repo wt main <<< "$line"
+  mylos_use "$slug" "$repo" "$wt" "$main"
+}
+source_dir() {  # the plugin checkout this copy came from
+  if [ -f "$HERE/.source" ]; then cat "$HERE/.source"; else (cd "$HERE/.." && pwd); fi
+}
+
+cmd_install() {
+  local src; src="$(source_dir)"
+  [ -f "$src/scripts/gate.sh" ] || die "cannot find the plugin at $src"
+  mkdir -p "$INSTALLED" "$MYLOS_HOME/projects" "$MYLOS_HOME/logs"
+  (cd "$src/scripts" && find . -path ./test -prune -o -type f -print) | while IFS= read -r f; do
+    mkdir -p "$INSTALLED/$(dirname "$f")"; cp "$src/scripts/$f" "$INSTALLED/$f"
+  done
+  rm -rf "$INSTALLED/templates"; cp -r "$src/templates" "$INSTALLED/templates"
+  echo "$src" > "$INSTALLED/.source"
+  echo "installed $src → $INSTALLED"
+  echo "next: mylos add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
+}
+
+cmd_doctor() {
+  local bad=0 t src
+  for t in git gh claude; do command -v "$t" >/dev/null && echo "ok   $t" || { echo "FAIL $t not found"; bad=1; }; done
+  if mylos_python -c 'import yaml' 2>/dev/null; then echo "ok   python + PyYAML"; else echo "FAIL python 3 with PyYAML (pip install pyyaml)"; bad=1; fi
+  gh auth status >/dev/null 2>&1 && echo "ok   gh authenticated" || { echo "FAIL gh auth login"; bad=1; }
+  src="$(source_dir)"
+  if [ ! -d "$INSTALLED" ]; then echo "FAIL not installed (mylos install)"; bad=1
+  elif diff -rq -x test -x .source "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
+       && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
+  else echo "WARN installed copy differs from $src (mylos install)"; fi
+  if [ -s "$REGISTRY" ]; then
+    local slug repo wt main
+    while IFS=$'\t' read -r slug repo wt main; do
+      [ -z "$slug" ] && continue
+      ( mylos_use "$slug" "$repo" "$wt" "$main"; mylos_cfg validate ) \
+        && echo "ok   project $slug" || { echo "FAIL project $slug: invalid or missing config"; bad=1; }
+    done < "$REGISTRY"
+  else echo "WARN no projects (mylos add <repo>)"; fi
+  return $bad
+}
+
+cmd_add() {
+  local repo="${1:-}" wt="" main=""; shift || true
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --worktrees) wt="${2:-}"; shift 2 ;;
+      --main) main="${2:-}"; shift 2 ;;
+      *) die "add: unknown option $1" 2 ;;
+    esac
+  done
+  [ -n "$repo" ] || die "usage: mylos add <repo> [--worktrees DIR] [--main BRANCH]" 2
+  repo="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" || die "$repo is not a git repository"
+  [ -n "$main" ] || main="$(git -C "$repo" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+  [ -n "$main" ] || main=main
+  git -C "$repo" fetch -q origin "$main" || die "cannot fetch origin/$main in $repo"
+  local cfg slug; cfg="$(mktemp)"
+  # Git Bash would take "origin/main:.mylos/..." for a path list and mangle it
+  MSYS2_ARG_CONV_EXCL="*" git -C "$repo" show "origin/$main:.mylos/factory.yml" > "$cfg" 2>/dev/null || die "origin/$main has no .mylos/factory.yml"
+  FACTORY_CONFIG="$cfg" mylos_cfg validate || die "invalid .mylos/factory.yml on origin/$main"
+  slug="$(FACTORY_CONFIG="$cfg" mylos_cfg get project.name)"
+  local current; current="$(entry "$slug" | cut -f2)"
+  if [ -n "$current" ] && [ "$(git_common "$current")" != "$(git_common "$repo")" ]; then
+    die "project '$slug' is already registered for $current"
+  fi
+  local home="$MYLOS_HOME/projects/$slug"; [ -n "$wt" ] || wt="$home/wt"
+  mkdir -p "$home" "$wt"
+  if [ ! -e "$home/control/.git" ]; then git -C "$repo" worktree add -q --detach "$home/control" "origin/$main" || die "cannot create $home/control"; fi
+  { [ -f "$REGISTRY" ] && awk -F'\t' -v s="$slug" '$1!=s' "$REGISTRY"; printf '%s\t%s\t%s\t%s\n' "$slug" "$repo" "$wt" "$main"; } > "$REGISTRY.tmp"
+  mv "$REGISTRY.tmp" "$REGISTRY"
+  echo "registered $slug ($repo, worktrees in $wt)"
+}
+
+cmd_remove() {
+  use "${1:-}"
+  git -C "$FACTORY_REPO" worktree remove --force "$FACTORY_HOME/control" 2>/dev/null || rm -rf "$FACTORY_HOME/control"
+  awk -F'\t' -v s="$1" '$1!=s' "$REGISTRY" > "$REGISTRY.tmp" && mv "$REGISTRY.tmp" "$REGISTRY"
+  echo "removed $1 (logs and reports stay in $FACTORY_HOME)"
+}
+
+cmd_list() {
+  [ -s "$REGISTRY" ] || { echo "no projects"; return 0; }
+  [ -e "$MYLOS_HOME/PAUSE" ] && echo "(all paused)"
+  local slug repo wt main state
+  while IFS=$'\t' read -r slug repo wt main; do
+    [ -z "$slug" ] && continue
+    state=active; [ -e "$MYLOS_HOME/projects/$slug/PAUSE" ] && state=paused
+    printf '%s\t%s\t%s\t%s\n' "$slug" "$state" "$repo" "$wt"
+  done < "$REGISTRY"
+}
+
+cmd_pause() {
+  if [ -z "${1:-}" ]; then mkdir -p "$MYLOS_HOME"; touch "$MYLOS_HOME/PAUSE"; return 0; fi
+  use "$1"; mkdir -p "$FACTORY_HOME"; touch "$FACTORY_HOME/PAUSE"
+}
+cmd_resume() {
+  if [ -z "${1:-}" ]; then rm -f "$MYLOS_HOME/PAUSE"; return 0; fi
+  use "$1"; rm -f "$FACTORY_HOME/PAUSE"
+}
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  install) cmd_install ;;
+  doctor) cmd_doctor ;;
+  add) cmd_add "$@" ;;
+  remove) cmd_remove "$@" ;;
+  list) cmd_list ;;
+  pause) cmd_pause "$@" ;;
+  resume) cmd_resume "$@" ;;
+  setup-board) use "${1:-}"; cd "$FACTORY_HOME/control" && exec bash "$HERE/setup-board.sh" ;;
+  metrics) use "${1:-}"; exec bash "$HERE/metrics.sh" ;;
+  *) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+esac

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Prints one TSV line per report: issue pipeline outcome tokens duration_min rounds gates_failed manual_edit
 set -euo pipefail
-HOME_DIR="${FACTORY_HOME:-$HOME/.pickio-factory}"
+source "$(dirname "$0")/lib/project.sh"
+mylos_resolve . || exit 2
+HOME_DIR="$FACTORY_HOME"
 WT="$HOME_DIR/reports-wt"
 git -C "$WT" pull -q --rebase origin factory-reports 2>/dev/null || true
 REPORTS="$WT/reports"
