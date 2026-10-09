@@ -64,6 +64,7 @@ live_runs() {  # live_runs [stage]: live runs on this machine (every project), o
   local stage="${1:-}"; [ -n "$stage" ] || stage="[a-z]*"  # left unquoted below so it globs
   for d in "$MYLOS_HOME"/projects/*/locks/$stage-*.lock "$HOME_DIR"/locks/$stage-*.lock; do
     [ -d "$d" ] || continue
+    case "${d##*/}" in refresh-*) continue ;; esac  # refreshes are scripts, not agents
     case "$seen" in *" $d "*) continue ;; esac
     seen="$seen$d "; lock_live "$d" && n=$((n + 1))
   done
@@ -169,10 +170,27 @@ export FACTORY_BOARD_SNAPSHOT="$SNAP"
 
 usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting"; exit 0; }
 
+refresh_staged() {  # keep approved-to-be PRs on top of main: deploy.sh --refresh, a script, no agent slot
+  local n dir log cards
+  cards="$("$BOARD" eligible Staged)" || return 1
+  for n in $cards; do
+    card_busy "$n" && continue
+    dir="$HOME_DIR/locks/refresh-$n.lock"; mkdir "$dir" 2>/dev/null || continue
+    log="$HOME_DIR/logs/$(date +%F)-$n-refresh.log"
+    (
+      trap '' HUP
+      echo "$BASHPID $(date +%s) $n" > "$dir/info"
+      cd "$CONTROL" && env -u FACTORY_BOARD_SNAPSHOT bash "${FACTORY_DEPLOY:-$HERE/deploy.sh}" "$n" --refresh >>"$log" 2>&1
+      rm -rf "$dir"
+    ) &
+  done
+}
+
 GLOBAL=$(( ${MYLOS_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
 run_pipeline refine     "Ready for Refinement" "${LIM[0]}" "${LIM[1]}" "Technical Refinement" "Spec Review"        || status=1
 run_pipeline develop "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding"               "Coding" "Validation" || status=1
 run_pipeline validate     "Validation"           "${LIM[4]}" 0           ""                                         || status=1
 run_pipeline deploy    "Ready for Prod"       "${LIM[5]}" 0           ""                                         || status=1
+refresh_staged || status=1
 exit $status
