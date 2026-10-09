@@ -48,4 +48,32 @@ grep -q '\\.mylos/' "$FACTORY_DIR/../templates/factory-guard.yml" && pass "guard
 # neither dir: refused
 bash "$M" remove shop >/dev/null 2>&1
 assert_exit 1 bash "$M" add "$(new_repo)"
+
+# migrate-home moves the old home and keeps its worktrees linked
+mk_old() {  # mk_old: a legacy home with one project whose control is a worktree of a repo; prints "old repo"
+  local base old repo; base="$(mktemp -d)"; old="$base/.mylos"; mkdir -p "$old/projects/shop/locks"
+  repo="$(new_repo)"; git -C "$repo" worktree add -q --detach "$old/projects/shop/control" main
+  echo "$old $repo"
+}
+read -r old repo <<< "$(mk_old)"
+export AGHANIM_HOME="$(mktemp -d)/.aghanim"
+assert_exit 0 bash "$M" migrate-home "$old"
+[ ! -e "$old" ] && pass "old home gone" || fail "old home still there"
+assert_exit 0 git -C "$AGHANIM_HOME/projects/shop/control" status
+case "$(git -C "$repo" worktree list --porcelain)" in *prunable*) fail "worktree left prunable" ;; *) pass "worktree relinked" ;; esac
+
+# refuses while a run holds a lock
+read -r old repo <<< "$(mk_old)"; mkdir "$old/projects/shop/locks/develop-12.lock"
+export AGHANIM_HOME="$(mktemp -d)/.aghanim"
+assert_exit 1 bash "$M" migrate-home "$old"
+[ -d "$old" ] && [ ! -e "$AGHANIM_HOME" ] && pass "lock: nothing moved" || fail "moved with a live lock"
+
+# refuses to merge into an existing home
+read -r old repo <<< "$(mk_old)"
+export AGHANIM_HOME="$(mktemp -d)"   # exists already
+assert_exit 1 bash "$M" migrate-home "$old"
+[ -d "$old/projects/shop/control" ] && pass "existing target: nothing moved" || fail "touched the old home"
+
+# missing old home
+assert_exit 1 bash "$M" migrate-home "$(mktemp -d)/nope"
 finish
