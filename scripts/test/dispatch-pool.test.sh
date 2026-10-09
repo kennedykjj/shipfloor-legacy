@@ -17,12 +17,18 @@ case "$1 $2" in
   "eligible Validation") for n in ${Q_VAL:-}; do echo "$n"; done ;;
   "eligible Ready for Prod") for n in ${Q_PROD:-}; do echo "$n"; done ;;
   "eligible Coding") for n in ${O_COD:-}; do echo "$n"; done ;;
+  "eligible Staged") for n in ${Q_STG:-}; do echo "$n"; done ;;
   "count "*) echo 0 ;;
   *) echo ;;
 esac
 EOB
   printf '#!/usr/bin/env bash\necho "$(cat)" >> "%s/launched"\nsleep 2\n' "$tmp" > "$tmp/claude"
-  chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
+  printf '#!/usr/bin/env bash
+echo "refresh $*" >> "%s/refreshed"
+sleep 2
+' "$tmp" > "$tmp/deploy"
+  chmod +x "$tmp/board" "$tmp/claude" "$tmp/deploy"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude" FACTORY_DEPLOY="$tmp/deploy"
+  : > "$tmp/launched"; : > "$tmp/refreshed"; Q_STG=
 }
 launched() { sleep 1; sort "$tmp/launched" | tr '\n' ' '; }
 live_lock() { mkdir -p "$MYLOS_HOME/projects/$1/locks/$2.lock"; echo "$$ $(date +%s) 1" > "$MYLOS_HOME/projects/$1/locks/$2.lock/info"; }
@@ -51,6 +57,16 @@ setup; machine $'pool: 4\nstages: {deploy: 0}'; Q_PROD="47" bash "$D"
 # a card with a live run of any pipeline gets no second run (they would share its worktree)
 setup; mkdir -p "$FACTORY_HOME/locks/develop-36.lock"; echo "$$ $(date +%s) 36" > "$FACTORY_HOME/locks/develop-36.lock/info"
 Q_VAL="36" bash "$D"; [ -z "$(launched)" ] && pass "busy card skipped" || fail "second run on a busy card: $(launched)"
+
+# staged cards are kept up to date by deploy.sh --refresh, outside the agent pool
+setup; machine $'pool: 1
+stages: {refine: 1, develop: 1, validate: 1, deploy: 1}'; live_lock other refine-3
+Q_STG="35 36" bash "$D"; sleep 1
+assert_contains "$(cat "$tmp/refreshed")" "refresh 35 --refresh"
+assert_contains "$(cat "$tmp/refreshed")" "refresh 36 --refresh"
+[ -z "$(cat "$tmp/launched")" ] && pass "refreshes use no agent slot" || fail "launched agents: $(cat "$tmp/launched")"
+setup; mkdir -p "$FACTORY_HOME/locks/validate-35.lock"; echo "$$ $(date +%s) 35" > "$FACTORY_HOME/locks/validate-35.lock/info"
+Q_STG="35" bash "$D"; sleep 1; [ -z "$(cat "$tmp/refreshed")" ] && pass "busy card not refreshed" || fail "refreshed a busy card"
 
 # an invalid machine config launches nothing
 setup; machine 'pool: 0'; Q_REF="25" bash "$D"; code=$?
