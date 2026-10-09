@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# gh stand-in for deploy.sh tests. State in $FG: remote (bare repo path), pr (number), branch, comments,
+# ci (SUCCESS|FAILURE|PENDING), calls, merged (merge sha), labels.
+d="$FG"; args="$*"; echo "$args" >> "$d/calls"
+remote="$(cat "$d/remote")"; pr="$(cat "$d/pr")"; branch="$(cat "$d/branch")"
+head() { git --git-dir="$remote" rev-parse "refs/heads/$branch" 2>/dev/null; }
+case "$args" in
+  "pr list"*) [ -e "$d/no-pr" ] || printf '%s\t%s\n' "$pr" "$branch" ;;
+  "pr view $pr"*"headRefOid,statusCheckRollup"*) printf '%s %s\n' "$(head)" "$(cat "$d/ci")" ;;
+  "pr view $pr"*"mergeCommit"*) cat "$d/merged" ;;
+  "pr view $pr"*"headRefOid"*) head ;;
+  "issue view"*) cat "$d/comments" 2>/dev/null ;;
+  "issue comment"*) body="${args#*--body }"; printf '%s\n' "$body" >> "$d/comments" ;;
+  "issue edit"*"--add-label blocked"*) echo blocked >> "$d/labels" ;;
+  "issue reopen"*) echo reopened >> "$d/labels" ;;
+  "pr merge $pr"*)
+    want="${args##*--match-head-commit }"; want="${want%% *}"
+    [ "$want" = "$(head)" ] || { echo "head moved" >&2; exit 1; }
+    w="$(mktemp -d)"; git clone -q "$remote" "$w"; git -C "$w" config user.email t@t; git -C "$w" config user.name t
+    git -C "$w" merge -q --squash "origin/$branch" >/dev/null && git -C "$w" commit -qm "squash #$pr" && git -C "$w" push -q origin HEAD:main
+    git -C "$w" rev-parse HEAD > "$d/merged" ;;
+  "pr create"*) echo "https://github.com/acme/shop/pull/999" ;;
+  *) echo "fake-gh-deploy: unexpected: $args" >&2; exit 9 ;;
+esac
