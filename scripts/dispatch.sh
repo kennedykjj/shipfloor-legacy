@@ -6,7 +6,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib/project.sh"
 mylos_resolve . || exit 2
-mylos_cfg validate || { echo "dispatch: invalid config $FACTORY_CONFIG" >&2; exit 2; }
+mylos_validate || { echo "dispatch: invalid config $FACTORY_CONFIG" >&2; exit 2; }
 HOME_DIR="${FACTORY_HOME:?FACTORY_HOME unset}"
 REPO="${FACTORY_REPO:-}"
 CONTROL="$HOME_DIR/control"

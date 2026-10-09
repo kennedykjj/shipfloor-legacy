@@ -38,7 +38,7 @@ plugin mylos (este repo)              máquina                                  
 ```
 
 - **Scripts instalados em caminho fixo.** `mylos install` copia `scripts/` e `templates/` do plugin para `~/.mylos/factory/`. Skills e agentes chamam `bash ~/.mylos/factory/<script>` — caminho literal, que regras de permissão conseguem casar e que fica fora de qualquer worktree e de qualquer `--add-dir` dado aos pipelines (um agente não edita o gate que o julga). `mylos doctor` avisa quando a cópia instalada difere do plugin.
-- **Config vem do checkout de controle.** Os gates leem `.mylos/factory.yml` de `~/.mylos/projects/<slug>/control` (exatamente `origin/main`), nunca do worktree da issue; um PR não altera os comandos que seus próprios gates executam. `.mylos/` é caminho proibido para agentes.
+- **Config vem do `origin/main`, fora do alcance dos runs.** A cada ciclo o dispatcher leva `~/.mylos/projects/<slug>/control` a `origin/main` e copia o `.mylos/factory.yml` commitado (`git show HEAD:`) para `~/.mylos/projects/<slug>/factory.yml`. Os gates leem só essa cópia, que fica fora do cwd dos pipelines e de todo `--add-dir`: nem um PR nem uma edição no checkout de controle durante um run alteram os comandos que os gates executam. `.mylos/` é caminho proibido para agentes.
 - **Resolução do projeto** (`scripts/lib/project.sh`): se `FACTORY_CONFIG` está no ambiente (pipelines headless e testes), usa-o junto com `FACTORY_HOME`, `FACTORY_REPO`, `FACTORY_PROJECT`, `FACTORY_WT_ROOT`. Senão procura em `~/.mylos/registry.tsv` o projeto cujo `git --git-common-dir` é o mesmo do diretório atual (o checkout do usuário, o controle ou um worktree) e deriva o resto. Sem projeto → exit 2.
 
 ## Config `.mylos/factory.yml`

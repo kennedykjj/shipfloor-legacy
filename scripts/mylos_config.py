@@ -66,11 +66,25 @@ def merged(raw, defaults):
     return out
 
 
+PCRE_ONLY = re.compile(r"\\[dDhHpPAzZ]|\(\?")  # not ERE: grep -E would read these literally
+
+
 def compiles(pattern):
+    """A usable ERE: Python can compile it and it uses no PCRE-only syntax (grep -E has none)."""
+    if PCRE_ONLY.search(pattern):
+        return False
     try:
         re.compile(pattern); return True
     except re.error:
         return False
+
+
+def is_str_list(value):
+    return isinstance(value, list) and all(isinstance(v, str) and v for v in value)
+
+
+def mapping(cfg, key):
+    return cfg.get(key) if isinstance(cfg.get(key), dict) else {}
 
 
 def problems(cfg):
@@ -78,22 +92,42 @@ def problems(cfg):
     if not isinstance(cfg, dict):
         return ["the file is not a YAML mapping"]
     errs = []
-    project, board = cfg.get("project") or {}, cfg.get("board") or {}
+    for key in ("project", "board", "paths", "limits", "stack", "deploy"):
+        if key in cfg and not isinstance(cfg[key], dict):
+            errs.append(f"{key} must be a mapping")
+    project, board = mapping(cfg, "project"), mapping(cfg, "board")
     if not isinstance(project.get("name"), str) or not SLUG.match(project["name"]):
         errs.append("project.name must match [a-z0-9][a-z0-9-]*")
     if not isinstance(project.get("repo"), str) or not REPO.match(project["repo"]):
         errs.append("project.repo must be owner/repo")
+    if "main" in project and (not isinstance(project["main"], str) or not project["main"]):
+        errs.append("project.main must be a branch name")
     if not isinstance(board.get("owner"), str) or not board["owner"]:
         errs.append("board.owner is required")
     if not isinstance(board.get("number"), int) or isinstance(board.get("number"), bool):
         errs.append("board.number must be an integer")
     for key in ("context", "forbidden"):
-        if not isinstance(cfg.get(key, []), list):
-            errs.append(f"{key} must be a list")
-    for p, lim in (cfg.get("limits") or {}).items():
-        for k, v in (lim or {}).items():
-            if not isinstance(v, int) or v < 0:
+        if key in cfg and not is_str_list(cfg[key]):
+            errs.append(f"{key} must be a list of strings")
+    if not isinstance(cfg.get("review_criteria", ""), str):
+        errs.append("review_criteria must be a path")
+    for k, v in mapping(cfg, "paths").items():
+        if not isinstance(v, str) or not v.endswith("/") or v.strip("/.") == "":
+            errs.append(f"paths.{k} must be a directory like docs/specs/")
+    for p, lim in mapping(cfg, "limits").items():
+        if not isinstance(lim, dict):
+            errs.append(f"limits.{p} must be a mapping like {{parallel: 2, wip: 4}}"); continue
+        for k, v in lim.items():
+            if not isinstance(v, int) or isinstance(v, bool) or v < 0:
                 errs.append(f"limits.{p}.{k} must be a non-negative integer")
+    for k, v in mapping(cfg, "deploy").items():
+        if k == "timeout_min":
+            if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
+                errs.append("deploy.timeout_min must be a positive integer")
+        elif not isinstance(v, str):
+            errs.append(f"deploy.{k} must be a string")
+    if "url" in mapping(cfg, "stack") and not isinstance(cfg["stack"]["url"], str):
+        errs.append("stack.url must be a string")
     layers = cfg.get("layers")
     if not isinstance(layers, list) or not layers:
         return errs + ["layers must be a non-empty list"]
@@ -110,22 +144,32 @@ def problems(cfg):
         elif name in seen:
             errs.append(f"{where}: duplicate name")
         seen.add(name)
-        for key in ("path", "test", "ran"):
-            if not isinstance(layer.get(key), str):
+        for key in ("test", "ran"):
+            if not isinstance(layer.get(key), str) or not layer[key]:
                 errs.append(f"{where}: {key} is required")
-        tests = layer.get("tests")
-        if not isinstance(tests, list) or not tests or not all(isinstance(t, str) and t for t in tests):
+        path = layer.get("path")
+        if not isinstance(path, str) or not (path in ("", ".", "./") or path.endswith("/")):
+            errs.append(f"{where}: path must be a directory ending in / (or ./ for the whole repo)")
+        if not is_str_list(layer.get("tests")) or not layer["tests"]:
             errs.append(f"{where}: tests must be a non-empty list of globs")
-        if not isinstance(layer.get("test_config", []), list):
-            errs.append(f"{where}: test_config must be a list")
+        if not is_str_list(layer.get("test_config", [])):
+            errs.append(f"{where}: test_config must be a list of globs")
+        for key in ("stack", "build", "assertions", "setup_errors", "agent"):
+            if key in layer and not isinstance(layer[key], str):
+                errs.append(f"{where}: {key} must be a string")
+        for key in ("needs_stack", "tests_only"):
+            if key in layer and not isinstance(layer[key], bool):
+                errs.append(f"{where}: {key} must be true or false")
         for key in ("ran", "assertions", "setup_errors"):
-            if isinstance(layer.get(key), str) and not compiles(layer[key]):
-                errs.append(f"{where}: {key} is not a valid regex")
+            if isinstance(layer.get(key), str) and layer[key] and not compiles(layer[key]):
+                errs.append(f"{where}: {key} is not a valid extended regex (grep -E)")
         if layer.get("tests_only") and ("agent" in layer or "build" in layer):
             errs.append(f"{where}: a tests_only layer has no agent or build")
         mig = layer.get("migrations")
-        if mig is not None and (not isinstance(mig, dict) or not isinstance(mig.get("glob"), str)):
+        if mig is not None and (not isinstance(mig, dict) or not isinstance(mig.get("glob"), str) or not mig["glob"]):
             errs.append(f"{where}: migrations needs a glob")
+        elif isinstance(mig, dict) and not isinstance(mig.get("comment", "--"), str):
+            errs.append(f"{where}: migrations.comment must be a string")
     return errs
 
 
@@ -181,6 +225,8 @@ class Config:
         return BUILTIN_FORBIDDEN + ("|" + extra if extra else "")
 
     def layer_of(self, path):
+        while path.startswith("./"):
+            path = path[2:]
         for layer in self.implementers():
             if re.search(any_of([layer["path"]]), path):
                 return layer["name"]
@@ -302,6 +348,11 @@ def main(argv):
         sys.stdout.write(nul_values(cfg.data, rest)); return 0
     if cmd == "regex" and rest[:1] == ["scope"] and len(rest) == 2:
         print(cfg.scope(rest[1])); return 0
+    if cmd == "patterns" and not rest:  # every regex the gates hand to grep -E, NUL-terminated
+        sys.stdout.write("".join(f"{l[k]}\0" for l in cfg.layers for k in ("ran", "assertions", "setup_errors") if l[k]))
+        return 0
+    if cmd == "regex" and rest == ["tests-only"]:  # areas only QA writes, even inside an implementer's path
+        print(any_of([t for l in cfg.layers if l["tests_only"] for t in l["tests"]])); return 0
     if cmd == "regex" and rest == ["test-config"]:
         print(any_of([g for l in cfg.layers for g in l["test_config"]])); return 0
     if cmd == "regex" and rest == ["forbidden"]:
@@ -324,4 +375,7 @@ if __name__ == "__main__":
         sys.exit(main(sys.argv[1:]))
     except Unusable as e:
         print(f"mylos-config: {e}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as e:  # a crash is never a negative answer (exit 1): it is unusable
+        print(f"mylos-config: internal error: {e!r}", file=sys.stderr)
         sys.exit(2)

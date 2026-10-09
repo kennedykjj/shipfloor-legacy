@@ -23,7 +23,15 @@ mylos_use() {  # mylos_use <slug> <repo> [worktrees] [main]: export one register
   export FACTORY_PROJECT="$1" FACTORY_REPO="$2" FACTORY_MAIN="${4:-main}"
   export FACTORY_HOME="$MYLOS_HOME/projects/$1"
   export FACTORY_WT_ROOT="${3:-$FACTORY_HOME/wt}"
-  export FACTORY_CONFIG="$FACTORY_HOME/control/.mylos/factory.yml"
+  # The gates obey a snapshot of the committed config, kept outside the control checkout where
+  # pipelines run (and could edit files): see mylos_snapshot.
+  export FACTORY_CONFIG="$FACTORY_HOME/factory.yml"
+}
+
+mylos_snapshot() {  # mylos_snapshot: FACTORY_CONFIG = .mylos/factory.yml as committed at control's HEAD
+  local tmp="$FACTORY_CONFIG.tmp"
+  # Git Bash would take "HEAD:.mylos/..." for a path list and mangle it
+  MSYS2_ARG_CONV_EXCL="*" git -C "$(mylos_native "$FACTORY_HOME/control")" show "HEAD:.mylos/factory.yml" > "$tmp" 2>/dev/null     && mv "$tmp" "$FACTORY_CONFIG" || { rm -f "$tmp"; return 1; }
 }
 
 mylos_resolve() {  # mylos_resolve [dir]: 0 when the project is known (env, or the registry entry
@@ -39,6 +47,19 @@ mylos_resolve() {  # mylos_resolve [dir]: 0 when the project is known (env, or t
     done < "$MYLOS_HOME/registry.tsv"
   fi
   echo "mylos: $(pwd) is not in a registered project (mylos add <repo>)" >&2; return 1
+}
+
+ere_ok() {  # ere_ok <pattern>: grep -E accepts it (status 2 = invalid pattern)
+  printf '' | grep -E -- "$1" >/dev/null 2>&1; [ $? -ne 2 ]
+}
+
+mylos_validate() {  # mylos_validate: the config is valid and every pattern works with grep -E
+  mylos_cfg validate || return 1
+  local p bad=0
+  while IFS= read -r -d '' p; do
+    ere_ok "$p" || { echo "mylos-config: $FACTORY_CONFIG: '$p' is not a valid grep -E pattern" >&2; bad=1; }
+  done < <(mylos_cfg patterns)
+  return $bad
 }
 
 mylos_cfg() {  # mylos_cfg <query...>: asks mylos_config.py about the resolved project

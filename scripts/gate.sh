@@ -35,15 +35,22 @@ require_rev() {  # exits 2 unless $1 names a commit
   fi
 }
 
-changed_files() {  # committed since base, uncommitted, and untracked
-  local base="$1"
-  { g diff --name-only --no-renames "$base" HEAD; g diff --name-only --no-renames HEAD; g ls-files --others --exclude-standard; } \
-    | sed '/^$/d' | sort -u
+raw_changes() {  # NUL-separated names: committed since base, uncommitted, and untracked (never C-quoted)
+  g diff -z --name-only --no-renames "$1" HEAD; g diff -z --name-only --no-renames HEAD; g ls-files -z --others --exclude-standard
+}
+
+odd_names() {  # 0 when a changed name has a control character (it could hide from the line-based checks)
+  [ "$(raw_changes "$1" | LC_ALL=C tr -dc '\001-\037\177' | wc -c)" -gt 0 ]
+}
+
+changed_files() {  # one name per line (gate_forbidden refuses names with control characters)
+  raw_changes "$1" | tr '\0' '\n' | sed '/^$/d' | sort -u
 }
 
 gate_forbidden() {
   require_rev "${1:-}"
   local forbidden bad; forbidden="$(q regex forbidden)" || exit 2
+  if odd_names "$1"; then echo "forbidden: a changed file name has a control character (newline, tab...)" >&2; return 1; fi
   bad="$(changed_files "$1" | grep -E -- "$forbidden" || true)"
   [ -z "$bad" ] && return 0
   echo "forbidden: these paths are off-limits to agents:" >&2; echo "$bad" >&2; return 1
@@ -53,6 +60,7 @@ gate_scope() {  # gate_scope <po|ux|techlead|qa|implementer layer> <base>
   local role="${1:-}" base="${2:-}" allowed
   [ -z "$role" ] && { echo "scope: role required" >&2; return 2; }
   allowed="$(mylos_cfg regex scope "$role" 2>/dev/null)" || { echo "scope: unknown role '$role'" >&2; return 2; }
+  [ -n "$allowed" ] || { echo "scope: role '$role' has no area in the config" >&2; return 2; }
   require_rev "$base"
   local files bad; files="$(changed_files "$base")"
   bad="$(printf '%s
@@ -64,6 +72,11 @@ gate_scope() {  # gate_scope <po|ux|techlead|qa|implementer layer> <base>
       bad="$(printf '%s
 ' "$files" | grep -E -- "$test_config" || true)"
       if [ -n "$bad" ]; then echo "scope: test runner config is off-limits to implementers:" >&2; echo "$bad" >&2; return 1; fi
+    fi
+    local qa_only; qa_only="$(q regex tests-only)" || exit 2
+    if [ -n "$qa_only" ]; then
+      bad="$(printf '%s\n' "$files" | grep -E -- "$qa_only" || true)"
+      if [ -n "$bad" ]; then echo "scope: only QA writes in tests-only layers:" >&2; echo "$bad" >&2; return 1; fi
     fi ;;
   esac
   gate_forbidden "$base"
@@ -179,6 +192,10 @@ run_selector() {  # run_selector <layer> <selector>: runner output; returns the 
 load_layer() {  # load_layer <layer>: L_PATH L_TEST L_RAN L_ASSERT L_SETUP L_STACK; 2 = unknown layer
   layer_fields "$1" path test ran assertions setup_errors needs_stack || return 2
   L_PATH="${LF[0]}" L_TEST="${LF[1]}" L_RAN="${LF[2]}" L_ASSERT="${LF[3]}" L_SETUP="${LF[4]}" L_STACK="${LF[5]}"
+  local p  # a pattern grep -E rejects reads as "no match" and could let red/green pass wrongly
+  for p in "$L_RAN" "$L_ASSERT" "$L_SETUP"; do
+    [ -z "$p" ] || ere_ok "$p" || { echo "gate: layer '$1' has an invalid grep -E pattern: $p" >&2; return 2; }
+  done
 }
 
 SETUP_ERRORS='compilation (error|failure)|unresolved reference|cannot find module|syntaxerror|error TS[0-9]+|could not resolve|transform failed|is not a function|is not defined|ERR_CONNECTION|ECONNREFUSED|failed to load applicationcontext|beancreationexception|Errors: [1-9]|^ERROR: '

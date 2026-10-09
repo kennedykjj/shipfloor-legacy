@@ -48,7 +48,7 @@ cmd_doctor() {
     local slug repo wt main
     while IFS=$'\t' read -r slug repo wt main; do
       [ -z "$slug" ] && continue
-      ( mylos_use "$slug" "$repo" "$wt" "$main"; mylos_cfg validate ) \
+      ( mylos_use "$slug" "$repo" "$wt" "$main"; mylos_validate ) \
         && echo "ok   project $slug" || { echo "FAIL project $slug: invalid or missing config"; bad=1; }
     done < "$REGISTRY"
   else echo "WARN no projects (mylos add <repo>)"; fi
@@ -71,8 +71,8 @@ cmd_add() {
   git -C "$repo" fetch -q origin "$main" || die "cannot fetch origin/$main in $repo"
   local cfg slug; cfg="$(mktemp)"
   # Git Bash would take "origin/main:.mylos/..." for a path list and mangle it
-  MSYS2_ARG_CONV_EXCL="*" git -C "$repo" show "origin/$main:.mylos/factory.yml" > "$cfg" 2>/dev/null || die "origin/$main has no .mylos/factory.yml"
-  FACTORY_CONFIG="$cfg" mylos_cfg validate || die "invalid .mylos/factory.yml on origin/$main"
+  MSYS2_ARG_CONV_EXCL="*" git -C "$(mylos_native "$repo")" show "origin/$main:.mylos/factory.yml" > "$cfg" 2>/dev/null || die "origin/$main has no .mylos/factory.yml"
+  FACTORY_CONFIG="$cfg" mylos_validate || die "invalid .mylos/factory.yml on origin/$main"
   slug="$(FACTORY_CONFIG="$cfg" mylos_cfg get project.name)"
   local current; current="$(entry "$slug" | cut -f2)"
   if [ -n "$current" ] && [ "$(git_common "$current")" != "$(git_common "$repo")" ]; then
@@ -81,6 +81,8 @@ cmd_add() {
   local home="$MYLOS_HOME/projects/$slug"; [ -n "$wt" ] || wt="$home/wt"
   mkdir -p "$home" "$wt"
   if [ ! -e "$home/control/.git" ]; then git -C "$repo" worktree add -q --detach "$home/control" "origin/$main" || die "cannot create $home/control"; fi
+  mylos_use "$slug" "$repo" "$wt" "$main"
+  mylos_snapshot || die "cannot read .mylos/factory.yml from $home/control"
   { [ -f "$REGISTRY" ] && awk -F'\t' -v s="$slug" '$1!=s' "$REGISTRY"; printf '%s\t%s\t%s\t%s\n' "$slug" "$repo" "$wt" "$main"; } > "$REGISTRY.tmp"
   mv "$REGISTRY.tmp" "$REGISTRY"
   echo "registered $slug ($repo, worktrees in $wt)"
