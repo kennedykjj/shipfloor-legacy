@@ -11,7 +11,7 @@ assert_contains "$(FACTORY_BOARD_SNAPSHOT="$snap" bash "$BOARD" count Coding)" "
 rm "$FAKE_GH_DIR/fail"
 : > "$FAKE_GH_DIR/calls"
 bash "$BOARD" first "Ready for Refinement" >/dev/null
-case "$(cat "$FAKE_GH_DIR/calls")" in *"issue view"*) fail "labels via GraphQL issue view" ;; *"api repos/kennedykjj/pickio/issues/25"*) pass "labels via REST" ;; *) fail "no label lookup: $(cat "$FAKE_GH_DIR/calls")" ;; esac
+case "$(cat "$FAKE_GH_DIR/calls")" in *"issue view"*) fail "labels via GraphQL issue view" ;; *"api repos/acme/shop/issues/25"*) pass "labels via REST" ;; *) fail "no label lookup: $(cat "$FAKE_GH_DIR/calls")" ;; esac
 # the board read asks only for issue number and Status (not every field of every card)
 : > "$FAKE_GH_DIR/calls"; bash "$BOARD" snapshot >/dev/null
 case "$(cat "$FAKE_GH_DIR/calls")" in *"project item-list"*) fail "uses the expensive item-list" ;; *'fieldValueByName(name: "Status")'*) pass "cheap status-only query" ;; *) fail "unexpected query: $(cat "$FAKE_GH_DIR/calls")" ;; esac

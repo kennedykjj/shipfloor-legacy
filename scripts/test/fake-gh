@@ -7,17 +7,21 @@ echo "$args" >> "$d/calls"
 case "$args" in
   "api graphql"*|"project item-list"*)
     awk -F'\t' '{print $2"\t"$3"\t"$1}' "$d/items.tsv" ;;
+  "project view"*)
+    echo "PVT_x" ;;
+  "project field-list"*"| .id")
+    echo "FLD_x" ;;
   "project field-list"*)
     i=0; for s in "👤 Inbox" "👤 Ready for Refinement" "🤖 Technical Refinement" "👤 Spec Review" "👤 Ready for Dev" "🤖 Coding" "🤖 Validation" "👤 Staged" "👤 Ready for Prod" "🤖 Done"; do
       i=$((i+1)); printf '%s	opt%s
 ' "$s" "$i"; done ;;
   "project item-edit"*)
     echo "$args" >> "$d/edits" ;;
-  "api repos/kennedykjj/pickio/issues/"*)
+  "api repos/acme/shop/issues/"*)
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
   "issue view"*)
-    case "$args" in *"--repo kennedykjj/pickio"*) ;; *) echo "failed to run git: fatal: not a git repository" >&2; exit 1 ;; esac
+    case "$args" in *"--repo acme/shop"*) ;; *) echo "failed to run git: fatal: not a git repository" >&2; exit 1 ;; esac
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     n="$(echo "$args" | awk '{print $3}')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
   *) echo "fake-gh: unexpected: $args" >&2; exit 9 ;;

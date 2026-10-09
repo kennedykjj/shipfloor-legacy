@@ -195,6 +195,22 @@ def dotted(data, key):
     return data
 
 
+def nul_values(data, keys):
+    out = []
+    for key in keys:
+        v = dotted(data, key)
+        if isinstance(v, list):
+            v = "\n".join(map(str, v))
+        elif isinstance(v, bool):
+            v = "true" if v else "false"
+        elif isinstance(v, dict):
+            v = json.dumps(v, ensure_ascii=False) if v else ""
+        elif v is None:
+            v = ""
+        out.append(f"{v}\0")
+    return "".join(out)
+
+
 def emit(value):
     if isinstance(value, bool):
         print("true" if value else "false")
@@ -281,14 +297,9 @@ def main(argv):
             return 1
         emit(value); return 0
     if cmd == "fields" and len(rest) >= 2:  # NUL-terminated values, for one bash read of many fields
-        layer = cfg.layer(rest[0])
-        out = []
-        for key in rest[1:]:
-            v = dotted(layer, key)
-            v = "\n".join(map(str, v)) if isinstance(v, list) else ("true" if v else "false") if isinstance(v, bool) \
-                else "" if v is None or isinstance(v, dict) and not v else json.dumps(v) if isinstance(v, dict) else str(v)
-            out.append(v + "\0")
-        sys.stdout.write("".join(out)); return 0
+        sys.stdout.write(nul_values(cfg.layer(rest[0]), rest[1:])); return 0
+    if cmd == "values" and rest:  # same, for project-level keys
+        sys.stdout.write(nul_values(cfg.data, rest)); return 0
     if cmd == "regex" and rest[:1] == ["scope"] and len(rest) == 2:
         print(cfg.scope(rest[1])); return 0
     if cmd == "regex" and rest == ["test-config"]:
