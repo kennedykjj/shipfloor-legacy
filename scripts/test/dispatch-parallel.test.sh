@@ -19,6 +19,10 @@ esac
 EOB
   printf '#!/usr/bin/env bash\necho "$(cat) $*" >> "%s/launched"\nsleep 2\n' "$tmp" > "$tmp/claude"
   chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
+  printf '#!/usr/bin/env bash
+echo "/mylos:deploy $*" >> "%s/launched"
+sleep 2
+' "$tmp" > "$tmp/deploy"; chmod +x "$tmp/deploy"; export FACTORY_DEPLOY="$tmp/deploy"
 }
 launched() { sleep 1; grep -o '/mylos:[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
 fresh_lock() { mkdir -p "$FACTORY_HOME/locks/$1.lock"; echo "$$ $(date +%s) ${1##*-}" > "$FACTORY_HOME/locks/$1.lock/info"; }
