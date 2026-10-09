@@ -10,27 +10,28 @@ setup() {
   chmod +x "$tmp/board" "$tmp/claude"
   export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
 }
-launched() { sleep 1; cat "$tmp/launched"; }
+launched() { cat "$tmp/launched"; }
 
 # I9: pipelines can write in the issue worktrees; I3/M7: they run from the control checkout
-setup; bash "$D"; out="$(launched)"
+setup; run_dispatch; out="$(launched)"
 assert_contains "$out" "--add-dir $FACTORY_WT_ROOT"
 assert_contains "$out" "$FACTORY_HOME/control |"
 
 # I7: an old lock whose process is alive is not reclaimed
-setup; sleep 30 & live=$!
+setup; sleep 60 & live=$!
 mkdir -p "$FACTORY_HOME/locks/refine-25.lock"; echo "$live $(( $(date +%s) - 20000 )) 26" > "$FACTORY_HOME/locks/refine-25.lock/info"
-bash "$D"; [ -z "$(launched)" ] && pass "old lock with live pid respected" || fail "reclaimed a live lock"
+run_dispatch; [ -z "$(launched)" ] && pass "old lock with live pid respected" || fail "reclaimed a live lock"
 kill "$live" 2>/dev/null
 
 # I7: a fresh lock without info is not reclaimed
 setup; mkdir -p "$FACTORY_HOME/locks/refine-25.lock"
-bash "$D"; [ -z "$(launched)" ] && pass "fresh lock without info respected" || fail "reclaimed a fresh lock"
+run_dispatch; [ -z "$(launched)" ] && pass "fresh lock without info respected" || fail "reclaimed a fresh lock"
 
 # I7: a run removes only its own lock
-setup; export CLAUDE_SLEEP=2; bash "$D"; sleep 1
+setup; export CLAUDE_SLEEP=4; bash "$D"
+until [ -s "$tmp/launched" ]; do sleep 0.1; done   # the run is live and holds its lock
 echo "99999 $(date +%s) 30" > "$FACTORY_HOME/locks/refine-25.lock/info"   # another run took over the lock
-sleep 3
+until grep -qs '== end' "$FACTORY_HOME"/logs/*-25-refine.log; do sleep 0.1; done
 [ -d "$FACTORY_HOME/locks/refine-25.lock" ] && pass "kept the other run's lock" || fail "deleted another run's lock"
 unset CLAUDE_SLEEP
 
@@ -40,10 +41,10 @@ remote="$(mktemp -d)"; git init -q --bare "$remote"
 r="$(new_repo)"; mkdir -p "$r/scripts/factory"; echo v1 > "$r/scripts/factory/marker"
 git -C "$r" add -A; git -C "$r" commit -qm m; git -C "$r" remote add origin "$remote"; git -C "$r" push -q origin main
 rm -rf "$FACTORY_HOME/control"; export FACTORY_REPO="$r"
-bash "$D"; assert_contains "$(cat "$FACTORY_HOME/control/scripts/factory/marker" 2>&1)" "v1"
+run_dispatch; assert_contains "$(cat "$FACTORY_HOME/control/scripts/factory/marker" 2>&1)" "v1"
 echo v2 > "$r/scripts/factory/marker"; git -C "$r" commit -qam v2; git -C "$r" push -q origin main
 echo tampered > "$FACTORY_HOME/control/scripts/factory/marker"
-bash "$D"; assert_contains "$(cat "$FACTORY_HOME/control/scripts/factory/marker")" "v2"
+run_dispatch; assert_contains "$(cat "$FACTORY_HOME/control/scripts/factory/marker")" "v2"
 # the deploy is a script; an agent runs only to resolve conflicts it hands over (exit 3), then --continue
 deploy_case() {  # deploy_case <first exit>: fake deploy.sh exits <first exit>, then 0 on --continue
   setup; printf '#!/usr/bin/env bash
@@ -54,7 +55,7 @@ echo "deploy.sh $*" >> "%s/launched"
 [ "${2:-}" = --continue ] && exit 0
 exit %s
 ' "$tmp" "$1" > "$tmp/deploy"
-  chmod +x "$tmp/deploy"; export FACTORY_DEPLOY="$tmp/deploy"; bash "$D"; sleep 2
+  chmod +x "$tmp/deploy"; export FACTORY_DEPLOY="$tmp/deploy"; run_dispatch
 }
 deploy_case 0; out="$(cat "$tmp/launched")"
 assert_contains "$out" "deploy.sh 47"

@@ -22,56 +22,55 @@ case "$1 $2" in
   *) echo ;;
 esac
 EOB
-  printf '#!/usr/bin/env bash\necho "$(cat)" >> "%s/launched"\nsleep 2\n' "$tmp" > "$tmp/claude"
+  printf '#!/usr/bin/env bash\necho "$(cat)" >> "%s/launched"\n' "$tmp" > "$tmp/claude"
   printf '#!/usr/bin/env bash
 echo "refresh $*" >> "%s/refreshed"
-sleep 2
 ' "$tmp" > "$tmp/deploy"
   chmod +x "$tmp/board" "$tmp/claude" "$tmp/deploy"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude" FACTORY_DEPLOY="$tmp/deploy"
   : > "$tmp/launched"; : > "$tmp/refreshed"; Q_STG=
 }
-launched() { sleep 1; sort "$tmp/launched" | tr '\n' ' '; }
+launched() { sort "$tmp/launched" | tr '\n' ' '; }
 live_lock() { mkdir -p "$MYLOS_HOME/projects/$1/locks/$2.lock"; echo "$$ $(date +%s) 1" > "$MYLOS_HOME/projects/$1/locks/$2.lock/info"; }
 machine() { printf '%s\n' "$1" > "$MYLOS_HOME/config.yml"; }
 
 # validate takes its cards from Validation
-setup; Q_VAL="36" bash "$D"; assert_contains "$(launched)" "/mylos:validate 36"
+setup; Q_VAL="36" run_dispatch; assert_contains "$(launched)" "/mylos:validate 36"
 # a card in Validation is not a develop orphan any more
-setup; Q_VAL="36" bash "$D"; case "$(launched)" in *"develop 36"*) fail "develop resumed a Validation card" ;; *) pass "Validation is validate's queue" ;; esac
+setup; Q_VAL="36" run_dispatch; case "$(launched)" in *"develop 36"*) fail "develop resumed a Validation card" ;; *) pass "Validation is validate's queue" ;; esac
 
 # a stage's slots count live runs of that stage in every project
 setup; machine $'pool: 6\nstages: {develop: 1}'; live_lock other develop-9
-Q_DEV="26" Q_REF="25" bash "$D"; out="$(launched)"
+Q_DEV="26" Q_REF="25" run_dispatch; out="$(launched)"
 case "$out" in *develop*) fail "develop past its stage slots: $out" ;; *) pass "stage slots shared across projects" ;; esac
 assert_contains "$out" "/mylos:refine 25"
 
 # the pool caps every stage together
 setup; machine $'pool: 2\nstages: {refine: 2, develop: 2, validate: 2, deploy: 1}'; live_lock other refine-3
-Q_REF="25" Q_DEV="26" Q_VAL="27" bash "$D"; out="$(launched)"
+Q_REF="25" Q_DEV="26" Q_VAL="27" run_dispatch; out="$(launched)"
 [ "$(printf '%s' "$out" | grep -o '/mylos:' | wc -l)" -eq 1 ] && pass "pool of 2 with one live run → one launch" || fail "pool exceeded: $out"
 
 # a stage with 0 slots never runs
-setup; machine $'pool: 4\nstages: {deploy: 0}'; Q_PROD="47" bash "$D"
+setup; machine $'pool: 4\nstages: {deploy: 0}'; Q_PROD="47" run_dispatch
 [ -z "$(launched)" ] && pass "stage with 0 slots" || fail "deployed with 0 slots: $(launched)"
 
 # a card with a live run of any pipeline gets no second run (they would share its worktree)
 setup; mkdir -p "$FACTORY_HOME/locks/develop-36.lock"; echo "$$ $(date +%s) 36" > "$FACTORY_HOME/locks/develop-36.lock/info"
-Q_VAL="36" bash "$D"; [ -z "$(launched)" ] && pass "busy card skipped" || fail "second run on a busy card: $(launched)"
+Q_VAL="36" run_dispatch; [ -z "$(launched)" ] && pass "busy card skipped" || fail "second run on a busy card: $(launched)"
 
 # staged cards are refreshed only when the project opts in
-setup; Q_STG="35" bash "$D"; sleep 1; [ -z "$(cat "$tmp/refreshed")" ] && pass "no refresh by default" || fail "refreshed without opting in"
+setup; Q_STG="35" run_dispatch; [ -z "$(cat "$tmp/refreshed")" ] && pass "no refresh by default" || fail "refreshed without opting in"
 
 # staged cards are kept up to date by deploy.sh --refresh, outside the agent pool
 setup; cfg="$(mktemp)"; sed '/^deploy:/d' "$FACTORY_CONFIG" > "$cfg"; echo 'deploy: {refresh_staged: true}' >> "$cfg"; export FACTORY_CONFIG="$cfg"; machine $'pool: 1
 stages: {refine: 1, develop: 1, validate: 1, deploy: 1}'; live_lock other refine-3
-Q_STG="35 36" bash "$D"; sleep 1
+Q_STG="35 36" run_dispatch
 assert_contains "$(cat "$tmp/refreshed")" "refresh 35 --refresh"
 assert_contains "$(cat "$tmp/refreshed")" "refresh 36 --refresh"
 [ -z "$(cat "$tmp/launched")" ] && pass "refreshes use no agent slot" || fail "launched agents: $(cat "$tmp/launched")"
 setup; export FACTORY_CONFIG="$cfg"; mkdir -p "$FACTORY_HOME/locks/validate-35.lock"; echo "$$ $(date +%s) 35" > "$FACTORY_HOME/locks/validate-35.lock/info"
-Q_STG="35" bash "$D"; sleep 1; [ -z "$(cat "$tmp/refreshed")" ] && pass "busy card not refreshed" || fail "refreshed a busy card"
+Q_STG="35" run_dispatch; [ -z "$(cat "$tmp/refreshed")" ] && pass "busy card not refreshed" || fail "refreshed a busy card"
 
 # an invalid machine config launches nothing
-setup; machine 'pool: 0'; Q_REF="25" bash "$D"; code=$?
+setup; machine 'pool: 0'; Q_REF="25" run_dispatch; code=$?
 [ -z "$(launched)" ] && [ "$code" -ne 0 ] && pass "invalid machine config → nothing, non-zero" || fail "launched with an invalid machine config (exit $code)"
 finish

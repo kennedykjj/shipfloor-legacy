@@ -7,7 +7,7 @@ tmp="$(mktemp -d)"
 printf '#!/usr/bin/env bash\ncase "$1 $2" in "eligible Ready for Dev") echo 54 ;; *) echo ;; esac\n' > "$tmp/board"
 printf '#!/usr/bin/env bash\necho "pathconv=${MSYS_NO_PATHCONV:-unset} prompt=$(cat)"\nexit 3\n' > "$tmp/claude"
 chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"
-bash "$D"; sleep 2
+run_dispatch
 log="$(cat "$FACTORY_HOME"/logs/*-54-develop.log)"
 assert_contains "$log" "pathconv=unset prompt=/mylos:develop 54"
 assert_contains "$log" "== start /mylos:develop 54"
