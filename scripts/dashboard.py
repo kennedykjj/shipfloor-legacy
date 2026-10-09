@@ -10,12 +10,10 @@ HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
 import aghanim_config  # exits with a clear message when PyYAML is missing
+from dashboard_cost import LEGACY_STAGES, cost, parse_transcript, parse_ts, rounded
 import yaml
 
-LEGACY_STAGES = {"refinar": "refine", "desenvolver": "develop", "validar": "validate", "deployar": "deploy"}  # legacy mylos
-COMMAND = re.compile(r"<command-name>/(?:aghanim|mylos):([a-z]+)</command-name>\s*<command-args>(\d+)</command-args>")  # legacy mylos
 RUN_LINE = re.compile(r"^== (start|end) /(?:aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy mylos
-TOKEN_KINDS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
 # The review page inside the dashboard's drawer: the drawer already carries the title and the one
 # action, so the embedded page drops its header and takes the dashboard's palette and type.
 EMBED_CSS = """<style>
@@ -39,80 +37,31 @@ def read_yaml(path):
         return {}
 
 
-def parse_ts(s):
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
-
-
-def text_of(content):
-    if isinstance(content, str):
-        return content
-    return "".join(p.get("text", "") for p in content or [] if isinstance(p, dict))
-
-
-def parse_transcript(path):
-    """The card a session ran for (its first user message is the dispatcher's /aghanim:<stage> <n>)
-    and its tokens per model."""
-    stage = issue = start = end = None
-    first_user, usage = True, {}
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            try:
-                o = json.loads(line)
-            except ValueError:
-                continue  # a run still writing its last line
-            start, end = start or o.get("timestamp"), o.get("timestamp") or end
-            msg = o.get("message") or {}
-            if o.get("type") == "user" and first_user:
-                first_user = False
-                m = COMMAND.search(text_of(msg.get("content")))
-                if m:
-                    stage, issue = LEGACY_STAGES.get(m.group(1), m.group(1)), int(m.group(2))
-            elif o.get("type") == "assistant" and msg.get("usage"):
-                # Claude Code logs one API message once per content block, repeating its usage
-                usage[msg.get("id") or len(usage)] = (msg.get("model"), msg["usage"])
-    tokens = {}
-    for model, u in usage.values():
-        cw = u.get("cache_creation") or {}
-        kinds = {"input": u.get("input_tokens"), "output": u.get("output_tokens"),
-                 "cache_read": u.get("cache_read_input_tokens"),
-                 "cache_write_5m": cw.get("ephemeral_5m_input_tokens") if cw else u.get("cache_creation_input_tokens"),
-                 "cache_write_1h": cw.get("ephemeral_1h_input_tokens")}
-        if not any(kinds.values()):
-            continue
-        t = tokens.setdefault(model, dict.fromkeys(TOKEN_KINDS, 0))
-        for k, v in kinds.items():
-            t[k] += v or 0
-    return {"stage": stage, "issue": issue, "start": start, "end": end, "tokens": tokens}
-
-
-def cost(tokens, prices):
-    """US$ for {model: {kind: n}}, or None when a model has no price."""
-    total = 0.0
-    for model, t in tokens.items():
-        p = prices.get(model)
-        if not p:
-            return None
-        total += sum(t[k] * p.get(k, 0) for k in TOKEN_KINDS) / 1e6
-    return total
-
-
-def rounded(usd):
-    return None if usd is None else round(usd, 2)
-
-
 def bash():
     return os.environ.get("AGHANIM_BASH", "bash")
 
 
 def gh(*args, input=None):  # through bash, so FACTORY_GH can be a script on Windows too
+    # Never --jq: started from Python on Windows, gh crashes on it (0xC0000005). Read JSON with gh_json.
     return subprocess.run([bash(), "-c", 'exec "${FACTORY_GH:-gh}" "$@"', "gh", *args],
                           input=input, capture_output=True, text=True, encoding="utf-8")
+
+
+def gh_json(*args):
+    """(value, None) from a gh call that prints JSON, or (None, error)."""
+    r = gh(*args)
+    if r.returncode != 0:
+        return None, r.stderr.strip() or f"gh exited {r.returncode}"
+    try:
+        return json.loads(r.stdout or "null"), None
+    except ValueError:
+        return None, "gh did not print JSON"
 
 
 class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
-        self._transcripts, self._titles = {}, {}
+        self._transcripts, self._titles, self._blocked = {}, {}, {}
 
     def projects(self):
         try:
@@ -193,12 +142,59 @@ class Factory:
         at, known = self._titles.get(p, (0, {}))
         if time.time() - at > 300:
             repo = aghanim_config.dotted(self.config(p), "project.repo")
-            r = gh("issue", "list", "--repo", str(repo), "--state", "all", "--limit", "300",
-                   "--json", "number,title", "--jq", '.[] | "\\(.number)\\t\\(.title)"')
-            if r.returncode == 0:
-                known = {int(a): b for a, _, b in (l.partition("\t") for l in r.stdout.splitlines()) if a.isdigit()}
+            issues, _ = gh_json("issue", "list", "--repo", str(repo), "--state", "all", "--limit", "300", "--json", "number,title")
+            if isinstance(issues, list):
+                known = {i["number"]: i.get("title", "") for i in issues if isinstance(i, dict) and "number" in i}
             self._titles[p] = (time.time(), known)
         return known
+
+    def blocked(self, p):
+        """{n: "owner" | "infra"} from the block labels, read at most once a minute."""
+        at, known = self._blocked.get(p, (0, {}))
+        if time.time() - at > 60:
+            repo, known = aghanim_config.dotted(self.config(p), "project.repo"), {}
+            for label, kind in (("blocked:infra", "infra"), ("blocked", "owner")):
+                issues, _ = gh_json("api", f"repos/{repo}/issues?labels={label}&state=open&per_page=100")
+                known.update({i["number"]: kind for i in issues or [] if isinstance(i, dict) and "number" in i})
+            self._blocked[p] = (time.time(), known)
+        return known
+
+    def stacks(self):
+        """Stack slots as lib/stack.sh computes them (gate.sh stack status)."""
+        projects = self.projects()
+        if not projects:
+            return [], 0
+        p = projects[0]
+        env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)),
+                   AGHANIM_HOME=str(self.home))
+        r = subprocess.run([bash(), (HERE / "gate.sh").as_posix(), "stack", "status"], env=env, cwd=str(self.pdir(p)),
+                           capture_output=True, text=True, encoding="utf-8")
+        slots, queue = [], 0
+        for line in r.stdout.splitlines():
+            f = line.split("\t")
+            if f[0] == "queue":
+                queue = int(f[1]) if f[1].isdigit() else 0
+            elif len(f) >= 4 and f[0].isdigit():
+                slots.append({"slot": int(f[0]), "state": f[1], "owner": f[2], "held_s": int(f[3] or 0),
+                              "reason": f[4] if len(f) > 4 else ""})
+        return slots, queue
+
+    def block_reason(self, p, n):
+        """The last issue comment about the block: the skills write the step, the output and what was tried there."""
+        repo = aghanim_config.dotted(self.config(p), "project.repo")
+        comments, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100")
+        for c in reversed(comments or []):
+            body = (c.get("body") or "") if isinstance(c, dict) else ""
+            if "blocked" in body.lower():
+                return body[:1200]
+        return ""
+
+    def unblock(self, p, n):
+        repo = aghanim_config.dotted(self.config(p), "project.repo")
+        for label in ("blocked", "blocked:infra"):
+            gh("api", "-X", "DELETE", f"repos/{repo}/issues/{n}/labels/{label}")
+        self._blocked.pop(p, None)
+        return 200, {"unblocked": True}
 
     def reports(self, p, n):
         out = []
@@ -209,7 +205,8 @@ class Factory:
                 continue
             out.append({"file": f.name, "pipeline": r.get("pipeline"), "outcome": r.get("outcome"),
                         "gates": r.get("gates") or {}, "failed_gates": r.get("failed_gates") or r.get("gates_failed") or [],
-                        "rounds": r.get("rounds"), "notes": r.get("notes", "")})
+                        "rounds": r.get("rounds"),
+                        "notes": "\n".join(r["notes"]) if isinstance(r.get("notes"), list) else r.get("notes") or ""})
         return out
 
     def card(self, p, n):
@@ -226,10 +223,13 @@ class Factory:
                              "exit": run and run["exit"], "log": run and run["log"]})
         costs = [s["cost"] for s in sessions]
         columns, _ = self.board(p)
+        reports = self.reports(p, n)
         return {"project": p, "issue": n, "title": self.titles(p).get(n, ""), "column": columns.get(n),
                 "repo": aghanim_config.dotted(self.config(p), "project.repo"),
                 "total": None if None in costs else round(sum(costs), 2), "sessions": sessions, "runs": runs,
-                "reports": self.reports(p, n), "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file()}
+                "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
+                "blocked": self.blocked(p).get(n),
+                "block_reason": self.block_reason(p, n) if self.blocked(p).get(n) else ""}
 
     def pool(self):
         m = aghanim_config.merged(read_yaml(self.home / "config.yml"), aghanim_config.MACHINE_DEFAULTS)
@@ -276,18 +276,20 @@ class Factory:
                     today_cost += c
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
-            titles = self.titles(p)
+            titles, blocked = self.titles(p), self.blocked(p)
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "board_age_s": age,
                              "cards": [{"issue": n, "title": titles.get(n, ""), "column": col,
                                         "cost": rounded(per_card.get(n, 0.0)),
-                                        "running": running.get(n), "awaiting": col in OWNER_MOVES}
+                                        "running": running.get(n), "awaiting": col in OWNER_MOVES,
+                                        "blocked": blocked.get(n)}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
+        stacks, queue = self.stacks()
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(),
-                "runs": live, "projects": projects,
+                "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
                           "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)}}
 
@@ -319,21 +321,21 @@ class Factory:
         return 200, {"moved_to": target}
 
     def move(self, p, owner, num, item, target):
+        fields, err = gh_json("project", "field-list", str(num), "--owner", owner, "--format", "json")
+        if err:
+            return "cannot read the board columns: " + err
+        status = next((f for f in (fields or {}).get("fields", []) if f.get("name") == "Status"), None)
+        if not status:
+            return "the board has no Status field"
         try:
             project_id, field_id = (self.pdir(p) / "board-ids").read_text().split()[:2]
         except (OSError, ValueError):
-            a = gh("project", "view", str(num), "--owner", owner, "--format", "json", "--jq", ".id")
-            b = gh("project", "field-list", str(num), "--owner", owner, "--format", "json",
-                   "--jq", '.fields[] | select(.name=="Status") | .id')
-            if a.returncode or b.returncode:
-                return "cannot read the board ids: " + (a.stderr or b.stderr).strip()
-            project_id, field_id = a.stdout.strip(), b.stdout.strip()
-        opts = gh("project", "field-list", str(num), "--owner", owner, "--format", "json",
-                  "--jq", '.fields[] | select(.name=="Status") | .options[] | "\\(.name)\\t\\(.id)"')
-        if opts.returncode:
-            return "cannot read the board columns: " + opts.stderr.strip()
-        option = next((i for name, _, i in (l.partition("\t") for l in opts.stdout.splitlines())
-                       if re.sub(r"^[^A-Za-z]+ ", "", name) == target), None)  # columns carry an owner mark
+            project, err = gh_json("project", "view", str(num), "--owner", owner, "--format", "json")
+            if err:
+                return "cannot read the board ids: " + err
+            project_id, field_id = project.get("id", ""), status.get("id", "")
+        option = next((o["id"] for o in status.get("options", [])
+                       if re.sub(r"^[^A-Za-z]+ ", "", o.get("name", "")) == target), None)  # columns carry an owner mark
         if not option:
             return f"no column '{target}' on the board"
         r = gh("project", "item-edit", "--project-id", project_id, "--id", item,
@@ -413,13 +415,15 @@ class Handler(BaseHTTPRequestHandler):
         if not self.allowed():
             return self.send(403, {"error": "missing or wrong token"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and parts[3].isdigit() and parts[4] in ("approve", "request-changes")):
+                and parts[3].isdigit() and parts[4] in ("approve", "request-changes", "unblock")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         except ValueError:
             return self.send(400, {"error": "body is not JSON"})
         try:
+            if parts[4] == "unblock":
+                return self.send(*self.factory.unblock(parts[2], int(parts[3])))
             self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),
                                         str(body.get("text", "")), bool(body.get("move_only"))))
         except Exception as e:

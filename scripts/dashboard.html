@@ -148,6 +148,13 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 @property --sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 @keyframes sweep { from { --sweep: 0deg; } to { --sweep: 360deg; } }
 .card.running { border-color: var(--edge-hi); }
+.card .blocked { margin-top: 6px; font-size: 11.5px; color: var(--bad); }
+.card .blocked.infra { color: var(--warn); }
+.block-note { margin: 12px 20px 0; padding: 10px 12px; border: 1px solid var(--edge-hi); border-radius: 6px; display: flex; gap: 12px; align-items: flex-start; font-size: 12.5px; }
+.block-note p { margin: 0; flex: 1; color: var(--muted); white-space: pre-wrap; }
+.block-note b { color: var(--bad); font-weight: 600; }
+.block-note.infra b { color: var(--warn); }
+.stat.stacks.stuck .v { color: var(--warn); }
 .card.await { border-color: var(--azure); box-shadow: 0 0 0 1px var(--azure) inset; background: linear-gradient(180deg, var(--azure-soft), var(--panel)); }
 .card.await .waits { margin-top: 6px; font-size: 11.5px; color: var(--azure); }
 .card.moving { opacity: .55; }
@@ -238,6 +245,7 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
   <div class="stat"><div class="v num" id="today">–</div><div class="k" id="today-k">runs today</div></div>
   <div class="stat"><div class="v num gold" id="cost">–</div><div class="k">spent today <span class="est">est.</span></div></div>
   <div class="stat await"><div class="v num" id="await-n">–</div><div class="k">awaiting you</div><div class="list" id="await-list"></div></div>
+  <div class="stat stacks" id="stacks-cell"><div class="v num" id="stacks">–</div><div class="k" id="stacks-k">stacks</div></div>
   <div class="stat state"><div class="flags" id="flags"></div><div class="k" id="age"></div></div>
 </header>
 <main>
@@ -311,6 +319,11 @@ function renderStrip() {
   $("today").innerHTML = `${o.today.runs}`;
   $("today-k").innerHTML = `runs today · <span class="ok">${o.today.ok} ok</span>${o.today.failed ? ` · <span class="bad">${o.today.failed} failed</span>` : ""}`;
   $("cost").innerHTML = `<span class="coin">${o.today.cost.toFixed(2)}</span>`;
+  const slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
+  $("stacks").innerHTML = `${busy}<small>/${slots.length}</small>`;
+  $("stacks-k").textContent = `stacks${o.queue ? ` · +${o.queue} waiting` : ""}`;
+  $("stacks-cell").className = `stat stacks${stuck ? " stuck" : ""}`;
+  $("stacks-cell").title = slots.map((x) => `slot ${x.slot}: ${x.state}${x.owner !== "-" ? ` ${x.owner}` : ""}${x.state !== "free" ? ` ${elapsed(new Date(Date.now() - x.held_s * 1000))}` : ""}${x.reason ? ` (${x.reason})` : ""}`).join("\n");
   const waiting = o.projects.flatMap((p) => p.cards.filter((c) => c.awaiting).map((c) => ({ ...c, p: p.slug })));
   $("await-n").textContent = waiting.length;
   $("await-list").innerHTML = waiting.map((c) => `<button data-open="${esc(c.p)}/${c.issue}" title="${esc(c.column)}: ${esc(c.title)}">#${c.issue}</button>`).join("");
@@ -347,11 +360,12 @@ function renderBoard() {
 function cardHtml(slug, c) {
   const key = `${slug}/${c.issue}`; const moving = key in S.moving;
   const cls = ["card", c.running ? "running" : "", c.awaiting && !moving ? "await" : "", moving ? "moving" : "", S.open === key ? "open" : ""].join(" ");
+  const block = c.blocked ? `<div class="blocked ${c.blocked}">${c.blocked === "infra" ? "infra · retrying" : "blocked"}</div>` : "";
   const extra = moving ? '<div class="waits">moving…</div>'
     : c.running ? `<div class="run"><span class="dial" aria-hidden="true"></span>${esc(c.running)} running${clock(liveRun(slug, c.issue, c.running))}</div>`
     : c.awaiting ? `<div class="waits">${c.column === "Staged" ? "ready to ship" : "spec to review"}</div>` : "";
   return `<button class="${cls}" data-open="${esc(key)}"><div class="top"><span class="no num">#${c.issue}</span><span class="cost num gold">${c.cost === null ? money(null) : c.cost ? money(c.cost) : ""}</span></div>
-    <div class="title">${esc(c.title) || `Issue #${c.issue}`}</div>${extra}</button>`;
+    <div class="title">${esc(c.title) || `Issue #${c.issue}`}</div>${extra}${block}</button>`;
 }
 
 /* drawer */
@@ -382,6 +396,7 @@ function renderDrawer() {
   d.innerHTML = `<div class="tip-head"><div class="row1"><h3><span class="num">#${n}</span>${esc(c?.title || ov?.title || "")}</h3>
       <div><span class="total num gold">${c ? money(c.total) : ""}</span><span class="est">est.</span> <button class="close" data-close aria-label="Close">Close</button></div></div>
       <div class="meta"><span>${esc(column)}</span>${issue ? `<span>${issue}</span>` : ""}<span>${sessions.length} session${sessions.length === 1 ? "" : "s"}</span><span>first to last run ${span}</span>${ov?.running ? `<span>${esc(ov.running)} running ${clock(liveRun(p, +n, ov.running), true)}</span>` : ""}</div></div>
+    ${c?.blocked ? `<div class="block-note ${c.blocked}"><p><b>${c.blocked === "infra" ? "Blocked by infrastructure; the factory retries once." : "Blocked, waiting for you."}</b>${c.block_reason ? "\n" + esc(c.block_reason.replace(/\*\*|`/g, "")) : ""}</p><button class="btn" data-unblock>Unblock &amp; retry</button></div>` : ""}
     <nav class="tabs" role="tablist">${tabs.map(([id, label, b]) => `<button role="tab" aria-selected="${S.tab === id}" data-tab="${id}">${label}${b !== "" ? `<span class="b">${b}</span>` : ""}</button>`).join("")}</nav>
     <div class="pane" id="pane">${c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>'}</div>`;
 }
@@ -465,6 +480,17 @@ async function act(action, moveOnly) {
 }
 
 let tailing = false;
+async function unblock() {
+  const [p, n] = S.open.split("/");
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/unblock`, { method: "POST", body: "{}" });
+  if (status !== 200) {
+    const note = document.querySelector(".block-note p");
+    if (note) note.insertAdjacentHTML("beforeend", `<br><span class="bad">${esc(body.error || "Unblock failed.")}</span>`);
+    return;
+  }
+  await loadCard(); loadOverview();
+}
+
 async function followLog() {
   if (tailing || !S.open || S.tab !== "log" || !S.log) return;
   const [p] = S.open.split("/"); const log = S.log;
@@ -479,7 +505,7 @@ async function followLog() {
 }
 
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-open],[data-close],[data-tab],[data-sub],[data-act],[data-retry],tr.session");
+  const t = e.target.closest("[data-open],[data-close],[data-tab],[data-sub],[data-act],[data-retry],[data-unblock],tr.session");
   if (!t) return;
   if (t.dataset.open) openCard(t.dataset.open);
   else if (t.hasAttribute("data-close")) closeCard();
@@ -487,6 +513,7 @@ document.addEventListener("click", (e) => {
   else if (t.dataset.sub) { e.stopPropagation(); S.expanded[t.dataset.sub] = !S.expanded[t.dataset.sub]; renderDrawer(); }
   else if (t.dataset.act) act(t.dataset.act);
   else if (t.dataset.retry) act(t.dataset.retry, true);
+  else if (t.hasAttribute("data-unblock")) unblock();
   else if (t.matches("tr.session") && t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; S.tab = "log"; renderDrawer(); followLog(); }
 });
 document.addEventListener("change", (e) => {
