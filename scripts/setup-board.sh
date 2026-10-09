@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# One-off: sets the board columns and labels. Rewriting options resets every card's Status,
-# so it snapshots item → status first and restores by name, ignoring the 👤/🤖 owner mark
-# (pre-factory names: "Ready" → "Ready for Refinement", "Doing" → "Coding").
+# One-off per project: sets the board's Status columns and the factory labels. Rewriting the
+# options resets every card's Status, so it snapshots item → status first and restores by name,
+# ignoring the 👤/🤖 owner mark. Cards whose status has no column keep an empty Status (listed).
 set -euo pipefail
-OWNER=kennedykjj; NUM=2; FIELD=PVTSSF_lAHOAgqatc4BmLV8zhk1YEM; PROJECT=PVT_kwHOAgqatc4BmLV8
+source "$(dirname "$0")/lib/project.sh"
+mylos_resolve . || exit 2
+mapfile -d '' -t V < <(mylos_cfg values board.owner board.number project.repo)
+OWNER="${V[0]}" NUM="${V[1]}" REPO="${V[2]}"
+PROJECT="$(gh project view "$NUM" --owner "$OWNER" --format json --jq .id)"
+FIELD="$(gh project field-list "$NUM" --owner "$OWNER" --format json --jq '.fields[] | select(.name=="Status") | .id')"
+[ -n "$FIELD" ] || { echo "setup-board: project $OWNER/$NUM has no Status field" >&2; exit 1; }
 snap="${SNAPSHOT:-$(mktemp)}"
 gh project item-list "$NUM" --owner "$OWNER" --limit 500 --format json --jq '.items[] | "\(.id)\t\(.status // "")"' > "$snap"
 echo "snapshot ($snap): $(wc -l < "$snap") items"
@@ -13,12 +19,12 @@ gh api graphql -f query="mutation { updateProjectV2Field(input:{fieldId:\"$FIELD
 ids="$(gh project field-list "$NUM" --owner "$OWNER" --format json --jq '.fields[] | select(.name=="Status") | .options[] | "\(.name)\t\(.id)"' | LC_ALL=C awk -F'\t' -v OFS='\t' '{ sub(/^[^A-Za-z]+ /, "", $1); print }')"
 LC_ALL=C awk -F'\t' -v OFS='\t' '{ sub(/^[^A-Za-z]+ /, "", $2); print }' "$snap" | while IFS=$'\t' read -r item st; do
   [ -z "$st" ] && continue
-  [ "$st" = "Ready" ] && st="Ready for Refinement"
-  [ "$st" = "Doing" ] && st="Coding"
   o="$(printf '%s\n' "$ids" | awk -F'\t' -v s="$st" '$1==s{print $2}')"
-  [ -z "$o" ] && { echo "no option for '$st' (item $item)" >&2; continue; }
+  [ -z "$o" ] && { echo "no column for '$st' (item $item): left without Status" >&2; continue; }
   gh project item-edit --project-id "$PROJECT" --id "$item" --field-id "$FIELD" --single-select-option-id "$o" >/dev/null
 done
-gh label create ui --color 1d76db --description "Issue mexe em tela; o UX/UI entra no refinamento" --force
-gh label create cybersec --color b60205 --description "Dono pediu revisão de segurança nas esteiras" --force
+gh label create ui --repo "$REPO" --color 1d76db --description "Issue mexe em tela; o UX/UI entra no refinamento" --force
+gh label create cybersec --repo "$REPO" --color b60205 --description "Dono pediu revisão de segurança nas esteiras" --force
+gh label create blocked --repo "$REPO" --color 000000 --description "A fábrica parou neste card; o dono decide" --force
+rm -f "${FACTORY_HOME:-$MYLOS_HOME}/board-ids"
 gh project item-list "$NUM" --owner "$OWNER" --limit 500 --format json --jq '[.items[] | .status] | group_by(.) | map("\(.[0]): \(length)") | .[]'

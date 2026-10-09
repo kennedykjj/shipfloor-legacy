@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
-# Reads and moves cards on the "Pickio Backlog" board (GitHub project 2).
+# Reads and moves cards on the project's board (a GitHub Project v2, from .mylos/factory.yml).
 set -uo pipefail
+source "$(dirname "$0")/lib/project.sh"
 GH="${FACTORY_GH:-gh}"
-OWNER=kennedykjj; NUM=2; REPO=kennedykjj/pickio
-PROJECT_ID=PVT_kwHOAgqatc4BmLV8; FIELD_ID=PVTSSF_lAHOAgqatc4BmLV8zhk1YEM
+mylos_resolve . || exit 2
+mapfile -d '' -t V < <(mylos_cfg values board.owner board.number project.repo 2>/dev/null)
+[ "${#V[@]}" -eq 3 ] || { echo "board: cannot read the board from the project config" >&2; exit 2; }
+OWNER="${V[0]}" NUM="${V[1]}" REPO="${V[2]}"
+[[ "$OWNER" =~ ^[A-Za-z0-9-]+$ && "$NUM" =~ ^[0-9]+$ ]] || { echo "board: bad board owner/number" >&2; exit 2; }
 OWNER_ONLY_TARGETS='^(Ready for Refinement|Ready for Dev|Ready for Prod)$'
 OWNER_ONLY_SOURCES='^(Spec Review|Staged)$'
 
 # Asks only for each card's issue number and Status: a few points per read, where
 # `gh project item-list` fetches up to 100 fields per card and costs ~200 points.
-BOARD_QUERY='query { user(login: "kennedykjj") { projectV2(number: 2) { items(first: 100) { nodes {
+# repositoryOwner serves both user and organization boards.
+BOARD_QUERY='query { repositoryOwner(login: "'"$OWNER"'") { ... on ProjectV2Owner { projectV2(number: '"$NUM"') { items(first: 100) { nodes {
   id
   content { ... on Issue { number } ... on PullRequest { number } }
   status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
-} } } } }'
+} } } } } }'
 
 fetch_items() {  # one GraphQL read of the board: <issue>\t<status>\t<itemId>
   "$GH" api graphql -f query="$BOARD_QUERY" \
-    --jq '.data.user.projectV2.items.nodes[] | select(.content.number != null) | "\(.content.number)\t\(.status.name // "")\t\(.id)"' \
+    --jq '.data.repositoryOwner.projectV2.items.nodes[] | select(.content.number != null) | "\(.content.number)\t\(.status.name // "")\t\(.id)"' \
     | strip_owner_mark 2
 }
 
@@ -58,6 +63,15 @@ option_id() {
     | strip_owner_mark 1 | awk -F'\t' -v s="$1" '$1==s{print $2}'
 }
 
+board_ids() {  # PROJECT_ID and FIELD_ID (Status), looked up once per project and cached
+  local cache="${FACTORY_HOME:-$MYLOS_HOME}/board-ids"
+  if [ -s "$cache" ]; then read -r PROJECT_ID FIELD_ID < "$cache"; [ -n "${FIELD_ID:-}" ] && return 0; fi
+  PROJECT_ID="$("$GH" project view "$NUM" --owner "$OWNER" --format json --jq .id)" || return 1
+  FIELD_ID="$("$GH" project field-list "$NUM" --owner "$OWNER" --format json --jq '.fields[] | select(.name=="Status") | .id')" || return 1
+  [ -n "$PROJECT_ID" ] && [ -n "$FIELD_ID" ] || { echo "board: project $OWNER/$NUM has no Status field" >&2; return 1; }
+  mkdir -p "$(dirname "$cache")"; echo "$PROJECT_ID $FIELD_ID" > "$cache"
+}
+
 COLUMNS='^(Inbox|Ready for Refinement|Technical Refinement|Spec Review|Ready for Dev|Coding|Validation|Staged|Ready for Prod|Done)$'
 
 move() {
@@ -69,6 +83,7 @@ move() {
   id="$(item_id "$n")"; opt="$(option_id "$target")"
   [ -z "$id" ] && { echo "move: issue #$n is not on the board" >&2; return 1; }
   [ -z "$opt" ] && { echo "move: unknown status '$target'" >&2; return 1; }
+  board_ids || return 1
   "$GH" project item-edit --project-id "$PROJECT_ID" --id "$id" --field-id "$FIELD_ID" --single-select-option-id "$opt" >/dev/null
 }
 

@@ -24,6 +24,16 @@ assert_exit 3 bash "$BOARD" move 33 "Coding"          # leaving Spec Review
 assert_exit 3 bash "$BOARD" move 47 "Done"            # leaving Staged
 assert_exit 0 bash "$BOARD" move 40 "Validation"
 
+# the board comes from the project config; ids are looked up once and cached
+assert_contains "$(cat "$FAKE_GH_DIR/edits")" "--project-id PVT_x --id I1 --field-id FLD_x"
+q="$(grep 'api graphql' "$FAKE_GH_DIR/calls" | head -1)"
+assert_contains "$q" 'repositoryOwner(login: "acme")'
+assert_contains "$q" 'projectV2(number: 7)'
+assert_contains "$(grep -c 'project view' "$FAKE_GH_DIR/calls")" "1"
+assert_contains "$(grep -E 'project (view|field-list)' "$FAKE_GH_DIR/calls" | head -1)" "--owner acme"
+bad="$(mktemp)"; sed 's/owner: acme/owner: "a\\" } evil"/' "$FACTORY_CONFIG" > "$bad"
+assert_exit 2 env FACTORY_CONFIG="$bad" bash "$BOARD" items
+
 touch "$FAKE_GH_DIR/fail"
 assert_exit 1 bash "$BOARD" count Coding
 finish
