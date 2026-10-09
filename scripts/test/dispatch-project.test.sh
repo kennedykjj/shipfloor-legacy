@@ -17,34 +17,35 @@ case "$1 $2" in
   *) echo ;;
 esac
 EOB
-  printf '#!/usr/bin/env bash\necho "$(cat) $* | cfg=$FACTORY_CONFIG proj=$FACTORY_PROJECT mf=${MYLOS_FACTORY:-}" >> "%s/launched"\nsleep 2\n' "$tmp" > "$tmp/claude"
+  printf '#!/usr/bin/env bash\necho "$(cat) $* | cfg=$FACTORY_CONFIG proj=$FACTORY_PROJECT mf=${MYLOS_FACTORY:-} snap=${FACTORY_BOARD_SNAPSHOT:-none}" >> "%s/launched"\nsleep 2\n' "$tmp" > "$tmp/claude"
   chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
 }
 launched() { sleep 1; cat "$tmp/launched"; }
 live_lock() { mkdir -p "$1"; echo "$$ $(date +%s) 1" > "$1/info"; }
 
 # limits come from the config
-setup; cfg="$(mktemp)"; cat "$FACTORY_CONFIG" > "$cfg"; printf 'limits:\n  desenvolver: {parallel: 1}\n' >> "$cfg"; export FACTORY_CONFIG="$cfg"
+setup; cfg="$(mktemp)"; cat "$FACTORY_CONFIG" > "$cfg"; printf 'limits:\n  develop: {parallel: 1}\n' >> "$cfg"; export FACTORY_CONFIG="$cfg"
 Q_DEV="26 27" bash "$D"; out="$(launched)"
-assert_contains "$out" "/mylos:desenvolver 26"
-case "$out" in *"desenvolver 27"*) fail "ignored limits.desenvolver.parallel: $out" ;; *) pass "parallel limit from config" ;; esac
+assert_contains "$out" "/mylos:develop 26"
+case "$out" in *"develop 27"*) fail "ignored limits.develop.parallel: $out" ;; *) pass "parallel limit from config" ;; esac
 
 # a machine-wide limit counts live runs of every project
-setup; export MYLOS_MAX_PARALLEL=1; live_lock "$MYLOS_HOME/projects/other/locks/desenvolver-9.lock"
+setup; export MYLOS_MAX_PARALLEL=1; live_lock "$MYLOS_HOME/projects/other/locks/develop-9.lock"
 Q_DEV="26" bash "$D"; [ -z "$(launched)" ] && pass "global limit across projects" || fail "launched past the global limit: $(launched)"
-setup; export MYLOS_MAX_PARALLEL=2; live_lock "$MYLOS_HOME/projects/other/locks/desenvolver-9.lock"
-Q_DEV="26 27" bash "$D"; out="$(launched)"; assert_contains "$out" "desenvolver 26"
-case "$out" in *"desenvolver 27"*) fail "two runs with one global slot: $out" ;; *) pass "one global slot → one run" ;; esac
+setup; export MYLOS_MAX_PARALLEL=2; live_lock "$MYLOS_HOME/projects/other/locks/develop-9.lock"
+Q_DEV="26 27" bash "$D"; out="$(launched)"; assert_contains "$out" "develop 26"
+case "$out" in *"develop 27"*) fail "two runs with one global slot: $out" ;; *) pass "one global slot → one run" ;; esac
 unset MYLOS_MAX_PARALLEL
 
 # the run gets the worktrees, its tmp and reviews dirs, the project's settings, and the factory flag
 setup; Q_REF=25 bash "$D"; out="$(launched)"
-assert_contains "$out" "/mylos:refinar 25"
+assert_contains "$out" "/mylos:refine 25"
 assert_contains "$out" "--add-dir $FACTORY_WT_ROOT"
 assert_contains "$out" "--add-dir $FACTORY_HOME/tmp"
 assert_contains "$out" "--add-dir $FACTORY_HOME/reviews"
 case "$out" in *"--add-dir $FACTORY_HOME "*) fail "whole project home is writable" ;; *) pass "project home not added" ;; esac
 assert_contains "$out" "cfg=$FACTORY_CONFIG proj=shop mf=1"
+assert_contains "$out" "snap=none"   # a run reads the live board, never the cycle's snapshot
 
 # an invalid config dispatches nothing
 setup; bad="$(mktemp)"; echo 'project: {name: shop}' > "$bad"; export FACTORY_CONFIG="$bad"

@@ -131,7 +131,7 @@ cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide a
       done <<< "$out" ;;
     set) mylos_machine set pool "${2:-}" ;;
     stage) mylos_machine set "stages.${2:-}" "${3:-}" ;;
-    *) die "usage: mylos pool [set <n> | stage <refinar|desenvolver|validar|deployar> <n>]" 2 ;;
+    *) die "usage: mylos pool [set <n> | stage <refine|develop|validate|deploy> <n>]" 2 ;;
   esac
 }
 

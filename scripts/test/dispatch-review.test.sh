@@ -19,19 +19,19 @@ assert_contains "$out" "$FACTORY_HOME/control |"
 
 # I7: an old lock whose process is alive is not reclaimed
 setup; sleep 30 & live=$!
-mkdir -p "$FACTORY_HOME/locks/refinar-25.lock"; echo "$live $(( $(date +%s) - 20000 )) 26" > "$FACTORY_HOME/locks/refinar-25.lock/info"
+mkdir -p "$FACTORY_HOME/locks/refine-25.lock"; echo "$live $(( $(date +%s) - 20000 )) 26" > "$FACTORY_HOME/locks/refine-25.lock/info"
 bash "$D"; [ -z "$(launched)" ] && pass "old lock with live pid respected" || fail "reclaimed a live lock"
 kill "$live" 2>/dev/null
 
 # I7: a fresh lock without info is not reclaimed
-setup; mkdir -p "$FACTORY_HOME/locks/refinar-25.lock"
+setup; mkdir -p "$FACTORY_HOME/locks/refine-25.lock"
 bash "$D"; [ -z "$(launched)" ] && pass "fresh lock without info respected" || fail "reclaimed a fresh lock"
 
 # I7: a run removes only its own lock
 setup; export CLAUDE_SLEEP=2; bash "$D"; sleep 1
-echo "99999 $(date +%s) 30" > "$FACTORY_HOME/locks/refinar-25.lock/info"   # another run took over the lock
+echo "99999 $(date +%s) 30" > "$FACTORY_HOME/locks/refine-25.lock/info"   # another run took over the lock
 sleep 3
-[ -d "$FACTORY_HOME/locks/refinar-25.lock" ] && pass "kept the other run's lock" || fail "deleted another run's lock"
+[ -d "$FACTORY_HOME/locks/refine-25.lock" ] && pass "kept the other run's lock" || fail "deleted another run's lock"
 unset CLAUDE_SLEEP
 
 # I3/M7: control checkout tracks origin/main
@@ -50,7 +50,7 @@ case "$1 $2" in "eligible Ready for Refinement") echo 25 ;; "eligible Ready for 
 ' > "$tmp/board"
 bash "$D"; out="$(launched)"
 assert_contains "$(printf '%s
-' "$out" | grep '/mylos:deployar 47')" '--allowedTools Bash(gh pr merge:*)'
+' "$out" | grep '/mylos:deploy 47')" '--allowedTools Bash(gh pr merge:*)'
 case "$(printf '%s
-' "$out" | grep '/mylos:refinar 25')" in *"gh pr merge"*) fail "refinar may merge" ;; *) pass "refinar may not merge" ;; esac
+' "$out" | grep '/mylos:refine 25')" in *"gh pr merge"*) fail "refine may merge" ;; *) pass "refine may not merge" ;; esac
 finish

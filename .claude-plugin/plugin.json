@@ -1,6 +1,6 @@
 {
   "name": "mylos",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Board-driven software factory: refine, develop and deploy GitHub issues with Claude Code agents and deterministic gates.",
   "author": { "name": "Kennedy Fernando" }
 }

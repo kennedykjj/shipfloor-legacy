@@ -9,7 +9,7 @@ $hits"
 for a in backend-engineer frontend-engineer; do
   [ ! -e "$root/agents/$a.md" ] && pass "no $a agent in the plugin" || fail "agents/$a.md still shipped"
 done
-[ -f "$root/skills/validar/SKILL.md" ] && pass "validar stage" || fail "skills/validar missing"
+[ -f "$root/skills/validate/SKILL.md" ] && pass "validate stage" || fail "skills/validate missing"
 [ -f "$root/agents/engineer.md" ] && pass "generic engineer agent" || fail "agents/engineer.md missing"
 [ -f "$root/examples/factory.yml" ] && pass "example config" || fail "examples/factory.yml missing"
 assert_exit 0 env FACTORY_CONFIG="$root/examples/factory.yml" bash "$FACTORY_DIR/mylos-config.sh" validate

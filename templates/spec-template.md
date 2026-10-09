@@ -1,40 +1,40 @@
-# <título da issue> — spec
+# <issue title> — spec
 
-**Issue:** #<n> · **Branch:** `feat/<n>-<slug>` · **Data:** <AAAA-MM-DD>
-**Papéis convocados:** PO, Tech Lead<, UX/UI><, Cybersec>
+**Issue:** #<n> · **Branch:** `feat/<n>-<slug>` · **Date:** <YYYY-MM-DD>
+**Roles:** PO, Tech Lead<, UX/UI><, Cybersec>
 
-## Produto
+## Product
 _Product Owner_
 
-**Problema:** …
-**Para quem:** <público do produto>
-**Critérios de aceite**
-- **CA-1** — Dado …, quando …, então …
-**Fora de escopo:** …
-**Aderência ao produto:** …
-**Mexe em tela:** sim | não
+**Problem:** …
+**Audience:** <who it is for>
+**Acceptance criteria**
+- **AC-1** — Given …, when …, then …
+**Out of scope:** …
+**Product fit:** …
+**Touches UI:** yes | no
 
 ## UX
-_UX/UI Designer_ — não se aplica
+_UX/UI Designer_ — n/a
 
-## Arquitetura
+## Architecture
 _Tech Lead_
 
-## Plano de testes
+## Test plan
 _Tech Lead_
 
-| CA | Camada | Arquivo de teste |
+| AC | Layer | Test file |
 |---|---|---|
 
-## Segurança
-_Cybersec_ — não se aplica
+## Security
+_Cybersec_ — n/a
 
 ## Rollback
-não se aplica
+n/a
 
-## Decisões tomadas
-_O que a esteira decidiu sozinha; uma linha cada, com o motivo._
+## Decisions
+_What the pipeline decided on its own; one line each, with the reason._
 - …
 
-## Dúvidas
-- nenhuma
+## Open questions
+- none

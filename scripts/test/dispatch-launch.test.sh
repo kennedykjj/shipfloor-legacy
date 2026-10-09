@@ -8,8 +8,8 @@ printf '#!/usr/bin/env bash\ncase "$1 $2" in "eligible Ready for Dev") echo 54 ;
 printf '#!/usr/bin/env bash\necho "pathconv=${MSYS_NO_PATHCONV:-unset} prompt=$(cat)"\nexit 3\n' > "$tmp/claude"
 chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"
 bash "$D"; sleep 2
-log="$(cat "$FACTORY_HOME"/logs/*-54-desenvolver.log)"
-assert_contains "$log" "pathconv=unset prompt=/mylos:desenvolver 54"
-assert_contains "$log" "== start /mylos:desenvolver 54"
-assert_contains "$log" "== end /mylos:desenvolver 54 exit=3"
+log="$(cat "$FACTORY_HOME"/logs/*-54-develop.log)"
+assert_contains "$log" "pathconv=unset prompt=/mylos:develop 54"
+assert_contains "$log" "== start /mylos:develop 54"
+assert_contains "$log" "== end /mylos:develop 54 exit=3"
 finish

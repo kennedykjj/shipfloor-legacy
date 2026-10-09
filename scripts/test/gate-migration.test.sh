@@ -11,6 +11,7 @@ assert_exit 0 bash "$GATE" migration "$base" spec.md
 
 echo 'alter table a drop column b;' > "$M/V3__drop.sql"
 assert_exit 1 bash "$GATE" migration "$base" spec.md
+spec_with "n/a"; assert_exit 1 bash "$GATE" migration "$base" spec.md   # English "not applicable" is no rollback either
 spec_with "Reverter com V4 que recria a coluna b a partir do backup em a_b_backup."
 assert_exit 0 bash "$GATE" migration "$base" spec.md
 

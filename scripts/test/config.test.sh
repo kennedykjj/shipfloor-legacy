@@ -17,7 +17,7 @@ bad_config() {  # bad_config <label> <yaml>: validate must refuse it
 assert_exit 0 c validate
 [ "$(c get project.repo)" = "acme/shop" ] && pass "get project.repo" || fail "get project.repo: $(c get project.repo)"
 [ "$(c get project.main)" = "main" ] && pass "project.main default" || fail "project.main: $(c get project.main)"
-[ "$(c get limits.desenvolver.wip)" = "4" ] && pass "limits default" || fail "limits: $(c get limits.desenvolver.wip)"
+[ "$(c get limits.develop.wip)" = "4" ] && pass "limits default" || fail "limits: $(c get limits.develop.wip)"
 [ "$(c get paths.specs)" = "docs/superpowers/specs/" ] && pass "paths default" || fail "paths: $(c get paths.specs)"
 [ "$(c get context | tr '\n' ' ')" = "PRODUCT.md CLAUDE.md " ] && pass "list one per line" || fail "context: $(c get context)"
 assert_exit 1 c get project.nothing

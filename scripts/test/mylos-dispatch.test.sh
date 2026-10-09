@@ -55,7 +55,7 @@ assert_contains "$out" "broken"
 
 # a recent usage limit in any project pauses every launch
 setup; project shop; project blog; mkdir -p "$MYLOS_HOME/projects/blog/logs"
-printf '== start /mylos:desenvolver 5\nYou'"'"'ve hit your session limit · resets 6pm\n' > "$MYLOS_HOME/projects/blog/logs/x-5-desenvolver.log"
+printf '== start /mylos:develop 5\nYou'"'"'ve hit your session limit · resets 6pm\n' > "$MYLOS_HOME/projects/blog/logs/x-5-develop.log"
 bash "$MD"; [ ! -s "$tmp/ran" ] && pass "usage limit pauses all projects" || fail "dispatched during a usage limit"
 
 # no registry → nothing to do, no error

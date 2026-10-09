@@ -1,6 +1,6 @@
 ---
 name: engineer
-description: Factory engineer for one layer of the project (any stack). Implements a plan task inside the layer's path until the acceptance tests pass. Used by /desenvolver unless the layer names its own agent.
+description: Factory engineer for one layer of the project (any stack). Implements a plan task inside the layer's path until the acceptance tests pass. Used by /develop unless the layer names its own agent.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 ---
