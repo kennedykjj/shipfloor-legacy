@@ -26,8 +26,11 @@ layer_fields() {  # layer_fields <layer> <field>...: values into the array LF; 2
   mapfile -d '' -t LF < <(mylos_cfg fields "$@" 2>/dev/null)
   [ "${#LF[@]}" -eq $(( $# - 1 )) ] || { echo "gate: unknown layer '$1'" >&2; return 2; }
 }
-IMPLEMENTERS="$(q layers --implementers)" || exit 2
-ALL_LAYERS="$(q layers)" || exit 2
+load_layers() {  # only the gates that iterate layers pay for reading them
+  [ -n "${ALL_LAYERS+set}" ] && return 0
+  ALL_LAYERS="$(q layers)" || exit 2
+  IMPLEMENTERS="$(q layers --implementers)" || exit 2
+}
 
 require_rev() {  # exits 2 unless $1 names a commit
   if [ -z "${1:-}" ] || ! git rev-parse --verify -q "$1^{commit}" >/dev/null; then
@@ -123,6 +126,7 @@ migration_versions() {  # migration_versions <layer> <base> <ERE>: unique versio
 }
 
 gate_migration() {  # every layer's migrations: applied ones are immutable, destructive ones need a rollback
+  load_layers
   require_rev "${1:-}"
   local base="$1" spec="${2:-}" destructive="" f layer files
   # the order check trusts the base: it must be on this branch's history
@@ -153,6 +157,7 @@ gate_migration() {  # every layer's migrations: applied ones are immutable, dest
 }
 
 gate_build() {  # each implementer layer with changes runs its build from its own directory
+  load_layers
   require_rev "${1:-}"
   local files layer; files="$(changed_files "$1")"
   for layer in $IMPLEMENTERS; do
@@ -173,6 +178,7 @@ test_plan_rows() {  # test_plan_rows <spec>: "<ACs>\t<layer>\t<first `path` of t
 }
 
 gate_test_plan() {  # every AC in the spec has a row whose test file its layer's runner can run
+  load_layers
   local spec="${1:-}"
   [ -f "$spec" ] || { echo "test-plan: spec '${spec}' not found" >&2; return 2; }
   local rows bad="" ac acs layer path

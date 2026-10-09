@@ -24,35 +24,34 @@ EOB
   export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"
   printf '#!/usr/bin/env bash
 echo "/mylos:deploy $*" >> "%s/launched"
-sleep 2
 ' "$tmp" > "$tmp/deploy"; chmod +x "$tmp/deploy"; export FACTORY_DEPLOY="$tmp/deploy"
   : > "$tmp/launched"
 }
-launched() { sleep 1; cat "$tmp/launched"; }
+launched() { cat "$tmp/launched"; }
 
 setup; export Q_REF=25 Q_DEV=40 Q_PROD=47 W_SR=0 W_CV=0
-bash "$D"; out="$(launched)"
+run_dispatch; out="$(launched)"
 assert_contains "$out" "/mylos:refine 25"; assert_contains "$out" "/mylos:develop 40"; assert_contains "$out" "/mylos:deploy 47"
 
 setup; export Q_REF=25 W_SR=2 Q_DEV= Q_PROD=
-bash "$D"; [ -z "$(launched)" ] && pass "spec review full → nothing" || fail "launched with full WIP"
+run_dispatch; [ -z "$(launched)" ] && pass "spec review full → nothing" || fail "launched with full WIP"
 
 setup; export Q_REF= Q_DEV=40 W_CV=4 Q_PROD=
-bash "$D"; [ -z "$(launched)" ] && pass "coding+validation full → nothing" || fail "launched with full WIP"
+run_dispatch; [ -z "$(launched)" ] && pass "coding+validation full → nothing" || fail "launched with full WIP"
 
 setup; export Q_REF=25 W_SR=0 Q_DEV= Q_PROD=; mkdir -p "$FACTORY_HOME"; touch "$FACTORY_HOME/PAUSE"
-bash "$D"; [ -z "$(launched)" ] && pass "PAUSE → nothing" || fail "ran while paused"
+run_dispatch; [ -z "$(launched)" ] && pass "PAUSE → nothing" || fail "ran while paused"
 
 setup; export Q_REF=25 W_SR=0 Q_DEV= Q_PROD=
 mkdir -p "$FACTORY_HOME/locks/refine-25.lock"; echo "1 $(date +%s) 26" > "$FACTORY_HOME/locks/refine-25.lock/info"
-bash "$D"; [ -z "$(launched)" ] && pass "fresh lock respected" || fail "ignored fresh lock"
+run_dispatch; [ -z "$(launched)" ] && pass "fresh lock respected" || fail "ignored fresh lock"
 
 setup; export Q_REF=25 W_SR=0 Q_DEV= Q_PROD=
 mkdir -p "$FACTORY_HOME/locks/refine-25.lock"; echo "1 $(( $(date +%s) - 20000 )) 26" > "$FACTORY_HOME/locks/refine-25.lock/info"
-bash "$D"; assert_contains "$(launched)" "/mylos:refine 25"
+run_dispatch; assert_contains "$(launched)" "/mylos:refine 25"
 
 setup; export Q_REF=25 W_SR=0 BOARD_FAIL=1
-assert_exit 1 bash "$D"
+assert_exit 1 run_dispatch
 [ -z "$(launched)" ] && pass "board failure → nothing" || fail "launched despite board failure"
 [ ! -d "$FACTORY_HOME/locks/refine-25.lock" ] && pass "no lock left" || fail "left a lock"
 unset BOARD_FAIL

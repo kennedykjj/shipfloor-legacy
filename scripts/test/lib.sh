@@ -26,6 +26,17 @@ assert_contains() {
   case "$1" in *"$2"*) pass "contains $2" ;; *) fail "missing '$2' in: $1" ;; esac
 }
 
+run_dispatch() {  # run_dispatch: dispatch.sh ($D), then wait until every run it started has ended
+  local mark="$FACTORY_HOME/.dispatch-mark" i rc
+  mkdir -p "$FACTORY_HOME/locks"; touch "$mark"
+  bash "$D" "$@"; rc=$?
+  for i in $(seq 1 100); do
+    [ -z "$(find "$FACTORY_HOME/locks" -mindepth 1 -maxdepth 1 -name '*-*.lock' -newer "$mark" 2>/dev/null)" ] && break
+    sleep 0.1
+  done
+  return $rc
+}
+
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; FAILS=$((FAILS+1)); }
 finish() { [ "$FAILS" -eq 0 ]; }

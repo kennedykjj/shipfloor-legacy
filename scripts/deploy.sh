@@ -14,12 +14,11 @@ case "$mode" in deploy|--refresh|--continue) ;; *) n="" ;; esac
 [[ "$n" =~ ^[0-9]+$ ]] || { echo "usage: deploy.sh <n> [--refresh | --continue]" >&2; exit 2; }
 mylos_resolve . || exit 2
 mapfile -d '' -t V < <(mylos_cfg values project.repo project.main deploy.ci_workflow deploy.environment \
-  deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks)
-[ "${#V[@]}" -eq 9 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
+  deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks   deploy.healthcheck deploy.required_checks)
+[ "${#V[@]}" -eq 11 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
 REPO="${V[0]}" MAIN="${V[1]}" CI_WORKFLOW="${V[2]}" ENVIRONMENT="${V[3]}"
 TIMEOUT_MIN="${V[4]:-30}" MAX_FILES="${V[5]:-5}" MAX_HUNKS="${V[6]:-20}" SPECS="${V[7]}" ALLOW_NO_CHECKS="${V[8]:-false}"
-HEALTH="$(mylos_cfg get deploy.healthcheck 2>/dev/null || true)"
-REQUIRED="$(mylos_cfg get deploy.required_checks 2>/dev/null || true)"
+HEALTH="${V[9]}" REQUIRED="${V[10]}"  # lists, one item per line
 GH="${FACTORY_GH:-gh}"; BOARD="${FACTORY_BOARD:-$HERE/board.sh}"; GATE="$HERE/gate.sh"
 CURL="${FACTORY_CURL:-curl}"; POLL="${FACTORY_POLL:-30}"
 WT="$FACTORY_WT_ROOT/$n"; TMP="$FACTORY_HOME/tmp/$n"; mkdir -p "$TMP"
