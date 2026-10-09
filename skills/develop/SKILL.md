@@ -20,6 +20,7 @@ Owner of a file: `mylos-config.sh layer-of <repo-relative path>` (e.g. `web/app/
 - Only for a card coming from Ready for Dev: `board.sh count Coding Validation` ≥ `mylos-config.sh get limits.develop.wip` → stop: "Coding + Validation is full." A card already in Coding is being resumed: skip this check.
 - `board.sh move <n> Coding`.
 - Worktree `<worktrees>/<n>` on `feat/<n>-<slug>` (reuse it; else create it from `origin/feat/<n>-<slug>` when that exists, else from `origin/<main>`). `base=$(git -C <wt> rev-parse HEAD)`. Spec = the `<specs>*-<slug>-design.md` on the branch.
+- `gate.sh -C <worktree> test-plan <spec>` before any plan or agent. Fails → the failure rule at once (no rounds): comment the gate output and that the owner must add the missing layer to the factory config, fix the spec's test plan (back to Ready for Refinement) or implement by hand. A resumed card whose gate still fails blocks here again, at no cost.
 
 ## 1b. Resuming a card
 The card may already have work: commits on the branch, a plan, acceptance tests. Continue from the first step whose output is missing; do not redo finished steps. A card that already has an open PR (sent back by deploy) goes through step 5 again and then back to Validation; read the newest factory comment on the issue for what to fix and pass it as `findings`.

@@ -164,6 +164,38 @@ gate_build() {  # each implementer layer with changes runs its build from its ow
   done
 }
 
+test_plan_rows() {  # test_plan_rows <spec>: "<ACs>\t<layer>\t<first `path` of the file cell>" per table row
+  awk -F'|' '/^## /{on=($0 ~ /^## Test plan/); next}
+    on && /^[[:space:]]*\|/ && $2 !~ /^[[:space:]]*AC[[:space:]]*$/ && $2 !~ /^[[:space:]:-]*$/ {
+      ac=$2; layer=$3; file=$4; gsub(/^[[:space:]]+|[[:space:]]+$/, "", layer)
+      path=""; if (match(file, /`[^`]+`/)) path=substr(file, RSTART+1, RLENGTH-2)
+      print ac "\t" layer "\t" path }' "$1"
+}
+
+gate_test_plan() {  # every AC in the spec has a row whose test file its layer's runner can run
+  local spec="${1:-}"
+  [ -f "$spec" ] || { echo "test-plan: spec '${spec}' not found" >&2; return 2; }
+  local rows bad="" ac acs layer path
+  rows="$(test_plan_rows "$spec")"
+  [ -z "$rows" ] && { echo "test-plan: '## Test plan' has no rows in $spec" >&2; return 1; }
+  while IFS=$'\t' read -r acs layer path; do
+    [ "$layer" = manual ] && continue  # checked by hand in review
+    if ! printf '%s\n' $ALL_LAYERS | grep -qxF -- "$layer"; then
+      bad="$bad\n$acs: unknown layer '$layer' (layers: $(echo $ALL_LAYERS), or manual)"; continue
+    fi
+    layer_fields "$layer" _tests_re || exit 2
+    if [ -z "$path" ] || ! printf '%s\n' "$path" | grep -Eq -- "${LF[0]}"; then
+      bad="$bad\n$acs: '${path:-no path}' is not a test file of layer '$layer' (its tests: $(q layer "$layer" tests | tr '\n' ' '))"
+    fi
+  done <<< "$rows"
+  for ac in $(grep -oE '\bAC-[0-9]+\b' <(awk '/^## /{on=($0 ~ /^## Product/); next} on' "$spec") | sort -u); do
+    printf '%s\n' "$rows" | cut -f1 | grep -qE -- "\b$ac\b" || bad="$bad\n$ac: no row in '## Test plan'"
+  done
+  [ -z "$bad" ] && return 0
+  echo "test-plan: the pipeline cannot run these acceptance tests (paths are repo-relative):" >&2
+  printf '%b\n' "${bad#\\n}" >&2; return 1
+}
+
 STACK_LOCK="${FACTORY_HOME:-$MYLOS_HOME}/locks/stack.lock"
 
 # The one local stack (Docker, port 3000) is used by e2e and verify-ui; parallel pipelines queue on
@@ -264,6 +296,7 @@ case "$cmd" in
   build)             gate_build "$@" ;;
   red)               gate_red "$@" ;;
   green)             gate_green "$@" ;;
+  test-plan)         gate_test_plan "$@" ;;
   stack-lock)        gate_stack_lock "$@" ;;
-  *) echo "usage: gate.sh scope|forbidden|acceptance-intact|migration|build|red|green ..." >&2; exit 2 ;;
+  *) echo "usage: gate.sh scope|forbidden|acceptance-intact|migration|build|red|green|test-plan ..." >&2; exit 2 ;;
 esac

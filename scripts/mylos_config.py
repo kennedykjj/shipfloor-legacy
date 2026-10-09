@@ -210,6 +210,7 @@ class Config:
             if full["migrations"]:
                 full["migrations"] = merged(full["migrations"], {"comment": "--", "version": DEFAULT_VERSION})
             full["_path_re"] = any_of([full["path"]])
+            full["_tests_re"] = any_of(full["tests"])
             full["_migrations_re"] = any_of([full["migrations"]["glob"]]) if full["migrations"] else ""
             self.layers.append(full)
 

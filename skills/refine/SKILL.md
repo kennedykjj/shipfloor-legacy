@@ -40,7 +40,8 @@ Call the `product-owner` agent with `issue=<n> worktree=<wt> spec=<spec> context
 
 ## 4. UX/UI and architecture (in parallel)
 - If the issue has label `ui` or the PO wrote "Touches UI: yes": call `ux-designer` in mode `refine` (same arguments), then gate `scope ux <base>`.
-- Meanwhile write `## Architecture` yourself: contracts touched (endpoints, events, public functions: name and fields), layers and modules touched, migration plan (expand/contract with `## Rollback` filled when destructive), and `## Test plan` (one row per AC: a layer name from describe and a test file path inside that layer's `tests`).
+- Meanwhile write `## Architecture` yourself: contracts touched (endpoints, events, public functions: name and fields), layers and modules touched, migration plan (expand/contract with `## Rollback` filled when destructive), and `## Test plan` (one row per AC: a layer name from describe and the full repo-relative path, in backticks, of a test file inside that layer's `tests`; layer `manual` only for an AC checked by hand in review). Every file the architecture creates or changes must have an owner: `mylos-config.sh layer-of <path>`.
+- Fits the pipeline: if an AC's test or a file has no layer that can own it (a new kind of code, a tool the headless session cannot run), do not invent one. Add to `## Open questions`: `**Layers:** add a <name> layer to the factory config (recommended) or implement by hand — the pipeline cannot build or test <paths>`.
 - If the solution needs `.github/`, `.githooks/`, `.claude/`, `.mylos/`, `CLAUDE.md`, `.env*` or a path in the config's `forbidden`, say so in `## Open questions` and recommend the owner does it by hand.
 
 ## 5. Cybersec (only with label `cybersec`)
@@ -49,6 +50,7 @@ Call `cybersec` in mode `spec`; paste its text into `## Security`.
 ## 6. Publish for review
 - Merge the roles' open questions and calls: keep in `## Open questions` only what passes the "Decide, don't ask" rule (max 3); move the rest, decided, to `## Decisions`.
 - Gate: `gate.sh -C <worktree> scope techlead <base>` must pass.
+- Gate: `gate.sh -C <worktree> test-plan <spec>`. A failure you can fix (missing row, short path, wrong layer) → fix the table (max 2 rounds). A failure because no layer fits → the `**Layers:**` open question above must be there; publish anyway (develop blocks on this gate until the config changes).
 - `git add <spec> && git commit -m "docs(<slug>): spec for #<n>"`; `git push -u origin feat/<n>-<slug>`.
 - Build the local review page: `review-page.sh <wt>/<spec> <n> feat/<n>-<slug> <reviews>/<n>.html`; on Windows open it for the owner with `cmd //c start "" "$(cygpath -w <reviews>/<n>.html)"`.
 - `gh issue comment <n> --repo <repo>` with: spec link on GitHub (`https://github.com/<repo>/blob/feat/<n>-<slug>/<spec>`), the local review page path, the open questions (or "nothing to decide"), and how to answer: paste "Copy review" as a comment and move the card back to Ready for Refinement, or move it to Ready for Dev to approve.
