@@ -5,8 +5,8 @@ GATE="$FACTORY_DIR/gate.sh"
 r="$(new_repo)"; cd "$r"; base="$(git rev-parse HEAD)"
 mkdir -p api/src/main api/src/test web/e2e docs/superpowers/specs
 echo x > api/src/main/A.kt
-assert_exit 0 bash "$GATE" scope backend "$base"
-assert_exit 1 bash "$GATE" scope frontend "$base"
+assert_exit 0 bash "$GATE" scope api "$base"
+assert_exit 1 bash "$GATE" scope web "$base"
 assert_exit 1 bash "$GATE" scope qa "$base"
 
 r="$(new_repo)"; cd "$r"; base="$(git rev-parse HEAD)"
@@ -23,10 +23,10 @@ assert_exit 0 bash "$GATE" scope po "$base"
 # rename counts both paths
 r="$(new_repo)"; cd "$r"; mkdir -p api .github; echo x > .github/ci.yml; git add -A; git commit -qm c; base="$(git rev-parse HEAD)"
 git mv .github/ci.yml api/ci.yml
-assert_exit 1 bash "$GATE" scope backend "$base"
+assert_exit 1 bash "$GATE" scope api "$base"
 
 # forbidden areas
-for f in .github/w.yml .githooks/pre-push .claude/x.md scripts/factory/a.sh api/.env web/.env.local; do
+for f in .github/w.yml .githooks/pre-push .claude/x.md .mylos/factory.yml api/.env web/.env.local; do
   r="$(new_repo)"; cd "$r"; base="$(git rev-parse HEAD)"
   mkdir -p "$(dirname "$f")"; echo x > "$f"
   assert_exit 1 bash "$GATE" forbidden "$base"
