@@ -1,0 +1,7 @@
+# US$ per million tokens for the dashboard's cost estimate (Anthropic API list prices).
+# Cache writes cost 1.25x input for 5 minutes and 2x for 1 hour; Claude Code writes 1-hour entries.
+# To change a price or add a model, copy this file to ~/.aghanim/prices.yml and edit it there.
+claude-opus-5-5:   {input: 4.00,  output: 20.00, cache_write_5m: 5.00,  cache_write_1h: 8.00,  cache_read: 0.20}
+claude-sonnet-5-5: {input: 2.00,  output: 10.00, cache_write_5m: 2.50,  cache_write_1h: 4.00,  cache_read: 0.20}
+claude-haiku-5-5:  {input: 0.10,  output: 0.50,  cache_write_5m: 0.125, cache_write_1h: 0.20,  cache_read: 0.01}
+claude-fable-5-1:  {input: 10.00, output: 50.00, cache_write_5m: 12.50, cache_write_1h: 20.00, cache_read: 0.25}
