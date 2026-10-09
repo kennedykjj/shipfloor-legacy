@@ -74,4 +74,16 @@ assert_contains "$(bash "$M" pool)" "validate: 3"
 fake="$(mktemp -d)"; mkdir -p "$fake/.mylos"
 out="$(HOME="$fake" AGHANIM_HOME="$fake/.aghanim" bash "$M" doctor 2>&1)"
 assert_contains "$out" "aghanim migrate-home"
+
+# clean removes tmp/<n>/ of cards that are Done or off the board, and keeps the active ones
+assert_exit 0 bash "$M" add "$r"
+H2="$AGHANIM_HOME/projects/shop"; mkdir -p "$H2/tmp/5/x" "$H2/tmp/6/x" "$H2/tmp/8/x"
+printf '5	Done	I5
+6	Coding	I6
+' > "$H2/board.tsv"
+assert_contains "$(bash "$M" doctor 2>&1)" "aghanim clean shop"
+assert_exit 0 bash "$M" clean shop
+[ ! -e "$H2/tmp/5" ] && [ ! -e "$H2/tmp/8" ] && [ -d "$H2/tmp/6" ] && pass "clean keeps the active card" || fail "clean removed the wrong tmp dirs: $(ls "$H2/tmp")"
+# pool shows the stack slots
+out="$(bash "$M" pool)"; assert_contains "$out" "stacks: 3"; assert_contains "$out" "slot 0: free"
 finish

@@ -26,7 +26,7 @@ Owner of a file: `aghanim-config.sh layer-of <repo-relative path>` names its lay
 
 ## 3. Review
 - Your code review of `git -C <wt> diff origin/<main>...HEAD` against the review criteria file and `CLAUDE.md`.
-- If UX ran in refinement (spec `## UX` is filled) and describe shows a stack: `ux-designer` mode `validate`; take the stack lock first with `gate.sh stack-lock acquire validate-<n>` (it waits for other pipelines) and release it right after with `gate.sh stack-lock release validate-<n>`; never hold it while waiting for CI or doing anything else. Gates of a layer that takes the stack lock take it themselves: never hold `stack-lock` while running them.
+- If UX ran in refinement (spec `## UX` is filled) and describe shows a stack: `ux-designer` mode `validate`; first bring up this card's own stack with `url=$(gate.sh -C <worktree> stack up validate-<n>)` (it waits in the stack queue; exit 3 is an infrastructure error), call `ux-designer` with `url=<url>`, then `gate.sh -C <worktree> stack down validate-<n>` right after; never hold a stack while waiting for CI or running gates. Gates of a layer that needs the stack bring up their own.
 - If the issue has label `cybersec`: `cybersec` mode `diff`.
 - 🔴 findings → the file's owner agent with the findings; then `gate.sh -C <wt> scope <layer> <sha before the fix>` and the step 2 gates; max 2 rounds, then the failure rule.
 
@@ -38,7 +38,7 @@ Owner of a file: `aghanim-config.sh layer-of <repo-relative path>` names its lay
 - Never push to a branch whose card is in Staged or Ready for Prod.
 
 ## 5. Failure rule
-Label `blocked`, comment step + gate output (no personal data) + what was tried, leave the card in Validation, report `outcome: blocked`. Infrastructure errors are not rounds.
+Label `blocked`, comment step + gate output (no personal data) + what was tried, leave the card in Validation, report `outcome: blocked`. Infrastructure errors (a gate exit 3, Docker, network, a runner crash outside the code) are not rounds: when `AGHANIM_INFRA_RETRY` is `1`, label `blocked` and say the automatic retry failed; otherwise label `blocked:infra`, and the dispatcher cleans up and retries once. Either way comment the step, the output and what was tried, and report `outcome: infra`. Copy every `flaky: <layer> <selector>` line a gate prints into the report's `flaky` list.
 
 ## 6. Report
 `report.json` + `report.md` in `<tmp>` → `report.sh <n> <slug> validate <tmp>/report.json <tmp>/report.md`; comment "Factory report — validate".

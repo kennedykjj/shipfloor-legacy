@@ -49,7 +49,7 @@ Other cards merge while this one is built; the branch must work on top of them.
 `git -C <wt> push -u origin feat/<n>-<slug>`; write the report (step 8); then `board.sh move <n> Validation` as the last action (another pipeline may start on the card right after). The validate pipeline reviews it, opens the PR and stages it.
 
 ## 7. Failure rule
-Label `blocked`, comment step + gate output (no personal data) + what was tried, leave the card, report `outcome: blocked`. Infrastructure errors are not rounds.
+Label `blocked`, comment step + gate output (no personal data) + what was tried, leave the card, report `outcome: blocked`. Infrastructure errors (a gate exit 3, Docker, network, a runner crash outside the code) are not rounds: when `AGHANIM_INFRA_RETRY` is `1`, label `blocked` and say the automatic retry failed; otherwise label `blocked:infra`, and the dispatcher cleans up and retries once. Either way comment the step, the output and what was tried, and report `outcome: infra`. Copy every `flaky: <layer> <selector>` line a gate prints into the report's `flaky` list.
 
 ## 8. Report
 `report.json` + `report.md` in `<tmp>` → `report.sh <n> <slug> develop <tmp>/report.json <tmp>/report.md`; comment "Factory report — develop".

@@ -57,7 +57,7 @@ Call `cybersec` in mode `spec`; paste its text into `## Security`.
 - `board.sh move <n> "Spec Review"`.
 
 ## 7. Failure rule
-Third failure of a step, or any agent RESULT `blocked`: `gh issue edit <n> --add-label blocked`; comment the step, the gate output (no personal data) and what was tried; leave the card where it is; write the report with `outcome: blocked`. Infrastructure errors (network, Docker) are not rounds: comment and stop without `blocked`.
+Third failure of a step, or any agent RESULT `blocked`: `gh issue edit <n> --add-label blocked`; comment the step, the gate output (no personal data) and what was tried; leave the card where it is; write the report with `outcome: blocked`. Infrastructure errors (a gate exit 3, Docker, network, a runner crash outside the code) are not rounds: when `AGHANIM_INFRA_RETRY` is `1`, label `blocked` and say the automatic retry failed; otherwise label `blocked:infra`, and the dispatcher cleans up and retries once. Either way comment the step, the output and what was tried, and report `outcome: infra`.
 
 ## 8. Report
 Write `report.json` (schema in the header of `~/.aghanim/factory/report.sh`) and a short `report.md` in `<tmp>`; run `report.sh <n> <slug> refine <tmp>/report.json <tmp>/report.md`; post the md as an issue comment titled "Factory report — refine".

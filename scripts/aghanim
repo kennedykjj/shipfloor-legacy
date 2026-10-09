@@ -4,7 +4,8 @@
 #   doctor                        check tools, the installed copy and every project's config
 #   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .aghanim/factory.yml
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
-#   pool [set <n> | stage <stage> <n>]  runs at once on this machine, and per stage
+#   pool [set <n> | stage <stage> <n> | stacks <n>]  runs at once on this machine, per stage, and stack slots
+#   clean <slug>                  remove tmp/<n>/ left by cards that are Done or off the board
 #   dashboard [--port N] [--no-open]  local dashboard: pool, runs, logs, cost per card, reviews
 #   migrate-home [OLD]            move the old ~/.mylos home here (one-time, after the rename; legacy mylos)
 set -uo pipefail
@@ -61,6 +62,8 @@ cmd_doctor() {
       ( aghanim_use "$slug" "$repo" "$wt" "$main"; aghanim_validate ) \
         && echo "ok   project $slug" || { echo "FAIL project $slug: invalid or missing config"; bad=1; continue; }
       ( aghanim_use "$slug" "$repo" "$wt" "$main"
+        stale="$(aghanim_stale_tmp | wc -l | tr -d ' ')"
+        [ "$stale" -gt 0 ] && echo "WARN $slug: $stale tmp dir(s) of finished cards; run: aghanim clean $slug"
         r="$(aghanim_cfg get project.repo)"; b="$(aghanim_cfg get project.main)"
         strict="$(gh api "repos/$r/branches/$b/protection" --jq .required_status_checks.strict 2>&1)"
         if [ "$strict" = true ]; then echo "ok   $slug: $b requires up-to-date branches"
@@ -145,10 +148,16 @@ cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide a
           [ "$n" -gt 0 ] && line="$line ($n running)"
         fi
         echo "$line"
-      done <<< "$out" ;;
+      done <<< "$out"
+      local first; first="$(awk -F'\t' 'NF{print $1; exit}' "$REGISTRY" 2>/dev/null)"
+      [ -n "$first" ] && ( use "$first"; cd "$FACTORY_HOME" && bash "$HERE/gate.sh" stack status ) | while IFS=$'\t' read -r k st owner held why; do
+        if [ "$k" = queue ]; then [ "$st" -gt 0 ] && echo "  queue: $st waiting"
+        else echo "  slot $k: $st${owner:+ $owner}$( [ "$st" = free ] || echo " ($(( held / 60 ))m)")${why:+ — $why}"; fi
+      done ;;
     set) aghanim_machine set pool "${2:-}" ;;
     stage) aghanim_machine set "stages.${2:-}" "${3:-}" ;;
-    *) die "usage: aghanim pool [set <n> | stage <refine|develop|validate|deploy> <n>]" 2 ;;
+    stacks) aghanim_machine set stacks "${2:-}" ;;
+    *) die "usage: aghanim pool [set <n> | stage <refine|develop|validate|deploy> <n> | stacks <n>]" 2 ;;
   esac
 }
 
@@ -186,6 +195,7 @@ case "$cmd" in
   remove) cmd_remove "$@" ;;
   list) cmd_list ;;
   pool) cmd_pool "$@" ;;
+  clean) use "${1:-}"; for n in $(aghanim_stale_tmp); do aghanim_clean_tmp "$n"; echo "removed tmp/$n"; done ;;
   pause) cmd_pause "$@" ;;
   resume) cmd_resume "$@" ;;
   setup-board) use "${1:-}"; cd "$FACTORY_HOME/control" && exec bash "$HERE/setup-board.sh" ;;

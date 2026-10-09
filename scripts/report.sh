@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Commits a factory report to the orphan branch factory-reports (never merged, never deployed).
-# report.json schema: {"issue","slug","pipeline","started_at","finished_at","outcome":"ok|blocked",
-#   "agents":[{"role","tokens","duration_s"}],"rounds":{step:n},"gates_failed":[...],"manual_edit":true|false|null}
+# report.json schema: {"issue","slug","pipeline","started_at","finished_at","outcome":"ok|blocked|infra",
+#   "agents":[{"role","tokens","duration_s"}],"rounds":{step:n},"gates_failed":[...],"flaky":["<layer> <selector>"],"manual_edit":true|false|null}
 set -euo pipefail
 source "$(dirname "$0")/lib/project.sh"
 aghanim_resolve . || exit 2
