@@ -16,7 +16,9 @@ context: [PRODUCT.md, CLAUDE.md]  # what PO, UX, Cybersec and the Tech Lead read
 # limits:                                      # runs at once (parallel) and cards in the WIP columns (wip)
 #   refinar: {parallel: 2, wip: 2}
 #   desenvolver: {parallel: 2, wip: 4}
+#   validar: {parallel: 2}
 #   deployar: {parallel: 1}
+# (the machine pool in ~/.mylos/config.yml caps every project together: `mylos pool`)
 
 layers:
   # Each layer: the area one implementer owns (path), how to build it, and how to run selected
@@ -29,7 +31,7 @@ layers:
     ran: '^--- PASS'               # regex proving at least one test ran
     assertions: '^[[:space:]]+[^ ]+_test\.go:[0-9]+:'   # extra ERE (grep -E) for a real assertion failure (red gate)
     tests: ['api/**/*_test.go']    # where QA writes this layer's tests
-    migrations: {glob: 'api/migrations/*.sql', comment: '--'}
+    migrations: {glob: 'api/migrations/*.sql', comment: '--', version: '^([0-9]+)_'}   # version: one regex group
     # agent: go-engineer           # a project agent in .claude/agents/ (default: the generic engineer)
 
   - name: web
@@ -50,4 +52,4 @@ layers:
     tests: ['web/e2e/**']
 
 stack: {url: "http://localhost:3000"}                  # a local stack the e2e tests and UX checks share
-deploy: {ci_workflow: CI, environment: production, timeout_min: 30}   # omit to finish at the merge
+deploy: {ci_workflow: CI, environment: production, timeout_min: 30, conflict_max_files: 5, conflict_max_hunks: 20}   # omit ci/environment to finish at the merge

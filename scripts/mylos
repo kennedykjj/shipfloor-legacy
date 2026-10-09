@@ -4,6 +4,7 @@
 #   doctor                        check tools, the installed copy and every project's config
 #   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .mylos/factory.yml
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
+#   pool [set <n> | stage <stage> <n>]  runs at once on this machine, and per stage
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib/project.sh"
@@ -115,6 +116,25 @@ cmd_resume() {
   use "$1"; rm -f "$FACTORY_HOME/PAUSE"
 }
 
+cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide agent pool
+  case "${1:-}" in
+    "")
+      local out line stage n
+      out="$(mylos_machine show)" || return $?
+      while IFS= read -r line; do
+        stage="$(printf '%s' "$line" | sed -n 's/^  \([a-z]*\): .*/\1/p')"
+        if [ -n "$stage" ]; then
+          n="$(find "$MYLOS_HOME/projects" -maxdepth 3 -type d -path "*/locks/$stage-*.lock" 2>/dev/null | wc -l | tr -d ' ')"
+          [ "$n" -gt 0 ] && line="$line ($n running)"
+        fi
+        echo "$line"
+      done <<< "$out" ;;
+    set) mylos_machine set pool "${2:-}" ;;
+    stage) mylos_machine set "stages.${2:-}" "${3:-}" ;;
+    *) die "usage: mylos pool [set <n> | stage <refinar|desenvolver|validar|deployar> <n>]" 2 ;;
+  esac
+}
+
 cmd="${1:-}"; shift || true
 case "$cmd" in
   install) cmd_install ;;
@@ -122,9 +142,10 @@ case "$cmd" in
   add) cmd_add "$@" ;;
   remove) cmd_remove "$@" ;;
   list) cmd_list ;;
+  pool) cmd_pool "$@" ;;
   pause) cmd_pause "$@" ;;
   resume) cmd_resume "$@" ;;
   setup-board) use "${1:-}"; cd "$FACTORY_HOME/control" && exec bash "$HERE/setup-board.sh" ;;
   metrics) use "${1:-}"; exec bash "$HERE/metrics.sh" ;;
-  *) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

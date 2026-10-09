@@ -1,6 +1,6 @@
 ---
 name: deployar
-description: Factory pipeline 3. Merges the PR of a card the owner moved to Ready for Prod, waits for main CI and the production deployment the project config names, and moves the card to Done; on failure opens a revert PR and marks the card blocked. Started by the dispatcher or by "/mylos:deployar [n]".
+description: Factory pipeline 4, deploy. Brings the PR of a card the owner moved to Ready for Prod up to date with main (resolving conflicts itself unless they touch migrations, are large, or break the tests), merges it, waits for main CI and the production deployment the project config names, and moves the card to Done; on failure opens a revert PR and marks the card blocked. Started by the dispatcher or by "/mylos:deployar [n]".
 ---
 
 # /deployar — production deploy
@@ -17,16 +17,24 @@ Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <
 - Issue given → use it, but only if `board.sh status <n>` is `Ready for Prod`; else stop.
 - Else `n=$(board.sh first "Ready for Prod")`; empty → stop.
 - Find the PR: `gh pr list --repo <repo> --state open --base <main> --json number,headRefName,headRefOid --jq '.[] | select(.headRefName | test("^(feat/<n>-|revert/<n>$)"))'`. Exactly one match, else failure rule ("expected one open PR for #<n>").
-- Approved commit: the last issue comment line `staged-head: <sha>`. Missing, or different from the PR's `headRefOid` → failure rule ("PR changed after it was staged").
+- Approved commit: the last issue comment line `staged-head: <sha>`. Missing → failure rule. The PR's `headRefOid` must be that commit, or a merge commit this pipeline made (step 2) whose first parent is it and whose second parent is a commit of `origin/<main>`; anything else → failure rule ("PR changed after it was staged").
 
-## 2. Pre-merge checks
-- `gh pr view <pr> --repo <repo> --json mergeable,mergeStateStatus,baseRefName` → base `<main>`. If `CONFLICTING` (or `update-branch` fails on a conflict), do not block: comment "conflito com o main; voltando para Coding para resolver" and run `board.sh move <n> Coding`; the development pipeline resolves it and stages the card again. Stop here.
-- If `mergeStateStatus` is `BEHIND`: `gh pr update-branch <pr> --repo <repo>`; the approved commit becomes the new `headRefOid` only if that update is the single new commit; then `gh pr checks <pr> --repo <repo> --watch --fail-fast`; red → failure rule.
-- `gh pr checks <pr> --repo <repo> --watch --fail-fast` all green, else failure rule.
+## 2. Up to date with main, conflicts included
+A merge is only safe on top of the current main: every card merges with `origin/<main>` and is tested on it before it ships.
+- `gh pr view <pr> --repo <repo> --json baseRefName` → base `<main>`. `git -C <wt> fetch origin` (worktree `<worktrees>/<n>`, reused or created from the PR branch).
+- `git -C <wt> merge-base --is-ancestor origin/<main> <approved sha>` succeeds → the approved commit already contains main: skip to the CI check below.
+- Else `git -C <wt> merge --no-edit origin/<main>`.
+  - **Conflicts:** list them with `git -C <wt> diff --name-only --diff-filter=U` and count hunks (`<<<<<<<` markers). Send the card back (step 7) when any of these holds:
+    - a conflicted file is a migration of any layer (it matches a layer's `migrations` glob from describe);
+    - more than `deploy.conflict_max_files` files (default 5) or `deploy.conflict_max_hunks` hunks (default 20) conflict.
+  - Otherwise resolve: each file to its owner agent (`mylos-config.sh layer-of <file>`; no layer → you) with its conflict hunks as `findings`, keeping both sides' intent and never dropping main's changes; then `git -C <wt> commit --no-edit`.
+  - Gates on the result, with `mb=$(git -C <wt> merge-base HEAD origin/<main>)` and `qa` = `git -C <wt> log --format=%H -1 --grep "acceptance tests for #<n>"`: `migration <mb> <spec>`, `acceptance-intact <qa>`, `build <mb>` and every acceptance `green`. Any failure → step 7.
+  - `git -C <wt> push origin <branch>`. The new head is accepted only because its first parent is the approved commit and its second is the `origin/<main>` just merged: record both in the success comment.
+- `gh pr checks <pr> --repo <repo> --watch --fail-fast` on the head that will be merged, all green; red after a merge from main → step 7; red otherwise → failure rule.
 - Manual edit: `gh pr view <pr> --repo <repo> --json commits --jq '.commits[] | .messageBody'`; any commit whose body lacks `Co-Authored-By: Claude` → `manual_edit: true`, else `false`.
 
 ## 3. Merge
-`gh pr merge <pr> --repo <repo> --squash --match-head-commit <approved sha>`; `sha=$(gh pr view <pr> --repo <repo> --json mergeCommit --jq .mergeCommit.oid)`.
+Right before merging, `git -C <wt> fetch origin` again: if `origin/<main>` moved and is not an ancestor of the head, go back to step 2. Then `gh pr merge <pr> --repo <repo> --squash --match-head-commit <head sha>`; `sha=$(gh pr view <pr> --repo <repo> --json mergeCommit --jq .mergeCommit.oid)`.
 
 ## 4. Wait for production
 Skip each part the config does not name; with neither, go to step 5 right after the merge.
@@ -42,6 +50,8 @@ Skip each part the config does not name; with neither, go to step 5 right after 
 
 ## 7. Failure rule (before merge)
 Label `blocked`, comment the reason, leave the card in Ready for Prod, report `outcome: blocked`.
+
+**Back to Coding (from step 2):** do not push the failed merge. Comment on the issue "voltando para Coding: <criterion>" with the conflicted files or the failing gate/CI output, then `board.sh move <n> Coding`; the development pipeline brings the branch up to date and the card goes through validation again. Report `outcome: blocked`.
 
 ## 8. Report
 `report.json` (with `manual_edit`) + `report.md` in `<tmp>` → `report.sh <n> <slug> deployar <tmp>/report.json <tmp>/report.md`; comment "Relatório da fábrica — deploy".

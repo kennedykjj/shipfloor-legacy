@@ -9,12 +9,33 @@ O board (GitHub Project v2) tem colunas fixas. O dono move os cards entre as col
 | Esteira | Pega de | Entrega em | O que faz |
 |---|---|---|---|
 | `/mylos:refinar` | Ready for Refinement | Spec Review | PO, UX/UI e Cybersec escrevem a spec; o Tech Lead escreve arquitetura e plano de testes |
-| `/mylos:desenvolver` | Ready for Dev | Staged | plano, testes de aceite que falham (QA), implementação por camada, review, PR com CI verde |
-| `/mylos:deployar` | Ready for Prod | Done | merge do commit aprovado, espera CI e deploy; se falhar, abre PR de revert |
+| `/mylos:desenvolver` | Ready for Dev | Validation | plano, testes de aceite que falham (QA), implementação por camada, atualização com o `main` |
+| `/mylos:validar` | Validation | Staged | atualiza com o `main`, gates, review (código, UX, segurança), PR com CI verde |
+| `/mylos:deployar` | Ready for Prod | Done | atualiza com o `main` resolvendo conflitos, merge testado sobre o `main` atual, espera CI e deploy; se falhar, abre PR de revert |
 
 Os gates (`scripts/gate.sh`) não dependem do modelo: escopo de arquivos por papel, caminhos proibidos, testes de aceite intactos, migrations imutáveis, build por camada, teste vermelho por asserção (não por erro de compilação) e verde com pelo menos um teste rodado.
 
-Um dispatcher (tarefa agendada a cada 3 min) percorre todos os projetos registrados e lança as esteiras com `claude -p`, respeitando limites por esteira, WIP e um limite global de runs simultâneos.
+Um dispatcher (tarefa agendada a cada 3 min) percorre todos os projetos registrados e lança as esteiras com `claude -p`, respeitando o pool de agentes da máquina, as vagas de cada etapa, os limites do projeto e o WIP.
+
+## Pool de agentes
+
+Cada run de esteira é um agente. `~/.mylos/config.yml` define quantos rodam ao mesmo tempo na máquina, somando todos os projetos, e quantos cabem em cada etapa (números absolutos):
+
+```yaml
+pool: 4
+stages: {refinar: 2, desenvolver: 2, validar: 2, deployar: 1}
+```
+
+`mylos pool` mostra a configuração e os runs em andamento. `mylos pool set 6` e `mylos pool stage validar 3` mudam os valores. O `limits` do `factory.yml` pode limitar mais um projeto.
+
+## Trabalho em paralelo
+
+Cards desenvolvidos ao mesmo tempo não quebram o `main`:
+- o gate `migration` recusa versão repetida e migration mais antiga que as do base;
+- `desenvolver`, `validar` e `deployar` trazem o `origin/main` antes dos gates;
+- o deploy só faz merge de um head que contém o `main` atual e passou no CI.
+
+No deploy, conflitos são resolvidos pela própria esteira. O card volta para Coding só se o conflito envolve migration, se é grande (`deploy.conflict_max_files`/`conflict_max_hunks`) ou se gates ou CI falham depois de resolver.
 
 ## Pré-requisitos
 
