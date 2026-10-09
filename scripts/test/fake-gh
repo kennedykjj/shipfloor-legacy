@@ -17,6 +17,9 @@ case "$args" in
 ' "$s" "$i"; done ;;
   "project item-edit"*)
     echo "$args" >> "$d/edits" ;;
+  "api repos/acme/shop/issues?labels=blocked:infra"*)
+    cat "$d/infra" 2>/dev/null ;;
+  "api -X "*) ;;
   "api repos/acme/shop/issues/"*)
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;

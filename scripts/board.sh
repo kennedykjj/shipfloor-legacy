@@ -51,9 +51,17 @@ eligible() {  # cards in a column without the blocked label, board order; fails 
   local all n labels out=""; all="$(raw_items)" || return 1
   for n in $(printf '%s\n' "$all" | awk -F'\t' -v s="$1" '$2==s{print $1}'); do
     labels="$("$GH" api "repos/$REPO/issues/$n" --jq '.labels[].name')" || return 1  # REST: separate quota
-    printf '%s\n' "$labels" | tr -d '\r' | grep -qx blocked || out="$out$n"$'\n'
+    printf '%s\n' "$labels" | tr -d '\r' | grep -qxE 'blocked|blocked:infra' || out="$out$n"$'\n'
   done
   printf '%s' "$out"
+}
+infra() { "$GH" api "repos/$REPO/issues?labels=blocked:infra&state=open&per_page=100" --jq '.[].number'; }
+label() {  # label <n> add|remove <name>: an absent label is not an error when removing
+  case "${2:-}" in
+    add) "$GH" api -X POST "repos/$REPO/issues/$1/labels" -f "labels[]=$3" >/dev/null ;;
+    remove) "$GH" api -X DELETE "repos/$REPO/issues/$1/labels/$3" >/dev/null 2>&1 || true ;;
+    *) echo "label: <n> add|remove <name>" >&2; return 2 ;;
+  esac
 }
 first() { local list; list="$(eligible "$1")" || return 1; printf '%s\n' "$list" | sed -n '1p' | sed '/^$/d'; }
 
@@ -89,6 +97,6 @@ move() {
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
-  items|status|count|first|eligible|move|snapshot) "$cmd" "$@" ;;
-  *) echo "usage: board.sh items|status <n>|count <status>...|first <status>|move <n> <status>" >&2; exit 2 ;;
+  items|status|count|first|eligible|move|snapshot|infra|label) "$cmd" "$@" ;;
+  *) echo "usage: board.sh items|status <n>|count <status>...|first <status>|move <n> <status>|infra|label <n> add|remove <label>" >&2; exit 2 ;;
 esac
