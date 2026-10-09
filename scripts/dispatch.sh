@@ -87,7 +87,7 @@ launch() {  # launch <pipeline> <issue>
   mkdir "$dir" 2>/dev/null || return 0
   local log="$HOME_DIR/logs/$(date +%F)-$n-$p.log"
   local extra=() envs=(AGHANIM_FACTORY=1 "AGHANIM_RUN_LOCK=$dir")
-  [ -e "$HOME_DIR/infra/$n" ] && envs+=(AGHANIM_INFRA_RETRY=1)
+  local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(AGHANIM_INFRA_RETRY=1); }
   (
     trap '' HUP
     echo "$BASHPID $(date +%s) $n" > "$dir/info"
@@ -111,7 +111,7 @@ launch() {  # launch <pipeline> <issue>
     fi
     # what the run created goes with it, before its lock: its stack slot, its tmp/<n>/, its retry marker
     stack_settings; stack_release_run "$dir"
-    aghanim_clean_tmp "$n"; rm -f "$HOME_DIR/infra/$n"
+    aghanim_clean_tmp "$n"  # the retry's marker stays: it is how the next block goes to the owner
     [ "${FACTORY_CLEANUP:-1}" = 1 ] && cleanup_processes "$n"
     read -r owner _ < "$dir/info" 2>/dev/null
     [ "${owner:-}" = "$BASHPID" ] && rm -rf "$dir"
@@ -200,8 +200,12 @@ refresh_staged() {  # keep approved-to-be PRs on top of main: deploy.sh --refres
 }
 
 retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a second block goes to the owner
-  local n cards; cards="$("$BOARD" infra)" || return 1
+  local n f cards; cards="$("$BOARD" infra)" || return 1
   mkdir -p "$HOME_DIR/infra"
+  for f in "$HOME_DIR"/infra/*; do  # a marker whose card is no longer blocked by infrastructure is spent
+    [ -f "$f" ] || continue; n="${f##*/}"
+    printf '%s\n' $cards | grep -qx "$n" || card_busy "$n" || rm -f "$f"
+  done
   for n in $cards; do
     card_busy "$n" && continue
     if [ -e "$HOME_DIR/infra/$n" ]; then

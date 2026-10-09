@@ -22,8 +22,9 @@ slot_state() {  # slot_state <k>: "free", "busy" or "stuck <reason>"
   [ -d "$d" ] || { echo free; return; }
   read -r owner run epoch < "$d/info" 2>/dev/null || { echo "stuck no-info"; return; }
   beat="$(stat -c %Y "$d/beat" 2>/dev/null || echo "${epoch:-0}")"
-  if [ $(( now - beat )) -gt "$STALE" ]; then echo "stuck heartbeat"
-  elif [ "${run:--}" != - ] && [ ! -d "$run" ]; then echo "stuck run-ended"
+  # a lease owned by a run lives as long as that run; the heartbeat only guards leases without one
+  if [ "${run:--}" != - ] && [ ! -d "$run" ]; then echo "stuck run-ended"
+  elif [ "${run:--}" = - ] && [ $(( now - beat )) -gt "$STALE" ]; then echo "stuck heartbeat"
   elif [ $(( now - ${epoch:-0} )) -gt "$HOLD" ]; then echo "stuck hold-max"
   else echo busy; fi
 }
@@ -44,7 +45,7 @@ slot_env() {  # slot_env <k>: export the slot's environment for up, down, tests 
 free_range() {  # free_range <k>: stop what still listens on the slot's ports; Docker's own processes are left to `down`
   local lo=$(( BASE + $1 * SPAN )) hi=$(( BASE + ($1 + 1) * SPAN - 1 )) pid name
   if command -v netstat.exe >/dev/null; then
-    for pid in $(netstat.exe -ano -p tcp 2>/dev/null | awk -v lo="$lo" -v hi="$hi" '$4 == "LISTENING" { n = split($2, a, ":"); if (a[n] >= lo && a[n] <= hi) print $5 }' | sort -u); do
+    for pid in $(netstat.exe -ano 2>/dev/null | awk -v lo="$lo" -v hi="$hi" '$1 == "TCP" && $4 == "LISTENING" { n = split($2, a, ":"); if (a[n] >= lo && a[n] <= hi) print $5 }' | sort -u); do
       name="$(tasklist.exe //FI "PID eq $pid" //FO CSV //NH 2>/dev/null | cut -d, -f1 | tr -d '"')"
       case "$name" in com.docker*|docker*|vpnkit*|wslrelay*|"") ;; *) taskkill.exe //PID "$pid" //F >/dev/null 2>&1 ;; esac
     done
@@ -58,52 +59,53 @@ free_range() {  # free_range <k>: stop what still listens on the slot's ports; D
 slot_down() {  # slot_down <k>: the slot's own stored down command (it may be another project's), then free its ports
   local d; d="$(slot_dir "$1")"
   if [ -s "$d/down" ]; then
-    ( set -a; . "$d/env" 2>/dev/null; set +a; cd "$(cat "$d/cwd" 2>/dev/null || pwd)" && bash -c "$(cat "$d/down")" ) >/dev/null 2>&1
+    ( set -a; . "$d/env" 2>/dev/null; set +a; { cd "$(cat "$d/cwd" 2>/dev/null)" 2>/dev/null || cd /; }; bash -c "$(cat "$d/down")" ) >/dev/null 2>&1
   fi
   free_range "$1"
 }
 
-slot_release() {  # slot_release <k>: stop its heartbeat and drop the lock
+slot_release() {  # slot_release <k> [heartbeat]: stop its heartbeat (unless it is already dead) and drop the lock
   local d pid; d="$(slot_dir "$1")"
-  [ -f "$d/beat.pid" ] && read -r pid < "$d/beat.pid" && kill "$pid" 2>/dev/null
+  [ "${2:-}" != heartbeat ] && [ -f "$d/beat.pid" ] && read -r pid < "$d/beat.pid" && kill "$pid" 2>/dev/null
   rm -rf "$d"
 }
 
 slot_reclaim() {  # slot_reclaim <k> <reason>
   local owner=?; [ -f "$(slot_dir "$1")/info" ] && read -r owner _ < "$(slot_dir "$1")/info"
   echo "$(date -Is) reclaimed slot $1 from ${owner:-?} $2" >> "$AGHANIM_HOME/logs/stacks.log"
-  slot_down "$1"; slot_release "$1"
+  slot_down "$1"; slot_release "$1" "$2"
 }
 
 stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order, up to WAIT seconds; 3 = gave up
-  local q="$STACK_LOCKS/stack-queue" t f run k st waited=0
-  t="$q/$(date +%s%N)-$1"; echo "${AGHANIM_RUN_LOCK:--}" > "$t"
+  local q="$STACK_LOCKS/stack-queue" t f pid run k st waited=0
+  t="$q/$(date +%s%N)-$1"; echo "$$ ${AGHANIM_RUN_LOCK:--}" > "$t"
+  trap 'rm -f "$t"' EXIT INT TERM
   while :; do
-    for f in "$q"/*; do  # tickets of runs that ended leave the queue
-      [ -f "$f" ] || continue; read -r run < "$f"
-      [ "${run:--}" != - ] && [ ! -d "$run" ] && rm -f "$f"
+    for f in "$q"/*; do  # tickets of waiters or runs that are gone leave the queue
+      [ -f "$f" ] || continue; read -r pid run < "$f"
+      if ! kill -0 "${pid:-0}" 2>/dev/null || { [ "${run:--}" != - ] && [ ! -d "$run" ]; }; then rm -f "$f"; fi
     done
     if [ "$(ls "$q" | sort | head -1)" = "${t##*/}" ]; then
       for (( k = 0; k < STACKS; k++ )); do
         st="$(slot_state "$k")"; [ "${st%% *}" = stuck ] && slot_reclaim "$k" "${st#stuck }"
         if mkdir "$(slot_dir "$k")" 2>/dev/null; then
           echo "$1 ${AGHANIM_RUN_LOCK:--} $(date +%s)" > "$(slot_dir "$k")/info"; touch "$(slot_dir "$k")/beat"
-          rm -f "$t"; SLOT="$k"; return 0
+          rm -f "$t"; trap - EXIT INT TERM; SLOT="$k"; return 0
         fi
       done
     fi
-    if [ "$waited" -ge "$WAIT" ]; then rm -f "$t"; echo "stack: no free slot after ${WAIT}s" >&2; return 3; fi
+    if [ "$waited" -ge "$WAIT" ]; then rm -f "$t"; trap - EXIT INT TERM; echo "stack: no free slot after ${WAIT}s" >&2; return 3; fi
     [ $(( waited % 60 )) -eq 0 ] && echo "stack: waiting, position $(ls "$q" | sort | grep -nxF "${t##*/}" | cut -d: -f1) of $(ls "$q" | wc -l | tr -d ' ')" >&2
     sleep 1; waited=$(( waited + 1 ))
   done
 }
 
 stack_up() {  # stack_up <owner>: lease, clean the range, up, wait for health; prints the URL; 3 = infrastructure
-  local d i body health
+  local d i body="" health
   stack_settings; stack_lease "$1" || return 3
   d="$(slot_dir "$SLOT")"; slot_env "$SLOT"
   env | grep -E '^AGHANIM_(SLOT|STACK|STACK_URL|PORT_[A-Z0-9]+)=' > "$d/env"; printf '%s' "$DOWN" > "$d/down"; pwd > "$d/cwd"
-  ( trap '' HUP; while [ -d "$d" ]; do touch "$d/beat" 2>/dev/null; sleep 15; done ) >/dev/null 2>&1 &
+  ( trap '' HUP; cd /; while [ -d "$d" ]; do touch "$d/beat" 2>/dev/null; sleep 15; done ) >/dev/null 2>&1 &
   echo $! > "$d/beat.pid"
   slot_down "$SLOT"
   if [ -n "$UP" ]; then
@@ -138,7 +140,7 @@ stack_release_run() {  # stack_release_run <run lock>: release every slot a fini
   local f run k
   for f in "$STACK_LOCKS"/stack-*.lock/info; do
     [ -f "$f" ] || continue; read -r _ run _ < "$f"
-    [ "$run" = "$1" ] || continue
+    [ "$run" = "$1" ] || [ "$run" -ef "$1" ] || continue
     k="${f%.lock/info}"; k="${k##*stack-}"; slot_down "$k"; slot_release "$k"
   done
 }

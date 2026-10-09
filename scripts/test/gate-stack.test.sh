@@ -56,4 +56,17 @@ down a; wait
 assert_contains "$(cat "$bin/first")" "http://localhost:21000"
 [ ! -s "$bin/second" ] && pass "the later waiter did not jump the queue" || fail "second got a slot first: $(cat "$bin/second")"
 down first; down b
+# a waiter that died leaves no ticket blocking the queue
+up a >/dev/null; up b >/dev/null
+mkdir -p "$L/stack-queue"; echo "999999 -" > "$L/stack-queue/0000000000000000001-dead"
+down a
+assert_contains "$(up c)" "http://localhost:21000"
+[ ! -e "$L/stack-queue/0000000000000000001-dead" ] && pass "dead waiter's ticket dropped" || fail "dead ticket kept"
+down b; down c
+# a lease whose run is alive stays busy without a heartbeat (the tool may kill the loop)
+run="$(mktemp -d)"; AGHANIM_RUN_LOCK="$run" up live >/dev/null
+read -r beat < "$L/stack-0.lock/beat.pid"; kill "$beat" 2>/dev/null; touch -d '-5 minutes' "$L/stack-0.lock/beat"
+assert_contains "$(bash "$GATE" stack status)" "busy	live"
+rm -rf "$run"; assert_contains "$(bash "$GATE" stack status)" "stuck	live"
+down live
 finish

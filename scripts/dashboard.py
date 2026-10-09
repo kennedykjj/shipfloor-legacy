@@ -61,7 +61,7 @@ def gh_json(*args):
 class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
-        self._transcripts, self._titles, self._blocked = {}, {}, {}
+        self._transcripts, self._titles, self._blocked, self._reasons = {}, {}, {}, {}
 
     def projects(self):
         try:
@@ -180,21 +180,26 @@ class Factory:
         return slots, queue
 
     def block_reason(self, p, n):
-        """The last issue comment about the block: the skills write the step, the output and what was tried there."""
-        repo = aghanim_config.dotted(self.config(p), "project.repo")
-        comments, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100")
-        for c in reversed(comments or []):
-            body = (c.get("body") or "") if isinstance(c, dict) else ""
-            if "blocked" in body.lower():
-                return body[:1200]
-        return ""
+        """The last issue comment about the block (the skills write the step, the output and what was tried
+        there), read at most once a minute per card."""
+        at, reason = self._reasons.get((p, n), (0, ""))
+        if time.time() - at > 60:
+            repo = aghanim_config.dotted(self.config(p), "project.repo")
+            comments, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100&sort=created&direction=desc")
+            reason = next((c["body"][:1200] for c in comments or []
+                           if isinstance(c, dict) and "blocked" in (c.get("body") or "").lower()), "")
+            self._reasons[(p, n)] = (time.time(), reason)
+        return reason
 
     def unblock(self, p, n):
         repo = aghanim_config.dotted(self.config(p), "project.repo")
+        errors = []
         for label in ("blocked", "blocked:infra"):
-            gh("api", "-X", "DELETE", f"repos/{repo}/issues/{n}/labels/{label}")
-        self._blocked.pop(p, None)
-        return 200, {"unblocked": True}
+            r = gh("api", "-X", "DELETE", f"repos/{repo}/issues/{n}/labels/{label}")
+            if r.returncode != 0 and "Label does not exist" not in r.stderr and "404" not in r.stderr:
+                errors.append(r.stderr.strip())
+        self._blocked.pop(p, None); self._reasons.pop((p, n), None)
+        return (502, {"error": "; ".join(errors)}) if errors else (200, {"unblocked": True})
 
     def reports(self, p, n):
         out = []

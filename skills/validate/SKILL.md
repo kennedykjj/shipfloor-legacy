@@ -26,7 +26,7 @@ Owner of a file: `aghanim-config.sh layer-of <repo-relative path>` names its lay
 
 ## 3. Review
 - Your code review of `git -C <wt> diff origin/<main>...HEAD` against the review criteria file and `CLAUDE.md`.
-- If UX ran in refinement (spec `## UX` is filled) and describe shows a stack: `ux-designer` mode `validate`; first bring up this card's own stack with `url=$(gate.sh -C <worktree> stack up validate-<n>)` (it waits in the stack queue; exit 3 is an infrastructure error), call `ux-designer` with `url=<url>`, then `gate.sh -C <worktree> stack down validate-<n>` right after; never hold a stack while waiting for CI or running gates. Gates of a layer that needs the stack bring up their own.
+- If UX ran in refinement (spec `## UX` is filled) and describe shows a stack: `ux-designer` mode `validate`; first bring up this card's own stack with `gate.sh -C <worktree> stack up validate-<n>` (it waits in the stack queue; exit 3 is an infrastructure error) and note the URL it prints, then call `ux-designer` with `url=` and that URL written out literally, then `gate.sh -C <worktree> stack down validate-<n>` right after; never hold a stack while waiting for CI or running gates. Gates of a layer that needs the stack bring up their own.
 - If the issue has label `cybersec`: `cybersec` mode `diff`.
 - 🔴 findings → the file's owner agent with the findings; then `gate.sh -C <wt> scope <layer> <sha before the fix>` and the step 2 gates; max 2 rounds, then the failure rule.
 

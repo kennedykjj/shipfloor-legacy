@@ -40,7 +40,9 @@ setup; INFRA="70" O_VAL="70"; mkdir -p "$FACTORY_HOME/tmp/70/junk"; run_dispatch
 assert_contains "$(cat "$FACTORY_HOME/labels" 2>/dev/null)" "label 70 remove blocked:infra"
 assert_contains "$(grep '/aghanim:validate 70 ' "$tmp/launched")" "retry=1"
 [ ! -e "$FACTORY_HOME/tmp/70" ] && pass "infra leftovers cleaned" || fail "tmp/70 kept"
-[ ! -e "$FACTORY_HOME/infra/70" ] && pass "retry marker cleared when the run ended" || fail "marker kept"
+[ -e "$FACTORY_HOME/infra/70" ] && pass "the retry's marker outlives the retried run" || fail "marker cleared by the retried run"
+# next cycle: the card is no longer blocked:infra, so the marker goes
+INFRA=""; run_dispatch; [ ! -e "$FACTORY_HOME/infra/70" ] && pass "stale marker cleared" || fail "marker kept after the block cleared"
 # a card already retried and blocked by infrastructure again goes to the owner, not relaunched
 setup; INFRA="71"; mkdir -p "$FACTORY_HOME/infra"; date +%s > "$FACTORY_HOME/infra/71"; run_dispatch
 assert_contains "$(cat "$FACTORY_HOME/labels" 2>/dev/null)" "label 71 add blocked"
