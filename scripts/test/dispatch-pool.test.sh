@@ -58,14 +58,17 @@ setup; machine $'pool: 4\nstages: {deploy: 0}'; Q_PROD="47" bash "$D"
 setup; mkdir -p "$FACTORY_HOME/locks/develop-36.lock"; echo "$$ $(date +%s) 36" > "$FACTORY_HOME/locks/develop-36.lock/info"
 Q_VAL="36" bash "$D"; [ -z "$(launched)" ] && pass "busy card skipped" || fail "second run on a busy card: $(launched)"
 
+# staged cards are refreshed only when the project opts in
+setup; Q_STG="35" bash "$D"; sleep 1; [ -z "$(cat "$tmp/refreshed")" ] && pass "no refresh by default" || fail "refreshed without opting in"
+
 # staged cards are kept up to date by deploy.sh --refresh, outside the agent pool
-setup; machine $'pool: 1
+setup; cfg="$(mktemp)"; sed '/^deploy:/d' "$FACTORY_CONFIG" > "$cfg"; echo 'deploy: {refresh_staged: true}' >> "$cfg"; export FACTORY_CONFIG="$cfg"; machine $'pool: 1
 stages: {refine: 1, develop: 1, validate: 1, deploy: 1}'; live_lock other refine-3
 Q_STG="35 36" bash "$D"; sleep 1
 assert_contains "$(cat "$tmp/refreshed")" "refresh 35 --refresh"
 assert_contains "$(cat "$tmp/refreshed")" "refresh 36 --refresh"
 [ -z "$(cat "$tmp/launched")" ] && pass "refreshes use no agent slot" || fail "launched agents: $(cat "$tmp/launched")"
-setup; mkdir -p "$FACTORY_HOME/locks/validate-35.lock"; echo "$$ $(date +%s) 35" > "$FACTORY_HOME/locks/validate-35.lock/info"
+setup; export FACTORY_CONFIG="$cfg"; mkdir -p "$FACTORY_HOME/locks/validate-35.lock"; echo "$$ $(date +%s) 35" > "$FACTORY_HOME/locks/validate-35.lock/info"
 Q_STG="35" bash "$D"; sleep 1; [ -z "$(cat "$tmp/refreshed")" ] && pass "busy card not refreshed" || fail "refreshed a busy card"
 
 # an invalid machine config launches nothing

@@ -204,5 +204,6 @@ run_pipeline refine     "Ready for Refinement" "${LIM[0]}" "${LIM[1]}" "Technica
 run_pipeline develop "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding"               "Coding" "Validation" || status=1
 run_pipeline validate     "Validation"           "${LIM[4]}" 0           ""                                         || status=1
 run_pipeline deploy    "Ready for Prod"       "${LIM[5]}" 0           ""                                         || status=1
-refresh_staged || status=1
+# Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
+[ "$(mylos_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
 exit $status

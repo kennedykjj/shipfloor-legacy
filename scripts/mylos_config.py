@@ -127,9 +127,9 @@ def problems(cfg):
         elif k == "required_checks":
             if not is_str_list(v):
                 errs.append("deploy.required_checks must be a list of check names")
-        elif k == "allow_no_checks":
+        elif k in ("allow_no_checks", "refresh_staged"):
             if not isinstance(v, bool):
-                errs.append("deploy.allow_no_checks must be true or false")
+                errs.append(f"deploy.{k} must be true or false")
         elif k == "healthcheck":
             if not is_str_list(v) or not all(u.startswith(("http://", "https://")) for u in v):
                 errs.append("deploy.healthcheck must be a list of http(s) URLs")

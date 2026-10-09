@@ -33,7 +33,7 @@ stages: {refine: 2, develop: 2, validate: 2, deploy: 1}
 Cards built at the same time do not break `main`:
 - the `migration` gate refuses a version used twice and a migration older than the base's or `main`'s;
 - `develop`, `validate` and `deploy` merge `origin/main` before the gates;
-- `deploy` merges only a head that contains the current `main` and passed CI;
+- `deploy` merges only a head that contains the current `main` and passed CI; with `deploy.refresh_staged: true` the dispatcher also keeps Staged PRs on top of `main` (faster approvals, but every refresh reruns CI: leave it off when Actions minutes are tight);
 - to close the race with merges made by hand, enable branch protection on the main branch with "Require branches to be up to date before merging" and required CI; `/mylos:deploy` reports when it is missing.
 
 On deploy, conflicts are resolved by the pipeline itself. The card goes back to Coding only when a migration conflicts, when the conflict is large (`deploy.conflict_max_files` / `conflict_max_hunks`), or when gates or CI fail after resolving.
