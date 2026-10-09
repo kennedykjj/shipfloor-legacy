@@ -26,7 +26,7 @@ Success: the owner can follow and approve the factory's work without opening Git
 - `scripts/dashboard.py`: HTTP server (`http.server`, `ThreadingHTTPServer`) and the data readers.
 - `scripts/dashboard.html`: the page.
 - `scripts/aghanim`: new `dashboard` command, a thin wrapper that runs `python -I dashboard.py`.
-- `templates/prices.yml`: default price table, copied to `~/.aghanim/prices.yml` by `aghanim install` when missing (the owner's edits are kept).
+- `templates/prices.yml`: default price table; `~/.aghanim/prices.yml` replaces it when present.
 
 ## Code organization
 
