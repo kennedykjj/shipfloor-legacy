@@ -52,4 +52,4 @@ layers:
     tests: ['web/e2e/**']
 
 stack: {url: "http://localhost:3000"}                  # a local stack the e2e tests and UX checks share
-deploy: {ci_workflow: CI, environment: production, timeout_min: 30, conflict_max_files: 5, conflict_max_hunks: 20}   # omit ci/environment to finish at the merge
+deploy: {ci_workflow: CI, environment: production, timeout_min: 30, conflict_max_files: 5, conflict_max_hunks: 20, refresh_staged: false}   # omit ci/environment to finish at the merge
