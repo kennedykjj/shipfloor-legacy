@@ -5,3 +5,4 @@ scripts/test/fake-gh text eol=lf
 *.yml text eol=lf
 *.html text eol=lf
 *.ps1 text eol=crlf
+scripts/mylos text eol=lf
