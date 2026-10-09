@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-09T00:00:00Z",
+  "title": "Design System: Aghanim's Anvil Dashboard",
+  "extensions": {
+    "colorMeta": {
+      "ground": { "role": "neutral", "displayName": "Deep Slate Ground", "canonical": "#0d1014", "tonalRamp": ["#0d1014", "#151a21", "#1b212a", "#262e39", "#36404e", "#5f6068", "#8f8b80", "#ebe5d5"] },
+      "panel": { "role": "neutral", "displayName": "Slate Panel", "canonical": "#151a21" },
+      "panel-hi": { "role": "neutral", "displayName": "Raised Panel", "canonical": "#1b212a" },
+      "edge": { "role": "neutral", "displayName": "Hairline", "canonical": "#262e39" },
+      "edge-hi": { "role": "neutral", "displayName": "Lit Edge", "canonical": "#36404e" },
+      "parchment": { "role": "neutral", "displayName": "Parchment", "canonical": "#ebe5d5" },
+      "muted": { "role": "neutral", "displayName": "Muted", "canonical": "#8f8b80" },
+      "faint": { "role": "neutral", "displayName": "Faint", "canonical": "#5f6068" },
+      "gold": { "role": "secondary", "displayName": "Coin Gold", "canonical": "#e2b356", "light": "#855a0c", "tonalRamp": ["#3d2d0e", "#5f4713", "#855a0c", "#a87b1c", "#c99a35", "#e2b356", "#edc97e", "#f6e1b4"] },
+      "azure": { "role": "primary", "displayName": "Aghanim Azure", "canonical": "#63b2ff", "light": "#1f6fd1", "tonalRamp": ["#0b2440", "#123a6a", "#1f6fd1", "#3b8ae6", "#63b2ff", "#8ac6ff", "#b4daff", "#dcedff"] },
+      "azure-ink": { "role": "neutral", "displayName": "Azure Ink", "canonical": "#0b2440", "light": "#ffffff" },
+      "ok": { "role": "outcome", "displayName": "Outcome Green", "canonical": "#7cc58a", "light": "#2f7d43" },
+      "warn": { "role": "outcome", "displayName": "Outcome Amber", "canonical": "#d9a45b", "light": "#9a5b12" },
+      "bad": { "role": "outcome", "displayName": "Outcome Red", "canonical": "#f06a5f", "light": "#c23b31" }
+    },
+    "typographyMeta": {
+      "stat": { "displayName": "Stat", "purpose": "Header strip figures and every cost or count, mono with tabular figures." },
+      "headline": { "displayName": "Headline", "purpose": "Drawer card title." },
+      "title": { "displayName": "Title", "purpose": "Card title, clamped to two lines." },
+      "body": { "displayName": "Body", "purpose": "Page base text, tables at 12.5px." },
+      "label": { "displayName": "Label", "purpose": "Column headings, table heads, section keys; sentence case." },
+      "log": { "displayName": "Log", "purpose": "Pre-wrapped mono log pane." }
+    },
+    "shadows": [
+      { "name": "hover-lift", "value": "0 10px 30px rgba(0, 0, 0, .45)", "purpose": "Card hover with 1px lift; light theme uses rgba(40, 36, 28, .14)." },
+      { "name": "drawer-cast", "value": "-14px 0 32px -8px rgba(0, 0, 0, .45)", "purpose": "Open drawer over the board; none when closed." },
+      { "name": "dial-ring", "value": "0 0 0 2px var(--panel), 0 0 0 3px var(--edge)", "purpose": "Ring around the cooldown dial." }
+    ],
+    "motion": [
+      { "name": "card-transition", "value": ".16s ease on border-color, transform, box-shadow", "purpose": "Card hover; disabled under reduced motion." },
+      { "name": "cooldown-sweep", "value": "6s linear infinite on registered --sweep angle, 0deg to 360deg", "purpose": "Signature dial on running cards; static 90deg quarter under prefers-reduced-motion." },
+      { "name": "shimmer", "value": "1.2s ease infinite", "purpose": "Drawer loading skeleton only." }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "860px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Item Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A board card: number, gold cost, title.",
+      "html": "<button class=\"ds-card\"><div class=\"ds-top\"><span class=\"ds-no\">#42</span><span class=\"ds-cost\"><span class=\"ds-coin\"></span>1.84</span></div><div class=\"ds-title\">Add retry to the dispatcher</div></button>",
+      "css": ".ds-card{display:block;width:260px;text-align:left;cursor:pointer;color:var(--text);font:13px/1.35 var(--sans);background:linear-gradient(180deg,var(--panel-hi),var(--panel));border:1px solid var(--edge);border-top-color:var(--edge-hi);border-radius:6px;padding:9px 10px;transition:border-color .16s ease,transform .16s ease,box-shadow .16s ease}.ds-card:hover{border-color:var(--edge-hi);transform:translateY(-1px);box-shadow:var(--shadow)}.ds-card:focus-visible{outline:2px solid var(--azure);outline-offset:2px}.ds-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.ds-no{font:12.5px var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}.ds-cost{font:12.5px var(--mono);font-variant-numeric:tabular-nums;color:var(--gold)}.ds-coin::before{content:\"\";display:inline-block;width:.5em;height:.5em;margin-right:.32em;border-radius:50%;background:var(--gold);box-shadow:0 0 0 1px var(--gold-soft);vertical-align:.08em}.ds-title{margin-top:3px}"
+    },
+    {
+      "name": "Awaiting Card",
+      "kind": "card",
+      "refersTo": "card-awaiting",
+      "description": "A card waiting for the owner: azure border, ring, tint and waits line.",
+      "html": "<button class=\"ds-card ds-await\"><div class=\"ds-top\"><span class=\"ds-no\">#43</span><span class=\"ds-cost\"><span class=\"ds-coin\"></span>0.62</span></div><div class=\"ds-title\">Spec for the usage-limit banner</div><div class=\"ds-waits\">spec to review</div></button>",
+      "css": ".ds-card{display:block;width:260px;text-align:left;cursor:pointer;color:var(--text);font:13px/1.35 var(--sans);background:linear-gradient(180deg,var(--panel-hi),var(--panel));border:1px solid var(--edge);border-top-color:var(--edge-hi);border-radius:6px;padding:9px 10px}.ds-await{border-color:var(--azure);box-shadow:0 0 0 1px var(--azure) inset;background:linear-gradient(180deg,var(--azure-soft),var(--panel))}.ds-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.ds-no{font:12.5px var(--mono);color:var(--muted)}.ds-cost{font:12.5px var(--mono);color:var(--gold)}.ds-coin::before{content:\"\";display:inline-block;width:.5em;height:.5em;margin-right:.32em;border-radius:50%;background:var(--gold);vertical-align:.08em}.ds-title{margin-top:3px}.ds-waits{margin-top:6px;font-size:11.5px;color:var(--azure)}"
+    },
+    {
+      "name": "Running Card with Cooldown Dial",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "The signature: a slow conic sweep on running cards, a static quarter under reduced motion.",
+      "html": "<button class=\"ds-card\"><div class=\"ds-top\"><span class=\"ds-no\">#44</span></div><div class=\"ds-title\">Validate the staging gate</div><div class=\"ds-run\"><span class=\"ds-dial\" aria-hidden=\"true\"></span>validate running</div></button>",
+      "css": "@property --sweep{syntax:\"<angle>\";inherits:false;initial-value:0deg}@keyframes ds-sweep{from{--sweep:0deg}to{--sweep:360deg}}.ds-card{display:block;width:260px;text-align:left;color:var(--text);font:13px/1.35 var(--sans);background:linear-gradient(180deg,var(--panel-hi),var(--panel));border:1px solid var(--edge-hi);border-radius:6px;padding:9px 10px}.ds-no{font:12.5px var(--mono);color:var(--muted)}.ds-title{margin-top:3px}.ds-run{margin-top:6px;font-size:11.5px;display:flex;align-items:center;gap:6px}.ds-dial{width:13px;height:13px;border-radius:50%;flex:none;background:conic-gradient(var(--text) var(--sweep,90deg),var(--edge-hi) 0);box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--edge);animation:ds-sweep 6s linear infinite}@media (prefers-reduced-motion:reduce){.ds-dial{animation:none;--sweep:90deg}}"
+    },
+    {
+      "name": "Approve Button",
+      "kind": "button",
+      "refersTo": "button-approve",
+      "description": "The owner's primary action; azure fill.",
+      "html": "<button class=\"ds-approve\">Approve → Ready for Dev</button>",
+      "css": ".ds-approve{font:600 14px var(--sans);border-radius:5px;padding:7px 12px;cursor:pointer;white-space:nowrap;background:var(--azure);border:1px solid var(--azure);color:var(--azure-ink)}.ds-approve:hover{filter:brightness(1.08)}.ds-approve:focus-visible{outline:2px solid var(--azure);outline-offset:2px}.ds-approve:disabled{opacity:.5;cursor:progress}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Request changes, Retry.",
+      "html": "<button class=\"ds-btn\">Request changes → Ready for Refinement</button>",
+      "css": ".ds-btn{font:14px var(--sans);color:var(--text);border-radius:5px;padding:7px 12px;cursor:pointer;white-space:nowrap;border:1px solid var(--edge-hi);background:var(--panel-hi)}.ds-btn:hover{border-color:var(--text)}.ds-btn:focus-visible{outline:2px solid var(--azure);outline-offset:2px}"
+    },
+    {
+      "name": "Header Stat",
+      "kind": "custom",
+      "refersTo": "stat",
+      "description": "A strip stat: mono value over a muted key; gold variant for spent today.",
+      "html": "<div class=\"ds-stat\"><div class=\"ds-v\"><span class=\"ds-coin\"></span>12.40</div><div class=\"ds-k\">spent today <span class=\"ds-est\">est.</span></div></div>",
+      "css": ".ds-stat{padding:11px 18px;display:flex;flex-direction:column;background:var(--panel);font:14px/1.45 var(--sans);color:var(--text)}.ds-v{font:600 19px/1.15 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em;color:var(--gold);white-space:nowrap}.ds-coin::before{content:\"\";display:inline-block;width:.5em;height:.5em;margin-right:.32em;border-radius:50%;background:var(--gold);box-shadow:0 0 0 1px var(--gold-soft);vertical-align:.08em}.ds-k{font-size:11px;color:var(--muted);margin-top:2px}.ds-est{color:var(--faint);font-size:11px;margin-left:4px}"
+    },
+    {
+      "name": "Tooltip Header",
+      "kind": "custom",
+      "refersTo": "drawer",
+      "description": "The drawer's item-tooltip head: title, gold total, gold hairline beneath.",
+      "html": "<div class=\"ds-tip\"><div class=\"ds-row\"><h3><span class=\"ds-num\">#42</span>Add retry to the dispatcher</h3><span class=\"ds-total\"><span class=\"ds-coin\"></span>1.84</span></div><div class=\"ds-meta\">Coding · 3 sessions · first to last run 1h12</div></div>",
+      "css": ".ds-tip{width:420px;padding:16px 20px 12px;font:14px/1.45 var(--sans);color:var(--text);border-top:1px solid var(--edge-hi);border-bottom:1px solid color-mix(in srgb,var(--gold) 60%,transparent);background:linear-gradient(180deg,var(--panel-hi),var(--panel))}.ds-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.ds-tip h3{margin:0;font-size:17px;font-weight:600;line-height:1.3}.ds-num{font:500 17px var(--mono);color:var(--muted);margin-right:6px}.ds-total{font:600 20px var(--mono);font-variant-numeric:tabular-nums;color:var(--gold);white-space:nowrap}.ds-coin::before{content:\"\";display:inline-block;width:.5em;height:.5em;margin-right:.32em;border-radius:50%;background:var(--gold);vertical-align:.08em}.ds-meta{margin-top:6px;font-size:12.5px;color:var(--muted)}"
+    },
+    {
+      "name": "Gate Chip",
+      "kind": "chip",
+      "refersTo": "gate",
+      "description": "Pass or fail result of a gate, outcome color only.",
+      "html": "<span class=\"ds-gate\">lint pass</span> <span class=\"ds-gate ds-fail\">tests fail</span>",
+      "css": ".ds-gate{font:11.5px var(--mono);padding:2px 7px;border-radius:4px;border:1px solid var(--edge);color:var(--ok)}.ds-fail{color:var(--bad);border-color:currentColor}"
+    },
+    {
+      "name": "Drawer Tabs",
+      "kind": "nav",
+      "refersTo": "drawer",
+      "description": "Underlined text tabs with mono counts.",
+      "html": "<nav class=\"ds-tabs\"><button aria-selected=\"true\">Sessions<span class=\"ds-b\">3</span></button><button aria-selected=\"false\">Log</button><button aria-selected=\"false\">Gates<span class=\"ds-b\">2</span></button><button aria-selected=\"false\">Review</button></nav>",
+      "css": ".ds-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--edge);background:var(--panel)}.ds-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 10px 8px;color:var(--muted);cursor:pointer;font:13px var(--sans)}.ds-tabs button[aria-selected=\"true\"]{color:var(--text);border-bottom-color:var(--text)}.ds-tabs button:focus-visible{outline:2px solid var(--azure);outline-offset:2px}.ds-b{margin-left:5px;font:11px var(--mono);color:var(--faint)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Aghanim's Tooltip",
+    "overview": "The dashboard is an item shop for a software factory. Every card on the board is an item; opening one slides in its tooltip, the drawer: name, gold cost, tabbed sections for sessions, log, gates and review, and one decision. Surfaces are deep slate with a top-lit edge in dark mode and neutral pale stone in light mode, both following prefers-color-scheme. The mood is a quiet, dense, glanceable instrument for one owner doing quick checks: open, approve what waits, glance at cost and runs, close.\n\nTwo colors carry meaning and nothing else does. Gold means money: the cost numerals and the coin mark. Azure means the owner: what waits for them and the actions they take. Everything else is slate, parchment (or ink on stone) and hairlines. The system rejects the generic grey kanban with colored tags: column identity comes from position and name, never from tag color.",
+    "keyCharacteristics": [
+      "Item cards with a top-lit border and a faint vertical gradient; the drawer is the same material at tooltip scale.",
+      "Two meaningful hues (gold for cost, azure for the owner), plus ok/warn/bad for outcomes only.",
+      "Monospace tabular figures for every number; system sans for everything else.",
+      "Hairline borders instead of shadows at rest; depth appears on hover and for the drawer.",
+      "One signature motion: the cooldown dial on running cards."
+    ],
+    "rules": [
+      { "name": "The Coin Rule", "body": "Gold appears only on money: cost numerals, the coin mark, the unpriced marker, and the tooltip header's cost rule. Never on buttons, headings, borders of cards or status.", "section": "colors" },
+      { "name": "The Owner Rule", "body": "Azure appears only on what waits for the owner or what the owner does. If a thing does not need a human, it is not azure.", "section": "colors" },
+      { "name": "The Estimate Rule", "body": "Every cost is labelled \"est.\" in faint small type next to the figure; a missing price shows the gold $ ? marker with an explanatory title, never a zero.", "section": "colors" },
+      { "name": "The Figures Rule", "body": "Any number is mono with tabular-nums (.num). Prose stays sans.", "section": "typography" },
+      { "name": "The Flat-At-Rest Rule", "body": "Cards and panels carry no shadow until hovered or, for the drawer, open.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use gold only for cost and the coin mark, and azure only for the owner's waiting items and actions.",
+      "Do set every number in mono with tabular figures and label every cost \"est.\".",
+      "Do keep surfaces flat at rest and express hierarchy with the panel steps and hairlines.",
+      "Do provide the light-theme value for every new color token in the prefers-color-scheme: light block, darkening gold and azure for contrast.",
+      "Do keep the cooldown dial as the single continuous animation and give any new motion a reduced-motion fallback.",
+      "Do keep factory stage and column names verbatim."
+    ],
+    "donts": [
+      "Don't color-code columns or cards with tags or per-stage hues; position and name identify a stage.",
+      "Don't use gold or azure as decoration (borders, headings, icons, dividers) or use red/green for anything but outcomes.",
+      "Don't add emoji, icon fonts or glyph icons; text labels carry actions.",
+      "Don't add webfonts, CDN assets or a build step; the dashboard is one self-contained file.",
+      "Don't add resting shadows, gradients beyond the panel step, or a second continuous animation."
+    ]
+  }
+}
