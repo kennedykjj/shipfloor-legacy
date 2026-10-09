@@ -50,7 +50,12 @@ cmd_doctor() {
     while IFS=$'\t' read -r slug repo wt main; do
       [ -z "$slug" ] && continue
       ( mylos_use "$slug" "$repo" "$wt" "$main"; mylos_validate ) \
-        && echo "ok   project $slug" || { echo "FAIL project $slug: invalid or missing config"; bad=1; }
+        && echo "ok   project $slug" || { echo "FAIL project $slug: invalid or missing config"; bad=1; continue; }
+      ( mylos_use "$slug" "$repo" "$wt" "$main"
+        r="$(mylos_cfg get project.repo)"; b="$(mylos_cfg get project.main)"
+        strict="$(gh api "repos/$r/branches/$b/protection" --jq .required_status_checks.strict 2>&1)"
+        if [ "$strict" = true ]; then echo "ok   $slug: $b requires up-to-date branches"
+        else echo "WARN $slug: $b does not require up-to-date branches (${strict##*: }); a hand merge can race the deploy"; fi )
     done < "$REGISTRY"
   else echo "WARN no projects (mylos add <repo>)"; fi
   return $bad
