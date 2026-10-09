@@ -18,18 +18,18 @@ EOB
   printf '#!/usr/bin/env bash\necho "$(cat) $*" >> "%s/launched"\n' "$tmp" > "$tmp/claude"
   chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
 }
-launched() { sleep 1; grep -o '/[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
+launched() { sleep 1; grep -o '/mylos:[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
 
 # orphan in Coding (no live lock) resumes; it already counts toward WIP
-setup; O_COD="42" W_CV=1; bash "$D"; assert_contains "$(launched)" "/desenvolver 42"
+setup; O_COD="42" W_CV=1; bash "$D"; assert_contains "$(launched)" "/mylos:desenvolver 42"
 # orphan resumes before new cards; both fit in 2 runs
-setup; O_COD="42" Q_DEV="60" W_CV=1; bash "$D"; out="$(launched)"; assert_contains "$out" "/desenvolver 42"; assert_contains "$out" "/desenvolver 60"
+setup; O_COD="42" Q_DEV="60" W_CV=1; bash "$D"; out="$(launched)"; assert_contains "$out" "/mylos:desenvolver 42"; assert_contains "$out" "/mylos:desenvolver 60"
 # two orphans fill both slots: no new card
-setup; O_COD="42" O_VAL="54" Q_DEV="60" W_CV=2; bash "$D"; out="$(launched)"; assert_contains "$out" "/desenvolver 42 /desenvolver 54"
+setup; O_COD="42" O_VAL="54" Q_DEV="60" W_CV=2; bash "$D"; out="$(launched)"; assert_contains "$out" "/mylos:desenvolver 42 /mylos:desenvolver 54"
 case "$out" in *60*) fail "started a new card with WIP full" ;; *) pass "WIP respected with orphans" ;; esac
 # usage limit: a run that ended with "session limit" in the last 30 min pauses launches
-setup; Q_DEV="60"; printf '== start /desenvolver 54\nYou'"'"'ve hit your session limit · resets 6:10pm\n== end /desenvolver 54 exit=1\n' > "$FACTORY_HOME/logs/$(date +%F)-54-desenvolver.log"
+setup; Q_DEV="60"; printf '== start /mylos:desenvolver 54\nYou'"'"'ve hit your session limit · resets 6:10pm\n== end /mylos:desenvolver 54 exit=1\n' > "$FACTORY_HOME/logs/$(date +%F)-54-desenvolver.log"
 bash "$D"; [ -z "$(launched)" ] && pass "backs off after a usage limit" || fail "launched during usage limit"
 touch -d '-40 minutes' "$FACTORY_HOME/logs/$(date +%F)-54-desenvolver.log"
-bash "$D"; assert_contains "$(launched)" "/desenvolver 60"
+bash "$D"; assert_contains "$(launched)" "/mylos:desenvolver 60"
 finish

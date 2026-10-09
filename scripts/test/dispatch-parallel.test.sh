@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Up to 2 refinar/desenvolver runs at once (within WIP), 1 deployar, one run per card.
+# Up to 2 refinar/mylos:desenvolver runs at once (within WIP), 1 deployar, one run per card.
 source "$(dirname "$0")/lib.sh"
 D="$FACTORY_DIR/dispatch.sh"
 setup() {
@@ -20,17 +20,17 @@ EOB
   printf '#!/usr/bin/env bash\necho "$(cat) $*" >> "%s/launched"\nsleep 2\n' "$tmp" > "$tmp/claude"
   chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
 }
-launched() { sleep 1; grep -o '/[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
+launched() { sleep 1; grep -o '/mylos:[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
 fresh_lock() { mkdir -p "$FACTORY_HOME/locks/$1.lock"; echo "$$ $(date +%s) ${1##*-}" > "$FACTORY_HOME/locks/$1.lock/info"; }
 
-setup; Q_DEV="26 27"; bash "$D"; assert_contains "$(launched)" "/desenvolver 26 /desenvolver 27"
-setup; Q_DEV="26 27 28" W_CV=3; bash "$D"; out="$(launched)"; assert_contains "$out" "/desenvolver 26"
+setup; Q_DEV="26 27"; bash "$D"; assert_contains "$(launched)" "/mylos:desenvolver 26 /mylos:desenvolver 27"
+setup; Q_DEV="26 27 28" W_CV=3; bash "$D"; out="$(launched)"; assert_contains "$out" "/mylos:desenvolver 26"
 case "$out" in *27*) fail "exceeded WIP: $out" ;; *) pass "respects WIP 4" ;; esac
 setup; Q_DEV="27 28" W_CV=1 SNAP_TSV='26\tCoding\tI26\n'; fresh_lock desenvolver-26
-bash "$D"; out="$(launched)"; assert_contains "$out" "/desenvolver 27"
+bash "$D"; out="$(launched)"; assert_contains "$out" "/mylos:desenvolver 27"
 case "$out" in *28*) fail "third concurrent run: $out" ;; *) pass "max 2 desenvolver" ;; esac
 setup; Q_DEV="26" ; fresh_lock desenvolver-26; bash "$D"; [ -z "$(launched)" ] && pass "never twice on one card" || fail "relaunched card 26"
-setup; Q_PROD="47 48"; bash "$D"; out="$(launched)"; assert_contains "$out" "/deployar 47"
+setup; Q_PROD="47 48"; bash "$D"; out="$(launched)"; assert_contains "$out" "/mylos:deployar 47"
 case "$out" in *48*) fail "parallel deploys: $out" ;; *) pass "one deploy at a time" ;; esac
 setup; Q_REF="25 26" W_SR=1 SNAP_TSV='30\tTechnical Refinement\tI30\n'; fresh_lock refinar-30
 bash "$D"; [ -z "$(launched)" ] && pass "in-flight refinement counts toward Spec Review WIP" || fail "overfilled Spec Review: $(launched)"
