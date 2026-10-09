@@ -5,6 +5,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib/project.sh"
+source "$HERE/lib/stack.sh"
 aghanim_resolve . || exit 2
 aghanim_validate || { echo "dispatch: invalid config $FACTORY_CONFIG" >&2; exit 2; }
 HOME_DIR="${FACTORY_HOME:?FACTORY_HOME unset}"
@@ -81,39 +82,47 @@ cleanup_processes() {  # stop processes (dev servers, test runners) left running
       ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' >/dev/null 2>&1 || true
 }
 
+clean_tmp() {  # clean_tmp <n>: worktrees a run left under tmp/<n>/, then the directory
+  local t="$HOME_DIR/tmp/$1" w
+  [ -d "$t" ] || return 0
+  git -C "$REPO" worktree list --porcelain 2>/dev/null | sed -n 's#^worktree ##p' | grep -F "$(aghanim_native "$t")/" |
+    while IFS= read -r w; do git -C "$REPO" worktree remove --force "$w" 2>/dev/null; done
+  git -C "$REPO" worktree prune 2>/dev/null; rm -rf "$t"
+}
+
 launch() {  # launch <pipeline> <issue>
   local p="$1" n="$2" dir="$HOME_DIR/locks/$1-$2.lock"
   mkdir "$dir" 2>/dev/null || return 0
   local log="$HOME_DIR/logs/$(date +%F)-$n-$p.log"
-  local extra=()
+  local extra=() envs=(AGHANIM_FACTORY=1 "AGHANIM_RUN_LOCK=$dir")
+  [ -e "$HOME_DIR/infra/$n" ] && envs+=(AGHANIM_INFRA_RETRY=1)
   (
     trap '' HUP
     echo "$BASHPID $(date +%s) $n" > "$dir/info"
     echo "== start /aghanim:$p $n $(date -Is) pid=$BASHPID" >>"$log"
     # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into
     # "C:/Program Files/Git/develop 54", and MSYS_NO_PATHCONV would leak into mvn and break it.
-    agent() { printf '/aghanim:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT AGHANIM_FACTORY=1 "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1; }
+    agent() { printf '/aghanim:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1; }
     cd "$CONTROL" || exit 1
     if [ "$p" = deploy ]; then
       # The deploy is a script, not an agent: it can wait for CI and production as long as needed.
       # An agent is called only to resolve the merge conflicts the script hands over (exit 3).
       local dep="${FACTORY_DEPLOY:-$HERE/deploy.sh}" rc round
-      env -u FACTORY_BOARD_SNAPSHOT bash "$dep" "$n" >>"$log" 2>&1; rc=$?
+      env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" bash "$dep" "$n" >>"$log" 2>&1; rc=$?
       for round in 1 2; do
         [ "$rc" = 3 ] || break
-        agent; env -u FACTORY_BOARD_SNAPSHOT bash "$dep" "$n" --continue >>"$log" 2>&1; rc=$?
+        agent; env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" bash "$dep" "$n" --continue >>"$log" 2>&1; rc=$?
       done
       echo "== end /aghanim:$p $n exit=$rc $(date -Is)" >>"$log"
     else
       agent; echo "== end /aghanim:$p $n exit=$? $(date -Is)" >>"$log"
     fi
+    # what the run created goes with it, before its lock: its stack slot, its tmp/<n>/, its retry marker
+    stack_settings; stack_release_run "$dir"
+    clean_tmp "$n"; rm -f "$HOME_DIR/infra/$n"
+    [ "${FACTORY_CLEANUP:-1}" = 1 ] && cleanup_processes "$n"
     read -r owner _ < "$dir/info" 2>/dev/null
     [ "${owner:-}" = "$BASHPID" ] && rm -rf "$dir"
-    # a run that ended still holding the shared stack lock must not block the others
-    local stack="$HOME_DIR/locks/stack.lock" held
-    { read -r held _ < "$stack/info" || read -r held _ < "$stack/owner"; } 2>/dev/null
-    [ "${held:-}" = "$p-$n" ] && rm -rf "$stack"
-    [ "${FACTORY_CLEANUP:-1}" = 1 ] && cleanup_processes "$n"
   ) &
 }
 
@@ -198,8 +207,21 @@ refresh_staged() {  # keep approved-to-be PRs on top of main: deploy.sh --refres
   done
 }
 
+retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a second block goes to the owner
+  local n cards; cards="$("$BOARD" infra)" || return 1
+  mkdir -p "$HOME_DIR/infra"
+  for n in $cards; do
+    card_busy "$n" && continue
+    if [ -e "$HOME_DIR/infra/$n" ]; then
+      "$BOARD" label "$n" add blocked; "$BOARD" label "$n" remove blocked:infra; rm -f "$HOME_DIR/infra/$n"; continue
+    fi
+    clean_tmp "$n"; date +%s > "$HOME_DIR/infra/$n"; "$BOARD" label "$n" remove blocked:infra
+  done
+}
+
 GLOBAL=$(( ${AGHANIM_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
+retry_infra || status=1
 run_pipeline refine     "Ready for Refinement" "${LIM[0]}" "${LIM[1]}" "Technical Refinement" "Spec Review"        || status=1
 run_pipeline develop "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding"               "Coding" "Validation" || status=1
 run_pipeline validate     "Validation"           "${LIM[4]}" 0           ""                                         || status=1

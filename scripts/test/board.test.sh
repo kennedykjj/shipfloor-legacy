@@ -34,6 +34,13 @@ assert_contains "$(grep -E 'project (view|field-list)' "$FAKE_GH_DIR/calls" | he
 bad="$(mktemp)"; sed 's/owner: acme/owner: "a\\" } evil"/' "$FACTORY_CONFIG" > "$bad"
 assert_exit 2 env FACTORY_CONFIG="$bad" bash "$BOARD" items
 
+# blocked:infra is not eligible either; infra lists those cards; label adds and removes labels
+echo "blocked:infra" > "$FAKE_GH_DIR/labels-41"
+[ -z "$(bash "$BOARD" eligible Validation)" ] && pass "blocked:infra is not eligible" || fail "eligible kept a blocked:infra card"
+printf '41
+' > "$FAKE_GH_DIR/infra"; assert_contains "$(bash "$BOARD" infra)" "41"
+assert_exit 0 bash "$BOARD" label 41 remove blocked:infra
+assert_contains "$(cat "$FAKE_GH_DIR/calls")" "api -X DELETE repos/acme/shop/issues/41/labels/blocked:infra"
 touch "$FAKE_GH_DIR/fail"
 assert_exit 1 bash "$BOARD" count Coding
 finish
