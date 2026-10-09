@@ -20,6 +20,7 @@
   --azure-soft: rgba(99, 178, 255, .16);
   --azure-ink: #0b2440;
   --ok: #7cc58a;
+  --warn: #d9a45b;
   --bad: #f06a5f;
   --shadow: 0 10px 30px rgba(0, 0, 0, .45);
   --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
@@ -28,11 +29,11 @@
 }
 @media (prefers-color-scheme: light) {
   :root {
-    --ground: #e9ecf0;
-    --panel: #f5f7f9;
-    --panel-hi: #ffffff;
-    --edge: #d8dde4;
-    --edge-hi: #c3cad4;
+    --ground: #e7e7e4;
+    --panel: #f4f4f2;
+    --panel-hi: #fbfbfa;
+    --edge: #d9d9d4;
+    --edge-hi: #c4c4bd;
     --text: #23262b;
     --muted: #6b6a66;
     --faint: #9b9890;
@@ -42,6 +43,7 @@
     --azure-soft: rgba(31, 111, 209, .1);
     --azure-ink: #ffffff;
     --ok: #2f7d43;
+    --warn: #9a5b12;
     --bad: #c23b31;
     --shadow: 0 10px 30px rgba(40, 36, 28, .14);
     color-scheme: light;
@@ -86,6 +88,9 @@ header {
 .meter { height: 3px; background: var(--edge); border-radius: 2px; margin-top: 5px; overflow: hidden; width: 100%; }
 .meter i { display: block; height: 100%; background: var(--text); opacity: .75; }
 .await .v { color: var(--azure); }
+.await { display: grid; grid-template-columns: auto auto; column-gap: 10px; align-content: center; justify-content: start; }
+.await .k { grid-column: 1 / -1; grid-row: 2; }
+.await .list { grid-row: 1; grid-column: 2; align-self: center; margin-top: 0 !important; }
 .await .list { display: flex; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
 .await .list button {
   border: 1px solid var(--azure-soft); background: var(--azure-soft); color: var(--azure);
@@ -95,7 +100,7 @@ header {
 .state { margin-left: auto; border-right: 0; align-items: flex-end; text-align: right; }
 .flags { display: flex; gap: 8px; justify-content: flex-end; }
 .flag { font-size: 12px; padding: 1px 7px; border-radius: 4px; border: 1px solid var(--edge-hi); color: var(--muted); }
-.flag.warn { color: var(--gold); border-color: var(--gold-soft); }
+.flag.warn { color: var(--warn); border-color: currentColor; }
 .flag.bad { color: var(--bad); border-color: currentColor; }
 select { background: var(--panel-hi); border: 1px solid var(--edge); border-radius: 4px; padding: 2px 6px; }
 
@@ -129,8 +134,8 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .card .run { margin-top: 6px; font-size: 11.5px; color: var(--text); display: flex; align-items: center; gap: 6px; }
 .card .run .dial {
   width: 13px; height: 13px; border-radius: 50%; flex: none;
-  background: conic-gradient(var(--gold) var(--sweep, 90deg), var(--edge-hi) 0);
-  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--gold-soft);
+  background: conic-gradient(var(--text) var(--sweep, 90deg), var(--edge-hi) 0);
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--edge);
   animation: sweep 6s linear infinite;
 }
 @property --sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
@@ -139,7 +144,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .card.await { border-color: var(--azure); box-shadow: 0 0 0 1px var(--azure) inset; background: linear-gradient(180deg, var(--azure-soft), var(--panel)); }
 .card.await .waits { margin-top: 6px; font-size: 11.5px; color: var(--azure); }
 .card.moving { opacity: .55; }
-.card.open { border-color: var(--gold); }
+.card.open { border-color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   .card .run .dial { animation: none; --sweep: 90deg; }
   .card, .drawer { transition: none; }
@@ -147,12 +152,14 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 
 /* drawer: the item tooltip */
 .drawer {
-  width: 0; flex: none; overflow: hidden; border-left: 1px solid var(--edge); background: var(--panel);
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 2; width: 0; overflow: hidden; background: var(--panel);
+  border-left: 1px solid var(--edge-hi); box-shadow: -14px 0 32px -8px rgba(0, 0, 0, .45);
   display: flex; flex-direction: column;
 }
+.drawer:not(.open) { box-shadow: none; border: 0; }
 .drawer.open { width: min(660px, 52vw); }
 .drawer.wide { width: min(1180px, 72vw); }
-.tip-head { padding: 16px 20px 12px; border-bottom: 1px solid var(--gold-soft); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); flex: none; }
+.tip-head { padding: 16px 20px 12px; border-top: 1px solid var(--edge-hi); border-bottom: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); flex: none; }
 .tip-head .row1 { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .tip-head h3 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3; }
 .tip-head h3 .num { color: var(--muted); font-weight: 500; margin-right: 6px; }
@@ -161,10 +168,10 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .tip-head .close { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; }
 .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--edge); flex: none; }
 .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 10px 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
-.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--gold); }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
 .tabs button .b { margin-left: 5px; font: 11px var(--mono); color: var(--faint); }
 .pane { flex: 1; overflow: auto; min-height: 0; }
-.section-k { font-size: 11px; color: var(--azure); letter-spacing: .02em; margin: 14px 20px 6px; font-weight: 600; }
+.section-k { font-size: 11px; color: var(--muted); letter-spacing: .02em; margin: 14px 20px 6px; font-weight: 600; }
 
 table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 th { text-align: right; font-weight: 500; color: var(--faint); font-size: 11px; padding: 10px 6px 6px; border-bottom: 1px solid var(--edge); white-space: nowrap; position: sticky; top: 0; background: var(--panel); }
@@ -173,7 +180,7 @@ th:first-child, td:first-child { padding-left: 20px; text-align: left; }
 th:last-child, td:last-child { padding-right: 20px; }
 th.l, td.l { text-align: left; }
 tbody tr.session { cursor: pointer; }
-tbody tr.session:hover td { background: var(--azure-soft); }
+tbody tr.session:hover td { background: var(--panel-hi); }
 tr.sub td { color: var(--muted); font-size: 12px; border-bottom-style: dashed; }
 tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .subtoggle { background: none; border: 1px solid var(--edge); border-radius: 4px; padding: 0 5px; font: 11px var(--mono); color: var(--muted); cursor: pointer; margin-left: 6px; }
@@ -194,7 +201,7 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .decide { padding: 14px 20px; border-bottom: 1px solid var(--edge); display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; flex: none; }
 .btn { border-radius: 5px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--edge-hi); background: var(--panel-hi); white-space: nowrap; }
 .btn:hover { border-color: var(--text); }
-.btn.approve { background: var(--azure); border-color: var(--azure); color: var(--azure-ink); font-weight: 600; box-shadow: 0 0 0 1px var(--gold-soft); }
+.btn.approve { background: var(--azure); border-color: var(--azure); color: var(--azure-ink); font-weight: 600; }
 .btn.approve:hover { filter: brightness(1.08); }
 .btn:disabled { opacity: .5; cursor: progress; }
 textarea { width: 100%; min-height: 38px; height: 38px; resize: vertical; background: var(--ground); border: 1px solid var(--edge); border-radius: 5px; padding: 7px 9px; }
@@ -212,7 +219,7 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
   .brand { width: 100%; border-right: 0; padding: 10px 0 2px; }
   .stat { padding: 8px 12px 8px 0; border-right: 0; }
   .state { margin-left: 0; align-items: flex-start; text-align: left; }
-  .drawer.open, .drawer.wide { position: absolute; inset: 0; width: 100%; z-index: 2; }
+  .drawer.open, .drawer.wide { width: 100%; }
 }
 </style>
 </head>
@@ -262,12 +269,13 @@ const model = (m) => (m || "").replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, 
 /* overview */
 async function loadOverview() {
   const { status, body } = await api("/api/overview");
+  if (status === 403) { $("board").innerHTML = '<p class="placeholder">This link belongs to an earlier run of the dashboard. Open the URL that <code>aghanim dashboard</code> printed.</p>'; return; }
   if (status !== 200) return;
   S.overview = body;
   if (!S.project || !body.projects.some((p) => p.slug === S.project)) S.project = body.projects[0]?.slug || null;
   for (const key of Object.keys(S.moving)) {
     const [p, n] = key.split("/"); const card = cardOf(p, +n);
-    if (!card || card.column !== S.moving[key]) delete S.moving[key];
+    if (!card || card.column === S.moving[key]) delete S.moving[key];
   }
   renderStrip(); renderBoard();
 }
@@ -318,13 +326,13 @@ function cardHtml(slug, c) {
   const extra = moving ? '<div class="waits">moving…</div>'
     : c.running ? `<div class="run"><span class="dial" aria-hidden="true"></span>${esc(c.running)} running</div>`
     : c.awaiting ? `<div class="waits">${c.column === "Staged" ? "ready to ship" : "spec to review"}</div>` : "";
-  return `<button class="${cls}" data-open="${esc(key)}"><div class="top"><span class="no num">#${c.issue}</span><span class="cost num gold">${c.cost ? money(c.cost) : ""}</span></div>
+  return `<button class="${cls}" data-open="${esc(key)}"><div class="top"><span class="no num">#${c.issue}</span><span class="cost num gold">${c.cost === null ? money(null) : c.cost ? money(c.cost) : ""}</span></div>
     <div class="title">${esc(c.title) || `Issue #${c.issue}`}</div>${extra}</button>`;
 }
 
 /* drawer */
 async function openCard(key, tab) {
-  S.open = key; S.tab = tab || (S.open === key && S.tab) || "sessions"; S.card = null; S.log = null; S.logNext = -1; S.logText = "";
+  S.tab = tab || (S.open === key && S.tab) || "sessions"; S.open = key; S.card = null; S.log = null; S.logNext = -1; S.logText = "";
   renderBoard(); renderDrawer(); await loadCard();
 }
 function closeCard() { S.open = null; S.card = null; renderBoard(); renderDrawer(); }
@@ -364,7 +372,7 @@ function sessionsPane(c) {
   const rows = c.sessions.map((s) => {
     const m = Object.keys(s.tokens); const t = sum(s.tokens);
     const subs = s.subagents.length ? `<button class="subtoggle" data-sub="${esc(s.id)}">+${s.subagents.length} sub</button>` : "";
-    const exit = s.exit == null ? (s.log ? '<span class="gold">running</span>' : "–") : s.exit === 0 ? '<span class="ok">ok</span>' : `<span class="bad">exit ${s.exit}</span>`;
+    const exit = s.exit == null ? (s.log ? '<span class="muted">running</span>' : "–") : s.exit === 0 ? '<span class="ok">ok</span>' : `<span class="bad">exit ${s.exit}</span>`;
     let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(new Date(s.start).toLocaleString())}">${when(s.start)}</td><td class="l">${esc(s.stage)} <span class="muted">${esc(m.map(model).join(", "))}</span>${subs}</td>
       <td class="num">${tok(t.input)}</td><td class="num">${tok(t.cache_write_5m + t.cache_write_1h)}</td><td class="num">${tok(t.cache_read)}</td><td class="num">${tok(t.output)}</td>
       <td class="num">${dur(s.start, s.end)}</td><td>${exit}</td><td class="num gold">${money(s.cost)}</td></tr>`;
@@ -402,7 +410,7 @@ function reviewPane(c, p, n, column) {
       <textarea id="changes" placeholder="What should change (posted as a comment on the issue)"></textarea>
       <button class="btn" data-act="request-changes">Request changes → ${esc(moves[1])}</button><div class="notice" id="notice"></div></div>`
     : `<div class="decide"><div class="notice" style="color:var(--muted)">Nothing to decide: the card is in ${esc(column || "no column")}. Approval opens in Spec Review and Staged.</div></div>`;
-  const page = c.review ? `<iframe title="Review page" src="/review/${encodeURIComponent(p)}/${n}?t=${encodeURIComponent(token)}"></iframe>` : '<p class="placeholder">No review page for this card. Refine builds it when the spec is ready.</p>';
+  const page = c.review ? `<iframe title="Review page" sandbox="allow-scripts" src="/review/${encodeURIComponent(p)}/${n}?embed=1&t=${encodeURIComponent(token)}"></iframe>` : '<p class="placeholder">No review page for this card. Refine builds it when the spec is ready.</p>';
   return `<div class="review">${decide}${page}</div>`;
 }
 
@@ -422,16 +430,23 @@ async function act(action, moveOnly) {
   if (status === 502 && body.commented) {
     notice.innerHTML = `${esc(body.error)}. The comment is on the issue. <button class="btn" data-retry="${esc(action)}">Retry the move</button>`;
   } else {
-    notice.textContent = body.error || "The action failed.";
-    if (status === 409) loadCard();
+    const msg = body.error || "The action failed.";
+    notice.textContent = msg;
+    if (status === 409) {
+      await loadCard();
+      if ($("changes")) $("changes").value = text;
+      if ($("notice")) $("notice").textContent = msg;
+    }
   }
 }
 
+let tailing = false;
 async function followLog() {
-  if (!S.open || S.tab !== "log" || !S.log) return;
-  const [p] = S.open.split("/");
-  const { status, body } = await api(`/api/log/${encodeURIComponent(p)}/${encodeURIComponent(S.log)}?from=${S.logNext}`);
-  if (status !== 200) return;
+  if (tailing || !S.open || S.tab !== "log" || !S.log) return;
+  const [p] = S.open.split("/"); const log = S.log;
+  tailing = true;
+  const { status, body } = await api(`/api/log/${encodeURIComponent(p)}/${encodeURIComponent(log)}?from=${S.logNext}`).finally(() => { tailing = false; });
+  if (status !== 200 || log !== S.log) return;
   if (body.text) {
     S.logText += body.text; const pre = $("log");
     if (pre) { const atEnd = pre.parentElement.scrollTop + pre.parentElement.clientHeight >= pre.parentElement.scrollHeight - 40; pre.textContent = S.logText; if (atEnd) pre.parentElement.scrollTop = pre.parentElement.scrollHeight; }

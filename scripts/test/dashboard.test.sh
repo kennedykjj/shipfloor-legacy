@@ -27,23 +27,41 @@ srv=$!; trap 'kill $srv 2>/dev/null' EXIT
 for _ in $(seq 1 50); do grep -qs 'http://' "$FAKE_GH_DIR/out" && break; sleep 0.1; done
 url="$(grep -o 'http://[^ ]*' "$FAKE_GH_DIR/out")"; base="${url%%/?t=*}"; tok="${url##*t=}"
 code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+# a second dashboard never shares the first one's port (Windows lets two sockets bind it with SO_REUSEADDR)
+port="${base##*:}"
+$PY -I "$(nat "$FACTORY_DIR/dashboard.py")" --home "$(nat "$H")" --port "$port" --no-open > "$FAKE_GH_DIR/out2" 2>&1 &
+srv2=$!; trap 'kill $srv $srv2 2>/dev/null' EXIT
+for _ in $(seq 1 50); do grep -qs 'http://' "$FAKE_GH_DIR/out2" && break; sleep 0.1; done
+case "$(cat "$FAKE_GH_DIR/out2")" in *"127.0.0.1:$port/"*) fail "second dashboard took port $port too" ;; *) pass "second dashboard moved to another port" ;; esac
+kill $srv2 2>/dev/null
 
 # opus 1M input $4 + 0.1M output $2 + 1M cache read $0.20 + 1M 1h cache write $8 = 14.20, once;
 # subagent sonnet 1M output $10; legacy refine haiku 1M input $0.10; the manual session is not the card's
-got="$(curl -s "$base/api/card/shop/7?t=$tok" | $PY -c 'import json,sys; c=json.load(sys.stdin); print(c["total"], len(c["sessions"]), ",".join(sorted(s["stage"] for s in c["sessions"])))')"
+H_TOK="X-Aghanim-Token: $tok"
+got="$(curl -s -H "$H_TOK" "$base/api/card/shop/7" | $PY -c 'import json,sys; c=json.load(sys.stdin); print(c["total"], len(c["sessions"]), ",".join(sorted(s["stage"] for s in c["sessions"])))')"
 assert_contains "$got" "24.3 2 develop,refine"
 [ "$(code "$base/api/card/shop/7")" = 403 ] && pass "no token, no data" || fail "served without the token"
-[ "$(code "$base/api/log/shop/..%2F..%2Fregistry.tsv?t=$tok")" = 404 ] && pass "no path outside logs" || fail "served a file outside logs"
+[ "$(code -H "$H_TOK" "$base/api/log/shop/..%2F..%2Fregistry.tsv")" = 404 ] && pass "no path outside logs" || fail "served a file outside logs"
 
 # owner actions: the board says 7 is in Spec Review, 8 in Coding, 9 in Staged
 printf 'PVTI_7\t7\t👤 Spec Review\nPVTI_8\t8\t🤖 Coding\nPVTI_9\t9\t👤 Staged\n' > "$FAKE_GH_DIR/items.tsv"
 post() { curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' "$@"; }
+# the token only counts in the header: a page can put it in a URL, not in a header without a preflight
+[ "$(post -d '{"column":"Spec Review"}' "$base/api/card/shop/7/approve?t=$tok")" = 403 ] && pass "token in the URL does not act" || fail "acted with the token in the URL"
+# agent-written review pages run sandboxed, away from the dashboard's origin and token
+echo '<p>spec</p>' > "$P/reviews/7.html"
+assert_contains "$(curl -s -D - -o /dev/null "$base/review/shop/7?t=$tok" | tr -d '
+')" "Content-Security-Policy: sandbox allow-scripts"
+# one unreadable transcript does not take the board down
+printf '%s
+' '{"type":"user","timestamp":"not a time","message":{"content":"<command-name>/aghanim:develop</command-name><command-args>8</command-args>"}}' > "$T/bad.jsonl"
+[ "$(code -H "$H_TOK" "$base/api/card/shop/8")" = 200 ] && pass "a bad transcript is skipped" || fail "a bad transcript broke the overview"
 [ "$(post -d '{"column":"Spec Review"}' "$base/api/card/shop/7/approve")" = 403 ] && pass "no token, no action" || fail "acted without the token"
-[ "$(post -d '{"column":"Coding"}' "$base/api/card/shop/8/approve?t=$tok")" = 409 ] && pass "Coding is not the owner's" || fail "approved a card in Coding"
+[ "$(post -d '{"column":"Coding"}' "$base/api/card/shop/8/approve" -H "$H_TOK")" = 409 ] && pass "Coding is not the owner's" || fail "approved a card in Coding"
 [ ! -e "$FAKE_GH_DIR/edits" ] && pass "nothing moved" || fail "moved a card it should not"
-[ "$(post -d '{"column":"Spec Review"}' "$base/api/card/shop/7/approve?t=$tok")" = 200 ] && pass "approved" || fail "approve failed"
+[ "$(post -d '{"column":"Spec Review"}' "$base/api/card/shop/7/approve" -H "$H_TOK")" = 200 ] && pass "approved" || fail "approve failed"
 assert_contains "$(cat "$FAKE_GH_DIR/edits")" "--id PVTI_7 --field-id FLD_x --single-select-option-id opt5"
-[ "$(post -d '{"column":"Staged","text":"fix the header"}' "$base/api/card/shop/9/request-changes?t=$tok")" = 200 ] && pass "changes requested" || fail "request-changes failed"
+[ "$(post -d '{"column":"Staged","text":"fix the header"}' "$base/api/card/shop/9/request-changes" -H "$H_TOK")" = 200 ] && pass "changes requested" || fail "request-changes failed"
 assert_contains "$(cat "$FAKE_GH_DIR/comments")" "fix the header"
 c="$(grep -n '^issue comment 9' "$FAKE_GH_DIR/calls" | cut -d: -f1)"; m="$(grep -n 'item-edit.*PVTI_9.*opt6' "$FAKE_GH_DIR/calls" | cut -d: -f1)"
 [ -n "$c" ] && [ -n "$m" ] && [ "$c" -lt "$m" ] && pass "comment first, then back to Coding" || fail "comment $c, move $m"

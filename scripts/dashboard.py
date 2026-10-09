@@ -15,6 +15,17 @@ LEGACY_STAGES = {"refinar": "refine", "desenvolver": "develop", "validar": "vali
 COMMAND = re.compile(r"<command-name>/(?:aghanim|mylos):([a-z]+)</command-name>\s*<command-args>(\d+)</command-args>")  # legacy mylos
 RUN_LINE = re.compile(r"^== (start|end) /(?:aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy mylos
 TOKEN_KINDS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
+# The review page inside the dashboard's drawer: the drawer already carries the title and the one
+# action, so the embedded page drops its header and takes the dashboard's palette and type.
+EMBED_CSS = """<style>
+header.top{display:none}
+html:root:not([data-x]){--page:#0d1014;--sheet:#151a21;--surface:#1b212a;--ink:#ebe5d5;--muted:#8f8b80;--rule:#262e39;
+--linen:#262e39;--linen-ink:#ebe5d5;--display:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;--body:var(--display)}
+@media (prefers-color-scheme:light){html:root:not([data-x]){--page:#e7e7e4;--sheet:#f4f4f2;--surface:#ececea;--ink:#23262b;
+--muted:#6b6a66;--rule:#d9d9d4;--linen:#d9d9d4;--linen-ink:#23262b}}
+h1,section h2{font-weight:600}
+button{background:transparent;color:var(--ink);border-color:var(--rule)}
+</style>"""
 OWNER_MOVES = {"Spec Review": {"approve": "Ready for Dev", "request-changes": "Ready for Refinement"},
                "Staged": {"approve": "Ready for Prod", "request-changes": "Coding"}}
 
@@ -133,8 +144,13 @@ class Factory:
         out = []
         for d in (self.claude_dir / "projects").glob(f"*-projects-{p}-control"):
             for f in d.glob("*.jsonl"):
-                s = self.transcript(f)
-                if s["stage"] and issue in (None, s["issue"]):
+                try:  # Claude Code may delete a transcript under us, or a line may carry a bad time
+                    s = self.transcript(f)
+                    if s["start"]:
+                        parse_ts(s["start"])
+                except (OSError, ValueError):
+                    continue
+                if s["stage"] and s["start"] and issue in (None, s["issue"]):
                     subs = [self.transcript(a) for a in sorted((d / f.stem / "subagents").glob("*.jsonl"))]
                     out.append(dict(s, id=f.stem, subagents=subs))
         return sorted(out, key=lambda s: s["start"] or "")
@@ -313,6 +329,8 @@ class Factory:
             project_id, field_id = a.stdout.strip(), b.stdout.strip()
         opts = gh("project", "field-list", str(num), "--owner", owner, "--format", "json",
                   "--jq", '.fields[] | select(.name=="Status") | .options[] | "\\(.name)\\t\\(.id)"')
+        if opts.returncode:
+            return "cannot read the board columns: " + opts.stderr.strip()
         option = next((i for name, _, i in (l.partition("\t") for l in opts.stdout.splitlines())
                        if re.sub(r"^[^A-Za-z]+ ", "", name) == target), None)  # columns carry an owner mark
         if not option:
@@ -338,26 +356,30 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-    def send(self, code, body, kind="application/json"):
+    def send(self, code, body, kind="application/json", headers=()):
         data = body if isinstance(body, bytes) else json.dumps(body).encode()
         self.send_response(code)
+        for k, v in headers:
+            self.send_header(k, v)
         self.send_header("Content-Type", kind)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
 
-    def allowed(self, query):
+    def allowed(self, query=None):
+        """The API wants the token in a header, which a page cannot send cross-origin without a preflight
+        this server never answers; only the review iframe's GET may carry it in the URL."""
         host = (self.headers.get("Host") or "").rsplit(":", 1)[0]
-        given = self.headers.get("X-Aghanim-Token") or query.get("t", [""])[0]
-        return host in ("127.0.0.1", "localhost") and secrets.compare_digest(given, self.token)
+        given = self.headers.get("X-Aghanim-Token") or (query or {}).get("t", [""])[0]
+        return host in ("127.0.0.1", "localhost") and secrets.compare_digest(given.encode(), self.token.encode())
 
     def do_GET(self):
         url = urlparse(self.path)
         q, parts = parse_qs(url.query), [unquote(x) for x in url.path.strip("/").split("/")]
         if url.path == "/":
             return self.send(200, (HERE / "dashboard.html").read_bytes(), "text/html; charset=utf-8")
-        if not self.allowed(q):
+        if not self.allowed(q if parts[0] == "review" else None):
             return self.send(403, {"error": "missing or wrong token"})
         f = self.factory
         known = len(parts) > 2 and parts[2] in f.projects()
@@ -374,7 +396,12 @@ class Handler(BaseHTTPRequestHandler):
             if len(parts) == 3 and parts[0] == "review" and parts[1] in f.projects() and parts[2].isdigit():
                 page = f.pdir(parts[1]) / "reviews" / f"{parts[2]}.html"
                 if page.is_file():
-                    return self.send(200, page.read_bytes(), "text/html; charset=utf-8")
+                    html = page.read_bytes()
+                    if q.get("embed") == ["1"]:
+                        html = html.replace(b"</head>", EMBED_CSS.encode() + b"</head>", 1)
+                    # agents write these pages: sandboxed, they get an opaque origin and cannot call the API
+                    return self.send(200, html, "text/html; charset=utf-8",
+                                     [("Content-Security-Policy", "sandbox allow-scripts")])
         except Exception as e:  # one bad file must not take the page down
             return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         self.send(404, {"error": "not found"})
@@ -382,7 +409,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         url = urlparse(self.path)
         parts = url.path.strip("/").split("/")
-        if not self.allowed(parse_qs(url.query)):
+        if not self.allowed():
             return self.send(403, {"error": "missing or wrong token"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
                 and parts[3].isdigit() and parts[4] in ("approve", "request-changes")):
@@ -391,8 +418,15 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         except ValueError:
             return self.send(400, {"error": "body is not JSON"})
-        self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),
-                                    str(body.get("text", "")), bool(body.get("move_only"))))
+        try:
+            self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),
+                                        str(body.get("text", "")), bool(body.get("move_only"))))
+        except Exception as e:
+            self.send(500, {"error": f"{type(e).__name__}: {e}"})
+
+
+class Server(ThreadingHTTPServer):
+    allow_reuse_address = os.name != "nt"  # on Windows SO_REUSEADDR lets a second server share the port
 
 
 def main():
@@ -406,7 +440,7 @@ def main():
     server = None
     for port in [0] if args.port == 0 else range(args.port, args.port + 10):
         try:
-            server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+            server = Server(("127.0.0.1", port), Handler)
             break
         except OSError:
             continue
