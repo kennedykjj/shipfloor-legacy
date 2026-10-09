@@ -28,10 +28,22 @@ aghanim_use() {  # aghanim_use <slug> <repo> [worktrees] [main]: export one regi
   export FACTORY_CONFIG="$FACTORY_HOME/factory.yml"
 }
 
-aghanim_snapshot() {  # aghanim_snapshot: FACTORY_CONFIG = .mylos/factory.yml as committed at control's HEAD
-  local tmp="$FACTORY_CONFIG.tmp"
-  # Git Bash would take "HEAD:.mylos/..." for a path list and mangle it
-  MSYS2_ARG_CONV_EXCL="*" git -C "$(aghanim_native "$FACTORY_HOME/control")" show "HEAD:.mylos/factory.yml" > "$tmp" 2>/dev/null     && mv "$tmp" "$FACTORY_CONFIG" || { rm -f "$tmp"; return 1; }
+aghanim_config_path() {  # aghanim_config_path <git-dir> <rev>: the config path committed at rev
+  local d="$1" rev="$2" p
+  for p in .aghanim/factory.yml .mylos/factory.yml; do  # legacy mylos: drop .mylos once no project uses it
+    # Git Bash would take "<rev>:.aghanim/..." for a path list and mangle it
+    if MSYS2_ARG_CONV_EXCL="*" git -C "$d" cat-file -e "$rev:$p" 2>/dev/null; then
+      [ "$p" = .aghanim/factory.yml ] || echo "aghanim: $d: using legacy .mylos/factory.yml; move it to .aghanim/" >&2  # legacy mylos
+      echo "$p"; return 0
+    fi
+  done
+  return 1
+}
+
+aghanim_snapshot() {  # aghanim_snapshot: FACTORY_CONFIG = the project config as committed at control's HEAD
+  local tmp="$FACTORY_CONFIG.tmp" d p; d="$(aghanim_native "$FACTORY_HOME/control")"
+  p="$(aghanim_config_path "$d" HEAD)" || return 1
+  MSYS2_ARG_CONV_EXCL="*" git -C "$d" show "HEAD:$p" > "$tmp" 2>/dev/null     && mv "$tmp" "$FACTORY_CONFIG" || { rm -f "$tmp"; return 1; }
 }
 
 aghanim_resolve() {  # aghanim_resolve [dir]: 0 when the project is known (env, or the registry entry

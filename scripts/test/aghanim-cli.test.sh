@@ -7,7 +7,7 @@ export AGHANIM_HOME="$(mktemp -d)"
 
 with_config() {  # with_config <yaml>: a repo whose origin/main carries that config
   local remote r; remote="$(mktemp -d)"; git init -q --bare "$remote"
-  r="$(new_repo)"; mkdir -p "$r/.mylos"; printf '%s\n' "$1" > "$r/.mylos/factory.yml"
+  r="$(new_repo)"; mkdir -p "$r/.aghanim"; printf '%s\n' "$1" > "$r/.aghanim/factory.yml"
   git -C "$r" add -A; git -C "$r" commit -qm cfg; git -C "$r" remote add origin "$remote"; git -C "$r" push -q origin main
   echo "$r"
 }
@@ -22,7 +22,7 @@ done
 r="$(with_config "$(cat "$FACTORY_DIR/test/fixture/factory.yml")")"
 assert_exit 0 bash "$M" add "$r"
 assert_contains "$(cat "$AGHANIM_HOME/registry.tsv")" "shop	$(git -C "$r" rev-parse --show-toplevel)	$AGHANIM_HOME/projects/shop/wt	main"
-[ -f "$AGHANIM_HOME/projects/shop/control/.mylos/factory.yml" ] && pass "control checkout" || fail "no control checkout"
+[ -f "$AGHANIM_HOME/projects/shop/control/.aghanim/factory.yml" ] && pass "control checkout" || fail "no control checkout"
 [ -f "$AGHANIM_HOME/projects/shop/factory.yml" ] && pass "config snapshot" || fail "no config snapshot"
 assert_exit 0 bash "$M" add "$r"
 [ "$(grep -c '^shop	' "$AGHANIM_HOME/registry.tsv")" = 1 ] && pass "add is idempotent" || fail "duplicated the project"

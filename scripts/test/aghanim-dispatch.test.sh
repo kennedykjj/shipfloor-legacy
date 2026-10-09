@@ -5,12 +5,12 @@ source "$(dirname "$0")/lib.sh"
 MD="$FACTORY_DIR/aghanim-dispatch.sh"
 unset FACTORY_CONFIG FACTORY_HOME FACTORY_REPO FACTORY_PROJECT FACTORY_WT_ROOT
 
-project() {  # project <slug> [config]: a repo with a remote whose main carries .mylos/factory.yml
+project() {  # project <slug> [config]: a repo with a remote whose main carries .aghanim/factory.yml
   local slug="$1" cfg="${2:-}" remote r
   remote="$(mktemp -d)"; git init -q --bare "$remote"
-  r="$(new_repo)"; mkdir -p "$r/.mylos"
-  if [ -n "$cfg" ]; then printf '%s\n' "$cfg" > "$r/.mylos/factory.yml"
-  else sed "s/name: shop/name: $slug/" "$FACTORY_DIR/test/fixture/factory.yml" > "$r/.mylos/factory.yml"; fi
+  r="$(new_repo)"; mkdir -p "$r/.aghanim"
+  if [ -n "$cfg" ]; then printf '%s\n' "$cfg" > "$r/.aghanim/factory.yml"
+  else sed "s/name: shop/name: $slug/" "$FACTORY_DIR/test/fixture/factory.yml" > "$r/.aghanim/factory.yml"; fi
   git -C "$r" add -A; git -C "$r" commit -qm cfg; git -C "$r" remote add origin "$remote"; git -C "$r" push -q origin main
   printf '%s\t%s\t%s\tmain\n' "$slug" "$r" "$AGHANIM_HOME/projects/$slug/wt" >> "$AGHANIM_HOME/registry.tsv"
 }
@@ -25,19 +25,19 @@ bash "$MD"; ran="$(cat "$tmp/ran")"
 assert_contains "$ran" "shop "; assert_contains "$ran" "blog "
 assert_contains "$ran" "projects/shop/factory.yml"
 case "$ran" in *control/*) fail "config read from the editable control checkout" ;; *) pass "config outside the control checkout" ;; esac
-[ -f "$AGHANIM_HOME/projects/blog/control/.mylos/factory.yml" ] && pass "control checkout created" || fail "no control checkout"
+[ -f "$AGHANIM_HOME/projects/blog/control/.aghanim/factory.yml" ] && pass "control checkout created" || fail "no control checkout"
 
 # control follows origin/main and drops local edits
 r="$(cut -f2 "$AGHANIM_HOME/registry.tsv" | head -1)"
-sed -i 's/number: 7/number: 8/' "$r/.mylos/factory.yml"; git -C "$r" commit -qam bump; git -C "$r" push -q origin main
-echo tampered >> "$AGHANIM_HOME/projects/shop/control/.mylos/factory.yml"
-bash "$MD"; assert_contains "$(cat "$AGHANIM_HOME/projects/shop/control/.mylos/factory.yml")" "number: 8"
-case "$(cat "$AGHANIM_HOME/projects/shop/control/.mylos/factory.yml")" in *tampered*) fail "kept a local edit" ;; *) pass "local edit dropped" ;; esac
+sed -i 's/number: 7/number: 8/' "$r/.aghanim/factory.yml"; git -C "$r" commit -qam bump; git -C "$r" push -q origin main
+echo tampered >> "$AGHANIM_HOME/projects/shop/control/.aghanim/factory.yml"
+bash "$MD"; assert_contains "$(cat "$AGHANIM_HOME/projects/shop/control/.aghanim/factory.yml")" "number: 8"
+case "$(cat "$AGHANIM_HOME/projects/shop/control/.aghanim/factory.yml")" in *tampered*) fail "kept a local edit" ;; *) pass "local edit dropped" ;; esac
 
 # the gates' config is the committed one: an uncommitted edit in control (where runs work) is ignored
 setup; project shop; export FACTORY_CONTROL_REFRESH=0; mkdir -p "$AGHANIM_HOME/projects/shop"
 r="$(cut -f2 "$AGHANIM_HOME/registry.tsv")"; git -C "$r" worktree add -q --detach "$AGHANIM_HOME/projects/shop/control" main
-sed -i 's/number: 7/number: 99/' "$AGHANIM_HOME/projects/shop/control/.mylos/factory.yml"
+sed -i 's/number: 7/number: 99/' "$AGHANIM_HOME/projects/shop/control/.aghanim/factory.yml"
 bash "$MD"; assert_contains "$(cat "$AGHANIM_HOME/projects/shop/factory.yml")" "number: 7"
 unset FACTORY_CONTROL_REFRESH
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# aghanim-config.sh reads, validates and answers queries about .mylos/factory.yml.
+# aghanim-config.sh reads, validates and answers queries about .aghanim/factory.yml.
 source "$(dirname "$0")/lib.sh"
 CFG="$FACTORY_DIR/aghanim-config.sh"
 c() { bash "$CFG" "$@"; }
@@ -39,7 +39,7 @@ assert_exit 2 c regex scope e2e   # tests-only layers have no implementer
 assert_exit 2 c regex scope nope
 tc="$(c regex test-config)"; matches "$tc" web/vitest.config.ts; misses "$tc" web/vitest.config/x/y.ts
 fb="$(c regex forbidden)"
-for f in .mylos/factory.yml .github/w.yml .claude/x.md CLAUDE.md api/.env web/.env.local docs/engineering/x.md; do matches "$fb" "$f"; done
+for f in .aghanim/factory.yml .github/w.yml .claude/x.md CLAUDE.md api/.env web/.env.local docs/engineering/x.md; do matches "$fb" "$f"; done
 misses "$fb" api/env.kt; misses "$fb" docs/CLAUDE.md.bak
 matches "$(c regex migrations api)" api/src/main/resources/db/migration/V2__add.sql
 misses "$(c regex migrations api)" api/src/main/resources/db/migration/sub/V2__add.sql

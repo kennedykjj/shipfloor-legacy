@@ -40,7 +40,7 @@ assert_exit 2 bash "$GATE" scope nope "$base"
 
 r="$(new_repo)"; cd "$r"; layout; base="$(git rev-parse HEAD)"; mkdir -p services/a/pkg; echo x > services/a/pkg/x_test.go
 assert_exit 0 bash "$GATE" scope qa "$base"
-mkdir -p .mylos; echo x > .mylos/factory.yml
+mkdir -p .aghanim; echo x > .aghanim/factory.yml
 assert_exit 1 bash "$GATE" scope qa "$base"
 
 # build runs only the changed layers, from the layer's directory

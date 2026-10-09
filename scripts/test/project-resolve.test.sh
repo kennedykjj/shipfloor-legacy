@@ -10,7 +10,7 @@ repo="$(new_repo)"
 control="$AGHANIM_HOME/projects/shop/control"
 git -C "$repo" worktree add -q --detach "$control"
 cp "$FACTORY_DIR/test/fixture/factory.yml" "$AGHANIM_HOME/projects/shop/factory.yml"   # the committed snapshot
-mkdir -p "$repo/.mylos"; sed 's#acme/shop#evil/shop#' "$FACTORY_DIR/test/fixture/factory.yml" > "$repo/.mylos/factory.yml"
+mkdir -p "$repo/.aghanim"; sed 's#acme/shop#evil/shop#' "$FACTORY_DIR/test/fixture/factory.yml" > "$repo/.aghanim/factory.yml"
 printf 'shop\t%s\t%s\n' "$repo" "$AGHANIM_HOME/projects/shop/wt" > "$AGHANIM_HOME/registry.tsv"
 
 [ "$(cd "$repo" && bash "$CFG" get project.repo)" = "acme/shop" ] && pass "config comes from the project snapshot" \
@@ -28,5 +28,5 @@ cd "$(new_repo)"; assert_exit 2 bash "$CFG" get project.repo
 cd "$(mktemp -d)"; assert_exit 2 bash "$CFG" get project.repo
 
 # an explicit FACTORY_CONFIG wins over the registry
-cd "$repo"; assert_contains "$(FACTORY_CONFIG="$repo/.mylos/factory.yml" bash "$CFG" get project.repo)" "evil/shop"
+cd "$repo"; assert_contains "$(FACTORY_CONFIG="$repo/.aghanim/factory.yml" bash "$CFG" get project.repo)" "evil/shop"
 finish

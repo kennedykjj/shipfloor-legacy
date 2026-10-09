@@ -1,4 +1,4 @@
-"""Reads and validates a project's .mylos/factory.yml and answers the factory scripts' queries.
+"""Reads and validates a project's .aghanim/factory.yml and answers the factory scripts' queries.
 
 Exit codes: 0 ok, 1 negative answer (invalid config on validate, missing key, no owner layer),
 2 unusable (missing or invalid config, unknown layer or role, bad usage). Read-only.
@@ -27,7 +27,7 @@ DEFAULTS = {
 }
 LAYER_DEFAULTS = {"stack": "", "build": "", "assertions": "", "setup_errors": "", "test_config": [],
                   "needs_stack": False, "tests_only": False, "migrations": {}}
-BUILTIN_FORBIDDEN = r"^(\.github/|\.githooks/|\.claude/|\.mylos/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"
+BUILTIN_FORBIDDEN = r"^(\.github/|\.githooks/|\.claude/|\.aghanim/|\.mylos/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"  # legacy mylos dir stays forbidden
 ERE_SPECIAL = set(".^$+(){}[]|\\")
 
 
