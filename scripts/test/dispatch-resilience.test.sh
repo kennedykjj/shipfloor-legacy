@@ -24,9 +24,10 @@ launched() { sleep 1; grep -o '/mylos:[a-z]* [0-9]*' "$tmp/launched" | sort | tr
 setup; O_COD="42" W_CV=1; bash "$D"; assert_contains "$(launched)" "/mylos:desenvolver 42"
 # orphan resumes before new cards; both fit in 2 runs
 setup; O_COD="42" Q_DEV="60" W_CV=1; bash "$D"; out="$(launched)"; assert_contains "$out" "/mylos:desenvolver 42"; assert_contains "$out" "/mylos:desenvolver 60"
-# two orphans fill both slots: no new card
-setup; O_COD="42" O_VAL="54" Q_DEV="60" W_CV=2; bash "$D"; out="$(launched)"; assert_contains "$out" "/mylos:desenvolver 42 /mylos:desenvolver 54"
-case "$out" in *60*) fail "started a new card with WIP full" ;; *) pass "WIP respected with orphans" ;; esac
+# two Coding orphans fill desenvolver's 2 runs: no new card; a Validation card goes to validar
+setup; O_COD="42 43" O_VAL="54" Q_DEV="60" W_CV=2; bash "$D"; out="$(launched)"; assert_contains "$out" "/mylos:desenvolver 42 /mylos:desenvolver 43"
+case "$out" in *60*) fail "started a new card with both runs busy" ;; *) pass "runs respected with orphans" ;; esac
+assert_contains "$out" "/mylos:validar 54"
 # usage limit: a run that ended with "session limit" in the last 30 min pauses launches
 setup; Q_DEV="60"; printf '== start /mylos:desenvolver 54\nYou'"'"'ve hit your session limit · resets 6:10pm\n== end /mylos:desenvolver 54 exit=1\n' > "$FACTORY_HOME/logs/$(date +%F)-54-desenvolver.log"
 bash "$D"; [ -z "$(launched)" ] && pass "backs off after a usage limit" || fail "launched during usage limit"

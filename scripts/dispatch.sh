@@ -18,8 +18,13 @@ export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" MYLOS_HOME
 mkdir -p "$HOME_DIR/locks" "$HOME_DIR/logs" "$HOME_DIR/tmp" "$HOME_DIR/reviews" "$WT_ROOT"
 [ -e "$HOME_DIR/PAUSE" ] && exit 0
 mapfile -d '' -t LIM < <(mylos_cfg values limits.refinar.parallel limits.refinar.wip \
-  limits.desenvolver.parallel limits.desenvolver.wip limits.deployar.parallel)
-[ "${#LIM[@]}" -eq 5 ] || { echo "dispatch: cannot read limits" >&2; exit 2; }
+  limits.desenvolver.parallel limits.desenvolver.wip limits.validar.parallel limits.deployar.parallel)
+[ "${#LIM[@]}" -eq 6 ] || { echo "dispatch: cannot read limits" >&2; exit 2; }
+# The machine pool (~/.mylos/config.yml): runs at once on this machine, and per stage, across projects.
+mylos_machine validate || { echo "dispatch: invalid $MYLOS_HOME/config.yml" >&2; exit 2; }
+mapfile -d '' -t POOL < <(mylos_machine values pool stages.refinar stages.desenvolver stages.validar stages.deployar)
+[ "${#POOL[@]}" -eq 5 ] || { echo "dispatch: cannot read the machine pool" >&2; exit 2; }
+declare -A STAGE_SLOTS=([refinar]="${POOL[1]}" [desenvolver]="${POOL[2]}" [validar]="${POOL[3]}" [deployar]="${POOL[4]}")
 
 refresh_control() {  # control checkout = exactly origin/main
   [ "${FACTORY_CONTROL_REFRESH:-1}" = "0" ] && return 0
@@ -48,14 +53,15 @@ running_issues() {  # running_issues <pipeline>: issue numbers with a live lock 
   done
 }
 
-global_free() {  # free run slots on this machine: MYLOS_MAX_PARALLEL minus live runs of every project
+live_runs() {  # live_runs [stage]: live runs on this machine (every project), of one stage or all
   local d n=0 seen=" "
-  for d in "$MYLOS_HOME"/projects/*/locks/*-*.lock "$HOME_DIR"/locks/*-*.lock; do
+  local stage="${1:-}"; [ -n "$stage" ] || stage="[a-z]*"  # left unquoted below so it globs
+  for d in "$MYLOS_HOME"/projects/*/locks/$stage-*.lock "$HOME_DIR"/locks/$stage-*.lock; do
     [ -d "$d" ] || continue
     case "$seen" in *" $d "*) continue ;; esac
     seen="$seen$d "; lock_live "$d" && n=$((n + 1))
   done
-  echo $(( ${MYLOS_MAX_PARALLEL:-3} - n ))
+  echo "$n"
 }
 
 snapshot_status() { awk -F'\t' -v n="$1" '$1==n{print $2}' "$SNAP" 2>/dev/null; }
@@ -97,6 +103,8 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs> <wip-limit> <orphan c
   local running n st inflight=0 free col cards refreshed=0 resumed=""
   running="$(running_issues "$p")"
   free=$(( maxpar - $(printf '%s' "$running" | grep -c .) ))
+  local stage_free=$(( ${STAGE_SLOTS[$p]:-0} - $(live_runs "$p") ))
+  [ "$stage_free" -lt "$free" ] && free="$stage_free"
   [ "$free" -le 0 ] && return 0
   start_run() {
     if [ "$refreshed" = 0 ]; then
@@ -153,9 +161,10 @@ export FACTORY_BOARD_SNAPSHOT="$SNAP"
 
 usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting"; exit 0; }
 
-GLOBAL="$(global_free)"
+GLOBAL=$(( ${MYLOS_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
 run_pipeline refinar     "Ready for Refinement" "${LIM[0]}" "${LIM[1]}" "Technical Refinement" "Spec Review"        || status=1
-run_pipeline desenvolver "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding,Validation"    "Coding" "Validation" || status=1
-run_pipeline deployar    "Ready for Prod"       "${LIM[4]}" 0           ""                                         || status=1
+run_pipeline desenvolver "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding"               "Coding" "Validation" || status=1
+run_pipeline validar     "Validation"           "${LIM[4]}" 0           ""                                         || status=1
+run_pipeline deployar    "Ready for Prod"       "${LIM[5]}" 0           ""                                         || status=1
 exit $status
