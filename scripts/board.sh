@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reads and moves cards on the project's board (a GitHub Project v2, from .mylos/factory.yml).
+# Reads and moves cards on the project's board (a GitHub Project v2, from .aghanim/factory.yml).
 set -uo pipefail
 source "$(dirname "$0")/lib/project.sh"
 GH="${FACTORY_GH:-gh}"

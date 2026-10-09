@@ -26,7 +26,7 @@ git mv .github/ci.yml api/ci.yml
 assert_exit 1 bash "$GATE" scope api "$base"
 
 # forbidden areas
-for f in .github/w.yml .githooks/pre-push .claude/x.md .mylos/factory.yml api/.env web/.env.local; do
+for f in .github/w.yml .githooks/pre-push .claude/x.md .aghanim/factory.yml api/.env web/.env.local; do
   r="$(new_repo)"; cd "$r"; base="$(git rev-parse HEAD)"
   mkdir -p "$(dirname "$f")"; echo x > "$f"
   assert_exit 1 bash "$GATE" forbidden "$base"

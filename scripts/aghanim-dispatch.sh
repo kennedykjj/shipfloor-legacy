@@ -40,8 +40,8 @@ while IFS=$'\t' read -r slug repo wt main <&3; do
   (
     aghanim_use "$slug" "$repo" "$wt" "$main"
     refresh_control || { echo "$(date -Is) aghanim: $slug: cannot bring the control checkout to origin/$FACTORY_MAIN; skipped" >&2; exit 1; }
-    aghanim_snapshot || { echo "$(date -Is) aghanim: $slug: no .mylos/factory.yml on origin/$FACTORY_MAIN; skipped" >&2; exit 1; }
-    aghanim_validate || { echo "$(date -Is) aghanim: $slug: invalid .mylos/factory.yml on origin/$FACTORY_MAIN; skipped" >&2; exit 1; }
+    aghanim_snapshot || { echo "$(date -Is) aghanim: $slug: no .aghanim/factory.yml on origin/$FACTORY_MAIN; skipped" >&2; exit 1; }
+    aghanim_validate || { echo "$(date -Is) aghanim: $slug: invalid .aghanim/factory.yml on origin/$FACTORY_MAIN; skipped" >&2; exit 1; }
     FACTORY_CONTROL_REFRESH=0 bash "$DISPATCH"
   ) || status=1
 done 3< "$REGISTRY"

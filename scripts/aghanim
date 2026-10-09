@@ -2,7 +2,7 @@
 # aghanim: installs the factory scripts and manages the projects the dispatcher serves.
 #   install                       copy scripts and templates to ~/.aghanim/factory
 #   doctor                        check tools, the installed copy and every project's config
-#   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .mylos/factory.yml
+#   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .aghanim/factory.yml
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
 #   pool [set <n> | stage <stage> <n>]  runs at once on this machine, and per stage
 set -uo pipefail
@@ -76,9 +76,9 @@ cmd_add() {
   [ -n "$main" ] || main=main
   git -C "$repo" fetch -q origin "$main" || die "cannot fetch origin/$main in $repo"
   local cfg slug; cfg="$(mktemp)"
-  # Git Bash would take "origin/main:.mylos/..." for a path list and mangle it
-  MSYS2_ARG_CONV_EXCL="*" git -C "$(aghanim_native "$repo")" show "origin/$main:.mylos/factory.yml" > "$cfg" 2>/dev/null || die "origin/$main has no .mylos/factory.yml"
-  FACTORY_CONFIG="$cfg" aghanim_validate || die "invalid .mylos/factory.yml on origin/$main"
+  local p; p="$(aghanim_config_path "$(aghanim_native "$repo")" "origin/$main")" || die "origin/$main has no .aghanim/factory.yml"
+  MSYS2_ARG_CONV_EXCL="*" git -C "$(aghanim_native "$repo")" show "origin/$main:$p" > "$cfg" 2>/dev/null || die "cannot read $p on origin/$main"
+  FACTORY_CONFIG="$cfg" aghanim_validate || die "invalid $p on origin/$main"
   slug="$(FACTORY_CONFIG="$cfg" aghanim_cfg get project.name)"
   local current; current="$(entry "$slug" | cut -f2)"
   if [ -n "$current" ] && [ "$(git_common "$current")" != "$(git_common "$repo")" ]; then
@@ -88,7 +88,7 @@ cmd_add() {
   mkdir -p "$home" "$wt"
   if [ ! -e "$home/control/.git" ]; then git -C "$repo" worktree add -q --detach "$home/control" "origin/$main" || die "cannot create $home/control"; fi
   aghanim_use "$slug" "$repo" "$wt" "$main"
-  aghanim_snapshot || die "cannot read .mylos/factory.yml from $home/control"
+  aghanim_snapshot || die "cannot read .aghanim/factory.yml from $home/control"
   { [ -f "$REGISTRY" ] && awk -F'\t' -v s="$slug" '$1!=s' "$REGISTRY"; printf '%s\t%s\t%s\t%s\n' "$slug" "$repo" "$wt" "$main"; } > "$REGISTRY.tmp"
   mv "$REGISTRY.tmp" "$REGISTRY"
   echo "registered $slug ($repo, worktrees in $wt)"
