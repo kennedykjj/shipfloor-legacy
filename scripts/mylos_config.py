@@ -22,7 +22,7 @@ DEFAULTS = {
     "project": {"main": "main"},
     "paths": {"specs": "docs/superpowers/specs/", "plans": "docs/superpowers/plans/"},
     "limits": {"refinar": {"parallel": 2, "wip": 2}, "desenvolver": {"parallel": 2, "wip": 4},
-               "deployar": {"parallel": 1, "wip": 0}},
+               "validar": {"parallel": 2, "wip": 0}, "deployar": {"parallel": 1, "wip": 0}},
     "context": [], "forbidden": [], "review_criteria": "",
 }
 LAYER_DEFAULTS = {"stack": "", "build": "", "assertions": "", "setup_errors": "", "test_config": [],
