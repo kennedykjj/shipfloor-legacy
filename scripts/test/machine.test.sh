@@ -29,4 +29,10 @@ assert_exit 1 m set stages.validate 9      # above the pool
 assert_exit 1 m set stages.review 1       # unknown stage
 assert_exit 1 m set pool x
 [ "$(vals)" = "6 1 2 3 1 " ] && pass "rejected sets change nothing" || fail "changed by a rejected set: $(vals)"
+# stack slots and their timers have defaults and are validated like the pool
+rm -f "$AGHANIM_HOME/config.yml"
+assert_contains "$(m values stacks ports.base ports.span stack_wait stack_stale stack_hold_max | tr '\0' ' ')" "3 20000 20 1800 90 2700"
+bad 'stacks: 0'
+bad 'ports: {base: 70000, span: 20}'
+bad 'stack_wait: x'
 finish
