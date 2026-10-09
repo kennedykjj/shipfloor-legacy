@@ -7,12 +7,16 @@ export FACTORY_CLEANUP=0   # never stop real processes from tests
 export FACTORY_CONFIG="${FACTORY_CONFIG:-$FACTORY_DIR/test/fixture/factory.yml}"
 export MYLOS_HOME="${MYLOS_HOME:-$(mktemp -d)}"  # never touch the real ~/.mylos
 
-new_repo() {
+# One template repo per test file; new_repo copies it (one process) instead of six git commands.
+REPO_TEMPLATE="$(mktemp -d)"
+git -C "$REPO_TEMPLATE" init -q -b main
+git -C "$REPO_TEMPLATE" config user.email t@t; git -C "$REPO_TEMPLATE" config user.name t; git -C "$REPO_TEMPLATE" config core.autocrlf false
+echo base > "$REPO_TEMPLATE/README.md"
+git -C "$REPO_TEMPLATE" add -A; git -C "$REPO_TEMPLATE" commit -qm base
+
+new_repo() {  # new_repo: a fresh repo with one commit (README.md) on main, private to the caller
   local dir; dir="$(mktemp -d)"
-  git -C "$dir" init -q -b main
-  git -C "$dir" config user.email t@t; git -C "$dir" config user.name t; git -C "$dir" config core.autocrlf false
-  echo base > "$dir/README.md"
-  git -C "$dir" add -A; git -C "$dir" commit -qm base
+  cp -r "$REPO_TEMPLATE/." "$dir/"
   echo "$dir"
 }
 
