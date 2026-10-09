@@ -65,7 +65,7 @@ slot_down() {  # slot_down <k>: the slot's own stored down command (it may be an
 
 slot_release() {  # slot_release <k>: stop its heartbeat and drop the lock
   local d pid; d="$(slot_dir "$1")"
-  read -r pid < "$d/beat.pid" 2>/dev/null && kill "$pid" 2>/dev/null
+  [ -f "$d/beat.pid" ] && read -r pid < "$d/beat.pid" && kill "$pid" 2>/dev/null
   rm -rf "$d"
 }
 

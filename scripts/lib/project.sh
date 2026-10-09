@@ -74,6 +74,24 @@ aghanim_validate() {  # aghanim_validate: the config is valid and every pattern 
   return $bad
 }
 
+aghanim_clean_tmp() {  # aghanim_clean_tmp <n>: the worktrees a run left under the project's tmp/<n>/, then the directory
+  local t="$FACTORY_HOME/tmp/$1" w
+  [ -d "$t" ] || return 0
+  git -C "${FACTORY_REPO:-.}" worktree list --porcelain 2>/dev/null | sed -n 's#^worktree ##p' | grep -F "$(aghanim_native "$t")/" |
+    while IFS= read -r w; do git -C "${FACTORY_REPO:-.}" worktree remove --force "$w" 2>/dev/null; done
+  git -C "${FACTORY_REPO:-.}" worktree prune 2>/dev/null; rm -rf "$t"
+}
+
+aghanim_stale_tmp() {  # aghanim_stale_tmp: card numbers whose tmp/<n>/ outlived them (Done or off the board)
+  local d n st
+  for d in "$FACTORY_HOME"/tmp/*/; do
+    n="$(basename "$d")"; [[ "$n" =~ ^[0-9]+$ ]] || continue
+    [ -d "$FACTORY_HOME/locks" ] && compgen -G "$FACTORY_HOME/locks/*-$n.lock" >/dev/null && continue
+    st="$(awk -F'\t' -v n="$n" '$1==n{print $2}' "$FACTORY_HOME/board.tsv" 2>/dev/null)"
+    { [ -z "$st" ] || [ "$st" = Done ]; } && echo "$n"
+  done
+}
+
 aghanim_machine() {  # aghanim_machine <validate|values|show|set ...>: the machine-wide agent pool (~/.aghanim/config.yml)
   AGHANIM_MACHINE_CONFIG="$(aghanim_native "$AGHANIM_HOME/config.yml")"     aghanim_python "$(aghanim_native "$AGHANIM_LIB/../aghanim_config.py")" machine "$@"
 }

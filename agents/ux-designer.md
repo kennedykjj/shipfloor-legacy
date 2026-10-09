@@ -11,7 +11,7 @@ Mode `refine`: fill only the `## UX` section in English: flow step by step, stat
 
 Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.aghanim/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file under the `tmp` path you were given (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
 
-Mode `validate`: open the running stack (its URL is in the project describe) with the project's UI verification skill when it has one (e.g. `verify-ui`), else with the available browser tool; check each UX item against the screen (small and large viewport), and report findings as 🔴/🟡/⚪ with a screenshot path each. Do not edit code.
+Mode `validate`: open the stack at the `url=` you were given (else the URL in the project describe) with the project's UI verification skill when it has one (e.g. `verify-ui`), else with the available browser tool; check each UX item against the screen (small and large viewport), and report findings as 🔴/🟡/⚪ with a screenshot path each. Do not edit code.
 
 Be brief and decide what you can; only an owner-level trade-off goes in `notes`, as a closed question with your recommendation.
 

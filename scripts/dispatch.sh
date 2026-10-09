@@ -82,14 +82,6 @@ cleanup_processes() {  # stop processes (dev servers, test runners) left running
       ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' >/dev/null 2>&1 || true
 }
 
-clean_tmp() {  # clean_tmp <n>: worktrees a run left under tmp/<n>/, then the directory
-  local t="$HOME_DIR/tmp/$1" w
-  [ -d "$t" ] || return 0
-  git -C "$REPO" worktree list --porcelain 2>/dev/null | sed -n 's#^worktree ##p' | grep -F "$(aghanim_native "$t")/" |
-    while IFS= read -r w; do git -C "$REPO" worktree remove --force "$w" 2>/dev/null; done
-  git -C "$REPO" worktree prune 2>/dev/null; rm -rf "$t"
-}
-
 launch() {  # launch <pipeline> <issue>
   local p="$1" n="$2" dir="$HOME_DIR/locks/$1-$2.lock"
   mkdir "$dir" 2>/dev/null || return 0
@@ -119,7 +111,7 @@ launch() {  # launch <pipeline> <issue>
     fi
     # what the run created goes with it, before its lock: its stack slot, its tmp/<n>/, its retry marker
     stack_settings; stack_release_run "$dir"
-    clean_tmp "$n"; rm -f "$HOME_DIR/infra/$n"
+    aghanim_clean_tmp "$n"; rm -f "$HOME_DIR/infra/$n"
     [ "${FACTORY_CLEANUP:-1}" = 1 ] && cleanup_processes "$n"
     read -r owner _ < "$dir/info" 2>/dev/null
     [ "${owner:-}" = "$BASHPID" ] && rm -rf "$dir"
@@ -215,7 +207,7 @@ retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a s
     if [ -e "$HOME_DIR/infra/$n" ]; then
       "$BOARD" label "$n" add blocked; "$BOARD" label "$n" remove blocked:infra; rm -f "$HOME_DIR/infra/$n"; continue
     fi
-    clean_tmp "$n"; date +%s > "$HOME_DIR/infra/$n"; "$BOARD" label "$n" remove blocked:infra
+    aghanim_clean_tmp "$n"; date +%s > "$HOME_DIR/infra/$n"; "$BOARD" label "$n" remove blocked:infra
   done
 }
 

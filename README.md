@@ -76,7 +76,7 @@ The factory was called mylos before 0.6.0. To move a machine and its repositorie
 
 ## Operation
 
-`aghanim dashboard` · `aghanim list` · `aghanim pool` · `aghanim pause [project]` · `aghanim resume [project]` · `aghanim remove <project>` · `aghanim metrics <project>`.
+`aghanim dashboard` · `aghanim list` · `aghanim pool` · `aghanim pause [project]` · `aghanim resume [project]` · `aghanim remove <project>` · `aghanim metrics <project>` · `aghanim clean <project>`.
 `aghanim dashboard` opens a local page with the pool, live runs, logs, the estimated cost of each card and the review pages, where Spec Review and Staged cards are approved or sent back.
 Logs in `~/.aghanim/logs/dispatcher.log` and `~/.aghanim/projects/<project>/logs/`. Reports on each repository's orphan `factory-reports` branch.
 
