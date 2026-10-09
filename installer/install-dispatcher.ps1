@@ -1,12 +1,12 @@
-# Registers the factory dispatcher: at logon, then every 3 minutes, only while the user is logged on.
-# Runs hidden (mintty -w hide) so no console window appears; closing nothing kills a pipeline.
+# Registers the mylos dispatcher (serves every registered project): at logon, then every 3 minutes,
+# only while the user is logged on. Runs hidden (mintty -w hide) so no console window appears.
+# Run `mylos install` first: the task starts the installed copy in ~/.mylos/factory.
 $ErrorActionPreference = 'Stop'
 $mintty = 'C:\Program Files\Git\usr\bin\mintty.exe'
 if (-not (Test-Path $mintty)) { throw "Git for Windows mintty not found at $mintty" }
-$home_ = "$env:USERPROFILE\.pickio-factory"
-New-Item -ItemType Directory -Force "$home_\logs" | Out-Null
-Copy-Item -Force "$PSScriptRoot\run-dispatcher.sh" "$home_\run-dispatcher.sh"
-$action = New-ScheduledTaskAction -Execute $mintty -Argument '-w hide /usr/bin/bash -l ~/.pickio-factory/run-dispatcher.sh'
+$entry = Join-Path $env:USERPROFILE '.mylos\factory\run-dispatcher.sh'
+if (-not (Test-Path $entry)) { throw "run 'mylos install' first ($entry not found)" }
+$action = New-ScheduledTaskAction -Execute $mintty -Argument '-w hide /usr/bin/bash -l ~/.mylos/factory/run-dispatcher.sh'
 # Two triggers: repetition on an AtLogOn trigger only starts at the next logon,
 # so a second one starts the 3-minute cycle right away.
 $every = New-TimeSpan -Minutes 3
@@ -17,5 +17,5 @@ $fromNow = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -Repetiti
 $trigger = @($atLogon, $fromNow)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName 'PickioFactoryDispatcher' -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
-Write-Output 'PickioFactoryDispatcher registered: at logon, every 3 minutes, hidden. Pause with ~/.pickio-factory/PAUSE.'
+Register-ScheduledTask -TaskName 'MylosDispatcher' -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+Write-Output 'MylosDispatcher registered: at logon, every 3 minutes, hidden. Pause with: mylos pause [project].'

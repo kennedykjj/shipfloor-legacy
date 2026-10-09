@@ -19,8 +19,8 @@ mylos_python() {  # python 3 binary, found once
 
 git_common() { git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null; }
 
-mylos_use() {  # mylos_use <slug> <repo> <worktrees>: export one registered project's settings
-  export FACTORY_PROJECT="$1" FACTORY_REPO="$2"
+mylos_use() {  # mylos_use <slug> <repo> [worktrees] [main]: export one registered project's settings
+  export FACTORY_PROJECT="$1" FACTORY_REPO="$2" FACTORY_MAIN="${4:-main}"
   export FACTORY_HOME="$MYLOS_HOME/projects/$1"
   export FACTORY_WT_ROOT="${3:-$FACTORY_HOME/wt}"
   export FACTORY_CONFIG="$FACTORY_HOME/control/.mylos/factory.yml"
@@ -30,12 +30,12 @@ mylos_resolve() {  # mylos_resolve [dir]: 0 when the project is known (env, or t
   # whose repository is the one [dir] belongs to), else 1. The config always comes from the
   # project's control checkout (origin/main), never from the checkout being worked on.
   [ -n "${FACTORY_CONFIG:-}" ] && return 0
-  local here slug repo wt
+  local here slug repo wt main
   here="$(git_common "${1:-.}")"
   if [ -n "$here" ] && [ -f "$MYLOS_HOME/registry.tsv" ]; then
-    while IFS=$'\t' read -r slug repo wt; do
+    while IFS=$'\t' read -r slug repo wt main; do
       [ -z "$slug" ] && continue
-      if [ "$(git_common "$repo")" = "$here" ]; then mylos_use "$slug" "$repo" "$wt"; return 0; fi
+      if [ "$(git_common "$repo")" = "$here" ]; then mylos_use "$slug" "$repo" "$wt" "$main"; return 0; fi
     done < "$MYLOS_HOME/registry.tsv"
   fi
   echo "mylos: $(pwd) is not in a registered project (mylos add <repo>)" >&2; return 1
