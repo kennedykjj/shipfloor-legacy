@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Minimal gh stand-in for board.sh tests. Data lives in $FAKE_GH_DIR.
+d="$FAKE_GH_DIR"
+[ -e "$d/fail" ] && { echo "gh: network error" >&2; exit 1; }
+args="$*"
+echo "$args" >> "$d/calls"
+case "$args" in
+  "api graphql"*|"project item-list"*)
+    awk -F'\t' '{print $2"\t"$3"\t"$1}' "$d/items.tsv" ;;
+  "project field-list"*)
+    i=0; for s in "👤 Inbox" "👤 Ready for Refinement" "🤖 Technical Refinement" "👤 Spec Review" "👤 Ready for Dev" "🤖 Coding" "🤖 Validation" "👤 Staged" "👤 Ready for Prod" "🤖 Done"; do
+      i=$((i+1)); printf '%s	opt%s
+' "$s" "$i"; done ;;
+  "project item-edit"*)
+    echo "$args" >> "$d/edits" ;;
+  "api repos/kennedykjj/pickio/issues/"*)
+    [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
+    n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
+  "issue view"*)
+    case "$args" in *"--repo kennedykjj/pickio"*) ;; *) echo "failed to run git: fatal: not a git repository" >&2; exit 1 ;; esac
+    [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
+    n="$(echo "$args" | awk '{print $3}')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
+  *) echo "fake-gh: unexpected: $args" >&2; exit 9 ;;
+esac

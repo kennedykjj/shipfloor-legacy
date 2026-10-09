@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Orphaned cards resume, the dispatcher backs off after a usage limit, and leftover processes are cleaned.
+source "$(dirname "$0")/lib.sh"
+D="$FACTORY_DIR/dispatch.sh"
+setup() {
+  export FACTORY_HOME="$(mktemp -d)" FACTORY_CONTROL_REFRESH=0 FACTORY_WT_ROOT="$(mktemp -d)" Q_DEV= O_COD= O_VAL= W_CV=0
+  tmp="$(mktemp -d)"; mkdir -p "$FACTORY_HOME/control" "$FACTORY_HOME/logs"
+  cat > "$tmp/board" <<'EOB'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "count Coding") echo "${W_CV:-0}" ;;
+  "eligible Ready for Dev") for n in ${Q_DEV:-}; do echo "$n"; done ;;
+  "eligible Coding") for n in ${O_COD:-}; do echo "$n"; done ;;
+  "eligible Validation") for n in ${O_VAL:-}; do echo "$n"; done ;;
+  *) echo ;;
+esac
+EOB
+  printf '#!/usr/bin/env bash\necho "$(cat) $*" >> "%s/launched"\n' "$tmp" > "$tmp/claude"
+  chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
+}
+launched() { sleep 1; grep -o '/[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
+
+# orphan in Coding (no live lock) resumes; it already counts toward WIP
+setup; O_COD="42" W_CV=1; bash "$D"; assert_contains "$(launched)" "/desenvolver 42"
+# orphan resumes before new cards; both fit in 2 runs
+setup; O_COD="42" Q_DEV="60" W_CV=1; bash "$D"; out="$(launched)"; assert_contains "$out" "/desenvolver 42"; assert_contains "$out" "/desenvolver 60"
+# two orphans fill both slots: no new card
+setup; O_COD="42" O_VAL="54" Q_DEV="60" W_CV=2; bash "$D"; out="$(launched)"; assert_contains "$out" "/desenvolver 42 /desenvolver 54"
+case "$out" in *60*) fail "started a new card with WIP full" ;; *) pass "WIP respected with orphans" ;; esac
+# usage limit: a run that ended with "session limit" in the last 30 min pauses launches
+setup; Q_DEV="60"; printf '== start /desenvolver 54\nYou'"'"'ve hit your session limit · resets 6:10pm\n== end /desenvolver 54 exit=1\n' > "$FACTORY_HOME/logs/$(date +%F)-54-desenvolver.log"
+bash "$D"; [ -z "$(launched)" ] && pass "backs off after a usage limit" || fail "launched during usage limit"
+touch -d '-40 minutes' "$FACTORY_HOME/logs/$(date +%F)-54-desenvolver.log"
+bash "$D"; assert_contains "$(launched)" "/desenvolver 60"
+finish

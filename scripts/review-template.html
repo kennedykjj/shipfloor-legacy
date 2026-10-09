@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisão da spec #__ISSUE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: índice fixo à esquerda com status por seção; folhas de revisão à direita, uma por seção da spec. */
+:root{
+  --page:#F5F4F0;--sheet:#FFFFFF;--ink:#1B1A18;--muted:#6B675F;--rule:#E2DED6;--surface:#ECEAE4;
+  --linen:#4A5A3C;--linen-ink:#E8ECDF;--gold:#D6B370;--gold-ink:#8A6A2E;
+  --ok:#3F6B3A;--ok-bg:#E3ECDD;--chg:#B8572F;--chg-bg:#F6E4DA;--warn-bg:#F6EEDC;
+  --display:"Bodoni Moda",Didot,Georgia,serif;--body:"Hanken Grotesk",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --page:#151613;--sheet:#1E201B;--ink:#ECEAE4;--muted:#A39E93;--rule:#2F322A;--surface:#262921;
+  --linen:#9DB284;--linen-ink:#1E201B;--gold:#D6B370;--gold-ink:#D6B370;
+  --ok:#A9CF9C;--ok-bg:#25311F;--chg:#E8946C;--chg-bg:#3A251B;--warn-bg:#2E2718;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#151613;--sheet:#1E201B;--ink:#ECEAE4;--muted:#A39E93;--rule:#2F322A;--surface:#262921;
+  --linen:#9DB284;--linen-ink:#1E201B;--gold:#D6B370;--gold-ink:#D6B370;
+  --ok:#A9CF9C;--ok-bg:#25311F;--chg:#E8946C;--chg-bg:#3A251B;--warn-bg:#2E2718;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--ink);font:15px/1.6 var(--body);margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:32px 80px;display:grid;grid-template-columns:240px minmax(0,1fr);gap:32px}
+header.top{grid-column:1/-1}
+h1{font:500 clamp(1.9rem,4vw,2.7rem)/1.1 var(--display);margin:0 0 8px;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--muted);font-size:13px}
+.meta code,.cmd{font-family:var(--mono);font-size:12.5px;background:var(--surface);padding:1px 6px;border-radius:4px;color:var(--ink)}
+.status{display:inline-block;background:var(--warn-bg);color:var(--gold-ink);font-weight:600;font-size:12px;padding:2px 10px;border-radius:999px}
+nav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);align-self:start;background:var(--sheet);border:1px solid var(--rule);border-radius:8px;padding:14px}
+nav .count{font:500 1.5rem var(--display);font-variant-numeric:tabular-nums}
+nav .count small{font:400 13px var(--body);color:var(--muted)}
+nav ol{list-style:none;padding:0;margin:10px 0 14px;display:grid;gap:2px}
+nav a{display:flex;justify-content:space-between;gap:8px;text-decoration:none;color:var(--ink);font-size:13.5px;padding:4px 6px;border-radius:4px}
+nav a:hover{background:var(--surface)}
+nav .st{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+nav .st.done{color:var(--ok)}nav .st.chg{color:var(--chg)}
+button{font:600 14px var(--body);border-radius:6px;border:1px solid var(--linen);background:var(--linen);color:var(--linen-ink);padding:8px 14px;cursor:pointer}
+button.ghost{background:transparent;color:var(--linen)}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.copied{font-size:12px;color:var(--ok);margin-left:6px}
+main{min-width:0;display:grid;gap:22px}
+section.sheet{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:20px 22px;scroll-margin-top:16px}
+section h2{font:500 1.45rem/1.2 var(--display);margin:0 0 4px;text-wrap:balance}
+section .intro{color:var(--muted);margin:0 0 12px;max-width:70ch}
+.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;padding:12px 0;border-top:1px solid var(--rule)}
+.item p{margin:0;max-width:72ch}
+.item .btns{display:flex;gap:6px;align-self:start}
+.item .btns button{padding:4px 12px;font-size:13px;background:transparent;color:var(--muted);border-color:var(--rule)}
+.item.ok .b-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.item.chg .b-chg{background:var(--chg-bg);color:var(--chg);border-color:var(--chg)}
+.item textarea{grid-column:1/-1;width:100%;min-height:62px;font:14px var(--body);padding:8px;border-radius:6px;border:1px solid var(--chg);background:var(--page);color:var(--ink)}
+.flag{background:var(--warn-bg);border:1px solid var(--gold);border-radius:8px;padding:12px 14px;margin:8px 0 4px}
+.flag h3{margin:0 0 4px;font:600 14px var(--body);color:var(--gold-ink)}
+.flag p{margin:0;font-size:14px}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.03em;text-transform:uppercase}
+.sim{background:var(--surface);border-radius:8px;padding:14px 16px;margin:6px 0 10px}
+.sim h3{margin:0 0 8px;font:600 14px var(--body)}
+.sim .ctl{display:flex;flex-wrap:wrap;gap:10px 22px;font-size:14px}
+.sim label{display:flex;align-items:center;gap:6px}
+.sim input[type=number]{width:56px;font:14px var(--body);padding:3px 6px;border:1px solid var(--rule);border-radius:4px;background:var(--sheet);color:var(--ink)}
+.sim .out{margin-top:10px;display:grid;gap:6px;font-size:14px}
+.res{padding:8px 10px;border-radius:6px;background:var(--sheet);border-left:3px solid var(--muted)}
+.res.go{border-left-color:var(--ok)}.res.stop{border-left-color:var(--chg)}
+.res b{font-weight:600}
+.board{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0}
+.board span{font-size:12px;padding:4px 8px;border-radius:4px;background:var(--sheet);border:1px solid var(--rule);color:var(--muted)}
+.board span.here{border-color:var(--gold);color:var(--ink);font-weight:600;background:var(--warn-bg)}
+.acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.acts button{font-size:13px;padding:5px 10px}
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr}
+  nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-radius:0 0 8px 8px}
+  nav ol{display:none}
+}
+@media (max-width:520px){.item{grid-template-columns:1fr}}
+details.ro{margin-top:6px}details.ro summary{cursor:pointer;color:var(--muted);font-size:14px}details.ro ul{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <h1>#__ISSUE__ __TITLE__</h1>
+    <div class="meta"><span class="status">aguardando sua revisão</span><span>__DATE__</span><span><code>__SPEC__</code></span><span>branch <code>__BRANCH__</code></span></div>
+  </header>
+
+  <nav aria-label="Índice da revisão">
+    <div class="count" id="count">0 <small>de 0 revisados</small></div>
+    <ol id="toc"></ol>
+    <button id="copy">Copiar revisão</button><span class="copied" id="copied" hidden>copiado</span>
+    <div style="margin-top:8px"><button class="ghost" id="clear" style="font-size:12px;padding:4px 10px">Limpar marcações</button></div>
+  </nav>
+
+  <main id="main"></main>
+</div>
+
+<textarea id="fallback" aria-label="Texto da revisão" style="position:absolute;left:-9999px;top:0" readonly></textarea>
+
+<script>
+const S=__DATA__;
+
+const KEY="__KEY__";
+let st={};try{st=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){st={}}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const fmt=s=>esc(s).replace(/(\/refinar|\/desenvolver|feat\/&lt;n&gt;-&lt;slug&gt;|origin\/main|docs\/[\w\/.-]+|scripts\/factory\/?[\w.-]*|\.github\/|\.githooks\/|\.claude\/|\.env\*|api\/|web\/|gate\.sh|dispatch\.sh|install-dispatcher\.ps1|factory-guard(\.yml)?|claude -p|--dangerously-skip-permissions|pull_request_target|mvn test|pnpm exec tsc --noEmit|pnpm test|verify-ui|CLAUDE\.md|PRODUCT\.md|DESIGN\.md|PAUSE|blocked|cybersec(?= |$|\))|ui(?= \()|CA-\d)/g,'<span class="cmd">$1</span>');
+
+function sim(kind){
+ if(kind==="board")return `<div class="sim" id="simBoard"><h3>Simulador: quem move o card</h3><div class="board" id="sbCols"></div><div class="acts" id="sbActs"></div><div class="out" id="sbOut"></div></div>`;
+ if(kind==="falhas")return `<div class="sim"><h3>Simulador: falhas numa etapa</h3><div class="ctl"><label for="fRounds">Falhas seguidas <input id="fRounds" type="range" min="1" max="3" value="1"></label><label><input id="fInfra" type="checkbox"> é erro de infraestrutura</label></div><div class="out" id="fOut"></div></div>`;
+ if(kind==="dispatch")return `<div class="sim"><h3>Simulador: o que o despachante faz nesta rodada</h3><div class="ctl">
+  <label><input id="dPause" type="checkbox"> arquivo PAUSE existe</label>
+  <label for="dQr">Ready for Refinement <input id="dQr" type="number" min="0" max="9" value="1"></label>
+  <label for="dSr">Spec Review <input id="dSr" type="number" min="0" max="9" value="1"></label>
+  <label><input id="dLr" type="checkbox"> /refinar já rodando</label>
+  <label for="dQd">Ready for Dev <input id="dQd" type="number" min="0" max="9" value="1"></label>
+  <label for="dCv">Coding + Validation <input id="dCv" type="number" min="0" max="9" value="2"></label>
+  <label><input id="dLd" type="checkbox"> /desenvolver já rodando</label>
+  <label><input id="dBl" type="checkbox"> 1º card de Ready for Dev está blocked</label>
+ </div><div class="out" id="dOut"></div></div>`;
+ return "";
+}
+function render(){
+ document.getElementById("main").innerHTML=S.map(s=>`<section class="sheet" id="${s.id}"><h2>${s.t}</h2><p class="intro">${fmt(s.intro)}</p>
+  ${s.table?`<div class="tbl"><table>${s.table.map((r,i)=>`<tr>${r.map(c=>i?`<td>${fmt(c)}</td>`:`<th>${c}</th>`).join("")}</tr>`).join("")}</table></div>`:""}
+  ${s.flags?s.flags.map(f=>`<div class="flag"><h3>Conflito: ${f[0]}</h3><p>${fmt(f[1])}</p></div>`).join(""):""}
+  ${s.sim?sim(s.sim):""}
+  ${s.ro?`<details class="ro"><summary>${s.items.length} itens (só leitura)</summary><ul>${s.items.map(it=>`<li>${fmt(it)}</li>`).join("")}</ul></details>`:s.items.map((it,k)=>{const id=s.id+"-"+k,v=st[id]||{};return `<div class="item ${v.s||""}" data-id="${id}"><p>${fmt(it)}</p><div class="btns"><button class="b-ok" aria-pressed="${v.s==="ok"}">Ok</button><button class="b-chg" aria-pressed="${v.s==="chg"}">Mudar</button></div>${v.s==="chg"?`<textarea id="n-${id}" aria-label="O que mudar" placeholder="O que mudar?">${esc(v.n||"")}</textarea>`:""}</div>`}).join("")}
+ </section>`).join("")+(S.some(s=>!s.ro)?"":`<section class="sheet"><h2>Nada para decidir</h2><p class="intro">A esteira decidiu tudo sozinha. Confira as decisões abaixo, se quiser, e mova o card para Ready for Dev.</p></section>`);
+ bindSims();toc();
+}
+function toc(){
+ let tot=0,done=0;
+ document.getElementById("toc").innerHTML=S.filter(s=>!s.ro).map(s=>{const n=s.items.length;let ok=0,ch=0;s.items.forEach((_,k)=>{const v=st[s.id+"-"+k];if(v&&v.s==="ok")ok++;if(v&&v.s==="chg")ch++});tot+=n;done+=ok+ch;
+  const cls=ch?"chg":(ok===n?"done":"");return `<li><a href="#${s.id}"><span>${s.t}</span><span class="st ${cls}">${ch?ch+" mudar · ":""}${ok+ch}/${n}</span></a></li>`}).join("");
+ document.getElementById("count").innerHTML=`${done} <small>de ${tot} revisados</small>`;
+}
+document.getElementById("main").addEventListener("click",e=>{
+ const b=e.target.closest(".btns button");if(!b)return;const row=b.closest(".item"),id=row.dataset.id,cur=st[id]||{};
+ const want=b.classList.contains("b-ok")?"ok":"chg";
+ st[id]=cur.s===want?{}:{s:want,n:cur.n||""};save();
+ const y=window.scrollY;render();window.scrollTo(0,y);
+ if(want==="chg"&&st[id].s){const t=document.getElementById("n-"+id);t&&t.focus()}
+});
+document.getElementById("main").addEventListener("input",e=>{
+ if(e.target.tagName!=="TEXTAREA")return;const id=e.target.id.slice(2);if(st[id]){st[id].n=e.target.value;save()}
+});
+function reviewText(){
+ let ok=0,chg=[],pend=[];
+ S.filter(s=>!s.ro).forEach(s=>s.items.forEach((it,k)=>{const v=st[s.id+"-"+k];if(v&&v.s==="ok")ok++;else if(v&&v.s==="chg")chg.push(`- [${s.t}] ${it}\n  → ${v.n||"(sem nota)"}`);else pend.push(`- [${s.t}] ${it}`)}));
+ return `Revisão da spec da software factory\n${ok} ok · ${chg.length} mudar · ${pend.length} sem revisão\n\nMudanças:\n${chg.join("\n")||"- nenhuma"}\n\nSem revisão:\n${pend.join("\n")||"- nenhum"}`;
+}
+document.getElementById("copy").addEventListener("click",()=>{
+ const txt=reviewText(),flag=document.getElementById("copied");
+ const fb=()=>{const t=document.getElementById("fallback");t.value=txt;t.style.position="static";t.style.width="100%";t.style.height="160px";t.select();flag.textContent="selecionado: Ctrl+C";flag.hidden=false};
+ try{navigator.clipboard.writeText(txt).then(()=>{flag.textContent="copiado";flag.hidden=false;setTimeout(()=>flag.hidden=true,2000)},fb)}catch(e){fb()}
+});
+let armed=false;
+document.getElementById("clear").addEventListener("click",e=>{
+ if(!armed){armed=true;e.target.textContent="Confirmar limpeza";setTimeout(()=>{armed=false;e.target.textContent="Limpar marcações"},3000);return}
+ st={};save();armed=false;render();
+});
+
+const COLS=["Inbox","Ready for Refinement","Technical Refinement","Spec Review","Ready for Dev","Coding","Validation","Ready for Prod","Done"];
+const MOVES={0:[["Você escolhe para refinar",1]],1:[["Despachante liga /refinar",2]],2:[["Spec pronta",3],["3ª falha (blocked)",2]],3:[["Você aprova",4],["Você pede mudança",1]],4:[["Despachante liga /desenvolver",5]],5:[["Testes e build verdes",6],["3ª falha (blocked)",5]],6:[["Review ok, PR aberto e CI verde",7],["🔴 volta ao dono",5]],7:[["Você faz merge",8]],8:[]};
+const WHO={1:"você",4:"você",8:"você"};
+let pos=0,blocked=false;
+function bindSims(){
+ if(document.getElementById("sbCols")){
+  const draw=()=>{document.getElementById("sbCols").innerHTML=COLS.map((c,i)=>`<span class="${i===pos?"here":""}" style="${[1,4,8].includes(i)?"border-style:dashed":""}">${c}</span>`).join("");
+   document.getElementById("sbActs").innerHTML=(MOVES[pos].map(m=>`<button data-to="${m[1]}" data-b="${m[0].includes("blocked")}">${m[0]}</button>`).join(""))+`<button class="ghost" data-to="0" data-b="false">Recomeçar</button>`;
+   const who=WHO[pos]?"Só você move um card para esta coluna.":(pos===3||pos===7?"Aguardando você.":"A fábrica trabalha aqui.");
+   document.getElementById("sbOut").innerHTML=`<div class="res ${blocked?"stop":"go"}"><b>${COLS[pos]}</b>${blocked?" · blocked: parado aqui com comentário na issue.":" · "+who}</div>`};
+  document.getElementById("sbActs").onclick=e=>{const b=e.target.closest("button");if(!b)return;pos=+b.dataset.to;blocked=b.dataset.b==="true";draw()};
+  draw();
+ }
+ const fr=document.getElementById("fRounds");
+ if(fr){const f=()=>{const n=+fr.value,inf=document.getElementById("fInfra").checked;
+  document.getElementById("fOut").innerHTML=inf?`<div class="res stop"><b>Para e avisa.</b> Erro de infraestrutura não conta como rodada; nada de blocked.</div>`:n<3?`<div class="res go"><b>Rodada ${n} de 2.</b> Volta ao dono do arquivo com a saída do gate.</div>`:`<div class="res stop"><b>blocked.</b> Label na issue, comentário com o gate, o erro e o que foi tentado; o card fica na coluna.</div>`};
+  fr.oninput=f;document.getElementById("fInfra").onchange=f;f()}
+ const dp=document.getElementById("dPause");
+ if(dp){const ids=["dPause","dQr","dSr","dLr","dQd","dCv","dLd","dBl"];const g=i=>{const el=document.getElementById(i);return el.type==="checkbox"?el.checked:+el.value};
+  const d=()=>{if(g("dPause")){document.getElementById("dOut").innerHTML=`<div class="res stop"><b>Nada roda.</b> PAUSE existe; o despachante encerra.</div>`;return}
+   const r=g("dLr")?["stop","/refinar: já rodando (lock)."]:g("dSr")>=2?["stop","/refinar: Spec Review cheio (2)."]:g("dQr")<1?["stop","/refinar: fila vazia, sem custo."]:["go","/refinar: dispara para o 1º card de Ready for Refinement."];
+   const dv=g("dLd")?["stop","/desenvolver: já rodando (lock)."]:g("dCv")>=2?["stop","/desenvolver: Coding + Validation cheio (2)."]:g("dQd")<1?["stop","/desenvolver: fila vazia, sem custo."]:g("dBl")?(g("dQd")>1?["go","/desenvolver: pula o blocked e dispara para o próximo card."]:["stop","/desenvolver: só há card blocked na fila."]):["go","/desenvolver: dispara para o 1º card de Ready for Dev."];
+   document.getElementById("dOut").innerHTML=[r,dv].map(x=>`<div class="res ${x[0]}"><b>${x[0]==="go"?"Roda.":"Não roda."}</b> ${fmt(x[1])}</div>`).join("")};
+  ids.forEach(i=>{const el=document.getElementById(i);el.oninput=d;el.onchange=d});d()}
+}
+render();
+</script>
+
+</body>
+</html>

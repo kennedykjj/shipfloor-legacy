@@ -1,0 +1,11 @@
+{
+  "name": "mylos",
+  "owner": { "name": "Kennedy Fernando" },
+  "plugins": [
+    {
+      "name": "mylos",
+      "source": "./",
+      "description": "Board-driven software factory: refine, develop and deploy GitHub issues with Claude Code agents and deterministic gates."
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+*.sh text eol=lf
+scripts/test/fake-gh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.html text eol=lf
+*.ps1 text eol=crlf
