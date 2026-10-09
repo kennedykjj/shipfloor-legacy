@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Revisão da spec #__ISSUE__</title>
+<title>Spec review #__ISSUE__</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
 <style>
-/* Layout: índice fixo à esquerda com status por seção; folhas de revisão à direita, uma por seção da spec. */
+/* Layout: sticky index on the left with per-section status; review sheets on the right, one per spec section. */
 :root{
   --page:#F5F4F0;--sheet:#FFFFFF;--ink:#1B1A18;--muted:#6B675F;--rule:#E2DED6;--surface:#ECEAE4;
   --linen:#4A5A3C;--linen-ink:#E8ECDF;--gold:#D6B370;--gold-ink:#8A6A2E;
@@ -89,20 +89,20 @@ details.ro{margin-top:6px}details.ro summary{cursor:pointer;color:var(--muted);f
 <div class="wrap">
   <header class="top">
     <h1>#__ISSUE__ __TITLE__</h1>
-    <div class="meta"><span class="status">aguardando sua revisão</span><span>__DATE__</span><span><code>__SPEC__</code></span><span>branch <code>__BRANCH__</code></span></div>
+    <div class="meta"><span class="status">waiting for your review</span><span>__DATE__</span><span><code>__SPEC__</code></span><span>branch <code>__BRANCH__</code></span></div>
   </header>
 
-  <nav aria-label="Índice da revisão">
-    <div class="count" id="count">0 <small>de 0 revisados</small></div>
+  <nav aria-label="Review index">
+    <div class="count" id="count">0 <small>of 0 reviewed</small></div>
     <ol id="toc"></ol>
-    <button id="copy">Copiar revisão</button><span class="copied" id="copied" hidden>copiado</span>
-    <div style="margin-top:8px"><button class="ghost" id="clear" style="font-size:12px;padding:4px 10px">Limpar marcações</button></div>
+    <button id="copy">Copy review</button><span class="copied" id="copied" hidden>copied</span>
+    <div style="margin-top:8px"><button class="ghost" id="clear" style="font-size:12px;padding:4px 10px">Clear marks</button></div>
   </nav>
 
   <main id="main"></main>
 </div>
 
-<textarea id="fallback" aria-label="Texto da revisão" style="position:absolute;left:-9999px;top:0" readonly></textarea>
+<textarea id="fallback" aria-label="Review text" style="position:absolute;left:-9999px;top:0" readonly></textarea>
 
 <script>
 const S=__DATA__;
@@ -111,37 +111,37 @@ const KEY="__KEY__";
 let st={};try{st=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){st={}}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-const fmt=s=>esc(s).replace(/(\/refinar|\/desenvolver|feat\/&lt;n&gt;-&lt;slug&gt;|origin\/main|docs\/[\w\/.-]+|\.mylos\/[\w.-]*|\.github\/|\.githooks\/|\.claude\/|\.env\*|gate\.sh|dispatch\.sh|install-dispatcher\.ps1|factory-guard(\.yml)?|claude -p|--dangerously-skip-permissions|pull_request_target|verify-ui|CLAUDE\.md|PAUSE|blocked|cybersec(?= |$|\))|ui(?= \()|CA-\d)/g,'<span class="cmd">$1</span>');
+const fmt=s=>esc(s).replace(/(\/refine|\/develop|\/validate|\/deploy|feat\/&lt;n&gt;-&lt;slug&gt;|origin\/main|docs\/[\w\/.-]+|\.mylos\/[\w.-]*|\.github\/|\.githooks\/|\.claude\/|\.env\*|gate\.sh|dispatch\.sh|install-dispatcher\.ps1|factory-guard(\.yml)?|claude -p|--dangerously-skip-permissions|pull_request_target|verify-ui|CLAUDE\.md|PAUSE|blocked|cybersec(?= |$|\))|ui(?= \()|(?:AC|CA)-\d)/g,'<span class="cmd">$1</span>');
 
 function sim(kind){
- if(kind==="board")return `<div class="sim" id="simBoard"><h3>Simulador: quem move o card</h3><div class="board" id="sbCols"></div><div class="acts" id="sbActs"></div><div class="out" id="sbOut"></div></div>`;
- if(kind==="falhas")return `<div class="sim"><h3>Simulador: falhas numa etapa</h3><div class="ctl"><label for="fRounds">Falhas seguidas <input id="fRounds" type="range" min="1" max="3" value="1"></label><label><input id="fInfra" type="checkbox"> é erro de infraestrutura</label></div><div class="out" id="fOut"></div></div>`;
- if(kind==="dispatch")return `<div class="sim"><h3>Simulador: o que o despachante faz nesta rodada</h3><div class="ctl">
-  <label><input id="dPause" type="checkbox"> arquivo PAUSE existe</label>
+ if(kind==="board")return `<div class="sim" id="simBoard"><h3>Simulator: who moves the card</h3><div class="board" id="sbCols"></div><div class="acts" id="sbActs"></div><div class="out" id="sbOut"></div></div>`;
+ if(kind==="falhas")return `<div class="sim"><h3>Simulator: failures in a stage</h3><div class="ctl"><label for="fRounds">Consecutive failures <input id="fRounds" type="range" min="1" max="3" value="1"></label><label><input id="fInfra" type="checkbox"> is an infrastructure error</label></div><div class="out" id="fOut"></div></div>`;
+ if(kind==="dispatch")return `<div class="sim"><h3>Simulator: what the dispatcher does this round</h3><div class="ctl">
+  <label><input id="dPause" type="checkbox"> PAUSE file exists</label>
   <label for="dQr">Ready for Refinement <input id="dQr" type="number" min="0" max="9" value="1"></label>
   <label for="dSr">Spec Review <input id="dSr" type="number" min="0" max="9" value="1"></label>
-  <label><input id="dLr" type="checkbox"> /refinar já rodando</label>
+  <label><input id="dLr" type="checkbox"> /refine already running</label>
   <label for="dQd">Ready for Dev <input id="dQd" type="number" min="0" max="9" value="1"></label>
   <label for="dCv">Coding + Validation <input id="dCv" type="number" min="0" max="9" value="2"></label>
-  <label><input id="dLd" type="checkbox"> /desenvolver já rodando</label>
-  <label><input id="dBl" type="checkbox"> 1º card de Ready for Dev está blocked</label>
+  <label><input id="dLd" type="checkbox"> /develop already running</label>
+  <label><input id="dBl" type="checkbox"> first Ready for Dev card is blocked</label>
  </div><div class="out" id="dOut"></div></div>`;
  return "";
 }
 function render(){
  document.getElementById("main").innerHTML=S.map(s=>`<section class="sheet" id="${s.id}"><h2>${s.t}</h2><p class="intro">${fmt(s.intro)}</p>
   ${s.table?`<div class="tbl"><table>${s.table.map((r,i)=>`<tr>${r.map(c=>i?`<td>${fmt(c)}</td>`:`<th>${c}</th>`).join("")}</tr>`).join("")}</table></div>`:""}
-  ${s.flags?s.flags.map(f=>`<div class="flag"><h3>Conflito: ${f[0]}</h3><p>${fmt(f[1])}</p></div>`).join(""):""}
+  ${s.flags?s.flags.map(f=>`<div class="flag"><h3>Conflict: ${f[0]}</h3><p>${fmt(f[1])}</p></div>`).join(""):""}
   ${s.sim?sim(s.sim):""}
-  ${s.ro?`<details class="ro"><summary>${s.items.length} itens (só leitura)</summary><ul>${s.items.map(it=>`<li>${fmt(it)}</li>`).join("")}</ul></details>`:s.items.map((it,k)=>{const id=s.id+"-"+k,v=st[id]||{};return `<div class="item ${v.s||""}" data-id="${id}"><p>${fmt(it)}</p><div class="btns"><button class="b-ok" aria-pressed="${v.s==="ok"}">Ok</button><button class="b-chg" aria-pressed="${v.s==="chg"}">Mudar</button></div>${v.s==="chg"?`<textarea id="n-${id}" aria-label="O que mudar" placeholder="O que mudar?">${esc(v.n||"")}</textarea>`:""}</div>`}).join("")}
- </section>`).join("")+(S.some(s=>!s.ro)?"":`<section class="sheet"><h2>Nada para decidir</h2><p class="intro">A esteira decidiu tudo sozinha. Confira as decisões abaixo, se quiser, e mova o card para Ready for Dev.</p></section>`);
+  ${s.ro?`<details class="ro"><summary>${s.items.length} items (read-only)</summary><ul>${s.items.map(it=>`<li>${fmt(it)}</li>`).join("")}</ul></details>`:s.items.map((it,k)=>{const id=s.id+"-"+k,v=st[id]||{};return `<div class="item ${v.s||""}" data-id="${id}"><p>${fmt(it)}</p><div class="btns"><button class="b-ok" aria-pressed="${v.s==="ok"}">Keep</button><button class="b-chg" aria-pressed="${v.s==="chg"}">Change</button></div>${v.s==="chg"?`<textarea id="n-${id}" aria-label="What to change" placeholder="What to change?">${esc(v.n||"")}</textarea>`:""}</div>`}).join("")}
+ </section>`).join("")+(S.some(s=>!s.ro)?"":`<section class="sheet"><h2>Nothing to decide</h2><p class="intro">The pipeline decided everything on its own. Check the decisions above if you like, then move the card to Ready for Dev.</p></section>`);
  bindSims();toc();
 }
 function toc(){
  let tot=0,done=0;
  document.getElementById("toc").innerHTML=S.filter(s=>!s.ro).map(s=>{const n=s.items.length;let ok=0,ch=0;s.items.forEach((_,k)=>{const v=st[s.id+"-"+k];if(v&&v.s==="ok")ok++;if(v&&v.s==="chg")ch++});tot+=n;done+=ok+ch;
-  const cls=ch?"chg":(ok===n?"done":"");return `<li><a href="#${s.id}"><span>${s.t}</span><span class="st ${cls}">${ch?ch+" mudar · ":""}${ok+ch}/${n}</span></a></li>`}).join("");
- document.getElementById("count").innerHTML=`${done} <small>de ${tot} revisados</small>`;
+  const cls=ch?"chg":(ok===n?"done":"");return `<li><a href="#${s.id}"><span>${s.t}</span><span class="st ${cls}">${ch?ch+" change · ":""}${ok+ch}/${n}</span></a></li>`}).join("");
+ document.getElementById("count").innerHTML=`${done} <small>of ${tot} reviewed</small>`;
 }
 document.getElementById("main").addEventListener("click",e=>{
  const b=e.target.closest(".btns button");if(!b)return;const row=b.closest(".item"),id=row.dataset.id,cur=st[id]||{};
@@ -155,43 +155,43 @@ document.getElementById("main").addEventListener("input",e=>{
 });
 function reviewText(){
  let ok=0,chg=[],pend=[];
- S.filter(s=>!s.ro).forEach(s=>s.items.forEach((it,k)=>{const v=st[s.id+"-"+k];if(v&&v.s==="ok")ok++;else if(v&&v.s==="chg")chg.push(`- [${s.t}] ${it}\n  → ${v.n||"(sem nota)"}`);else pend.push(`- [${s.t}] ${it}`)}));
- return `Revisão da spec da software factory\n${ok} ok · ${chg.length} mudar · ${pend.length} sem revisão\n\nMudanças:\n${chg.join("\n")||"- nenhuma"}\n\nSem revisão:\n${pend.join("\n")||"- nenhum"}`;
+ S.filter(s=>!s.ro).forEach(s=>s.items.forEach((it,k)=>{const v=st[s.id+"-"+k];if(v&&v.s==="ok")ok++;else if(v&&v.s==="chg")chg.push(`- [${s.t}] ${it}\n  → ${v.n||"(no note)"}`);else pend.push(`- [${s.t}] ${it}`)}));
+ return `Spec review: Factory spec review\n${ok} ok · ${chg.length} change · ${pend.length} not reviewed\n\nChanges:\n${chg.join("\n")||"- none"}\n\nNot reviewed:\n${pend.join("\n")||"- none"}`;
 }
 document.getElementById("copy").addEventListener("click",()=>{
  const txt=reviewText(),flag=document.getElementById("copied");
- const fb=()=>{const t=document.getElementById("fallback");t.value=txt;t.style.position="static";t.style.width="100%";t.style.height="160px";t.select();flag.textContent="selecionado: Ctrl+C";flag.hidden=false};
- try{navigator.clipboard.writeText(txt).then(()=>{flag.textContent="copiado";flag.hidden=false;setTimeout(()=>flag.hidden=true,2000)},fb)}catch(e){fb()}
+ const fb=()=>{const t=document.getElementById("fallback");t.value=txt;t.style.position="static";t.style.width="100%";t.style.height="160px";t.select();flag.textContent="selected: press Ctrl+C";flag.hidden=false};
+ try{navigator.clipboard.writeText(txt).then(()=>{flag.textContent="copied";flag.hidden=false;setTimeout(()=>flag.hidden=true,2000)},fb)}catch(e){fb()}
 });
 let armed=false;
 document.getElementById("clear").addEventListener("click",e=>{
- if(!armed){armed=true;e.target.textContent="Confirmar limpeza";setTimeout(()=>{armed=false;e.target.textContent="Limpar marcações"},3000);return}
+ if(!armed){armed=true;e.target.textContent="Confirm clear";setTimeout(()=>{armed=false;e.target.textContent="Clear marks"},3000);return}
  st={};save();armed=false;render();
 });
 
 const COLS=["Inbox","Ready for Refinement","Technical Refinement","Spec Review","Ready for Dev","Coding","Validation","Ready for Prod","Done"];
-const MOVES={0:[["Você escolhe para refinar",1]],1:[["Despachante liga /refinar",2]],2:[["Spec pronta",3],["3ª falha (blocked)",2]],3:[["Você aprova",4],["Você pede mudança",1]],4:[["Despachante liga /desenvolver",5]],5:[["Testes e build verdes",6],["3ª falha (blocked)",5]],6:[["Review ok, PR aberto e CI verde",7],["🔴 volta ao dono",5]],7:[["Você faz merge",8]],8:[]};
-const WHO={1:"você",4:"você",8:"você"};
+const MOVES={0:[["You pick it for refine",1]],1:[["Dispatcher starts /refine",2]],2:[["Spec ready",3],["3rd failure (blocked)",2]],3:[["You approve",4],["You request changes",1]],4:[["Dispatcher starts /develop",5]],5:[["Tests and build green",6],["3rd failure (blocked)",5]],6:[["Dispatcher starts /validate: review ok, PR open, CI green",7],["🔴 back to the owner",5]],7:[["You approve; /deploy merges and ships",8]],8:[]};
+const WHO={1:"you",4:"you",8:"you"};
 let pos=0,blocked=false;
 function bindSims(){
  if(document.getElementById("sbCols")){
   const draw=()=>{document.getElementById("sbCols").innerHTML=COLS.map((c,i)=>`<span class="${i===pos?"here":""}" style="${[1,4,8].includes(i)?"border-style:dashed":""}">${c}</span>`).join("");
-   document.getElementById("sbActs").innerHTML=(MOVES[pos].map(m=>`<button data-to="${m[1]}" data-b="${m[0].includes("blocked")}">${m[0]}</button>`).join(""))+`<button class="ghost" data-to="0" data-b="false">Recomeçar</button>`;
-   const who=WHO[pos]?"Só você move um card para esta coluna.":(pos===3||pos===7?"Aguardando você.":"A fábrica trabalha aqui.");
-   document.getElementById("sbOut").innerHTML=`<div class="res ${blocked?"stop":"go"}"><b>${COLS[pos]}</b>${blocked?" · blocked: parado aqui com comentário na issue.":" · "+who}</div>`};
+   document.getElementById("sbActs").innerHTML=(MOVES[pos].map(m=>`<button data-to="${m[1]}" data-b="${m[0].includes("blocked")}">${m[0]}</button>`).join(""))+`<button class="ghost" data-to="0" data-b="false">Start over</button>`;
+   const who=WHO[pos]?"Only you move a card into this column.":(pos===3||pos===7?"Waiting on you.":"The factory works here.");
+   document.getElementById("sbOut").innerHTML=`<div class="res ${blocked?"stop":"go"}"><b>${COLS[pos]}</b>${blocked?" · blocked: stopped here with a comment on the issue.":" · "+who}</div>`};
   document.getElementById("sbActs").onclick=e=>{const b=e.target.closest("button");if(!b)return;pos=+b.dataset.to;blocked=b.dataset.b==="true";draw()};
   draw();
  }
  const fr=document.getElementById("fRounds");
  if(fr){const f=()=>{const n=+fr.value,inf=document.getElementById("fInfra").checked;
-  document.getElementById("fOut").innerHTML=inf?`<div class="res stop"><b>Para e avisa.</b> Erro de infraestrutura não conta como rodada; nada de blocked.</div>`:n<3?`<div class="res go"><b>Rodada ${n} de 2.</b> Volta ao dono do arquivo com a saída do gate.</div>`:`<div class="res stop"><b>blocked.</b> Label na issue, comentário com o gate, o erro e o que foi tentado; o card fica na coluna.</div>`};
+  document.getElementById("fOut").innerHTML=inf?`<div class="res stop"><b>Stops and warns.</b> An infrastructure error does not count as a round; no blocked.</div>`:n<3?`<div class="res go"><b>Round ${n} of 2.</b> Goes back to the file owner with the gate output.</div>`:`<div class="res stop"><b>blocked.</b> Label on the issue, comment with the gate, the error and what was tried; the card stays in the column.</div>`};
   fr.oninput=f;document.getElementById("fInfra").onchange=f;f()}
  const dp=document.getElementById("dPause");
  if(dp){const ids=["dPause","dQr","dSr","dLr","dQd","dCv","dLd","dBl"];const g=i=>{const el=document.getElementById(i);return el.type==="checkbox"?el.checked:+el.value};
-  const d=()=>{if(g("dPause")){document.getElementById("dOut").innerHTML=`<div class="res stop"><b>Nada roda.</b> PAUSE existe; o despachante encerra.</div>`;return}
-   const r=g("dLr")?["stop","/refinar: já rodando (lock)."]:g("dSr")>=2?["stop","/refinar: Spec Review cheio (2)."]:g("dQr")<1?["stop","/refinar: fila vazia, sem custo."]:["go","/refinar: dispara para o 1º card de Ready for Refinement."];
-   const dv=g("dLd")?["stop","/desenvolver: já rodando (lock)."]:g("dCv")>=2?["stop","/desenvolver: Coding + Validation cheio (2)."]:g("dQd")<1?["stop","/desenvolver: fila vazia, sem custo."]:g("dBl")?(g("dQd")>1?["go","/desenvolver: pula o blocked e dispara para o próximo card."]:["stop","/desenvolver: só há card blocked na fila."]):["go","/desenvolver: dispara para o 1º card de Ready for Dev."];
-   document.getElementById("dOut").innerHTML=[r,dv].map(x=>`<div class="res ${x[0]}"><b>${x[0]==="go"?"Roda.":"Não roda."}</b> ${fmt(x[1])}</div>`).join("")};
+  const d=()=>{if(g("dPause")){document.getElementById("dOut").innerHTML=`<div class="res stop"><b>Nothing runs.</b> PAUSE exists; the dispatcher exits.</div>`;return}
+   const r=g("dLr")?["stop","/refine: already running (lock)."]:g("dSr")>=2?["stop","/refine: Spec Review full."]:g("dQr")<1?["stop","/refine: queue empty, no cost."]:["go","/refine: starts on the first Ready for Refinement card."];
+   const dv=g("dLd")?["stop","/develop: already running (lock)."]:g("dCv")>=2?["stop","/develop: Coding + Validation full."]:g("dQd")<1?["stop","/develop: queue empty, no cost."]:g("dBl")?(g("dQd")>1?["go","/develop: skips the blocked card and starts on the next one."]:["stop","/develop: only a blocked card is in the queue."]):["go","/develop: starts on the first Ready for Dev card."];
+   document.getElementById("dOut").innerHTML=[r,dv].map(x=>`<div class="res ${x[0]}"><b>${x[0]==="go"?"Runs.":"Does not run."}</b> ${fmt(x[1])}</div>`).join("")+`<div class="res"><b>Note.</b> /validate and /deploy follow the same rules: one run per stage, locked while running, an empty queue costs nothing.</div>`};
   ids.forEach(i=>{const el=document.getElementById(i);el.oninput=d;el.onchange=d});d()}
 }
 render();
