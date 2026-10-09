@@ -107,15 +107,22 @@ select { background: var(--panel-hi); border: 1px solid var(--edge); border-radi
 /* board */
 main { flex: 1; display: flex; min-height: 0; position: relative; }
 .board { flex: 1; display: flex; overflow-x: auto; min-width: 0; }
-.col { flex: 1 1 180px; min-width: 166px; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--edge); }
-.col.none { flex: 0 0 92px; min-width: 92px; }
-.col.none h2 { white-space: normal; line-height: 1.3; }
-.col:last-child { border-right: 0; }
+.lane { flex: 1 1 180px; min-width: 176px; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--edge); }
+.lane.none { flex: 0 0 104px; min-width: 104px; }
+.lane:last-child { border-right: 0; }
+.lane.pair { background: color-mix(in srgb, var(--panel) 45%, transparent); }
+.col { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.lane.pair .col:first-child { flex: 0 1 auto; max-height: 50%; }
+.lane.pair .col + .col { border-top: 1px solid var(--edge); }
 .col h2 {
   margin: 0; padding: 14px 14px 10px; font-size: 12px; font-weight: 600; color: var(--muted);
-  display: flex; justify-content: space-between; align-items: baseline; flex: none;
+  display: flex; align-items: center; gap: 6px; flex: none;
 }
-.col h2 .n { color: var(--faint); font-weight: 500; }
+.col h2 .n { margin-left: auto; color: var(--faint); font-weight: 500; }
+.col h2 .who { width: 13px; height: 13px; flex: none; color: var(--faint); }
+.col.owner h2 .who { color: var(--azure); }
+.lane.none .col h2 { white-space: normal; line-height: 1.3; align-items: flex-start; }
+.clock { margin-left: auto; color: var(--muted); font-size: 11.5px; }
 .col.owner h2 { color: var(--text); }
 .col .cards { overflow-y: auto; padding: 0 10px 14px; display: flex; flex-direction: column; gap: 8px; }
 .col .empty { color: var(--faint); font-size: 12px; padding: 4px 4px 0; }
@@ -239,6 +246,12 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
 </main>
 <script>
 "use strict";
+const LANES = [["Inbox", "Ready for Refinement"], ["Technical Refinement"], ["Spec Review", "Ready for Dev"], ["Coding"], ["Validation"], ["Staged", "Ready for Prod"], ["Done"]];
+const HUMAN = new Set(["Inbox", "Ready for Refinement", "Spec Review", "Ready for Dev", "Staged", "Ready for Prod"]);
+const ICON = {
+  you: '<svg class="who" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5" r="3" fill="currentColor"/><path d="M2.5 14.5c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6" fill="currentColor"/></svg>',
+  factory: '<svg class="who" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="5" width="10" height="8.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6.2" cy="9.2" r="1.1" fill="currentColor"/><circle cx="9.8" cy="9.2" r="1.1" fill="currentColor"/><path d="M8 5V2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="2" r="1" fill="currentColor"/></svg>',
+};
 const COLUMNS = ["Inbox", "Ready for Refinement", "Technical Refinement", "Spec Review", "Ready for Dev", "Coding", "Validation", "Staged", "Ready for Prod", "Done"];
 const OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
 const token = new URLSearchParams(location.search).get("t") || "";
@@ -263,6 +276,14 @@ const money = (v) => v == null ? '<span class="unpriced" title="A model in this 
 function tok(n) { if (!n) return "–"; if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
 function when(iso) { if (!iso) return "–"; const d = new Date(iso); const t = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }) + " " + t; }
 function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
+const liveRun = (p, n, stage) => S.overview?.runs.find((r) => r.project === p && r.issue === n && r.stage === stage && !r.orphan)?.started || null;
+const last = (sessions, stage) => sessions.filter((x) => x.stage === stage).pop();
+function clock(since, bare) { return since ? `<span class="${bare ? "" : "clock "}num" data-since="${esc(since)}">${elapsed(since)}</span>` : ""; }
+function elapsed(since) {
+  const s = Math.max(0, Math.floor((Date.now() - new Date(since)) / 1000));
+  if (s < 3600) return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
+}
 function ago(s) { if (s == null) return "no board snapshot yet"; if (s < 90) return `board read ${s}s ago`; return `board read ${Math.round(s / 60)} min ago`; }
 const model = (m) => (m || "").replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, " $1.$2");
 
@@ -314,17 +335,20 @@ function renderBoard() {
   if (!p) { $("board").innerHTML = '<p class="placeholder">No project registered. Run <code>aghanim add &lt;repo&gt;</code>.</p>'; return; }
   const by = Object.fromEntries(COLUMNS.map((c) => [c, []]));
   for (const c of p.cards) (by[c.column] ||= []).push(c);
-  $("board").innerHTML = COLUMNS.map((col) => {
-    const cards = by[col];
-    return `<div class="col ${OWNER[col] ? "owner" : ""} ${cards.length ? "" : "none"}"><h2>${esc(col)}<span class="n num">${cards.length || ""}</span></h2><div class="cards">${
-      cards.map((c) => cardHtml(p.slug, c)).join("")}</div></div>`;
+  $("board").innerHTML = LANES.map((lane) => {
+    const empty = lane.every((col) => !by[col].length);
+    return `<div class="lane ${lane.length > 1 ? "pair" : ""} ${empty ? "none" : ""}">${lane.map((col) => {
+      const cards = by[col]; const who = HUMAN.has(col) ? "you" : "factory";
+      return `<div class="col ${HUMAN.has(col) ? "owner" : ""}"><h2 title="${who === "you" ? "Your column: cards wait here for you" : "Factory column: agents work these cards"}">${ICON[who]}<span>${esc(col)}</span><span class="n num">${cards.length || ""}</span></h2><div class="cards">${
+        cards.map((c) => cardHtml(p.slug, c)).join("")}</div></div>`;
+    }).join("")}</div>`;
   }).join("");
 }
 function cardHtml(slug, c) {
   const key = `${slug}/${c.issue}`; const moving = key in S.moving;
   const cls = ["card", c.running ? "running" : "", c.awaiting && !moving ? "await" : "", moving ? "moving" : "", S.open === key ? "open" : ""].join(" ");
   const extra = moving ? '<div class="waits">moving…</div>'
-    : c.running ? `<div class="run"><span class="dial" aria-hidden="true"></span>${esc(c.running)} running</div>`
+    : c.running ? `<div class="run"><span class="dial" aria-hidden="true"></span>${esc(c.running)} running${clock(liveRun(slug, c.issue, c.running))}</div>`
     : c.awaiting ? `<div class="waits">${c.column === "Staged" ? "ready to ship" : "spec to review"}</div>` : "";
   return `<button class="${cls}" data-open="${esc(key)}"><div class="top"><span class="no num">#${c.issue}</span><span class="cost num gold">${c.cost === null ? money(null) : c.cost ? money(c.cost) : ""}</span></div>
     <div class="title">${esc(c.title) || `Issue #${c.issue}`}</div>${extra}</button>`;
@@ -357,7 +381,7 @@ function renderDrawer() {
   const tabs = [["sessions", "Sessions", sessions.length], ["log", "Log", ""], ["gates", "Gates", c?.reports.length || ""], ["review", "Review", ""]];
   d.innerHTML = `<div class="tip-head"><div class="row1"><h3><span class="num">#${n}</span>${esc(c?.title || ov?.title || "")}</h3>
       <div><span class="total num gold">${c ? money(c.total) : ""}</span><span class="est">est.</span> <button class="close" data-close aria-label="Close">Close</button></div></div>
-      <div class="meta"><span>${esc(column)}</span>${issue ? `<span>${issue}</span>` : ""}<span>${sessions.length} session${sessions.length === 1 ? "" : "s"}</span><span>first to last run ${span}</span>${ov?.running ? `<span>${esc(ov.running)} running</span>` : ""}</div></div>
+      <div class="meta"><span>${esc(column)}</span>${issue ? `<span>${issue}</span>` : ""}<span>${sessions.length} session${sessions.length === 1 ? "" : "s"}</span><span>first to last run ${span}</span>${ov?.running ? `<span>${esc(ov.running)} running ${clock(liveRun(p, +n, ov.running), true)}</span>` : ""}</div></div>
     <nav class="tabs" role="tablist">${tabs.map(([id, label, b]) => `<button role="tab" aria-selected="${S.tab === id}" data-tab="${id}">${label}${b !== "" ? `<span class="b">${b}</span>` : ""}</button>`).join("")}</nav>
     <div class="pane" id="pane">${c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>'}</div>`;
 }
@@ -375,7 +399,7 @@ function sessionsPane(c) {
     const exit = s.exit == null ? (s.log ? '<span class="muted">running</span>' : "–") : s.exit === 0 ? '<span class="ok">ok</span>' : `<span class="bad">exit ${s.exit}</span>`;
     let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(new Date(s.start).toLocaleString())}">${when(s.start)}</td><td class="l">${esc(s.stage)} <span class="muted">${esc(m.map(model).join(", "))}</span>${subs}</td>
       <td class="num">${tok(t.input)}</td><td class="num">${tok(t.cache_write_5m + t.cache_write_1h)}</td><td class="num">${tok(t.cache_read)}</td><td class="num">${tok(t.output)}</td>
-      <td class="num">${dur(s.start, s.end)}</td><td>${exit}</td><td class="num gold">${money(s.cost)}</td></tr>`;
+      <td class="num">${s.exit == null && s.log && s === last(c.sessions, s.stage) && liveRun(c.project, c.issue, s.stage) ? clock(liveRun(c.project, c.issue, s.stage), true) : dur(s.start, s.end)}</td><td>${exit}</td><td class="num gold">${money(s.cost)}</td></tr>`;
     if (S.expanded[s.id]) html += s.subagents.map((a) => { const u = sum(a.tokens); return `<tr class="sub"><td class="l"></td><td class="l">subagent <span class="muted">${esc(Object.keys(a.tokens).map(model).join(", "))}</span></td>
       <td class="num">${tok(u.input)}</td><td class="num">${tok(u.cache_write_5m + u.cache_write_1h)}</td><td class="num">${tok(u.cache_read)}</td><td class="num">${tok(u.output)}</td><td></td><td></td><td class="num">${money(a.cost)}</td></tr>`; }).join("");
     return html;
@@ -475,6 +499,7 @@ loadOverview();
 setInterval(loadOverview, 5000);
 setInterval(() => { if (S.open && (S.tab === "sessions" || S.tab === "gates")) loadCard(); }, 5000);
 setInterval(followLog, 2000);
+setInterval(() => document.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }), 1000);
 </script>
 </body>
 </html>
