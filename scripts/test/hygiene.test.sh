@@ -13,4 +13,9 @@ done
 [ -f "$root/agents/engineer.md" ] && pass "generic engineer agent" || fail "agents/engineer.md missing"
 [ -f "$root/examples/factory.yml" ] && pass "example config" || fail "examples/factory.yml missing"
 assert_exit 0 env FACTORY_CONFIG="$root/examples/factory.yml" bash "$FACTORY_DIR/aghanim-config.sh" validate
+# The rename left no live "mylos": only lines marked "legacy mylos" (the transition fallback) may name it.
+stale="$(cd "$root" && grep -rIniE 'mylos' skills agents scripts templates installer examples README.md .claude-plugin .gitattributes 2>/dev/null   | grep -v '^scripts/test/' | grep -v 'legacy mylos' || true)"
+[ -z "$stale" ] && pass "no stale mylos references" || fail "stale mylos:
+$stale"
+grep -q "^# Aghanim's Anvil" "$root/README.md" && pass "README carries the brand" || fail "README title"
 finish

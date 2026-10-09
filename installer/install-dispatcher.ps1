@@ -18,6 +18,6 @@ $trigger = @($atLogon, $fromNow)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 # The task was called MylosDispatcher before the rename (legacy mylos); it would run a script that no longer exists.
-if (Get-ScheduledTask -TaskName 'MylosDispatcher' -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName 'MylosDispatcher' -Confirm:$false }
+if (Get-ScheduledTask -TaskName 'MylosDispatcher' -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName 'MylosDispatcher' -Confirm:$false }  # legacy mylos
 Register-ScheduledTask -TaskName 'AghanimDispatcher' -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
 Write-Output 'AghanimDispatcher registered: at logon, every 3 minutes, hidden. Pause with: aghanim pause [project].'
