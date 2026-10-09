@@ -1,6 +1,8 @@
 {
-  "name": "mylos",
-  "version": "0.5.2",
-  "description": "Board-driven software factory: refine, develop and deploy GitHub issues with Claude Code agents and deterministic gates.",
-  "author": { "name": "Kennedy Fernando" }
+  "name": "aghanim",
+  "version": "0.6.0",
+  "description": "Aghanim's Anvil — a software factory for Claude Code. Turns GitHub issues into shipped PRs: agents refine, build and validate; deterministic gates they can't edit decide what passes.",
+  "author": {
+    "name": "Kennedy Fernando"
+  }
 }
