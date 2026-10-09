@@ -59,9 +59,9 @@ exit %s
 }
 deploy_case 0; out="$(cat "$tmp/launched")"
 assert_contains "$out" "deploy.sh 47"
-case "$out" in *"/mylos:deploy"*) fail "an agent ran a clean deploy" ;; *) pass "clean deploy needs no agent" ;; esac
+case "$out" in *"/aghanim:deploy"*) fail "an agent ran a clean deploy" ;; *) pass "clean deploy needs no agent" ;; esac
 deploy_case 3; out="$(cat "$tmp/launched")"
-assert_contains "$out" "/mylos:deploy 47"
+assert_contains "$out" "/aghanim:deploy 47"
 assert_contains "$out" "deploy.sh 47 --continue"
 unset FACTORY_DEPLOY
 finish

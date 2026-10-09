@@ -4,8 +4,8 @@
 source "$(dirname "$0")/lib.sh"
 D="$FACTORY_DIR/dispatch.sh"
 setup() {
-  export MYLOS_HOME="$(mktemp -d)"
-  export FACTORY_HOME="$MYLOS_HOME/projects/shop" FACTORY_CONTROL_REFRESH=0 FACTORY_WT_ROOT="$(mktemp -d)" FACTORY_PROJECT=shop
+  export AGHANIM_HOME="$(mktemp -d)"
+  export FACTORY_HOME="$AGHANIM_HOME/projects/shop" FACTORY_CONTROL_REFRESH=0 FACTORY_WT_ROOT="$(mktemp -d)" FACTORY_PROJECT=shop
   export FACTORY_CONFIG="$FACTORY_DIR/test/fixture/factory.yml" Q_DEV= Q_REF=
   tmp="$(mktemp -d)"; mkdir -p "$FACTORY_HOME/control"
   cat > "$tmp/board" <<'EOB'
@@ -17,7 +17,7 @@ case "$1 $2" in
   *) echo ;;
 esac
 EOB
-  printf '#!/usr/bin/env bash\necho "$(cat) $* | cfg=$FACTORY_CONFIG proj=$FACTORY_PROJECT mf=${MYLOS_FACTORY:-} snap=${FACTORY_BOARD_SNAPSHOT:-none}" >> "%s/launched"\nsleep 2\n' "$tmp" > "$tmp/claude"
+  printf '#!/usr/bin/env bash\necho "$(cat) $* | cfg=$FACTORY_CONFIG proj=$FACTORY_PROJECT mf=${AGHANIM_FACTORY:-} snap=${FACTORY_BOARD_SNAPSHOT:-none}" >> "%s/launched"\nsleep 2\n' "$tmp" > "$tmp/claude"
   chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
 }
 launched() { cat "$tmp/launched"; }
@@ -26,20 +26,20 @@ live_lock() { mkdir -p "$1"; echo "$$ $(date +%s) 1" > "$1/info"; }
 # limits come from the config
 setup; cfg="$(mktemp)"; cat "$FACTORY_CONFIG" > "$cfg"; printf 'limits:\n  develop: {parallel: 1}\n' >> "$cfg"; export FACTORY_CONFIG="$cfg"
 Q_DEV="26 27" run_dispatch; out="$(launched)"
-assert_contains "$out" "/mylos:develop 26"
+assert_contains "$out" "/aghanim:develop 26"
 case "$out" in *"develop 27"*) fail "ignored limits.develop.parallel: $out" ;; *) pass "parallel limit from config" ;; esac
 
 # a machine-wide limit counts live runs of every project
-setup; export MYLOS_MAX_PARALLEL=1; live_lock "$MYLOS_HOME/projects/other/locks/develop-9.lock"
+setup; export AGHANIM_MAX_PARALLEL=1; live_lock "$AGHANIM_HOME/projects/other/locks/develop-9.lock"
 Q_DEV="26" run_dispatch; [ -z "$(launched)" ] && pass "global limit across projects" || fail "launched past the global limit: $(launched)"
-setup; export MYLOS_MAX_PARALLEL=2; live_lock "$MYLOS_HOME/projects/other/locks/develop-9.lock"
+setup; export AGHANIM_MAX_PARALLEL=2; live_lock "$AGHANIM_HOME/projects/other/locks/develop-9.lock"
 Q_DEV="26 27" run_dispatch; out="$(launched)"; assert_contains "$out" "develop 26"
 case "$out" in *"develop 27"*) fail "two runs with one global slot: $out" ;; *) pass "one global slot → one run" ;; esac
-unset MYLOS_MAX_PARALLEL
+unset AGHANIM_MAX_PARALLEL
 
 # the run gets the worktrees, its tmp and reviews dirs, the project's settings, and the factory flag
 setup; Q_REF=25 run_dispatch; out="$(launched)"
-assert_contains "$out" "/mylos:refine 25"
+assert_contains "$out" "/aghanim:refine 25"
 assert_contains "$out" "--add-dir $FACTORY_WT_ROOT"
 assert_contains "$out" "--add-dir $FACTORY_HOME/tmp"
 assert_contains "$out" "--add-dir $FACTORY_HOME/reviews"

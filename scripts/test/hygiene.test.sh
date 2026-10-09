@@ -12,5 +12,5 @@ done
 [ -f "$root/skills/validate/SKILL.md" ] && pass "validate stage" || fail "skills/validate missing"
 [ -f "$root/agents/engineer.md" ] && pass "generic engineer agent" || fail "agents/engineer.md missing"
 [ -f "$root/examples/factory.yml" ] && pass "example config" || fail "examples/factory.yml missing"
-assert_exit 0 env FACTORY_CONFIG="$root/examples/factory.yml" bash "$FACTORY_DIR/mylos-config.sh" validate
+assert_exit 0 env FACTORY_CONFIG="$root/examples/factory.yml" bash "$FACTORY_DIR/aghanim-config.sh" validate
 finish

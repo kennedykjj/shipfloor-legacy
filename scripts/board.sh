@@ -3,8 +3,8 @@
 set -uo pipefail
 source "$(dirname "$0")/lib/project.sh"
 GH="${FACTORY_GH:-gh}"
-mylos_resolve . || exit 2
-mapfile -d '' -t V < <(mylos_cfg values board.owner board.number project.repo 2>/dev/null)
+aghanim_resolve . || exit 2
+mapfile -d '' -t V < <(aghanim_cfg values board.owner board.number project.repo 2>/dev/null)
 [ "${#V[@]}" -eq 3 ] || { echo "board: cannot read the board from the project config" >&2; exit 2; }
 OWNER="${V[0]}" NUM="${V[1]}" REPO="${V[2]}"
 [[ "$OWNER" =~ ^[A-Za-z0-9-]+$ && "$NUM" =~ ^[0-9]+$ ]] || { echo "board: bad board owner/number" >&2; exit 2; }
@@ -64,7 +64,7 @@ option_id() {
 }
 
 board_ids() {  # PROJECT_ID and FIELD_ID (Status), looked up once per project and cached
-  local cache="${FACTORY_HOME:-$MYLOS_HOME}/board-ids"
+  local cache="${FACTORY_HOME:-$AGHANIM_HOME}/board-ids"
   if [ -s "$cache" ]; then read -r PROJECT_ID FIELD_ID < "$cache"; [ -n "${FIELD_ID:-}" ] && return 0; fi
   PROJECT_ID="$("$GH" project view "$NUM" --owner "$OWNER" --format json --jq .id)" || return 1
   FIELD_ID="$("$GH" project field-list "$NUM" --owner "$OWNER" --format json --jq '.fields[] | select(.name=="Status") | .id')" || return 1

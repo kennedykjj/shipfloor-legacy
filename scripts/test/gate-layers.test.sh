@@ -72,5 +72,5 @@ assert_exit 1 bash "$GATE" migration "$base" spec.md
 
 # no project → never a pass
 r="$(new_repo)"; cd "$r"; base="$(git rev-parse HEAD)"
-assert_exit 2 env -u FACTORY_CONFIG MYLOS_HOME="$(mktemp -d)" bash "$GATE" scope qa "$base"
+assert_exit 2 env -u FACTORY_CONFIG AGHANIM_HOME="$(mktemp -d)" bash "$GATE" scope qa "$base"
 finish

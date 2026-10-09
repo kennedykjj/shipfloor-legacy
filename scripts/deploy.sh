@@ -12,8 +12,8 @@ source "$HERE/lib/project.sh"
 n="${1:-}"; mode="${2:-deploy}"
 case "$mode" in deploy|--refresh|--continue) ;; *) n="" ;; esac
 [[ "$n" =~ ^[0-9]+$ ]] || { echo "usage: deploy.sh <n> [--refresh | --continue]" >&2; exit 2; }
-mylos_resolve . || exit 2
-mapfile -d '' -t V < <(mylos_cfg values project.repo project.main deploy.ci_workflow deploy.environment \
+aghanim_resolve . || exit 2
+mapfile -d '' -t V < <(aghanim_cfg values project.repo project.main deploy.ci_workflow deploy.environment \
   deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks   deploy.healthcheck deploy.required_checks)
 [ "${#V[@]}" -eq 11 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
 REPO="${V[0]}" MAIN="${V[1]}" CI_WORKFLOW="${V[2]}" ENVIRONMENT="${V[3]}"
@@ -143,8 +143,8 @@ merge_main() {  # 0 up to date · 1 merged cleanly · 3 conflicts to resolve · 
   local files hunks=0 f c layer re
   files="$(printf '%s\n' "$CONFLICTS" | grep -c .)"
   while IFS= read -r f; do c="$(grep -c '^<<<<<<<' "$WT/$f" 2>/dev/null)"; hunks=$(( hunks + ${c:-0} )); done <<< "$CONFLICTS"
-  for layer in $(mylos_cfg layers); do
-    re="$(mylos_cfg regex migrations "$layer")"
+  for layer in $(aghanim_cfg layers); do
+    re="$(aghanim_cfg regex migrations "$layer")"
     if [ -n "$re" ] && printf '%s\n' "$CONFLICTS" | grep -Eq -- "$re"; then
       REASON="a migration conflicts with main: $(printf '%s\n' "$CONFLICTS" | grep -E -- "$re" | tr '\n' ' ')"; return 4
     fi
