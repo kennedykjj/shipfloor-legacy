@@ -62,6 +62,10 @@ mylos_validate() {  # mylos_validate: the config is valid and every pattern work
   return $bad
 }
 
+mylos_machine() {  # mylos_machine <validate|values|show|set ...>: the machine-wide agent pool (~/.mylos/config.yml)
+  MYLOS_MACHINE_CONFIG="$(mylos_native "$MYLOS_HOME/config.yml")"     mylos_python "$(mylos_native "$MYLOS_LIB/../mylos_config.py")" machine "$@"
+}
+
 mylos_cfg() {  # mylos_cfg <query...>: asks mylos_config.py about the resolved project
   mylos_python "$(mylos_native "$MYLOS_LIB/../mylos_config.py")" --config "$(mylos_native "$FACTORY_CONFIG")" \
     --home "$(mylos_native "${FACTORY_HOME:-}")" --worktrees "$(mylos_native "${FACTORY_WT_ROOT:-}")" "$@"
