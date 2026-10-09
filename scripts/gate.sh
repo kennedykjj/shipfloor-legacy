@@ -14,16 +14,16 @@ fi
 
 # Paths, layers and commands come from the project's config (its control checkout), never from
 # the worktree under test. No project or a broken config is exit 2, never a pass.
-mylos_resolve . || exit 2
+aghanim_resolve . || exit 2
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 g() { git -c core.quotePath=false "$@"; }
 q() {  # q <query...>: one config answer; a failing query stops the gate with exit 2
-  local out; out="$(mylos_cfg "$@")" || { echo "gate: config query failed: $*" >&2; exit 2; }
+  local out; out="$(aghanim_cfg "$@")" || { echo "gate: config query failed: $*" >&2; exit 2; }
   printf '%s' "$out"
 }
 layer_fields() {  # layer_fields <layer> <field>...: values into the array LF; 2 = unknown layer
   LF=()
-  mapfile -d '' -t LF < <(mylos_cfg fields "$@" 2>/dev/null)
+  mapfile -d '' -t LF < <(aghanim_cfg fields "$@" 2>/dev/null)
   [ "${#LF[@]}" -eq $(( $# - 1 )) ] || { echo "gate: unknown layer '$1'" >&2; return 2; }
 }
 load_layers() {  # only the gates that iterate layers pay for reading them
@@ -62,7 +62,7 @@ gate_forbidden() {
 gate_scope() {  # gate_scope <po|ux|techlead|qa|implementer layer> <base>
   local role="${1:-}" base="${2:-}" allowed
   [ -z "$role" ] && { echo "scope: role required" >&2; return 2; }
-  allowed="$(mylos_cfg regex scope "$role" 2>/dev/null)" || { echo "scope: unknown role '$role'" >&2; return 2; }
+  allowed="$(aghanim_cfg regex scope "$role" 2>/dev/null)" || { echo "scope: unknown role '$role'" >&2; return 2; }
   [ -n "$allowed" ] || { echo "scope: role '$role' has no area in the config" >&2; return 2; }
   require_rev "$base"
   local files bad; files="$(changed_files "$base")"
@@ -121,7 +121,7 @@ migration_versions() {  # migration_versions <layer> <base> <ERE>: unique versio
           [ -n "$main_ref" ] && git cat-file -e "$main_ref:$f" 2>/dev/null && continue
           printf 'N\t%s\n' "$f"
         done
-  } | mylos_cfg migration-check "$layer" \
+  } | aghanim_cfg migration-check "$layer" \
     || { echo "migration: versions of layer '$layer' must be unique and newer than the base's" >&2; return 1; }
 }
 
@@ -206,7 +206,7 @@ gate_test_plan() {  # every AC in the spec has a row whose test file its layer's
   printf '%b\n' "${bad#\\n}" >&2; return 1
 }
 
-STACK_LOCK="${FACTORY_HOME:-$MYLOS_HOME}/locks/stack.lock"
+STACK_LOCK="${FACTORY_HOME:-$AGHANIM_HOME}/locks/stack.lock"
 
 # The one local stack (Docker, port 3000) is used by e2e and verify-ui; parallel pipelines queue on
 # stack.lock. info = "<owner> <epoch>"; a lock older than STACK_TTL is abandoned and gets reclaimed.

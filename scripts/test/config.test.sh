@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# mylos-config.sh reads, validates and answers queries about .mylos/factory.yml.
+# aghanim-config.sh reads, validates and answers queries about .mylos/factory.yml.
 source "$(dirname "$0")/lib.sh"
-CFG="$FACTORY_DIR/mylos-config.sh"
+CFG="$FACTORY_DIR/aghanim-config.sh"
 c() { bash "$CFG" "$@"; }
 matches() {  # matches <regex> <path>: passes when the ERE matches the path
   if printf '%s\n' "$2" | grep -Eq -- "$1"; then pass "'$2' matches"; else fail "'$2' should match $1"; fi

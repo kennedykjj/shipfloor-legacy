@@ -23,7 +23,7 @@ EOB
   chmod +x "$tmp/board" "$tmp/claude"
   export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"
   printf '#!/usr/bin/env bash
-echo "/mylos:deploy $*" >> "%s/launched"
+echo "/aghanim:deploy $*" >> "%s/launched"
 ' "$tmp" > "$tmp/deploy"; chmod +x "$tmp/deploy"; export FACTORY_DEPLOY="$tmp/deploy"
   : > "$tmp/launched"
 }
@@ -31,7 +31,7 @@ launched() { cat "$tmp/launched"; }
 
 setup; export Q_REF=25 Q_DEV=40 Q_PROD=47 W_SR=0 W_CV=0
 run_dispatch; out="$(launched)"
-assert_contains "$out" "/mylos:refine 25"; assert_contains "$out" "/mylos:develop 40"; assert_contains "$out" "/mylos:deploy 47"
+assert_contains "$out" "/aghanim:refine 25"; assert_contains "$out" "/aghanim:develop 40"; assert_contains "$out" "/aghanim:deploy 47"
 
 setup; export Q_REF=25 W_SR=2 Q_DEV= Q_PROD=
 run_dispatch; [ -z "$(launched)" ] && pass "spec review full → nothing" || fail "launched with full WIP"
@@ -48,7 +48,7 @@ run_dispatch; [ -z "$(launched)" ] && pass "fresh lock respected" || fail "ignor
 
 setup; export Q_REF=25 W_SR=0 Q_DEV= Q_PROD=
 mkdir -p "$FACTORY_HOME/locks/refine-25.lock"; echo "1 $(( $(date +%s) - 20000 )) 26" > "$FACTORY_HOME/locks/refine-25.lock/info"
-run_dispatch; assert_contains "$(launched)" "/mylos:refine 25"
+run_dispatch; assert_contains "$(launched)" "/aghanim:refine 25"
 
 setup; export Q_REF=25 W_SR=0 BOARD_FAIL=1
 assert_exit 1 run_dispatch

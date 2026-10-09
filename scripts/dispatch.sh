@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Starts factory pipelines for one project's cards waiting in the owner's queues. Run every
-# 3 min by mylos-dispatch.sh, once per registered project. Pipelines run from the project's
+# 3 min by aghanim-dispatch.sh, once per registered project. Pipelines run from the project's
 # control checkout of origin/main, never from a worktree an agent can edit.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib/project.sh"
-mylos_resolve . || exit 2
-mylos_validate || { echo "dispatch: invalid config $FACTORY_CONFIG" >&2; exit 2; }
+aghanim_resolve . || exit 2
+aghanim_validate || { echo "dispatch: invalid config $FACTORY_CONFIG" >&2; exit 2; }
 HOME_DIR="${FACTORY_HOME:?FACTORY_HOME unset}"
 REPO="${FACTORY_REPO:-}"
 CONTROL="$HOME_DIR/control"
@@ -14,15 +14,15 @@ WT_ROOT="${FACTORY_WT_ROOT:-$HOME_DIR/wt}"
 CLAUDE="${FACTORY_CLAUDE:-claude}"
 BOARD="${FACTORY_BOARD:-$HERE/board.sh}"
 TTL="${FACTORY_LOCK_TTL:-10800}"
-export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" MYLOS_HOME
+export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" AGHANIM_HOME
 mkdir -p "$HOME_DIR/locks" "$HOME_DIR/logs" "$HOME_DIR/tmp" "$HOME_DIR/reviews" "$WT_ROOT"
 [ -e "$HOME_DIR/PAUSE" ] && exit 0
-mapfile -d '' -t LIM < <(mylos_cfg values limits.refine.parallel limits.refine.wip \
+mapfile -d '' -t LIM < <(aghanim_cfg values limits.refine.parallel limits.refine.wip \
   limits.develop.parallel limits.develop.wip limits.validate.parallel limits.deploy.parallel)
 [ "${#LIM[@]}" -eq 6 ] || { echo "dispatch: cannot read limits" >&2; exit 2; }
-# The machine pool (~/.mylos/config.yml): runs at once on this machine, and per stage, across projects.
-mylos_machine validate || { echo "dispatch: invalid $MYLOS_HOME/config.yml" >&2; exit 2; }
-mapfile -d '' -t POOL < <(mylos_machine values pool stages.refine stages.develop stages.validate stages.deploy)
+# The machine pool (~/.aghanim/config.yml): runs at once on this machine, and per stage, across projects.
+aghanim_machine validate || { echo "dispatch: invalid $AGHANIM_HOME/config.yml" >&2; exit 2; }
+mapfile -d '' -t POOL < <(aghanim_machine values pool stages.refine stages.develop stages.validate stages.deploy)
 [ "${#POOL[@]}" -eq 5 ] || { echo "dispatch: cannot read the machine pool" >&2; exit 2; }
 declare -A STAGE_SLOTS=([refine]="${POOL[1]}" [develop]="${POOL[2]}" [validate]="${POOL[3]}" [deploy]="${POOL[4]}")
 
@@ -62,7 +62,7 @@ card_busy() {  # card_busy <issue>: a live run of any pipeline holds this card (
 live_runs() {  # live_runs [stage]: live runs on this machine (every project), of one stage or all
   local d n=0 seen=" "
   local stage="${1:-}"; [ -n "$stage" ] || stage="[a-z]*"  # left unquoted below so it globs
-  for d in "$MYLOS_HOME"/projects/*/locks/$stage-*.lock "$HOME_DIR"/locks/$stage-*.lock; do
+  for d in "$AGHANIM_HOME"/projects/*/locks/$stage-*.lock "$HOME_DIR"/locks/$stage-*.lock; do
     [ -d "$d" ] || continue
     case "${d##*/}" in refresh-*) continue ;; esac  # refreshes are scripts, not agents
     case "$seen" in *" $d "*) continue ;; esac
@@ -75,8 +75,8 @@ snapshot_status() { awk -F'\t' -v n="$1" '$1==n{print $2}' "$SNAP" 2>/dev/null; 
 
 cleanup_processes() {  # stop processes (dev servers, test runners) left running in the card's worktree
   command -v powershell.exe >/dev/null || return 0
-  MYLOS_WT="$(mylos_native "$WT_ROOT/$1/")" powershell.exe -NoProfile -NonInteractive -Command '
-    $p = [regex]::Escape($env:MYLOS_WT) -replace "/", "[\\/]"
+  AGHANIM_WT="$(aghanim_native "$WT_ROOT/$1/")" powershell.exe -NoProfile -NonInteractive -Command '
+    $p = [regex]::Escape($env:AGHANIM_WT) -replace "/", "[\\/]"
     Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $p -and $_.ProcessId -ne $PID } |
       ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' >/dev/null 2>&1 || true
 }
@@ -89,10 +89,10 @@ launch() {  # launch <pipeline> <issue>
   (
     trap '' HUP
     echo "$BASHPID $(date +%s) $n" > "$dir/info"
-    echo "== start /mylos:$p $n $(date -Is) pid=$BASHPID" >>"$log"
+    echo "== start /aghanim:$p $n $(date -Is) pid=$BASHPID" >>"$log"
     # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into
     # "C:/Program Files/Git/develop 54", and MSYS_NO_PATHCONV would leak into mvn and break it.
-    agent() { printf '/mylos:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT MYLOS_FACTORY=1 "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1; }
+    agent() { printf '/aghanim:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT AGHANIM_FACTORY=1 "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1; }
     cd "$CONTROL" || exit 1
     if [ "$p" = deploy ]; then
       # The deploy is a script, not an agent: it can wait for CI and production as long as needed.
@@ -103,9 +103,9 @@ launch() {  # launch <pipeline> <issue>
         [ "$rc" = 3 ] || break
         agent; env -u FACTORY_BOARD_SNAPSHOT bash "$dep" "$n" --continue >>"$log" 2>&1; rc=$?
       done
-      echo "== end /mylos:$p $n exit=$rc $(date -Is)" >>"$log"
+      echo "== end /aghanim:$p $n exit=$rc $(date -Is)" >>"$log"
     else
-      agent; echo "== end /mylos:$p $n exit=$? $(date -Is)" >>"$log"
+      agent; echo "== end /aghanim:$p $n exit=$? $(date -Is)" >>"$log"
     fi
     read -r owner _ < "$dir/info" 2>/dev/null
     [ "${owner:-}" = "$BASHPID" ] && rm -rf "$dir"
@@ -198,12 +198,12 @@ refresh_staged() {  # keep approved-to-be PRs on top of main: deploy.sh --refres
   done
 }
 
-GLOBAL=$(( ${MYLOS_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
+GLOBAL=$(( ${AGHANIM_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
 run_pipeline refine     "Ready for Refinement" "${LIM[0]}" "${LIM[1]}" "Technical Refinement" "Spec Review"        || status=1
 run_pipeline develop "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding"               "Coding" "Validation" || status=1
 run_pipeline validate     "Validation"           "${LIM[4]}" 0           ""                                         || status=1
 run_pipeline deploy    "Ready for Prod"       "${LIM[5]}" 0           ""                                         || status=1
 # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
-[ "$(mylos_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
+[ "$(aghanim_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
 exit $status

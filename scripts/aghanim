@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# mylos: installs the factory scripts and manages the projects the dispatcher serves.
-#   install                       copy scripts and templates to ~/.mylos/factory
+# aghanim: installs the factory scripts and manages the projects the dispatcher serves.
+#   install                       copy scripts and templates to ~/.aghanim/factory
 #   doctor                        check tools, the installed copy and every project's config
 #   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .mylos/factory.yml
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
@@ -8,15 +8,15 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib/project.sh"
-REGISTRY="$MYLOS_HOME/registry.tsv"
-INSTALLED="$MYLOS_HOME/factory"
+REGISTRY="$AGHANIM_HOME/registry.tsv"
+INSTALLED="$AGHANIM_HOME/factory"
 
-die() { echo "mylos: $1" >&2; exit "${2:-1}"; }
+die() { echo "aghanim: $1" >&2; exit "${2:-1}"; }
 entry() { [ -f "$REGISTRY" ] && awk -F'\t' -v s="$1" '$1==s' "$REGISTRY"; }
 use() {  # use <slug>: export that project's settings or fail
-  local line; line="$(entry "$1")"; [ -n "$line" ] || die "no project '$1' (mylos list)"
+  local line; line="$(entry "$1")"; [ -n "$line" ] || die "no project '$1' (aghanim list)"
   local slug repo wt main; IFS=$'\t' read -r slug repo wt main <<< "$line"
-  mylos_use "$slug" "$repo" "$wt" "$main"
+  aghanim_use "$slug" "$repo" "$wt" "$main"
 }
 source_dir() {  # the plugin checkout this copy came from
   if [ -f "$HERE/.source" ]; then cat "$HERE/.source"; else (cd "$HERE/.." && pwd); fi
@@ -25,39 +25,39 @@ source_dir() {  # the plugin checkout this copy came from
 cmd_install() {
   local src; src="$(source_dir)"
   [ -f "$src/scripts/gate.sh" ] || die "cannot find the plugin at $src"
-  mkdir -p "$INSTALLED" "$MYLOS_HOME/projects" "$MYLOS_HOME/logs"
+  mkdir -p "$INSTALLED" "$AGHANIM_HOME/projects" "$AGHANIM_HOME/logs"
   (cd "$src/scripts" && find . -path ./test -prune -o -type f -print) | while IFS= read -r f; do
     mkdir -p "$INSTALLED/$(dirname "$f")"; cp "$src/scripts/$f" "$INSTALLED/$f"
   done
   rm -rf "$INSTALLED/templates"; cp -r "$src/templates" "$INSTALLED/templates"
   echo "$src" > "$INSTALLED/.source"
   echo "installed $src → $INSTALLED"
-  echo "next: mylos add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
+  echo "next: aghanim add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
 }
 
 cmd_doctor() {
   local bad=0 t src
   for t in git gh claude; do command -v "$t" >/dev/null && echo "ok   $t" || { echo "FAIL $t not found"; bad=1; }; done
-  if mylos_python -c 'import yaml' 2>/dev/null; then echo "ok   python + PyYAML"; else echo "FAIL python 3 with PyYAML (pip install pyyaml)"; bad=1; fi
+  if aghanim_python -c 'import yaml' 2>/dev/null; then echo "ok   python + PyYAML"; else echo "FAIL python 3 with PyYAML (pip install pyyaml)"; bad=1; fi
   gh auth status >/dev/null 2>&1 && echo "ok   gh authenticated" || { echo "FAIL gh auth login"; bad=1; }
   src="$(source_dir)"
-  if [ ! -d "$INSTALLED" ]; then echo "FAIL not installed (mylos install)"; bad=1
+  if [ ! -d "$INSTALLED" ]; then echo "FAIL not installed (aghanim install)"; bad=1
   elif diff -rq -x test -x .source "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
-  else echo "WARN installed copy differs from $src (mylos install)"; fi
+  else echo "WARN installed copy differs from $src (aghanim install)"; fi
   if [ -s "$REGISTRY" ]; then
     local slug repo wt main
     while IFS=$'\t' read -r slug repo wt main; do
       [ -z "$slug" ] && continue
-      ( mylos_use "$slug" "$repo" "$wt" "$main"; mylos_validate ) \
+      ( aghanim_use "$slug" "$repo" "$wt" "$main"; aghanim_validate ) \
         && echo "ok   project $slug" || { echo "FAIL project $slug: invalid or missing config"; bad=1; continue; }
-      ( mylos_use "$slug" "$repo" "$wt" "$main"
-        r="$(mylos_cfg get project.repo)"; b="$(mylos_cfg get project.main)"
+      ( aghanim_use "$slug" "$repo" "$wt" "$main"
+        r="$(aghanim_cfg get project.repo)"; b="$(aghanim_cfg get project.main)"
         strict="$(gh api "repos/$r/branches/$b/protection" --jq .required_status_checks.strict 2>&1)"
         if [ "$strict" = true ]; then echo "ok   $slug: $b requires up-to-date branches"
         else echo "WARN $slug: $b does not require up-to-date branches (${strict##*: }); a hand merge can race the deploy"; fi )
     done < "$REGISTRY"
-  else echo "WARN no projects (mylos add <repo>)"; fi
+  else echo "WARN no projects (aghanim add <repo>)"; fi
   return $bad
 }
 
@@ -70,25 +70,25 @@ cmd_add() {
       *) die "add: unknown option $1" 2 ;;
     esac
   done
-  [ -n "$repo" ] || die "usage: mylos add <repo> [--worktrees DIR] [--main BRANCH]" 2
+  [ -n "$repo" ] || die "usage: aghanim add <repo> [--worktrees DIR] [--main BRANCH]" 2
   repo="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" || die "$repo is not a git repository"
   [ -n "$main" ] || main="$(git -C "$repo" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
   [ -n "$main" ] || main=main
   git -C "$repo" fetch -q origin "$main" || die "cannot fetch origin/$main in $repo"
   local cfg slug; cfg="$(mktemp)"
   # Git Bash would take "origin/main:.mylos/..." for a path list and mangle it
-  MSYS2_ARG_CONV_EXCL="*" git -C "$(mylos_native "$repo")" show "origin/$main:.mylos/factory.yml" > "$cfg" 2>/dev/null || die "origin/$main has no .mylos/factory.yml"
-  FACTORY_CONFIG="$cfg" mylos_validate || die "invalid .mylos/factory.yml on origin/$main"
-  slug="$(FACTORY_CONFIG="$cfg" mylos_cfg get project.name)"
+  MSYS2_ARG_CONV_EXCL="*" git -C "$(aghanim_native "$repo")" show "origin/$main:.mylos/factory.yml" > "$cfg" 2>/dev/null || die "origin/$main has no .mylos/factory.yml"
+  FACTORY_CONFIG="$cfg" aghanim_validate || die "invalid .mylos/factory.yml on origin/$main"
+  slug="$(FACTORY_CONFIG="$cfg" aghanim_cfg get project.name)"
   local current; current="$(entry "$slug" | cut -f2)"
   if [ -n "$current" ] && [ "$(git_common "$current")" != "$(git_common "$repo")" ]; then
     die "project '$slug' is already registered for $current"
   fi
-  local home="$MYLOS_HOME/projects/$slug"; [ -n "$wt" ] || wt="$home/wt"
+  local home="$AGHANIM_HOME/projects/$slug"; [ -n "$wt" ] || wt="$home/wt"
   mkdir -p "$home" "$wt"
   if [ ! -e "$home/control/.git" ]; then git -C "$repo" worktree add -q --detach "$home/control" "origin/$main" || die "cannot create $home/control"; fi
-  mylos_use "$slug" "$repo" "$wt" "$main"
-  mylos_snapshot || die "cannot read .mylos/factory.yml from $home/control"
+  aghanim_use "$slug" "$repo" "$wt" "$main"
+  aghanim_snapshot || die "cannot read .mylos/factory.yml from $home/control"
   { [ -f "$REGISTRY" ] && awk -F'\t' -v s="$slug" '$1!=s' "$REGISTRY"; printf '%s\t%s\t%s\t%s\n' "$slug" "$repo" "$wt" "$main"; } > "$REGISTRY.tmp"
   mv "$REGISTRY.tmp" "$REGISTRY"
   echo "registered $slug ($repo, worktrees in $wt)"
@@ -103,21 +103,21 @@ cmd_remove() {
 
 cmd_list() {
   [ -s "$REGISTRY" ] || { echo "no projects"; return 0; }
-  [ -e "$MYLOS_HOME/PAUSE" ] && echo "(all paused)"
+  [ -e "$AGHANIM_HOME/PAUSE" ] && echo "(all paused)"
   local slug repo wt main state
   while IFS=$'\t' read -r slug repo wt main; do
     [ -z "$slug" ] && continue
-    state=active; [ -e "$MYLOS_HOME/projects/$slug/PAUSE" ] && state=paused
+    state=active; [ -e "$AGHANIM_HOME/projects/$slug/PAUSE" ] && state=paused
     printf '%s\t%s\t%s\t%s\n' "$slug" "$state" "$repo" "$wt"
   done < "$REGISTRY"
 }
 
 cmd_pause() {
-  if [ -z "${1:-}" ]; then mkdir -p "$MYLOS_HOME"; touch "$MYLOS_HOME/PAUSE"; return 0; fi
+  if [ -z "${1:-}" ]; then mkdir -p "$AGHANIM_HOME"; touch "$AGHANIM_HOME/PAUSE"; return 0; fi
   use "$1"; mkdir -p "$FACTORY_HOME"; touch "$FACTORY_HOME/PAUSE"
 }
 cmd_resume() {
-  if [ -z "${1:-}" ]; then rm -f "$MYLOS_HOME/PAUSE"; return 0; fi
+  if [ -z "${1:-}" ]; then rm -f "$AGHANIM_HOME/PAUSE"; return 0; fi
   use "$1"; rm -f "$FACTORY_HOME/PAUSE"
 }
 
@@ -125,18 +125,18 @@ cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide a
   case "${1:-}" in
     "")
       local out line stage n
-      out="$(mylos_machine show)" || return $?
+      out="$(aghanim_machine show)" || return $?
       while IFS= read -r line; do
         stage="$(printf '%s' "$line" | sed -n 's/^  \([a-z]*\): .*/\1/p')"
         if [ -n "$stage" ]; then
-          n="$(find "$MYLOS_HOME/projects" -maxdepth 3 -type d -path "*/locks/$stage-*.lock" 2>/dev/null | wc -l | tr -d ' ')"
+          n="$(find "$AGHANIM_HOME/projects" -maxdepth 3 -type d -path "*/locks/$stage-*.lock" 2>/dev/null | wc -l | tr -d ' ')"
           [ "$n" -gt 0 ] && line="$line ($n running)"
         fi
         echo "$line"
       done <<< "$out" ;;
-    set) mylos_machine set pool "${2:-}" ;;
-    stage) mylos_machine set "stages.${2:-}" "${3:-}" ;;
-    *) die "usage: mylos pool [set <n> | stage <refine|develop|validate|deploy> <n>]" 2 ;;
+    set) aghanim_machine set pool "${2:-}" ;;
+    stage) aghanim_machine set "stages.${2:-}" "${3:-}" ;;
+    *) die "usage: aghanim pool [set <n> | stage <refine|develop|validate|deploy> <n>]" 2 ;;
   esac
 }
 

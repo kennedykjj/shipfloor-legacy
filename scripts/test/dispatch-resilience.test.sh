@@ -18,19 +18,19 @@ EOB
   printf '#!/usr/bin/env bash\necho "$(cat) $*" >> "%s/launched"\n' "$tmp" > "$tmp/claude"
   chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
 }
-launched() { grep -o '/mylos:[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
+launched() { grep -o '/aghanim:[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
 
 # orphan in Coding (no live lock) resumes; it already counts toward WIP
-setup; O_COD="42" W_CV=1; run_dispatch; assert_contains "$(launched)" "/mylos:develop 42"
+setup; O_COD="42" W_CV=1; run_dispatch; assert_contains "$(launched)" "/aghanim:develop 42"
 # orphan resumes before new cards; both fit in 2 runs
-setup; O_COD="42" Q_DEV="60" W_CV=1; run_dispatch; out="$(launched)"; assert_contains "$out" "/mylos:develop 42"; assert_contains "$out" "/mylos:develop 60"
+setup; O_COD="42" Q_DEV="60" W_CV=1; run_dispatch; out="$(launched)"; assert_contains "$out" "/aghanim:develop 42"; assert_contains "$out" "/aghanim:develop 60"
 # two Coding orphans fill develop's 2 runs: no new card; a Validation card goes to validate
-setup; O_COD="42 43" O_VAL="54" Q_DEV="60" W_CV=2; run_dispatch; out="$(launched)"; assert_contains "$out" "/mylos:develop 42 /mylos:develop 43"
+setup; O_COD="42 43" O_VAL="54" Q_DEV="60" W_CV=2; run_dispatch; out="$(launched)"; assert_contains "$out" "/aghanim:develop 42 /aghanim:develop 43"
 case "$out" in *60*) fail "started a new card with both runs busy" ;; *) pass "runs respected with orphans" ;; esac
-assert_contains "$out" "/mylos:validate 54"
+assert_contains "$out" "/aghanim:validate 54"
 # usage limit: a run that ended with "session limit" in the last 30 min pauses launches
-setup; Q_DEV="60"; printf '== start /mylos:develop 54\nYou'"'"'ve hit your session limit · resets 6:10pm\n== end /mylos:develop 54 exit=1\n' > "$FACTORY_HOME/logs/$(date +%F)-54-develop.log"
+setup; Q_DEV="60"; printf '== start /aghanim:develop 54\nYou'"'"'ve hit your session limit · resets 6:10pm\n== end /aghanim:develop 54 exit=1\n' > "$FACTORY_HOME/logs/$(date +%F)-54-develop.log"
 run_dispatch; [ -z "$(launched)" ] && pass "backs off after a usage limit" || fail "launched during usage limit"
 touch -d '-40 minutes' "$FACTORY_HOME/logs/$(date +%F)-54-develop.log"
-run_dispatch; assert_contains "$(launched)" "/mylos:develop 60"
+run_dispatch; assert_contains "$(launched)" "/aghanim:develop 60"
 finish

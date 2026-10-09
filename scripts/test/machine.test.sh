@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# ~/.mylos/config.yml: the machine-wide agent pool and the runs each stage may take.
+# ~/.aghanim/config.yml: the machine-wide agent pool and the runs each stage may take.
 source "$(dirname "$0")/lib.sh"
-export MYLOS_HOME="$(mktemp -d)"
-m() { bash -c "source '$FACTORY_DIR/lib/project.sh'; mylos_machine \"\$@\"" _ "$@"; }
+export AGHANIM_HOME="$(mktemp -d)"
+m() { bash -c "source '$FACTORY_DIR/lib/project.sh'; aghanim_machine \"\$@\"" _ "$@"; }
 vals() { m values pool stages.refine stages.develop stages.validate stages.deploy | tr '\0' ' '; }
 
 [ "$(vals)" = "4 2 2 2 1 " ] && pass "defaults without a file" || fail "defaults: $(vals)"
 assert_exit 0 m validate
 
-printf 'pool: 6\nstages: {develop: 3}\n' > "$MYLOS_HOME/config.yml"
+printf 'pool: 6\nstages: {develop: 3}\n' > "$AGHANIM_HOME/config.yml"
 [ "$(vals)" = "6 2 3 2 1 " ] && pass "values merged with defaults" || fail "values: $(vals)"
 
-bad() { printf '%s\n' "$1" > "$MYLOS_HOME/config.yml"; assert_exit 1 m validate; }
+bad() { printf '%s\n' "$1" > "$AGHANIM_HOME/config.yml"; assert_exit 1 m validate; }
 bad 'pool: 0'
 bad 'pool: two'
 bad $'pool: 2\nstages: {develop: 3}'
@@ -21,7 +21,7 @@ bad 'stages: 3'
 bad '[unclosed'
 assert_exit 2 m values pool   # an unusable machine config is never read as a limit
 
-printf '# my machine\npool: 4\nstages: {refine: 1}\n' > "$MYLOS_HOME/config.yml"
+printf '# my machine\npool: 4\nstages: {refine: 1}\n' > "$AGHANIM_HOME/config.yml"
 assert_exit 0 m set pool 6
 assert_exit 0 m set stages.validate 3
 [ "$(vals)" = "6 1 2 3 1 " ] && pass "set keeps the other values" || fail "after set: $(vals)"

@@ -12,7 +12,7 @@ sys.stderr.reconfigure(encoding="utf-8", newline="\n")
 try:
     import yaml
 except ImportError:
-    print("mylos-config: PyYAML is missing (pip install pyyaml)", file=sys.stderr)
+    print("aghanim-config: PyYAML is missing (pip install pyyaml)", file=sys.stderr)
     sys.exit(2)
 
 RESERVED = {"po", "ux", "techlead", "qa"}
@@ -292,7 +292,7 @@ def describe(cfg, home, worktrees):
              f"home: {home}", f"worktrees: {worktrees}", f"tmp: {home}/tmp/<n>", f"reviews: {home}/reviews",
              f"specs: {d['paths']['specs']}  plans: {d['paths']['plans']}",
              f"context: {', '.join(d['context']) or '(none)'}",
-             f"review criteria: {d['review_criteria'] or '~/.mylos/factory/templates/review-criteria.md'}",
+             f"review criteria: {d['review_criteria'] or '~/.aghanim/factory/templates/review-criteria.md'}",
              f"stack: {('yes, ' + str(d['stack'].get('url', ''))) if d.get('stack') else 'none'}"]
     dep = d.get("deploy") or {}
     lines.append("deploy: " + (", ".join(f"{k}={v}" for k, v in dep.items()) if dep else "none (Done after merge)"))
@@ -381,8 +381,8 @@ def machine_problems(raw):
 
 
 def machine(rest):
-    """machine <validate | values <key>... | show | set <key> <int>> on $MYLOS_MACHINE_CONFIG."""
-    path = os.environ.get("MYLOS_MACHINE_CONFIG", "")
+    """machine <validate | values <key>... | show | set <key> <int>> on $AGHANIM_MACHINE_CONFIG."""
+    path = os.environ.get("AGHANIM_MACHINE_CONFIG", "")
     raw = {}
     if path and os.path.isfile(path):
         with open(path, encoding="utf-8") as f:
@@ -396,15 +396,15 @@ def machine(rest):
     cmd, args = (rest[0], rest[1:]) if rest else ("", [])
     if cmd == "validate" and not args:
         for e in errs:
-            print(f"mylos-config: {path}: {e}", file=sys.stderr)
+            print(f"aghanim-config: {path}: {e}", file=sys.stderr)
         return 1 if errs else 0
     if cmd == "set" and len(args) == 2:
         if isinstance(raw, yaml.YAMLError):
-            print(f"mylos-config: {path} is not valid YAML; fix it by hand", file=sys.stderr); return 1
+            print(f"aghanim-config: {path} is not valid YAML; fix it by hand", file=sys.stderr); return 1
         try:
             value = int(args[1])
         except ValueError:
-            print(f"mylos-config: {args[1]} is not an integer", file=sys.stderr); return 1
+            print(f"aghanim-config: {args[1]} is not an integer", file=sys.stderr); return 1
         new = json.loads(json.dumps(raw))
         if args[0] == "pool":
             new["pool"] = value
@@ -413,15 +413,15 @@ def machine(rest):
                 new["stages"] = {}
             new.setdefault("stages", {})[args[0].split(".")[1]] = value
         else:
-            print(f"mylos-config: cannot set {args[0]} (pool or stages.<stage>)", file=sys.stderr); return 1
+            print(f"aghanim-config: cannot set {args[0]} (pool or stages.<stage>)", file=sys.stderr); return 1
         new_errs = machine_problems(new)
         if new_errs:
             for e in new_errs:
-                print(f"mylos-config: {e}", file=sys.stderr)
+                print(f"aghanim-config: {e}", file=sys.stderr)
             return 1
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write("# mylos machine config: runs at once on this machine (pool) and per stage\n")
+            f.write("# aghanim machine config: runs at once on this machine (pool) and per stage\n")
             yaml.safe_dump(new, f, sort_keys=False)
         return 0
     if errs:
@@ -454,7 +454,7 @@ def main(argv):
         else:
             raise Unusable(f"unknown flag {flag}")
     if not args:
-        raise Unusable("usage: mylos-config validate|get|layers|layer|regex|layer-of|describe ...")
+        raise Unusable("usage: aghanim-config validate|get|layers|layer|regex|layer-of|describe ...")
     cmd, rest = args[0], args[1:]
     if cmd == "machine":
         return machine(rest)
@@ -465,12 +465,12 @@ def main(argv):
         raw = load(path)
     except Unusable as e:
         if cmd == "validate":
-            print(f"mylos-config: {e}", file=sys.stderr); return 1
+            print(f"aghanim-config: {e}", file=sys.stderr); return 1
         raise
     errs = problems(raw)
     if cmd == "validate":
         for e in errs:
-            print(f"mylos-config: {path}: {e}", file=sys.stderr)
+            print(f"aghanim-config: {path}: {e}", file=sys.stderr)
         return 1 if errs else 0
     if errs:
         raise Unusable(f"{path} is invalid: " + "; ".join(errs))
@@ -531,8 +531,8 @@ if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
     except Unusable as e:
-        print(f"mylos-config: {e}", file=sys.stderr)
+        print(f"aghanim-config: {e}", file=sys.stderr)
         sys.exit(2)
     except Exception as e:  # a crash is never a negative answer (exit 1): it is unusable
-        print(f"mylos-config: internal error: {e!r}", file=sys.stderr)
+        print(f"aghanim-config: internal error: {e!r}", file=sys.stderr)
         sys.exit(2)
