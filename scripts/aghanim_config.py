@@ -26,7 +26,7 @@ DEFAULTS = {
     "context": [], "forbidden": [], "review_criteria": "",
 }
 LAYER_DEFAULTS = {"stack": "", "build": "", "assertions": "", "setup_errors": "", "test_config": [],
-                  "needs_stack": False, "tests_only": False, "migrations": {}}
+                  "needs_stack": False, "tests_only": False, "migrations": {}, "retry": 0}
 BUILTIN_FORBIDDEN = r"^(\.github/|\.githooks/|\.claude/|\.aghanim/|\.mylos/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"  # legacy mylos dir stays forbidden
 ERE_SPECIAL = set(".^$+(){}[]|\\")
 
@@ -135,8 +135,20 @@ def problems(cfg):
                 errs.append("deploy.healthcheck must be a list of http(s) URLs")
         elif not isinstance(v, str):
             errs.append(f"deploy.{k} must be a string")
-    if "url" in mapping(cfg, "stack") and not isinstance(cfg["stack"]["url"], str):
-        errs.append("stack.url must be a string")
+    st = mapping(cfg, "stack")
+    for key in ("url", "up", "down", "health", "reject"):
+        if key in st and not isinstance(st[key], str):
+            errs.append(f"stack.{key} must be a string")
+    if "timeout" in st and (not isinstance(st["timeout"], int) or isinstance(st["timeout"], bool) or st["timeout"] < 1):
+        errs.append("stack.timeout must be an integer >= 1")
+    ports = st.get("ports", [])
+    if not (isinstance(ports, list) and all(isinstance(n, str) and re.fullmatch(r"[a-z][a-z0-9]*", n) for n in ports)):
+        errs.append("stack.ports must be a list of lowercase names")
+        ports = []
+    for key in ("url", "health"):
+        for name in re.findall(r"\{([a-z0-9]+)\}", st[key]) if isinstance(st.get(key), str) else []:
+            if name not in ports:
+                errs.append(f"stack.{key} uses {{{name}}}, which is not in stack.ports")
     layers = cfg.get("layers")
     if not isinstance(layers, list) or not layers:
         return errs + ["layers must be a non-empty list"]
@@ -169,6 +181,8 @@ def problems(cfg):
         for key in ("needs_stack", "tests_only"):
             if key in layer and not isinstance(layer[key], bool):
                 errs.append(f"{where}: {key} must be true or false")
+        if "retry" in layer and layer["retry"] not in (0, 1) or isinstance(layer.get("retry"), bool):
+            errs.append(f"{where}: retry must be 0 or 1")
         for key in ("ran", "assertions", "setup_errors"):
             if isinstance(layer.get(key), str) and layer[key] and not compiles(layer[key]):
                 errs.append(f"{where}: {key} is not a valid extended regex (grep -E)")
@@ -302,7 +316,8 @@ def describe(cfg, home, worktrees):
         lines.append(f"  - {l['name']}: path={l['path']} {who}" + (f" stack={l['stack']}" if l["stack"] else ""))
         if l["build"]:
             lines.append(f"      build: {l['build']}")
-        lines.append(f"      test: {l['test']}" + ("  (takes the stack lock)" if l["needs_stack"] else ""))
+        lines.append(f"      test: {l['test']}" + ("  (own stack slot)" if l["needs_stack"] else "")
+                     + ("  (retries once)" if l["retry"] else ""))
         lines.append(f"      tests: {', '.join(l['tests'])}")
         if l["migrations"]:
             lines.append(f"      migrations: {l['migrations']['glob']}")
@@ -352,7 +367,10 @@ def migration_check(pattern, lines):
 
 DEFAULT_VERSION = r"^[A-Za-z]*([0-9]+(?:[._][0-9]+)*)"  # V27__x.sql, 000027_x.up.sql
 STAGES = ("refine", "develop", "validate", "deploy")
-MACHINE_DEFAULTS = {"pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1}}
+MACHINE_DEFAULTS = {"pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
+                    "stacks": 3, "ports": {"base": 20000, "span": 20},
+                    "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700}
+MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
 
 
 def machine_problems(raw):
@@ -377,6 +395,19 @@ def machine_problems(raw):
         if k not in stages and pool is not None and MACHINE_DEFAULTS["stages"][k] > pool:
             stages_default = MACHINE_DEFAULTS["stages"][k]
             errs.append(f"stages.{k} defaults to {stages_default}, above the pool ({pool}): set it")
+    for key in MACHINE_INTS[1:]:
+        v = raw.get(key, MACHINE_DEFAULTS[key])
+        if not isinstance(v, int) or isinstance(v, bool) or v < 1:
+            errs.append(f"{key} must be an integer >= 1")
+    ports = raw.get("ports", {})
+    if not isinstance(ports, dict):
+        return errs + ["ports must be a mapping {base, span}"]
+    base, span = ports.get("base", 20000), ports.get("span", 20)
+    stacks = raw.get("stacks", MACHINE_DEFAULTS["stacks"])
+    if not all(isinstance(v, int) and not isinstance(v, bool) and v >= 1 for v in (base, span)):
+        errs.append("ports.base and ports.span must be integers >= 1")
+    elif isinstance(stacks, int) and not 1024 <= base <= base + span * stacks <= 65535:
+        errs.append("ports: base .. base + span * stacks must fit in 1024..65535")
     return errs
 
 
@@ -406,14 +437,14 @@ def machine(rest):
         except ValueError:
             print(f"aghanim-config: {args[1]} is not an integer", file=sys.stderr); return 1
         new = json.loads(json.dumps(raw))
-        if args[0] == "pool":
-            new["pool"] = value
+        if args[0] in MACHINE_INTS:
+            new[args[0]] = value
         elif args[0].startswith("stages.") and args[0].count(".") == 1:
             if not isinstance(new.get("stages", {}), dict):
                 new["stages"] = {}
             new.setdefault("stages", {})[args[0].split(".")[1]] = value
         else:
-            print(f"aghanim-config: cannot set {args[0]} (pool or stages.<stage>)", file=sys.stderr); return 1
+            print(f"aghanim-config: cannot set {args[0]} ({', '.join(MACHINE_INTS)} or stages.<stage>)", file=sys.stderr); return 1
         new_errs = machine_problems(new)
         if new_errs:
             for e in new_errs:
@@ -433,6 +464,7 @@ def machine(rest):
         print(f"pool: {data['pool']}")
         for k in STAGES:
             print(f"  {k}: {data['stages'][k]}")
+        print(f"stacks: {data['stacks']}")
         return 0
     raise Unusable("usage: machine validate | values <key>... | show | set <key> <int>")
 

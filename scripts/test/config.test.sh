@@ -70,4 +70,10 @@ bad_config "duplicate name" $'project: {name: x, repo: a/x}\nboard: {owner: a, n
 bad_config "bad slug" $'project: {name: X Y, repo: a/x}\nboard: {owner: a, number: 1}\nlayers:\n  - {name: a, path: a/, test: t, ran: ok, tests: [a/**]}'
 bad_config "not yaml" $'project: [unclosed'
 assert_exit 2 env FACTORY_CONFIG=/nonexistent/factory.yml bash "$CFG" get project.repo
+# the stack block: commands are strings, ports a list of names used by url and health
+stack_cfg() { local f; f="$(mktemp)"; sed '/^stack:/d' "$FACTORY_DIR/test/fixture/factory.yml" > "$f"; printf '%s
+' "$1" >> "$f"; echo "$f"; }
+assert_exit 0 env FACTORY_CONFIG="$(stack_cfg 'stack: {url: "http://localhost:{web}", up: "x", down: "y", ports: [web, api], timeout: 60}')" bash "$CFG" validate
+assert_exit 1 env FACTORY_CONFIG="$(stack_cfg 'stack: {url: "http://localhost:3000", ports: web}')" bash "$CFG" validate
+assert_exit 1 env FACTORY_CONFIG="$(stack_cfg 'stack: {url: "http://localhost:{nope}", ports: [web]}')" bash "$CFG" validate
 finish
