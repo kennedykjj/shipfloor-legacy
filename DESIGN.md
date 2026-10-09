@@ -9,7 +9,7 @@ colors:
   edge-hi: "#36404e"
   parchment: "#ebe5d5"
   muted: "#8f8b80"
-  faint: "#5f6068"
+  faint: "#8b887f"
   gold: "#e2b356"
   azure: "#63b2ff"
   azure-ink: "#0b2440"
@@ -22,10 +22,10 @@ colors:
   stone-edge: "#d9d9d4"
   stone-edge-hi: "#c4c4bd"
   stone-ink: "#23262b"
-  stone-muted: "#6b6a66"
-  stone-faint: "#9b9890"
+  stone-muted: "#5a5955"
+  stone-faint: "#686661"
   stone-gold: "#855a0c"
-  stone-azure: "#1f6fd1"
+  stone-azure: "#1a5fb4"
   stone-ok: "#2f7d43"
   stone-warn: "#9a5b12"
   stone-bad: "#c23b31"
@@ -37,9 +37,21 @@ typography:
     lineHeight: 1.15
     letterSpacing: "-0.01em"
     fontFeature: "tabular-nums"
+  stat-sm:
+    fontFamily: "ui-monospace, Cascadia Mono, SF Mono, Menlo, Consolas, monospace"
+    fontSize: "15px"
+    fontWeight: 600
+    lineHeight: 1.15
+    fontFeature: "tabular-nums"
+  total:
+    fontFamily: "ui-monospace, Cascadia Mono, SF Mono, Menlo, Consolas, monospace"
+    fontSize: "20px"
+    fontWeight: 600
+    lineHeight: 1.1
+    fontFeature: "tabular-nums"
   headline:
     fontFamily: "Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif"
-    fontSize: "17px"
+    fontSize: "18px"
     fontWeight: 600
     lineHeight: 1.3
   title:
@@ -158,8 +170,8 @@ A slate-and-parchment ground with one coin-gold and one azure signal. The light 
 **Character:** a tool's voice, not a brand's. Sans carries words; monospace with tabular figures carries every count, id, token total and cost so columns align and values do not jitter as they update. No webfonts, no CDN.
 
 ### Hierarchy
-- **Stat** (mono, 600, 19px, 1.15; 15px for per-stage slots): the header strip figures, with a 13px faint denominator.
-- **Headline** (sans, 600, 17px, 1.3): the drawer card title; the drawer total is mono 20px 600.
+- **Stat** (mono, 600, 19px, 1.15; `stat-sm` 15px for per-stage slots and the tooltip stats): the header strip figures, with a 13px faint denominator.
+- **Headline** (sans, 600, 18px, 1.3): the tooltip title; the tooltip cost is `total`, mono 20px 600.
 - **Title** (sans, 400, 13px, 1.35, clamped to two lines): the card title.
 - **Body** (sans, 14px, 1.45): page base; tables at 12.5px, meta lines 12.5px.
 - **Label** (sans, 11-12px; 600 for column headings and section headers, 11px at 0.02em for section keys): column headings, table heads, flags, keys under stats. Sentence case, never uppercase.
@@ -170,9 +182,9 @@ A slate-and-parchment ground with one coin-gold and one azure signal. The light 
 
 ## Layout
 
-A full-height flex column that never scrolls the page: a slim header strip, then `main` holding the board and the drawer. The strip is a row of stats separated by hairlines (brand, pool in use, per-stage slots with 3px meters, runs today with ok/failed counts, spent today, awaiting you, then factory state right-aligned). The board is ten columns in factory order, each `flex: 1 1 180px` with a 166px floor; empty columns collapse to a 92px stub with a wrapping heading. The two owner columns (Spec Review, Staged) get full-strength headings. Cards stack with an 8px gap inside 10px column padding, and the board scrolls horizontally when columns do not fit.
+A full-height flex column that never scrolls the page: a slim header strip, then `main` holding the board and the drawer. The strip is a row of stats separated by hairlines (brand, awaiting you, pool in use, per-stage slots with 3px meters, runs today with ok/failed counts, spent today, then factory state right-aligned). Awaiting you comes first because it is the one number that asks for action; at zero it turns muted. The board is ten columns in factory order, each `flex: 1 1 180px` with a 166px floor; empty columns collapse to a 92px stub with a wrapping heading. The two owner columns (Spec Review, Staged) get full-strength headings. Cards stack with an 8px gap inside 10px column padding, and the board scrolls horizontally when columns do not fit. A column whose cards overflow fades its last 34px through a mask, so the cut reads as "more below".
 
-The drawer is absolutely positioned over the board's right edge: `min(660px, 52vw)`, widening to `min(1180px, 72vw)` for the Review tab. Drawer content uses a 20px side gutter. Below 860px the header wraps, stats drop their borders, and the drawer takes the full width.
+The drawer is absolutely positioned over the board's right edge: `min(660px, 52vw)`, widening to `min(1180px, 72vw)` for the Review tab. Drawer content uses a 20px side gutter. Below 860px the header wraps, stats drop their borders, and the drawer takes the full width; below 600px the per-stage slots hide and the brand takes its own line. The drawer is a size container: under 540px the decision stacks and the tooltip stats go two by two.
 
 ## Elevation & Depth
 
@@ -193,7 +205,7 @@ Small, tool-like radii: 4px on flags, gates, chips and selects; 5px on buttons a
 ## Components
 
 ### Cards
-Item tiles: raised-to-panel gradient, 1px border with a lit top edge, 6px radius, 9px 10px padding, number (mono, muted) at left and gold cost at right, title below, optional status line. Hover lifts 1px. A running card gains the lit border and a dial line. An awaiting card takes the azure border, inset azure ring, azure-tinted gradient and an azure waits line ("spec to review" or "ready to ship"). A card being moved dims to 55% and reads "moving...". The open card gets a parchment border.
+Item tiles: raised-to-panel gradient, 1px border with a lit top edge, 6px radius, 9px 10px padding, number (mono, muted) at left and gold cost at right, title below, optional status line. Hover lifts 1px. A running card gains the lit border and a dial line. An awaiting card takes the azure border, inset azure ring, azure-tinted gradient and an azure waits line ("spec to review" or "ready to ship"). A card being moved dims to 55% and reads "moving...". The open card gets a parchment border. A card in Done shows its cost muted, without the coin: it is history, not a decision, and gold stays rare. A card whose title could not be read from GitHub says "Title not loaded" in faint italic instead of repeating its number.
 
 ### Cooldown Dial (signature)
 A 13px circle filled by a conic gradient sweep in parchment over lit-edge, ringed by the dial ring, rotating a full turn every 6s linearly via a registered `--sweep` angle. Appears only on running cards. Under `prefers-reduced-motion: reduce` it stops and shows a static quarter (90deg); card and drawer transitions are also disabled. It is the only continuous motion; the log skeleton shimmer is a loading state only.
@@ -202,7 +214,11 @@ A 13px circle filled by a conic gradient sweep in parchment over lit-edge, ringe
 Stats with a 11px muted key under a 19px mono value; slot meters are 3px parchment bars at 75% opacity. The "awaiting you" stat is azure and lists the waiting card numbers as small azure mono buttons that open the card. Flags are 12px, 4px-radius outlines; warn and bad take their outcome color.
 
 ### Tooltip Drawer
-Panel with a lit left edge, a header (title, gold total with "est.", Close text button) closed by the gold hairline, then underlined tabs (Sessions, Log, Gates, Review) with mono counts. Sessions are a right-aligned numeric table with sticky heads, dashed sub-rows for subagents and a total row. The Review tab hosts the review page in a sandboxed iframe under the decision bar.
+Panel with a lit left edge, `role="dialog"` (non-modal), labelled by its title. The tooltip head reads like an item tooltip: the number and title (headline), a bordered Close button at the top right, a meta line (column, the state in azure "waits for you: ..." or a dial and clock when running, the GitHub link), then a stat row of four `dt`/`dd` pairs: cost Inbox to now (gold `total` with "est."), sessions, first to last run, last report (pipeline plus its outcome color). The gold hairline closes the head.
+
+Under the head, for Spec Review and Staged cards only, sits **the decision**, whatever tab is open: "Your decision" with the review progress on the right ("1 of 3 reviewed · 1 change", mono), Approve with its destination, a hint, the request-changes textarea and Request changes (disabled until there is text), plus "Use the review's N changes", which fills the textarea from the review marks. While the review has unreviewed items or asks for changes, Approve turns **soft** (azure tint, azure text) and asks twice: the first click becomes "Approve with 2 not reviewed" for 4s. After a move the notice names the next waiting card as a button. Notices are a polite live region. A card in an owner column opens on the Review tab; any other card opens on Sessions.
+
+Then underlined tabs (Sessions, Log, Gates, Review) with mono counts, a real tablist (roving tabindex, arrow keys, Home and End) over one tabpanel. Sessions are a right-aligned numeric table with sticky heads (start, stage and model, input, output, cache read plus written with the split on hover, time, result, cost), dashed sub-rows for subagents and a total row. Gates map outcomes explicitly: ok, done, pass and merged are ok; fail, error and blocked are bad; anything else is muted; a stage with no gates says "No gates for this stage". The Log opens at its end. The Review tab hosts the review page in a sandboxed iframe.
 
 ### Buttons
 - **Approve:** azure fill, `azure-ink` text, 600 weight, 5px radius, 7px 12px; hover brightens 8%.
@@ -211,7 +227,10 @@ Panel with a lit left edge, a header (title, gold total with "est.", Close text 
 - **Focus:** 2px azure outline, 2px offset on every focusable element.
 
 ### Embedded Review Pages
-Agent-written review pages in the iframe are re-themed by `EMBED_CSS` in `scripts/dashboard.py`: their own header hidden, and their page, sheet, surface, ink, muted and rule variables remapped to ground, panel, raised panel, parchment, muted and hairline (and the stone set in light), system sans for display and body, 600 headings, transparent buttons with hairline borders. The iframe element itself keeps a white background as the fallback under unstyled pages.
+Agent-written review pages in the iframe are re-themed by `EMBED_CSS` in `scripts/dashboard.py`: their own header hidden, section headings and the count at 17px 600, and their page, sheet, surface, ink, muted and rule variables remapped to ground, panel, raised panel, parchment, muted and hairline (and the stone set in light), system sans for display and body, 600 headings, transparent buttons with hairline borders. The iframe element itself keeps a white background as the fallback under unstyled pages. The same embed adds a small script that posts the page's marks (`review-progress`: done, total, the changes as text) to the dashboard, which accepts them only from that iframe.
+
+### Keyboard and Live Updates
+Esc closes the drawer (not while typing); n opens the next card awaiting you; arrows move between tabs. Opening a card moves focus to its title, closing returns it to the card. The page polls every 5s but rewrites a region only when its markup changed, so focus, scroll, the open select and typed text survive; clocks tick on their own. The first read shows "Reading the factory…", and a failed read raises a "not updating" flag with the error in its title.
 
 ## Do's and Don'ts
 

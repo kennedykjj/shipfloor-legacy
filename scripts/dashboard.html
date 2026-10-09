@@ -13,7 +13,7 @@
   --edge-hi: #36404e;
   --text: #ebe5d5;
   --muted: #8f8b80;
-  --faint: #5f6068;
+  --faint: #8b887f;
   --gold: #e2b356;
   --gold-soft: rgba(226, 179, 86, .28);
   --azure: #63b2ff;
@@ -35,12 +35,12 @@
     --edge: #d9d9d4;
     --edge-hi: #c4c4bd;
     --text: #23262b;
-    --muted: #6b6a66;
-    --faint: #9b9890;
+    --muted: #5a5955;
+    --faint: #686661;
     --gold: #855a0c;
     --gold-soft: rgba(154, 107, 18, .25);
-    --azure: #1f6fd1;
-    --azure-soft: rgba(31, 111, 209, .1);
+    --azure: #1a5fb4;
+    --azure-soft: rgba(26, 95, 180, .1);
     --azure-ink: #ffffff;
     --ok: #2f7d43;
     --warn: #9a5b12;
@@ -60,16 +60,16 @@ body {
 a { color: inherit; text-decoration-color: var(--edge-hi); text-underline-offset: 3px; }
 a:hover { text-decoration-color: currentColor; }
 button, textarea, select { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--azure); outline-offset: 2px; border-radius: 3px; }
+:focus-visible { outline: 2px solid var(--azure); outline-offset: 2px; border-radius: 4px; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .gold { color: var(--gold); }
 .coin::before {
   content: ""; display: inline-block; width: .5em; height: .5em; margin-right: .32em;
   border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 1px var(--gold-soft); vertical-align: .08em;
 }
-.est { color: var(--faint); font-size: 11px; margin-left: 4px; font-family: var(--sans); letter-spacing: 0; }
+.est { color: var(--faint); font-size: 11px; margin-left: 4px; font-family: var(--sans); letter-spacing: 0; cursor: help; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 8px; border: 2px solid var(--ground); }
+::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 5px; border: 2px solid var(--ground); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* top strip */
@@ -77,7 +77,7 @@ header {
   display: flex; align-items: stretch; gap: 0; padding: 0 20px;
   border-bottom: 1px solid var(--edge); background: var(--panel); flex: none;
 }
-.brand { display: flex; align-items: center; padding-right: 22px; margin-right: 6px; border-right: 1px solid var(--edge); }
+.brand { display: flex; align-items: center; padding: 0 22px 0 0; margin-right: 6px; border-right: 1px solid var(--edge); }
 .brand b { font-weight: 600; letter-spacing: .01em; }
 .stat { padding: 11px 18px; border-right: 1px solid var(--edge); display: flex; flex-direction: column; justify-content: center; min-width: 0; }
 .stat .v { font-size: 19px; font-weight: 600; line-height: 1.15; white-space: nowrap; }
@@ -85,13 +85,13 @@ header {
 .stat .k { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
 .slots { display: flex; gap: 14px; }
 .slot .v { font-size: 15px; }
-.meter { height: 3px; background: var(--edge); border-radius: 2px; margin-top: 5px; overflow: hidden; width: 100%; }
+.meter { height: 3px; background: var(--edge); border-radius: 4px; margin-top: 5px; overflow: hidden; width: 100%; }
 .meter i { display: block; height: 100%; background: var(--text); opacity: .75; }
 .await .v { color: var(--azure); }
+.await.none .v { color: var(--muted); }
 .await { display: grid; grid-template-columns: auto auto; column-gap: 10px; align-content: center; justify-content: start; }
 .await .k { grid-column: 1 / -1; grid-row: 2; }
-.await .list { grid-row: 1; grid-column: 2; align-self: center; margin-top: 0 !important; }
-.await .list { display: flex; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+.await .list { grid-row: 1; grid-column: 2; align-self: center; display: flex; gap: 6px; flex-wrap: wrap; }
 .await .list button {
   border: 1px solid var(--azure-soft); background: var(--azure-soft); color: var(--azure);
   border-radius: 4px; padding: 0 6px; font: 12px var(--mono); cursor: pointer;
@@ -102,6 +102,7 @@ header {
 .flag { font-size: 12px; padding: 1px 7px; border-radius: 4px; border: 1px solid var(--edge-hi); color: var(--muted); }
 .flag.warn { color: var(--warn); border-color: currentColor; }
 .flag.bad { color: var(--bad); border-color: currentColor; }
+.state .k { cursor: help; }
 select { background: var(--panel-hi); border: 1px solid var(--edge); border-radius: 4px; padding: 2px 6px; }
 
 /* board */
@@ -125,7 +126,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .clock { margin-left: auto; color: var(--muted); font-size: 11.5px; }
 .col.owner h2 { color: var(--text); }
 .col .cards { overflow-y: auto; padding: 0 10px 14px; display: flex; flex-direction: column; gap: 8px; }
-.col .empty { color: var(--faint); font-size: 12px; padding: 4px 4px 0; }
+.col .cards.more { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 34px), transparent); }
 
 .card {
   flex: none; position: relative; display: block; width: 100%; text-align: left; cursor: pointer;
@@ -137,10 +138,12 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .card .no { font-size: 12.5px; color: var(--muted); }
 .card .cost { font-size: 12.5px; }
+.card .cost .spent { color: var(--muted); }
 .card .title { margin-top: 3px; font-size: 13px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.untitled { color: var(--faint); font-style: italic; }
 .card .run { margin-top: 6px; font-size: 11.5px; color: var(--text); display: flex; align-items: center; gap: 6px; }
-.card .run .dial {
-  width: 13px; height: 13px; border-radius: 50%; flex: none;
+.dial {
+  width: 13px; height: 13px; border-radius: 50%; flex: none; display: inline-block;
   background: conic-gradient(var(--text) var(--sweep, 90deg), var(--edge-hi) 0);
   box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--edge);
   animation: sweep 6s linear infinite;
@@ -151,44 +154,54 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .card .blocked { margin-top: 6px; font-size: 11.5px; color: var(--bad); }
 .card .blocked.infra { color: var(--warn); }
 .block-note { margin: 12px 20px 0; padding: 10px 12px; border: 1px solid var(--edge-hi); border-radius: 6px; display: flex; gap: 12px; align-items: flex-start; font-size: 12.5px; }
-.block-note p { margin: 0; flex: 1; color: var(--muted); white-space: pre-wrap; }
+.block-note p { margin: 0; flex: 1; color: var(--muted); white-space: pre-wrap; max-height: 8.5em; overflow: auto; }
 .block-note b { color: var(--bad); font-weight: 600; }
 .block-note.infra b { color: var(--warn); }
 .stat.stacks.stuck .v { color: var(--warn); }
 .card.await { border-color: var(--azure); box-shadow: 0 0 0 1px var(--azure) inset; background: linear-gradient(180deg, var(--azure-soft), var(--panel)); }
-.card.await .waits { margin-top: 6px; font-size: 11.5px; color: var(--azure); }
+.card .waits { margin-top: 6px; font-size: 11.5px; color: var(--azure); }
 .card.moving { opacity: .55; }
 .card.open { border-color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
-  .card .run .dial { animation: none; --sweep: 90deg; }
+  .dial { animation: none; --sweep: 90deg; }
   .card, .drawer { transition: none; }
+  .skeleton { animation: none; }
 }
 
 /* drawer: the item tooltip */
 .drawer {
   position: absolute; top: 0; right: 0; bottom: 0; z-index: 2; width: 0; overflow: hidden; background: var(--panel);
   border-left: 1px solid var(--edge-hi); box-shadow: -14px 0 32px -8px rgba(0, 0, 0, .45);
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; container-type: inline-size;
 }
 .drawer:not(.open) { box-shadow: none; border: 0; }
 .drawer.open { width: min(660px, 52vw); }
 .drawer.wide { width: min(1180px, 72vw); }
-.tip-head { padding: 16px 20px 12px; border-top: 1px solid var(--edge-hi); border-bottom: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); flex: none; }
+.tip-head { padding: 16px 20px 14px; border-top: 1px solid var(--edge-hi); border-bottom: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); flex: none; }
 .tip-head .row1 { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-.tip-head h3 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3; }
-.tip-head h3 .num { color: var(--muted); font-weight: 500; margin-right: 6px; }
-.tip-head .total { font-size: 20px; font-weight: 600; white-space: nowrap; }
-.tip-head .meta { margin-top: 6px; font-size: 12.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
-.tip-head .close { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; }
+.tip-head h3 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; text-wrap: balance; }
+.tip-head h3:focus { outline: none; }
+.tip-head h3 .num { color: var(--muted); font-weight: 500; margin-right: 8px; }
+.tip-head .close { flex: none; background: none; border: 1px solid var(--edge); border-radius: 5px; color: var(--muted); cursor: pointer; font-size: 12.5px; padding: 3px 9px; }
+.tip-head .close:hover { color: var(--text); border-color: var(--edge-hi); }
+.tip-head .meta { margin-top: 6px; font-size: 12.5px; color: var(--muted); display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; }
+.tip-head .meta .wait { color: var(--azure); }
+.tip-head .meta .live { color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+.tip-stats { margin: 14px 0 0; display: grid; grid-template-columns: repeat(4, auto); justify-content: start; gap: 4px 28px; }
+.tip-stats div { min-width: 0; }
+.tip-stats dt { font-size: 11px; color: var(--muted); }
+.tip-stats dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.tip-stats .total dd { font-size: 20px; line-height: 1.1; }
+.tip-stats .report dd { font: 500 13px var(--sans); padding-top: 3px; }
 .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--edge); flex: none; }
 .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 10px 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
-.tabs button .b { margin-left: 5px; font: 11px var(--mono); color: var(--faint); }
+.tabs button .b { margin-left: 5px; font-size: 11px; color: var(--faint); }
 .pane { flex: 1; overflow: auto; min-height: 0; }
 .section-k { font-size: 11px; color: var(--muted); letter-spacing: .02em; margin: 14px 20px 6px; font-weight: 600; }
 
 table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
-th { text-align: right; font-weight: 500; color: var(--faint); font-size: 11px; padding: 10px 6px 6px; border-bottom: 1px solid var(--edge); white-space: nowrap; position: sticky; top: 0; background: var(--panel); }
+th { text-align: right; font-weight: 500; color: var(--muted); font-size: 11px; padding: 10px 6px 6px; border-bottom: 1px solid var(--edge); white-space: nowrap; position: sticky; top: 0; background: var(--panel); }
 td { text-align: right; padding: 7px 6px; border-bottom: 1px solid var(--edge); white-space: nowrap; }
 th:first-child, td:first-child { padding-left: 20px; text-align: left; }
 th:last-child, td:last-child { padding-right: 20px; }
@@ -212,45 +225,76 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .gate.fail { color: var(--bad); border-color: currentColor; }
 .notes { margin-top: 8px; color: var(--muted); font-size: 12.5px; }
 
-.decide { padding: 14px 20px; border-bottom: 1px solid var(--edge); display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; flex: none; }
+/* the decision: under the tooltip head, whatever tab is open */
+.decide { padding: 12px 20px 14px; border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; gap: 10px; flex: none; }
+.decide-k { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; color: var(--muted); }
+.decide-k b { color: var(--text); font-weight: 600; }
+.decide-a { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.decide-a .hint { font-size: 12.5px; color: var(--muted); }
+.decide-b { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
+.decide-b .acts { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .btn { border-radius: 5px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--edge-hi); background: var(--panel-hi); white-space: nowrap; }
 .btn:hover { border-color: var(--text); }
 .btn.approve { background: var(--azure); border-color: var(--azure); color: var(--azure-ink); font-weight: 600; }
 .btn.approve:hover { filter: brightness(1.08); }
-.btn:disabled { opacity: .5; cursor: progress; }
-textarea { width: 100%; min-height: 38px; height: 38px; resize: vertical; background: var(--ground); border: 1px solid var(--edge); border-radius: 5px; padding: 7px 9px; }
-textarea:focus { height: 90px; }
-.notice { grid-column: 1 / -1; font-size: 12.5px; color: var(--bad); }
+.btn.approve.soft { background: var(--azure-soft); color: var(--azure); }
+.btn.approve.soft:hover { filter: none; border-color: var(--azure); background: color-mix(in srgb, var(--azure) 24%, transparent); }
+.btn.ghost { background: none; border-color: var(--edge); color: var(--muted); padding: 4px 10px; font-size: 12.5px; }
+.btn.ghost:hover { color: var(--text); border-color: var(--edge-hi); }
+.btn:disabled, .btn:disabled:hover { opacity: .5; cursor: not-allowed; border-color: var(--edge-hi); filter: none; }
+.drawer.busy .btn:disabled { cursor: progress; }
+textarea { width: 100%; min-height: 38px; height: 38px; resize: vertical; background: var(--ground); border: 1px solid var(--edge); border-radius: 5px; padding: 7px 9px; transition: height .16s ease; }
+textarea:focus, textarea.filled { height: 96px; }
+textarea::placeholder { color: var(--faint); }
+.notice { font-size: 12.5px; color: var(--bad); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.notice:empty { display: none; }
 .notice.good { color: var(--ok); }
+.notice .btn { color: var(--text); }
 iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
 .review { display: flex; flex-direction: column; height: 100%; }
-.placeholder { padding: 20px; color: var(--muted); }
+.review .none { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
+.placeholder { padding: 20px; color: var(--muted); max-width: 64ch; }
 .skeleton { height: 14px; margin: 14px 20px; border-radius: 4px; background: linear-gradient(90deg, var(--edge), var(--panel-hi), var(--edge)); background-size: 200% 100%; animation: shimmer 1.2s ease infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
+@container (max-width: 540px) {
+  .decide-b { grid-template-columns: 1fr; }
+  .decide-b .acts { flex-direction: row; flex-wrap: wrap; }
+  .decide .btn { white-space: normal; text-align: left; }
+  .tip-stats { grid-template-columns: repeat(2, auto); gap: 8px 28px; }
+}
 @media (max-width: 860px) {
-  header { flex-wrap: wrap; padding: 0 12px; }
-  .brand { width: 100%; border-right: 0; padding: 10px 0 2px; }
-  .stat { padding: 8px 12px 8px 0; border-right: 0; }
+  header { flex-wrap: wrap; padding: 4px 12px; }
+  .brand { border-right: 0; padding: 8px 14px 8px 0; margin-right: 0; }
+  .stat { padding: 6px 14px 6px 0; border-right: 0; }
   .state { margin-left: 0; align-items: flex-start; text-align: left; }
   .drawer.open, .drawer.wide { width: 100%; }
+}
+@media (max-width: 600px) {
+  .brand { width: 100%; padding-bottom: 0; }
+  #slots-stat { display: none; }
 }
 </style>
 </head>
 <body>
 <header>
   <div class="brand"><b>Aghanim's Anvil</b></div>
+  <div class="stat await none" id="await"><div class="v num" id="await-n">–</div><div class="k" title="Cards in Spec Review and Staged. Press n to open the next one.">awaiting you</div><div class="list" id="await-list"></div></div>
   <div class="stat"><div class="v num" id="pool">–</div><div class="k">pool in use</div></div>
-  <div class="stat"><div class="slots" id="slots"></div></div>
+  <div class="stat" id="slots-stat"><div class="slots" id="slots"></div></div>
   <div class="stat"><div class="v num" id="today">–</div><div class="k" id="today-k">runs today</div></div>
-  <div class="stat"><div class="v num gold" id="cost">–</div><div class="k">spent today <span class="est">est.</span></div></div>
-  <div class="stat await"><div class="v num" id="await-n">–</div><div class="k">awaiting you</div><div class="list" id="await-list"></div></div>
+  <div class="stat"><div class="v num gold" id="cost">–</div><div class="k">spent today <span class="est" title="Estimated from the run transcripts' tokens and ~/.aghanim/prices.yml">est.</span></div></div>
   <div class="stat stacks" id="stacks-cell"><div class="v num" id="stacks">–</div><div class="k" id="stacks-k">stacks</div></div>
-  <div class="stat state"><div class="flags" id="flags"></div><div class="k" id="age"></div></div>
+  <div class="stat state"><div class="flags" id="flags" role="status"></div><div class="k" id="age" title="The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card."></div></div>
 </header>
 <main>
-  <section class="board" id="board" aria-label="Board"></section>
-  <aside class="drawer" id="drawer" aria-label="Card"></aside>
+  <section class="board" id="board" aria-label="Board"><p class="placeholder">Reading the factory…</p></section>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="false" aria-labelledby="tip-title" inert>
+    <div id="d-head"></div>
+    <div id="d-decide"></div>
+    <nav class="tabs" id="d-tabs" role="tablist" aria-label="Card sections"></nav>
+    <div class="pane" id="pane" role="tabpanel"></div>
+  </aside>
 </main>
 <script>
 "use strict";
@@ -262,10 +306,18 @@ const ICON = {
 };
 const COLUMNS = ["Inbox", "Ready for Refinement", "Technical Refinement", "Spec Review", "Ready for Dev", "Coding", "Validation", "Staged", "Ready for Prod", "Done"];
 const OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
+const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged", "shipped"]);
+const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
-const S = { overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, expanded: {} };
+const S = { overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "",
+  expanded: {}, review: {}, notice: {}, armed: null, busy: false };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
+
+// Every region is rewritten only when its markup changed, so polling keeps focus, scroll and typed text.
+function setHTML(el, html) { if (el._html === html) return false; el._html = html; el.innerHTML = html; tick(el); return true; }
+function tick(root = document) { root.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }); }
 
 async function api(path, opts = {}) {
   try {
@@ -279,14 +331,18 @@ async function api(path, opts = {}) {
   }
 }
 function setOffline(v) { if (S.offline !== v) { S.offline = v; renderFlags(); } }
+function setError(v) { if (S.error !== v) { S.error = v; renderFlags(); } }
 
 const money = (v) => v == null ? '<span class="unpriced" title="A model in this card has no price. Add it to ~/.aghanim/prices.yml.">$ ?</span>' : `<span class="coin">${v.toFixed(2)}</span>`;
+const EST = '<span class="est" title="Estimated from the run transcripts\' tokens and ~/.aghanim/prices.yml">est.</span>';
+const UNTITLED = '<span class="untitled" title="The dashboard could not read the issue titles from GitHub (gh).">Title not loaded</span>';
+const outcome = (o) => { const v = String(o || "").toLowerCase(); return OK_OUTCOMES.has(v) ? "ok" : BAD_OUTCOMES.has(v) ? "bad" : "muted"; };
 function tok(n) { if (!n) return "–"; if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
 function when(iso) { if (!iso) return "–"; const d = new Date(iso); const t = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }) + " " + t; }
 function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
 const liveRun = (p, n, stage) => S.overview?.runs.find((r) => r.project === p && r.issue === n && r.stage === stage && !r.orphan)?.started || null;
 const last = (sessions, stage) => sessions.filter((x) => x.stage === stage).pop();
-function clock(since, bare) { return since ? `<span class="${bare ? "" : "clock "}num" data-since="${esc(since)}">${elapsed(since)}</span>` : ""; }
+function clock(since, bare) { return since ? `<span class="${bare ? "" : "clock "}num" data-since="${esc(since)}"></span>` : ""; }
 function elapsed(since) {
   const s = Math.max(0, Math.floor((Date.now() - new Date(since)) / 1000));
   if (s < 3600) return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
@@ -294,86 +350,108 @@ function elapsed(since) {
 }
 function ago(s) { if (s == null) return "no board snapshot yet"; if (s < 90) return `board read ${s}s ago`; return `board read ${Math.round(s / 60)} min ago`; }
 const model = (m) => (m || "").replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, " $1.$2");
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 /* overview */
 async function loadOverview() {
   const { status, body } = await api("/api/overview");
-  if (status === 403) { $("board").innerHTML = '<p class="placeholder">This link belongs to an earlier run of the dashboard. Open the URL that <code>aghanim dashboard</code> printed.</p>'; return; }
-  if (status !== 200) return;
+  if (status === 403) { setHTML($("board"), '<p class="placeholder">This link belongs to an earlier run of the dashboard. Open the URL that <code>aghanim dashboard</code> printed.</p>'); return; }
+  if (status !== 200) { if (status) setError(body.error || `the overview answered ${status}`); return; }
+  setError("");
   S.overview = body;
   if (!S.project || !body.projects.some((p) => p.slug === S.project)) S.project = body.projects[0]?.slug || null;
   for (const key of Object.keys(S.moving)) {
     const [p, n] = key.split("/"); const card = cardOf(p, +n);
     if (!card || card.column === S.moving[key]) delete S.moving[key];
   }
-  renderStrip(); renderBoard();
+  renderStrip(); renderBoard(); if (S.open) renderDrawer();
 }
 const project = () => S.overview?.projects.find((p) => p.slug === S.project);
 const cardOf = (p, n) => S.overview?.projects.find((x) => x.slug === p)?.cards.find((c) => c.issue === n);
+const waiting = () => (S.overview?.projects || []).flatMap((p) => p.cards.map((c) => ({ ...c, key: `${p.slug}/${c.issue}` })))
+  .filter((c) => c.awaiting && !(c.key in S.moving));
 
 function renderStrip() {
   const o = S.overview;
-  $("pool").innerHTML = `${o.pool.used}<small>/${o.pool.size}</small>`;
-  $("slots").innerHTML = Object.entries(o.pool.stages).map(([st, v]) =>
-    `<div class="slot"><div class="v num">${v.running}<small>/${v.slots}</small></div><div class="k">${esc(st)}</div><div class="meter"><i style="width:${v.slots ? Math.round(100 * v.running / v.slots) : 0}%"></i></div></div>`).join("");
-  $("today").innerHTML = `${o.today.runs}`;
-  $("today-k").innerHTML = `runs today · <span class="ok">${o.today.ok} ok</span>${o.today.failed ? ` · <span class="bad">${o.today.failed} failed</span>` : ""}`;
-  $("cost").innerHTML = `<span class="coin">${o.today.cost.toFixed(2)}</span>`;
+  setHTML($("pool"), `${o.pool.used}<small>/${o.pool.size}</small>`);
+  setHTML($("slots"), Object.entries(o.pool.stages).map(([st, v]) =>
+    `<div class="slot"><div class="v num">${v.running}<small>/${v.slots}</small></div><div class="k">${esc(st)}</div><div class="meter"><i style="width:${v.slots ? Math.round(100 * v.running / v.slots) : 0}%"></i></div></div>`).join(""));
+  $("today").textContent = o.today.runs;
+  setHTML($("today-k"), `runs today · <span class="ok">${o.today.ok} ok</span>${o.today.failed ? ` · <span class="bad">${o.today.failed} failed</span>` : ""}`);
+  setHTML($("cost"), `<span class="coin">${o.today.cost.toFixed(2)}</span>`);
   const slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
-  $("stacks").innerHTML = `${busy}<small>/${slots.length}</small>`;
+  setHTML($("stacks"), `${busy}<small>/${slots.length}</small>`);
   $("stacks-k").textContent = `stacks${o.queue ? ` · +${o.queue} waiting` : ""}`;
   $("stacks-cell").className = `stat stacks${stuck ? " stuck" : ""}`;
   $("stacks-cell").title = slots.map((x) => `slot ${x.slot}: ${x.state}${x.owner !== "-" ? ` ${x.owner}` : ""}${x.state !== "free" ? ` ${elapsed(new Date(Date.now() - x.held_s * 1000))}` : ""}${x.reason ? ` (${x.reason})` : ""}`).join("\n");
-  const waiting = o.projects.flatMap((p) => p.cards.filter((c) => c.awaiting).map((c) => ({ ...c, p: p.slug })));
-  $("await-n").textContent = waiting.length;
-  $("await-list").innerHTML = waiting.map((c) => `<button data-open="${esc(c.p)}/${c.issue}" title="${esc(c.column)}: ${esc(c.title)}">#${c.issue}</button>`).join("");
+  const w = waiting();
+  $("await-n").textContent = w.length;
+  $("await").classList.toggle("none", !w.length);
+  setHTML($("await-list"), w.map((c) => `<button data-open="${esc(c.key)}" title="${esc(c.column)}${c.title ? `: ${esc(c.title)}` : ""}">#${c.issue}</button>`).join(""));
   renderFlags();
 }
 function renderFlags() {
   const o = S.overview; const f = [];
-  if (S.offline) f.push('<span class="flag bad">offline</span>');
+  if (S.offline) f.push('<span class="flag bad" title="The dashboard server is not answering. Is aghanim dashboard still running?">offline</span>');
+  else if (S.error) f.push(`<span class="flag bad" title="${esc(S.error)}">not updating</span>`);
   if (o?.paused) f.push('<span class="flag warn">paused</span>');
   if (o?.usage_limited) f.push('<span class="flag warn">usage limit hit</span>');
   const orphans = (o?.runs || []).filter((r) => r.orphan);
-  if (orphans.length) f.push(`<span class="flag warn" title="${orphans.map((r) => `${r.stage}-${r.issue}.lock`).join(", ")}">${orphans.length} orphaned lock${orphans.length > 1 ? "s" : ""}</span>`);
+  if (orphans.length) f.push(`<span class="flag warn" title="${orphans.map((r) => `${r.stage}-${r.issue}.lock`).join(", ")}">${plural(orphans.length, "orphaned lock")}</span>`);
   if (o && o.projects.length > 1) f.push(`<select id="proj" aria-label="Project">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select>`);
-  if (!f.length) f.push('<span class="flag">running</span>');
-  $("flags").innerHTML = f.join("");
+  if (!f.length && o) f.push('<span class="flag">running</span>');
+  setHTML($("flags"), f.join(""));
   const p = project();
   $("age").textContent = p ? ago(p.board_age_s) + (p.paused ? " · project paused" : "") : "";
 }
 
 function renderBoard() {
   const p = project();
-  if (!p) { $("board").innerHTML = '<p class="placeholder">No project registered. Run <code>aghanim add &lt;repo&gt;</code>.</p>'; return; }
+  if (!p) { setHTML($("board"), '<p class="placeholder">No project registered. Run <code>aghanim add &lt;repo&gt;</code>.</p>'); return; }
   const by = Object.fromEntries(COLUMNS.map((c) => [c, []]));
   for (const c of p.cards) (by[c.column] ||= []).push(c);
-  $("board").innerHTML = LANES.map((lane) => {
+  const html = LANES.map((lane) => {
     const empty = lane.every((col) => !by[col].length);
     return `<div class="lane ${lane.length > 1 ? "pair" : ""} ${empty ? "none" : ""}">${lane.map((col) => {
       const cards = by[col]; const who = HUMAN.has(col) ? "you" : "factory";
-      return `<div class="col ${HUMAN.has(col) ? "owner" : ""}"><h2 title="${who === "you" ? "Your column: cards wait here for you" : "Factory column: agents work these cards"}">${ICON[who]}<span>${esc(col)}</span><span class="n num">${cards.length || ""}</span></h2><div class="cards">${
-        cards.map((c) => cardHtml(p.slug, c)).join("")}</div></div>`;
+      return `<section class="col ${HUMAN.has(col) ? "owner" : ""}" aria-label="${esc(col)}, ${plural(cards.length, "card")}"><h2 title="${who === "you" ? "Your column: cards wait here for you" : "Factory column: agents work these cards"}">${ICON[who]}<span>${esc(col)}</span><span class="n num">${cards.length || ""}</span></h2><div class="cards">${
+        cards.map((c) => cardHtml(p.slug, c)).join("")}</div></section>`;
     }).join("")}</div>`;
   }).join("");
+  const focused = document.activeElement?.closest?.("#board [data-open]")?.dataset.open;
+  if (setHTML($("board"), html)) {
+    if (focused) $("board").querySelector(sel(focused))?.focus({ preventScroll: true });
+    markOverflow();
+  }
 }
+function markOverflow() { document.querySelectorAll("#board .cards").forEach((el) => el.classList.toggle("more", el.scrollHeight > el.clientHeight + 1 && el.scrollTop + el.clientHeight < el.scrollHeight - 4)); }
 function cardHtml(slug, c) {
   const key = `${slug}/${c.issue}`; const moving = key in S.moving;
   const cls = ["card", c.running ? "running" : "", c.awaiting && !moving ? "await" : "", moving ? "moving" : "", S.open === key ? "open" : ""].join(" ");
   const block = c.blocked ? `<div class="blocked ${c.blocked}">${c.blocked === "infra" ? "infra · retrying" : "blocked"}</div>` : "";
-  const extra = moving ? '<div class="waits">moving…</div>'
+  const extra = moving ? `<div class="waits">moving to ${esc(S.moving[key])}…</div>`
     : c.running ? `<div class="run"><span class="dial" aria-hidden="true"></span>${esc(c.running)} running${clock(liveRun(slug, c.issue, c.running))}</div>`
     : c.awaiting ? `<div class="waits">${c.column === "Staged" ? "ready to ship" : "spec to review"}</div>` : "";
-  return `<button class="${cls}" data-open="${esc(key)}"><div class="top"><span class="no num">#${c.issue}</span><span class="cost num gold">${c.cost === null ? money(null) : c.cost ? money(c.cost) : ""}</span></div>
-    <div class="title">${esc(c.title) || `Issue #${c.issue}`}</div>${extra}${block}</button>`;
+  // gold stays rare: a finished card's cost is history, not a decision
+  const cost = c.cost === null ? money(null) : !c.cost ? "" : c.column === "Done" ? `<span class="spent">${c.cost.toFixed(2)}</span>` : money(c.cost);
+  return `<button class="${cls}" data-open="${esc(key)}"><div class="top"><span class="no num">#${c.issue}</span><span class="cost num gold">${cost}</span></div>
+    <div class="title">${c.title ? esc(c.title) : UNTITLED}</div>${extra}${block}</button>`;
 }
 
 /* drawer */
 async function openCard(key, tab) {
-  S.tab = tab || (S.open === key && S.tab) || "sessions"; S.open = key; S.card = null; S.log = null; S.logNext = -1; S.logText = "";
-  renderBoard(); renderDrawer(); await loadCard();
+  const same = S.open === key; const [p, n] = key.split("/"); const ov = cardOf(p, +n);
+  S.tab = tab || (same && S.tab) || (ov && OWNER[ov.column] ? "review" : "sessions");
+  if (!same) { S.card = null; S.log = null; S.logNext = -1; S.logText = ""; S.armed = null; }
+  S.open = key;
+  renderBoard(); renderDrawer();
+  $("tip-title")?.focus({ preventScroll: true });
+  await loadCard();
 }
-function closeCard() { S.open = null; S.card = null; renderBoard(); renderDrawer(); }
+function closeCard() {
+  const key = S.open; S.open = null; S.card = null; renderBoard(); renderDrawer();
+  if (key) $("board").querySelector(sel(key))?.focus({ preventScroll: true });
+}
 async function loadCard() {
   if (!S.open) return;
   const [p, n] = S.open.split("/");
@@ -385,21 +463,81 @@ async function loadCard() {
 }
 function renderDrawer() {
   const d = $("drawer");
-  d.className = "drawer" + (S.open ? " open" : "") + (S.open && S.tab === "review" ? " wide" : "");
-  if (!S.open) { d.innerHTML = ""; return; }
+  d.className = "drawer" + (S.open ? " open" : "") + (S.open && S.tab === "review" ? " wide" : "") + (S.busy ? " busy" : "");
+  d.inert = !S.open;
+  if (!S.open) { ["d-head", "d-decide", "d-tabs", "pane"].forEach((id) => setHTML($(id), "")); return; }
   const c = S.card; const [p, n] = S.open.split("/"); const ov = cardOf(p, +n);
   const column = c?.column || ov?.column || "";
+  const onTitle = document.activeElement?.id === "tip-title";
+  if (setHTML($("d-head"), headHtml(c, ov, p, n, column)) && onTitle) $("tip-title").focus({ preventScroll: true });
+  renderDecide(p, n, column);
+  const tabs = [["sessions", "Sessions", c ? c.sessions.length : ""], ["log", "Log", ""], ["gates", "Gates", c?.reports.length || ""], ["review", "Review", ""]];
+  setHTML($("d-tabs"), tabs.map(([id, label, b]) => `<button role="tab" id="tab-${id}" aria-controls="pane" aria-selected="${S.tab === id}" tabindex="${S.tab === id ? 0 : -1}" data-tab="${id}">${label}${b !== "" ? `<span class="b num">${b}</span>` : ""}</button>`).join(""));
+  $("pane").setAttribute("aria-labelledby", `tab-${S.tab}`);
+  if (setHTML($("pane"), c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>') && S.tab === "log" && $("log")) {
+    $("log").textContent = S.logText || "Loading…";
+  }
+}
+function headHtml(c, ov, p, n, column) {
   const sessions = c?.sessions || [];
   const span = sessions.length ? dur(sessions[0].start, sessions[sessions.length - 1].end) : "–";
-  const issue = c?.repo ? `<a href="https://github.com/${esc(c.repo)}/issues/${n}" target="_blank" rel="noopener">issue</a>` : "";
-  const tabs = [["sessions", "Sessions", sessions.length], ["log", "Log", ""], ["gates", "Gates", c?.reports.length || ""], ["review", "Review", ""]];
-  d.innerHTML = `<div class="tip-head"><div class="row1"><h3><span class="num">#${n}</span>${esc(c?.title || ov?.title || "")}</h3>
-      <div><span class="total num gold">${c ? money(c.total) : ""}</span><span class="est">est.</span> <button class="close" data-close aria-label="Close">Close</button></div></div>
-      <div class="meta"><span>${esc(column)}</span>${issue ? `<span>${issue}</span>` : ""}<span>${sessions.length} session${sessions.length === 1 ? "" : "s"}</span><span>first to last run ${span}</span>${ov?.running ? `<span>${esc(ov.running)} running ${clock(liveRun(p, +n, ov.running), true)}</span>` : ""}</div></div>
-    ${c?.blocked ? `<div class="block-note ${c.blocked}"><p><b>${c.blocked === "infra" ? "Blocked by infrastructure; the factory retries once." : "Blocked, waiting for you."}</b>${c.block_reason ? "\n" + esc(c.block_reason.replace(/\*\*|`/g, "")) : ""}</p><button class="btn" data-unblock>Unblock &amp; retry</button></div>` : ""}
-    <nav class="tabs" role="tablist">${tabs.map(([id, label, b]) => `<button role="tab" aria-selected="${S.tab === id}" data-tab="${id}">${label}${b !== "" ? `<span class="b">${b}</span>` : ""}</button>`).join("")}</nav>
-    <div class="pane" id="pane">${c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>'}</div>`;
+  const title = c?.title || ov?.title || "";
+  const moving = S.moving[`${p}/${n}`];
+  const state = moving ? `<span class="wait">moving to ${esc(moving)}…</span>`
+    : ov?.running ? `<span class="live"><span class="dial" aria-hidden="true"></span>${esc(ov.running)} running ${clock(liveRun(p, +n, ov.running), true)}</span>`
+    : OWNER[column] ? `<span class="wait">waits for you: ${column === "Staged" ? "ready to ship" : "spec to review"}</span>` : "";
+  const rep = c?.reports.length ? c.reports[c.reports.length - 1] : null;
+  const issue = c?.repo ? `<a href="https://github.com/${esc(c.repo)}/issues/${n}" target="_blank" rel="noopener">issue on GitHub</a>` : "";
+  return `<div class="tip-head"><div class="row1"><h3 id="tip-title" tabindex="-1"><span class="num">#${n}</span>${title ? esc(title) : UNTITLED}</h3><button class="close" data-close>Close</button></div>
+    <div class="meta"><span>${esc(column || "–")}</span>${state}${issue ? `<span>${issue}</span>` : ""}</div>
+    <dl class="tip-stats">
+      <div class="total"><dt>cost, Inbox to now ${EST}</dt><dd class="num gold">${c ? money(c.total) : "–"}</dd></div>
+      <div><dt>sessions</dt><dd class="num">${c ? sessions.length : "–"}</dd></div>
+      <div><dt>first to last run</dt><dd class="num">${span}</dd></div>
+      <div class="report"><dt>last report</dt><dd>${rep ? `${esc(rep.pipeline)} <span class="${outcome(rep.outcome)}">${esc(rep.outcome)}</span>` : '<span class="muted">none yet</span>'}</dd></div>
+    </dl>
+    ${c?.blocked ? `<div class="block-note ${c.blocked}"><p><b>${c.blocked === "infra" ? "Blocked by infrastructure; the factory retries once." : "Blocked, waiting for you."}</b>${c.block_reason ? "\n" + esc(c.block_reason.replace(/\*\*|`/g, "")) : ""}</p><button class="btn" data-unblock>Unblock &amp; retry</button></div>` : ""}</div>`;
 }
+function renderDecide(p, n, column) {
+  const key = `${p}/${n}`; const moves = OWNER[column]; const el = $("d-decide"); const note = S.notice[key];
+  const notice = `<div class="notice ${note?.cls || ""}" id="notice" role="status" aria-live="polite">${note?.html || ""}</div>`;
+  const html = S.moving[key] ? `<div class="decide">${notice}</div>`
+    : moves ? `<div class="decide" role="group" aria-labelledby="decide-k">
+      <div class="decide-k"><b id="decide-k">Your decision</b><span id="rv-progress" class="num"></span></div>
+      <div class="decide-a"><button class="btn approve" id="approve" data-act="approve" data-label="Approve → ${esc(moves[0])}">Approve → ${esc(moves[0])}</button><span class="hint" id="approve-hint"></span></div>
+      <div class="decide-b"><textarea id="changes" aria-label="What should change" placeholder="What should change (posted as a comment on the issue)"></textarea>
+        <div class="acts"><button class="btn" id="request" data-act="request-changes">Request changes → ${esc(moves[1])}</button><button class="btn ghost" id="fill" hidden></button></div></div>
+      ${notice}</div>`
+    : note ? `<div class="decide">${notice}</div>` : "";
+  const text = $("changes")?.value; const focused = document.activeElement?.id;
+  if (setHTML(el, html)) {
+    if (text && $("changes")) $("changes").value = text;
+    if (focused && el.contains($(focused))) $(focused).focus();
+  }
+  syncDecide();
+}
+// The review page reports its marks; Approve stays possible but asks twice while the review has
+// unreviewed items or asks for changes.
+function reviewDoubt(r) {
+  if (!r?.total) return "";
+  const pending = r.total - r.done;
+  return pending > 0 ? `${pending} not reviewed` : r.changes.length ? `${plural(r.changes.length, "change")} asked` : "";
+}
+function syncDecide() {
+  const a = $("approve"); if (!a) return;
+  const r = S.review[S.open]; const doubt = reviewDoubt(r); const armed = S.armed === S.open && !!doubt;
+  $("rv-progress").textContent = r?.total ? `${r.done} of ${r.total} reviewed${r.changes.length ? ` · ${plural(r.changes.length, "change")}` : ""}`
+    : S.card && !S.card.review ? "no review page" : "";
+  a.classList.toggle("soft", !!doubt);
+  a.textContent = armed ? `Approve with ${doubt}` : a.dataset.label;
+  $("approve-hint").textContent = armed ? "Click again to move it anyway." : doubt ? (r.done < r.total ? `${plural(r.total - r.done, "item")} not reviewed yet` : `The review asks for ${plural(r.changes.length, "change")}.`) : "";
+  const t = $("changes"); const typed = !!t.value.trim();
+  t.classList.toggle("filled", typed);
+  a.disabled = S.busy; $("request").disabled = S.busy || !typed;
+  const f = $("fill"); f.hidden = !r?.changes.length;
+  if (r?.changes.length) f.textContent = `Use the review's ${plural(r.changes.length, "change")}`;
+}
+
 function pane(c, p, n, column) {
   if (S.tab === "sessions") return sessionsPane(c);
   if (S.tab === "log") return logPane(c);
@@ -408,19 +546,22 @@ function pane(c, p, n, column) {
 }
 function sessionsPane(c) {
   if (!c.sessions.length) return '<p class="placeholder">No factory session for this card yet. Sessions appear here once the dispatcher runs a stage for it.</p>';
+  const cache = (t) => tok(t.cache_read + t.cache_write_5m + t.cache_write_1h);
+  const cacheTitle = (t) => `read ${tok(t.cache_read)} · written ${tok(t.cache_write_5m + t.cache_write_1h)}`;
   const rows = c.sessions.map((s) => {
     const m = Object.keys(s.tokens); const t = sum(s.tokens);
-    const subs = s.subagents.length ? `<button class="subtoggle" data-sub="${esc(s.id)}">+${s.subagents.length} sub</button>` : "";
+    const subs = s.subagents.length ? `<button class="subtoggle" data-sub="${esc(s.id)}" aria-expanded="${!!S.expanded[s.id]}">+${s.subagents.length} sub</button>` : "";
+    const live = s.exit == null && s.log && s === last(c.sessions, s.stage) && liveRun(c.project, c.issue, s.stage);
     const exit = s.exit == null ? (s.log ? '<span class="muted">running</span>' : "–") : s.exit === 0 ? '<span class="ok">ok</span>' : `<span class="bad">exit ${s.exit}</span>`;
     let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(new Date(s.start).toLocaleString())}">${when(s.start)}</td><td class="l">${esc(s.stage)} <span class="muted">${esc(m.map(model).join(", "))}</span>${subs}</td>
-      <td class="num">${tok(t.input)}</td><td class="num">${tok(t.cache_write_5m + t.cache_write_1h)}</td><td class="num">${tok(t.cache_read)}</td><td class="num">${tok(t.output)}</td>
-      <td class="num">${s.exit == null && s.log && s === last(c.sessions, s.stage) && liveRun(c.project, c.issue, s.stage) ? clock(liveRun(c.project, c.issue, s.stage), true) : dur(s.start, s.end)}</td><td>${exit}</td><td class="num gold">${money(s.cost)}</td></tr>`;
+      <td class="num">${tok(t.input)}</td><td class="num">${tok(t.output)}</td><td class="num" title="${cacheTitle(t)}">${cache(t)}</td>
+      <td class="num">${live ? clock(live, true) : dur(s.start, s.end)}</td><td>${exit}</td><td class="num gold">${money(s.cost)}</td></tr>`;
     if (S.expanded[s.id]) html += s.subagents.map((a) => { const u = sum(a.tokens); return `<tr class="sub"><td class="l"></td><td class="l">subagent <span class="muted">${esc(Object.keys(a.tokens).map(model).join(", "))}</span></td>
-      <td class="num">${tok(u.input)}</td><td class="num">${tok(u.cache_write_5m + u.cache_write_1h)}</td><td class="num">${tok(u.cache_read)}</td><td class="num">${tok(u.output)}</td><td></td><td></td><td class="num">${money(a.cost)}</td></tr>`; }).join("");
+      <td class="num">${tok(u.input)}</td><td class="num">${tok(u.output)}</td><td class="num" title="${cacheTitle(u)}">${cache(u)}</td><td></td><td></td><td class="num">${money(a.cost)}</td></tr>`; }).join("");
     return html;
   }).join("");
-  return `<div class="section-k">Cost by session</div><table><thead><tr><th class="l">start</th><th class="l">stage · model</th><th>input</th><th>cache write</th><th>cache read</th><th>output</th><th>time</th><th>result</th><th>cost <span class="est">est.</span></th></tr></thead>
-    <tbody>${rows}<tr class="total"><td class="l" colspan="8">Total, Inbox to now</td><td class="num gold">${money(c.total)}</td></tr></tbody></table>`;
+  return `<div class="section-k">Cost by session</div><table><thead><tr><th class="l">start</th><th class="l">stage · model</th><th>input</th><th>output</th><th title="Cache read plus cache written; hover a row for the split">cache</th><th>time</th><th>result</th><th>cost ${EST}</th></tr></thead>
+    <tbody>${rows}<tr class="total"><td class="l" colspan="7">Total, Inbox to now</td><td class="num gold">${money(c.total)}</td></tr></tbody></table>`;
 }
 function sum(tokens) {
   const t = { input: 0, cache_write_5m: 0, cache_write_1h: 0, cache_read: 0, output: 0 };
@@ -431,52 +572,47 @@ function logPane(c) {
   const logs = [...new Set(c.runs.map((r) => r.log))].reverse();
   if (!logs.length) return '<p class="placeholder">No log for this card yet.</p>';
   return `<div class="logbar">Log <select id="logsel" aria-label="Log file">${logs.map((l) => `<option ${l === S.log ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><span>follows while open</span></div>
-    <pre class="log" id="log">${esc(S.logText) || "Loading…"}</pre>`;
+    <pre class="log" id="log"></pre>`;
 }
 function gatesPane(c) {
   if (!c.reports.length) return '<p class="placeholder">No report yet. Each stage writes one when it ends.</p>';
   return [...c.reports].reverse().map((r) => {
     const gates = Object.entries(r.gates || {});
     const failed = new Set(r.failed_gates || []);
-    return `<div class="gate-run"><div class="h"><b>${esc(r.pipeline)}</b><span class="${r.outcome === "ok" ? "ok" : "bad"}">${esc(r.outcome)}</span></div>
-      <div class="gate-list">${gates.map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`).join("") || '<span class="notes">No gates recorded.</span>'}</div>
+    return `<div class="gate-run"><div class="h"><b>${esc(r.pipeline)}</b><span class="${outcome(r.outcome)}">${esc(r.outcome)}</span></div>
+      <div class="gate-list">${gates.map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`).join("") || '<span class="notes">No gates for this stage.</span>'}</div>
       ${r.notes ? `<div class="notes">${esc(r.notes)}</div>` : ""}</div>`;
   }).join("");
 }
 function reviewPane(c, p, n, column) {
-  const moves = OWNER[column];
-  const decide = moves ? `<div class="decide"><button class="btn approve" data-act="approve">Approve → ${esc(moves[0])}</button>
-      <textarea id="changes" placeholder="What should change (posted as a comment on the issue)"></textarea>
-      <button class="btn" data-act="request-changes">Request changes → ${esc(moves[1])}</button><div class="notice" id="notice"></div></div>`
-    : `<div class="decide"><div class="notice" style="color:var(--muted)">Nothing to decide: the card is in ${esc(column || "no column")}. Approval opens in Spec Review and Staged.</div></div>`;
-  const page = c.review ? `<iframe title="Review page" sandbox="allow-scripts" src="/review/${encodeURIComponent(p)}/${n}?embed=1&t=${encodeURIComponent(token)}"></iframe>` : '<p class="placeholder">No review page for this card. Refine builds it when the spec is ready.</p>';
-  return `<div class="review">${decide}${page}</div>`;
+  const none = OWNER[column] ? "" : `<p class="none">Nothing to decide: the card is in ${esc(column || "no column")}. Approval opens in Spec Review and Staged.</p>`;
+  const page = c.review ? `<iframe title="Review page for #${esc(n)}" sandbox="allow-scripts" src="/review/${encodeURIComponent(p)}/${n}?embed=1&t=${encodeURIComponent(token)}"></iframe>` : '<p class="placeholder">No review page for this card. Refine builds it when the spec is ready.</p>';
+  return `<div class="review">${none}${page}</div>`;
 }
 
 async function act(action, moveOnly) {
-  const [p, n] = S.open.split("/"); const column = S.card?.column;
+  const key = S.open; const [p, n] = key.split("/"); const column = S.card?.column || cardOf(p, +n)?.column;
+  if (action === "approve" && !moveOnly && reviewDoubt(S.review[key]) && S.armed !== key) {
+    S.armed = key; syncDecide();
+    clearTimeout(S.armTimer); S.armTimer = setTimeout(() => { if (S.armed === key) { S.armed = null; syncDecide(); } }, 4000);
+    return;
+  }
+  S.armed = null; delete S.notice[key];
   const text = $("changes")?.value || "";
-  const notice = $("notice");
-  document.querySelectorAll(".decide .btn").forEach((b) => (b.disabled = true));
+  S.busy = true; renderDrawer();
   const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${action}`, { method: "POST", body: JSON.stringify({ column, text, move_only: !!moveOnly }) });
-  document.querySelectorAll(".decide .btn").forEach((b) => (b.disabled = false));
+  S.busy = false;
   if (status === 200) {
-    S.moving[`${p}/${n}`] = body.moved_to;
-    notice.className = "notice good"; notice.textContent = `Moved to ${body.moved_to}. The board confirms it on the dispatcher's next read.`;
-    renderBoard(); return;
+    S.moving[key] = body.moved_to;
+    const next = waiting().find((c) => c.key !== key);
+    S.notice[key] = { cls: "good", html: `Moved to ${esc(body.moved_to)}. The board confirms it on the dispatcher's next read.${next ? ` <button class="btn ghost" data-open="${esc(next.key)}">Next waiting: #${next.issue}</button>` : " Nothing else waits for you."}` };
+    renderStrip(); renderBoard(); renderDrawer(); return;
   }
-  notice.className = "notice";
-  if (status === 502 && body.commented) {
-    notice.innerHTML = `${esc(body.error)}. The comment is on the issue. <button class="btn" data-retry="${esc(action)}">Retry the move</button>`;
-  } else {
-    const msg = body.error || "The action failed.";
-    notice.textContent = msg;
-    if (status === 409) {
-      await loadCard();
-      if ($("changes")) $("changes").value = text;
-      if ($("notice")) $("notice").textContent = msg;
-    }
-  }
+  S.notice[key] = status === 502 && body.commented
+    ? { cls: "", html: `${esc(body.error)}. The comment is on the issue. <button class="btn" data-retry="${esc(action)}">Retry the move</button>` }
+    : { cls: "", html: esc(body.error || "The action failed.") };
+  if (status === 409) await loadCard();
+  renderDrawer();
 }
 
 let tailing = false;
@@ -493,40 +629,73 @@ async function unblock() {
 
 async function followLog() {
   if (tailing || !S.open || S.tab !== "log" || !S.log) return;
-  const [p] = S.open.split("/"); const log = S.log;
+  const [p] = S.open.split("/"); const log = S.log; const first = S.logNext === -1;
   tailing = true;
   const { status, body } = await api(`/api/log/${encodeURIComponent(p)}/${encodeURIComponent(log)}?from=${S.logNext}`).finally(() => { tailing = false; });
   if (status !== 200 || log !== S.log) return;
+  const pre = $("log");
   if (body.text) {
-    S.logText += body.text; const pre = $("log");
-    if (pre) { const atEnd = pre.parentElement.scrollTop + pre.parentElement.clientHeight >= pre.parentElement.scrollHeight - 40; pre.textContent = S.logText; if (atEnd) pre.parentElement.scrollTop = pre.parentElement.scrollHeight; }
-  } else if ($("log") && !S.logText) $("log").textContent = "(empty)";
+    S.logText += body.text;
+    if (pre) {
+      const box = $("pane"); const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+      pre.textContent = S.logText;
+      if (atEnd || first) box.scrollTop = box.scrollHeight;
+    }
+  } else if (pre && !S.logText) pre.textContent = "(empty)";
   S.logNext = body.next;
 }
+function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog(); }
 
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-open],[data-close],[data-tab],[data-sub],[data-act],[data-retry],[data-unblock],tr.session");
+  const t = e.target.closest("[data-open],[data-close],[data-tab],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t) return;
   if (t.dataset.open) openCard(t.dataset.open);
   else if (t.hasAttribute("data-close")) closeCard();
-  else if (t.dataset.tab) { S.tab = t.dataset.tab; renderDrawer(); if (S.tab === "log") followLog(); }
+  else if (t.dataset.tab) selectTab(t.dataset.tab);
   else if (t.dataset.sub) { e.stopPropagation(); S.expanded[t.dataset.sub] = !S.expanded[t.dataset.sub]; renderDrawer(); }
   else if (t.dataset.act) act(t.dataset.act);
   else if (t.dataset.retry) act(t.dataset.retry, true);
   else if (t.hasAttribute("data-unblock")) unblock();
-  else if (t.matches("tr.session") && t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; S.tab = "log"; renderDrawer(); followLog(); }
+  else if (t.id === "fill") { const r = S.review[S.open]; $("changes").value = r.changes.join("\n"); syncDecide(); $("changes").focus(); }
+  else if (t.matches("tr.session") && t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; selectTab("log"); }
 });
+document.addEventListener("input", (e) => { if (e.target.id === "changes") syncDecide(); });
 document.addEventListener("change", (e) => {
   if (e.target.id === "logsel") { S.log = e.target.value; S.logNext = -1; S.logText = ""; renderDrawer(); followLog(); }
   if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.open && document.activeElement?.id !== "changes") closeCard(); });
+document.addEventListener("keydown", (e) => {
+  const typing = e.target.closest?.("textarea, input, select");
+  if (e.key === "Escape" && S.open && !typing) { closeCard(); return; }
+  const tab = e.target.closest?.('[role="tab"]');
+  if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+    e.preventDefault();
+    const ids = [...document.querySelectorAll('#d-tabs [role="tab"]')].map((b) => b.dataset.tab); let i = ids.indexOf(tab.dataset.tab);
+    i = e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + ids.length) % ids.length;
+    selectTab(ids[i]); $(`tab-${ids[i]}`)?.focus();
+    return;
+  }
+  if (e.key === "n" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const w = waiting(); if (!w.length) return;
+    const i = w.findIndex((c) => c.key === S.open); openCard(w[(i + 1) % w.length].key);
+  }
+});
+// review pages run sandboxed; the dashboard's embed script posts their marks here
+window.addEventListener("message", (e) => {
+  const f = document.querySelector("#pane iframe"); const m = e.data;
+  if (!f || e.source !== f.contentWindow || !S.open || !m || m.aghanim !== "review-progress") return;
+  S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
+  syncDecide();
+});
+document.addEventListener("scroll", (e) => { if (e.target.classList?.contains("cards")) markOverflow(); }, true);
+window.addEventListener("resize", markOverflow);
 
 loadOverview();
+setTimeout(() => { if (!S.overview && $("board")._html === undefined) setHTML($("board"), '<p class="placeholder">Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.</p>'); }, 6000);
 setInterval(loadOverview, 5000);
-setInterval(() => { if (S.open && (S.tab === "sessions" || S.tab === "gates")) loadCard(); }, 5000);
+setInterval(() => { if (S.open && S.tab !== "log") loadCard(); }, 5000);
 setInterval(followLog, 2000);
-setInterval(() => document.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }), 1000);
+setInterval(() => tick(), 1000);
 </script>
 </body>
 </html>
