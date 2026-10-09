@@ -62,4 +62,9 @@ assert_contains "$(bash "$M" pool)" "validate: 3 (1 running)"
 assert_exit 1 bash "$M" pool stage validate 9
 assert_exit 1 bash "$M" pool stage review 1
 assert_contains "$(bash "$M" pool)" "validate: 3"
+
+# doctor tells a machine that still has the old home to migrate it
+fake="$(mktemp -d)"; mkdir -p "$fake/.mylos"
+out="$(HOME="$fake" AGHANIM_HOME="$fake/.aghanim" bash "$M" doctor 2>&1)"
+assert_contains "$out" "aghanim migrate-home"
 finish
