@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# e2e runs share one local stack: they queue on ~/.pickio-factory/locks/stack.lock.
+# e2e runs share one local stack: they queue on the project home/locks/stack.lock.
 source "$(dirname "$0")/lib.sh"
 GATE="$FACTORY_DIR/gate.sh"
 export FACTORY_HOME="$(mktemp -d)"; bin="$(mktemp -d)"

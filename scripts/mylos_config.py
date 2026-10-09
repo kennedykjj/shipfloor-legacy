@@ -150,6 +150,8 @@ class Config:
                 full.setdefault("agent", "engineer")
             if full["migrations"]:
                 full["migrations"] = merged(full["migrations"], {"comment": "--"})
+            full["_path_re"] = any_of([full["path"]])
+            full["_migrations_re"] = any_of([full["migrations"]["glob"]]) if full["migrations"] else ""
             self.layers.append(full)
 
     def layer(self, name):
@@ -278,6 +280,15 @@ def main(argv):
         if value is None:
             return 1
         emit(value); return 0
+    if cmd == "fields" and len(rest) >= 2:  # NUL-terminated values, for one bash read of many fields
+        layer = cfg.layer(rest[0])
+        out = []
+        for key in rest[1:]:
+            v = dotted(layer, key)
+            v = "\n".join(map(str, v)) if isinstance(v, list) else ("true" if v else "false") if isinstance(v, bool) \
+                else "" if v is None or isinstance(v, dict) and not v else json.dumps(v) if isinstance(v, dict) else str(v)
+            out.append(v + "\0")
+        sys.stdout.write("".join(out)); return 0
     if cmd == "regex" and rest[:1] == ["scope"] and len(rest) == 2:
         print(cfg.scope(rest[1])); return 0
     if cmd == "regex" and rest == ["test-config"]:

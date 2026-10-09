@@ -9,8 +9,8 @@ fake() {  # fake <name> <exit> <output>
 
 # C1: empty or invalid base fails closed
 r="$(new_repo)"; cd "$r"; mkdir -p .github; echo x > .github/w.yml; git add -A; git commit -qm c
-assert_exit 2 bash "$GATE" scope backend ""
-assert_exit 2 bash "$GATE" scope backend nonexistent123
+assert_exit 2 bash "$GATE" scope api ""
+assert_exit 2 bash "$GATE" scope api nonexistent123
 assert_exit 2 bash "$GATE" forbidden ""
 assert_exit 2 bash "$GATE" migration "" spec.md
 assert_exit 2 bash "$GATE" build ""
@@ -19,7 +19,7 @@ assert_exit 2 bash "$GATE" acceptance-intact ""
 # C2: committed change restored on disk still counts
 r="$(new_repo)"; cd "$r"; base="$(git rev-parse HEAD)"; mkdir -p web api
 echo x > web/B.ts; echo y > api/A.kt; git add -A; git commit -qm sneaky; rm web/B.ts
-assert_exit 1 bash "$GATE" scope backend "$base"
+assert_exit 1 bash "$GATE" scope api "$base"
 r="$(new_repo)"; cd "$r"; mkdir -p api/src/test
 echo good > api/src/test/ATest.kt; git add -A; git commit -qm qa; qa="$(git rev-parse HEAD)"
 echo weak > api/src/test/ATest.kt; git add -A; git commit -qm weaken; echo good > api/src/test/ATest.kt
@@ -34,7 +34,7 @@ done
 # I5: test-runner config is off-limits to implementers
 for f in web/vitest.config.ts web/playwright.config.ts api/src/test/resources/junit-platform.properties; do
   r="$(new_repo)"; cd "$r"; base="$(git rev-parse HEAD)"; mkdir -p "$(dirname "$f")"; echo x > "$f"
-  role=backend; case "$f" in web/*) role=frontend ;; esac
+  role=api; case "$f" in web/*) role=web ;; esac
   assert_exit 1 bash "$GATE" scope "$role" "$base"
 done
 
