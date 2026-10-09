@@ -5,6 +5,7 @@
 #   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .aghanim/factory.yml
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
 #   pool [set <n> | stage <stage> <n>]  runs at once on this machine, and per stage
+#   dashboard [--port N] [--no-open]  local dashboard: pool, runs, logs, cost per card, reviews
 #   migrate-home [OLD]            move the old ~/.mylos home here (one-time, after the rename; legacy mylos)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -151,6 +152,11 @@ cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide a
   esac
 }
 
+cmd_dashboard() {  # dashboard [--port N] [--no-open]: serves the local dashboard until Ctrl+C
+  AGHANIM_BASH="$(aghanim_native "$BASH")" aghanim_python "$(aghanim_native "$HERE/dashboard.py")" \
+    --home "$(aghanim_native "$AGHANIM_HOME")" "$@"
+}
+
 cmd_migrate_home() {  # migrate-home [OLD]: move the legacy mylos home to $AGHANIM_HOME and relink its worktrees
   local old="${1:-$HOME/.mylos}" d  # legacy mylos home
   [ -d "$old" ] || die "nothing to migrate: $old does not exist"
@@ -184,6 +190,7 @@ case "$cmd" in
   resume) cmd_resume "$@" ;;
   setup-board) use "${1:-}"; cd "$FACTORY_HOME/control" && exec bash "$HERE/setup-board.sh" ;;
   migrate-home) cmd_migrate_home "$@" ;;
+  dashboard) cmd_dashboard "$@" ;;
   metrics) use "${1:-}"; exec bash "$HERE/metrics.sh" ;;
   *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
