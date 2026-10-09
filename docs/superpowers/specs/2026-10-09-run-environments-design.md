@@ -1,6 +1,6 @@
 # Run environments and infrastructure resilience — design
 
-**Date:** 2026-10-09 · **Status:** approved in conversation (items 1–5 and the port-pool approach), pending review of this document
+**Date:** 2026-10-09 · **Status:** approved by the owner (2026-10-09), with the stack queue and slot states added at their request
 
 ## Problem
 
@@ -52,11 +52,31 @@ stack:
 - `AGHANIM_PORT_<NAME>=<port>` for each name in `stack.ports`, upper-cased
 - `AGHANIM_STACK_URL=<url with ports filled in>`
 
-### Lease
+### Lease, queue and slot state
 
-- Each slot has a machine-wide lock, `~/.aghanim/locks/stack-<k>.lock`. Its info line is `<project>/<pipeline>-<n> <pid> <epoch>`.
-- A lease takes the lowest free slot and waits while all slots are busy (same wait limit as today's `FACTORY_STACK_WAIT`).
-- A lease whose run is gone is reclaimed. A run is gone when its run lock is gone, or when it is older than `STACK_TTL`.
+Each slot has a machine-wide lock, `~/.aghanim/locks/stack-<k>.lock/`:
+
+- `info` holds `<project>/<pipeline>-<n> <run lock path> <epoch>`.
+- `beat` is touched every 15 s by a heartbeat loop that `stack up` starts in the background and `stack down` stops.
+
+A slot is in exactly one of three states, computed the same way by `gate.sh`, `aghanim pool` and the dashboard:
+
+| State | When |
+|---|---|
+| **free** | no lock |
+| **busy** | lock present, `beat` younger than `stack.stale` (default 90 s), the owner's run lock still present, and held for less than `stack.hold_max` (default 45 min) |
+| **stuck** | lock present but any busy condition fails: the heartbeat stopped, the owning run ended, or the lease outlived `hold_max` |
+
+A stuck slot is reclaimed by the next process that needs one. Reclaiming means `down` with that slot's environment, freeing the range, and removing the lock. Each reclaim is logged to `~/.aghanim/logs/stacks.log` with the holder and the reason.
+
+**Queue when every slot is busy:**
+
+- A waiter takes a ticket: a file `~/.aghanim/locks/stack-queue/<epoch-ns>-<owner>`.
+- Slots go to tickets in order, so a later run never jumps an earlier one. A waiter takes a slot only when its ticket is the oldest live one. A ticket is live while its owner's run lock exists.
+- A waiter waits up to `stack.wait` (machine config, default 30 min). After that it removes its ticket and exits 3 (infrastructure), so the card goes through the automatic retry (decision 3) instead of holding an agent slot forever.
+- While waiting, it prints the queue position and the holders once a minute, which lands in the run's log.
+
+Machine config gains `stack_wait: 1800`, `stack_stale: 90` and `stack_hold_max: 2700` (seconds), validated like `pool`.
 
 ### Lifecycle, all in `gate.sh`
 
@@ -109,6 +129,7 @@ A layer may set `retry: 1`. In `green` and `acceptance-intact`, a failing select
 - The overview gets each card's `blocked` value (`null`, `infra` or `owner`) from one `gh api "repos/<repo>/issues?labels=..."` call per label, cached for 60 s.
 - A blocked card shows a marker on the board. Infra is labeled "retrying" until the retry has run, and "blocked" after.
 - The drawer shows the reason: the `notes` of the last report with `outcome: blocked|infra`, and a link to the issue comment.
+- The top strip gets a stacks cell: `stacks 2/3`, each slot with its state (free, busy or stuck), holder (`#86 validate`), time held, and the queue length. A stuck slot is drawn as a warning.
 - "Unblock & retry" is an owner action available in any column for a blocked card. `POST /api/card/<p>/<n>/unblock` removes both labels. The dispatcher picks the card up on its next cycle.
 
 ## Tests
@@ -117,7 +138,10 @@ Only what protects a decision:
 
 - `gate-stack.test.sh` (rewritten), with `up`, `down` and `health` replaced by fake commands:
   - two leases get different slots and port ranges;
-  - a third lease waits when `stacks: 2`;
+  - a third lease waits when `stacks: 2` and takes the slot when one is released;
+  - two waiters take slots in ticket order;
+  - a waiter gives up after `stack_wait` with exit 3;
+  - a slot whose heartbeat is stale, whose owner run is gone, or whose lease is past `hold_max` is reported stuck and reclaimed (`down` runs);
   - `up` sees the slot's environment;
   - an unhealthy body (matches `reject`) exits 3 and runs `down`;
   - a stale lease is reclaimed.
