@@ -293,6 +293,92 @@ def describe(cfg, home, worktrees):
     return "\n".join(lines)
 
 
+STAGES = ("refinar", "desenvolver", "validar", "deployar")
+MACHINE_DEFAULTS = {"pool": 4, "stages": {"refinar": 2, "desenvolver": 2, "validar": 2, "deployar": 1}}
+
+
+def machine_problems(raw):
+    if not isinstance(raw, dict):
+        return ["the file is not a YAML mapping"]
+    errs = []
+    pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
+    if not isinstance(pool, int) or isinstance(pool, bool) or pool < 1:
+        errs.append("pool must be an integer >= 1")
+        pool = None
+    stages = raw.get("stages", {})
+    if not isinstance(stages, dict):
+        return errs + ["stages must be a mapping of stage: runs"]
+    for k, v in stages.items():
+        if k not in STAGES:
+            errs.append(f"stages.{k}: unknown stage (use {', '.join(STAGES)})")
+        elif not isinstance(v, int) or isinstance(v, bool) or v < 0:
+            errs.append(f"stages.{k} must be an integer >= 0")
+        elif pool is not None and v > pool:
+            errs.append(f"stages.{k} ({v}) is above the pool ({pool})")
+    for k in STAGES:  # defaults must fit a smaller pool too
+        if k not in stages and pool is not None and MACHINE_DEFAULTS["stages"][k] > pool:
+            stages_default = MACHINE_DEFAULTS["stages"][k]
+            errs.append(f"stages.{k} defaults to {stages_default}, above the pool ({pool}): set it")
+    return errs
+
+
+def machine(rest):
+    """machine <validate | values <key>... | show | set <key> <int>> on $MYLOS_MACHINE_CONFIG."""
+    path = os.environ.get("MYLOS_MACHINE_CONFIG", "")
+    raw = {}
+    if path and os.path.isfile(path):
+        with open(path, encoding="utf-8") as f:
+            try:
+                raw = yaml.safe_load(f)
+            except yaml.YAMLError as e:
+                raw = e
+        if raw is None:
+            raw = {}
+    errs = [f"not valid YAML: {raw}"] if isinstance(raw, yaml.YAMLError) else machine_problems(raw)
+    cmd, args = (rest[0], rest[1:]) if rest else ("", [])
+    if cmd == "validate" and not args:
+        for e in errs:
+            print(f"mylos-config: {path}: {e}", file=sys.stderr)
+        return 1 if errs else 0
+    if cmd == "set" and len(args) == 2:
+        if isinstance(raw, yaml.YAMLError):
+            print(f"mylos-config: {path} is not valid YAML; fix it by hand", file=sys.stderr); return 1
+        try:
+            value = int(args[1])
+        except ValueError:
+            print(f"mylos-config: {args[1]} is not an integer", file=sys.stderr); return 1
+        new = json.loads(json.dumps(raw))
+        if args[0] == "pool":
+            new["pool"] = value
+        elif args[0].startswith("stages.") and args[0].count(".") == 1:
+            if not isinstance(new.get("stages", {}), dict):
+                new["stages"] = {}
+            new.setdefault("stages", {})[args[0].split(".")[1]] = value
+        else:
+            print(f"mylos-config: cannot set {args[0]} (pool or stages.<stage>)", file=sys.stderr); return 1
+        new_errs = machine_problems(new)
+        if new_errs:
+            for e in new_errs:
+                print(f"mylos-config: {e}", file=sys.stderr)
+            return 1
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write("# mylos machine config: runs at once on this machine (pool) and per stage\n")
+            yaml.safe_dump(new, f, sort_keys=False)
+        return 0
+    if errs:
+        raise Unusable(f"{path} is invalid: " + "; ".join(errs))
+    data = merged(raw, MACHINE_DEFAULTS)
+    if cmd == "values" and args:
+        sys.stdout.write(nul_values(data, args)); return 0
+    if cmd == "show" and not args:
+        print(f"pool: {data['pool']}")
+        for k in STAGES:
+            print(f"  {k}: {data['stages'][k]}")
+        return 0
+    raise Unusable("usage: machine validate | values <key>... | show | set <key> <int>")
+
+
 def main(argv):
     args = list(argv)
     path = os.environ.get("FACTORY_CONFIG", "")
@@ -312,6 +398,8 @@ def main(argv):
     if not args:
         raise Unusable("usage: mylos-config validate|get|layers|layer|regex|layer-of|describe ...")
     cmd, rest = args[0], args[1:]
+    if cmd == "machine":
+        return machine(rest)
 
     if not path or not os.path.isfile(path):
         raise Unusable(f"config not found: {path or '(FACTORY_CONFIG unset)'}")
