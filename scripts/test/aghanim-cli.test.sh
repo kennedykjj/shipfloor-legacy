@@ -29,6 +29,13 @@ assert_exit 0 bash "$M" add "$r"
 wt="$(mktemp -d)"; assert_exit 0 bash "$M" add "$r" --worktrees "$wt"
 assert_contains "$(cat "$AGHANIM_HOME/registry.tsv")" "$wt"
 
+# add again without --worktrees keeps the registered worktrees and reads the config from the new origin/main
+sed -i 's/^\(  name: shop\)$/\1 # v2/' "$r/.aghanim/factory.yml"
+git -C "$r" commit -qam v2; git -C "$r" push -q origin main
+assert_exit 0 bash "$M" add "$r"
+assert_contains "$(cat "$AGHANIM_HOME/registry.tsv")" "shop	$(git -C "$r" rev-parse --show-toplevel)	$wt	main"
+assert_contains "$(cat "$AGHANIM_HOME/projects/shop/factory.yml")" "# v2"
+
 # another repo cannot take a registered name
 other="$(with_config "$(cat "$FACTORY_DIR/test/fixture/factory.yml")")"
 assert_exit 1 bash "$M" add "$other"

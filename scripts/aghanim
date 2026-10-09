@@ -92,9 +92,12 @@ cmd_add() {
   if [ -n "$current" ] && [ "$(git_common "$current")" != "$(git_common "$repo")" ]; then
     die "project '$slug' is already registered for $current"
   fi
-  local home="$AGHANIM_HOME/projects/$slug"; [ -n "$wt" ] || wt="$home/wt"
+  local home="$AGHANIM_HOME/projects/$slug"
+  [ -n "$wt" ] || wt="$(entry "$slug" | cut -f3)"  # adding again keeps the registered worktrees
+  [ -n "$wt" ] || wt="$home/wt"
   mkdir -p "$home" "$wt"
-  if [ ! -e "$home/control/.git" ]; then git -C "$repo" worktree add -q --detach "$home/control" "origin/$main" || die "cannot create $home/control"; fi
+  if [ ! -e "$home/control/.git" ]; then git -C "$repo" worktree add -q --detach "$home/control" "origin/$main" || die "cannot create $home/control"
+  else git -C "$home/control" checkout -q --detach "origin/$main" || die "cannot move $home/control to origin/$main"; fi
   aghanim_use "$slug" "$repo" "$wt" "$main"
   aghanim_snapshot || die "cannot read .aghanim/factory.yml from $home/control"
   { [ -f "$REGISTRY" ] && awk -F'\t' -v s="$slug" '$1!=s' "$REGISTRY"; printf '%s\t%s\t%s\t%s\n' "$slug" "$repo" "$wt" "$main"; } > "$REGISTRY.tmp"
