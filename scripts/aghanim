@@ -30,6 +30,10 @@ cmd_install() {
   (cd "$src/scripts" && find . -path ./test -prune -o -type f -print) | while IFS= read -r f; do
     mkdir -p "$INSTALLED/$(dirname "$f")"; cp "$src/scripts/$f" "$INSTALLED/$f"
   done
+  # drop what the plugin no longer ships (e.g. the legacy mylos scripts carried over by migrate-home)
+  (cd "$INSTALLED" && find . -type f ! -name .source ! -path './templates/*' -print) | while IFS= read -r f; do
+    [ -f "$src/scripts/$f" ] || rm -f "$INSTALLED/$f"
+  done
   rm -rf "$INSTALLED/templates"; cp -r "$src/templates" "$INSTALLED/templates"
   echo "$src" > "$INSTALLED/.source"
   echo "installed $src → $INSTALLED"
@@ -153,7 +157,13 @@ cmd_migrate_home() {  # migrate-home [OLD]: move the legacy mylos home to $AGHAN
   fi
   mkdir -p "$(dirname "$AGHANIM_HOME")"
   mv "$old" "$AGHANIM_HOME" || die "cannot move $old to $AGHANIM_HOME"
-  for d in "$AGHANIM_HOME"/projects/*/control "$AGHANIM_HOME"/projects/*/reports-wt; do
+  if [ -f "$REGISTRY" ]; then  # worktree roots inside the old home move with it
+    awk -F'	' -v OFS='	' -v a="$old" -v b="$(aghanim_native "$old")" -v n="$AGHANIM_HOME" '
+      { for (p in pre) delete pre[p]; pre[a]; pre[b]
+        for (p in pre) if (index($3, p "/") == 1 || $3 == p) { $3 = n substr($3, length(p) + 1); break }
+        print }' "$REGISTRY" > "$REGISTRY.tmp" && mv "$REGISTRY.tmp" "$REGISTRY"
+  fi
+  for d in "$AGHANIM_HOME"/projects/*/control "$AGHANIM_HOME"/projects/*/reports-wt "$AGHANIM_HOME"/projects/*/wt/*; do
     [ -e "$d/.git" ] && { git -C "$d" worktree repair >/dev/null 2>&1 || echo "aghanim: could not relink $d (git worktree repair)" >&2; }
   done
   echo "moved $old to $AGHANIM_HOME; run 'aghanim install' and the dispatcher installer next"
