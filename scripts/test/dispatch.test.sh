@@ -28,7 +28,7 @@ launched() { sleep 1; cat "$tmp/launched"; }
 
 setup; export Q_REF=25 Q_DEV=40 Q_PROD=47 W_SR=0 W_CV=0
 bash "$D"; out="$(launched)"
-assert_contains "$out" "/refinar 25"; assert_contains "$out" "/desenvolver 40"; assert_contains "$out" "/deployar 47"
+assert_contains "$out" "/mylos:refinar 25"; assert_contains "$out" "/mylos:desenvolver 40"; assert_contains "$out" "/mylos:deployar 47"
 
 setup; export Q_REF=25 W_SR=2 Q_DEV= Q_PROD=
 bash "$D"; [ -z "$(launched)" ] && pass "spec review full → nothing" || fail "launched with full WIP"
@@ -45,7 +45,7 @@ bash "$D"; [ -z "$(launched)" ] && pass "fresh lock respected" || fail "ignored 
 
 setup; export Q_REF=25 W_SR=0 Q_DEV= Q_PROD=
 mkdir -p "$FACTORY_HOME/locks/refinar-25.lock"; echo "1 $(( $(date +%s) - 20000 )) 26" > "$FACTORY_HOME/locks/refinar-25.lock/info"
-bash "$D"; assert_contains "$(launched)" "/refinar 25"
+bash "$D"; assert_contains "$(launched)" "/mylos:refinar 25"
 
 setup; export Q_REF=25 W_SR=0 BOARD_FAIL=1
 assert_exit 1 bash "$D"

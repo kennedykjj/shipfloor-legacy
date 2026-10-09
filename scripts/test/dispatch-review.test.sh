@@ -50,7 +50,7 @@ case "$1 $2" in "eligible Ready for Refinement") echo 25 ;; "eligible Ready for 
 ' > "$tmp/board"
 bash "$D"; out="$(launched)"
 assert_contains "$(printf '%s
-' "$out" | grep '/deployar 47')" '--allowedTools Bash(gh pr merge:*)'
+' "$out" | grep '/mylos:deployar 47')" '--allowedTools Bash(gh pr merge:*)'
 case "$(printf '%s
-' "$out" | grep '/refinar 25')" in *"gh pr merge"*) fail "refinar may merge" ;; *) pass "refinar may not merge" ;; esac
+' "$out" | grep '/mylos:refinar 25')" in *"gh pr merge"*) fail "refinar may merge" ;; *) pass "refinar may not merge" ;; esac
 finish

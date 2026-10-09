@@ -9,7 +9,7 @@ printf '#!/usr/bin/env bash\necho "pathconv=${MSYS_NO_PATHCONV:-unset} prompt=$(
 chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"
 bash "$D"; sleep 2
 log="$(cat "$FACTORY_HOME"/logs/*-54-desenvolver.log)"
-assert_contains "$log" "pathconv=unset prompt=/desenvolver 54"
-assert_contains "$log" "== start /desenvolver 54"
-assert_contains "$log" "== end /desenvolver 54 exit=3"
+assert_contains "$log" "pathconv=unset prompt=/mylos:desenvolver 54"
+assert_contains "$log" "== start /mylos:desenvolver 54"
+assert_contains "$log" "== end /mylos:desenvolver 54 exit=3"
 finish

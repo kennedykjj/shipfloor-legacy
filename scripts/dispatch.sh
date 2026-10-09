@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
-# Starts factory pipelines for cards waiting in the owner's queues. Run every 3 min.
-# Pipelines run from a control checkout of origin/main (~/.pickio-factory/control), never from
-# a worktree an agent can edit or from whatever branch the main checkout has.
+# Starts factory pipelines for one project's cards waiting in the owner's queues. Run every
+# 3 min by mylos-dispatch.sh, once per registered project. Pipelines run from the project's
+# control checkout of origin/main, never from a worktree an agent can edit.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-HOME_DIR="${FACTORY_HOME:-$HOME/.pickio-factory}"
-REPO="${FACTORY_REPO:-/c/Users/Kj/git/pickio}"
+source "$HERE/lib/project.sh"
+mylos_resolve . || exit 2
+mylos_cfg validate || { echo "dispatch: invalid config $FACTORY_CONFIG" >&2; exit 2; }
+HOME_DIR="${FACTORY_HOME:?FACTORY_HOME unset}"
+REPO="${FACTORY_REPO:-}"
 CONTROL="$HOME_DIR/control"
-WT_ROOT="${FACTORY_WT_ROOT:-/c/Users/Kj/git/pickio-wt}"
+WT_ROOT="${FACTORY_WT_ROOT:-$HOME_DIR/wt}"
 CLAUDE="${FACTORY_CLAUDE:-claude}"
 BOARD="${FACTORY_BOARD:-$HERE/board.sh}"
 TTL="${FACTORY_LOCK_TTL:-10800}"
-mkdir -p "$HOME_DIR/locks" "$HOME_DIR/logs" "$WT_ROOT"
+export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" MYLOS_HOME
+mkdir -p "$HOME_DIR/locks" "$HOME_DIR/logs" "$HOME_DIR/tmp" "$HOME_DIR/reviews" "$WT_ROOT"
 [ -e "$HOME_DIR/PAUSE" ] && exit 0
+mapfile -d '' -t LIM < <(mylos_cfg values limits.refinar.parallel limits.refinar.wip \
+  limits.desenvolver.parallel limits.desenvolver.wip limits.deployar.parallel)
+[ "${#LIM[@]}" -eq 5 ] || { echo "dispatch: cannot read limits" >&2; exit 2; }
 
 refresh_control() {  # control checkout = exactly origin/main
   [ "${FACTORY_CONTROL_REFRESH:-1}" = "0" ] && return 0
@@ -26,7 +33,7 @@ refresh_control() {  # control checkout = exactly origin/main
 lock_live() {  # lock_live <lock dir>: 0 = still held; an old lock whose process is gone is removed
   local dir="$1" pid epoch
   [ -d "$dir" ] || return 1
-  read -r pid epoch _ < "$dir/info" 2>/dev/null || true
+  { read -r pid epoch _ < "$dir/info"; } 2>/dev/null || true
   [ -z "${epoch:-}" ] && epoch="$(stat -c %Y "$dir" 2>/dev/null || date +%s)"
   [ $(( $(date +%s) - epoch )) -le "$TTL" ] && return 0
   [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null && return 0
@@ -41,10 +48,24 @@ running_issues() {  # running_issues <pipeline>: issue numbers with a live lock 
   done
 }
 
+global_free() {  # free run slots on this machine: MYLOS_MAX_PARALLEL minus live runs of every project
+  local d n=0 seen=" "
+  for d in "$MYLOS_HOME"/projects/*/locks/*-*.lock "$HOME_DIR"/locks/*-*.lock; do
+    [ -d "$d" ] || continue
+    case "$seen" in *" $d "*) continue ;; esac
+    seen="$seen$d "; lock_live "$d" && n=$((n + 1))
+  done
+  echo $(( ${MYLOS_MAX_PARALLEL:-3} - n ))
+}
+
 snapshot_status() { awk -F'\t' -v n="$1" '$1==n{print $2}' "$SNAP" 2>/dev/null; }
 
-cleanup_processes() {  # stop node processes (dev servers, test runners) left in the card's worktree
-  powershell.exe -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { \$_.CommandLine -match 'pickio-wt[\\\\/]$1[\\\\/]' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" >/dev/null 2>&1 || true
+cleanup_processes() {  # stop processes (dev servers, test runners) left running in the card's worktree
+  command -v powershell.exe >/dev/null || return 0
+  MYLOS_WT="$(mylos_native "$WT_ROOT/$1/")" powershell.exe -NoProfile -NonInteractive -Command '
+    $p = [regex]::Escape($env:MYLOS_WT) -replace "/", "[\\/]"
+    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $p -and $_.ProcessId -ne $PID } |
+      ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' >/dev/null 2>&1 || true
 }
 
 launch() {  # launch <pipeline> <issue>
@@ -56,11 +77,11 @@ launch() {  # launch <pipeline> <issue>
   (
     trap '' HUP
     echo "$BASHPID $(date +%s) $n" > "$dir/info"
-    echo "== start /$p $n $(date -Is) pid=$BASHPID" >>"$log"
+    echo "== start /mylos:$p $n $(date -Is) pid=$BASHPID" >>"$log"
     # The prompt goes on stdin: as an argument Git Bash turns "/desenvolver 54" into
     # "C:/Program Files/Git/desenvolver 54", and MSYS_NO_PATHCONV would leak into mvn and break it.
-    cd "$CONTROL" && printf '/%s %s' "$p" "$n" | PICKIO_FACTORY=1 "$CLAUDE" -p --permission-mode acceptEdits --add-dir "$WT_ROOT" --add-dir "$HOME_DIR" "${extra[@]}" >>"$log" 2>&1
-    echo "== end /$p $n exit=$? $(date -Is)" >>"$log"
+    cd "$CONTROL" && printf '/mylos:%s %s' "$p" "$n" | MYLOS_FACTORY=1 "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1
+    echo "== end /mylos:$p $n exit=$? $(date -Is)" >>"$log"
     read -r owner _ < "$dir/info" 2>/dev/null
     [ "${owner:-}" = "$BASHPID" ] && rm -rf "$dir"
     # a run that ended still holding the shared stack lock must not block the others
@@ -82,7 +103,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs> <wip-limit> <orphan c
       refresh_control || { echo "dispatch: could not refresh $CONTROL from origin/main" >&2; return 1; }
       refreshed=1
     fi
-    launch "$p" "$1"; running="$running"$'\n'"$1"; free=$((free - 1))
+    launch "$p" "$1"; running="$running"$'\n'"$1"; free=$((free - 1)); GLOBAL=$((GLOBAL - 1))
     if [ -n "${2:-}" ]; then resumed="$resumed $1"; fi  # resumed orphans already sit in a WIP column
   }
   # 1. resume orphans: cards this pipeline left mid-way (crash, usage limit) with no live run
@@ -91,7 +112,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs> <wip-limit> <orphan c
     [ -z "$col" ] && continue
     cards="$("$BOARD" eligible "$col")" || return 1
     for n in $cards; do
-      [ "$free" -le 0 ] && return 0
+      { [ "$free" -le 0 ] || [ "$GLOBAL" -le 0 ]; } && return 0
       printf '%s\n' "$running" | grep -qx "$n" && continue
       start_run "$n" orphan || return 1
     done
@@ -109,7 +130,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs> <wip-limit> <orphan c
   [ "$slots" -le 0 ] && return 0
   cards="$("$BOARD" eligible "$queue")" || return 1
   for n in $cards; do
-    [ "$slots" -le 0 ] && break
+    { [ "$slots" -le 0 ] || [ "$GLOBAL" -le 0 ]; } && break
     printf '%s\n' "$running" | grep -qx "$n" && continue
     start_run "$n" || return 1; slots=$((slots - 1))
   done
@@ -132,8 +153,9 @@ export FACTORY_BOARD_SNAPSHOT="$SNAP"
 
 usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting"; exit 0; }
 
+GLOBAL="$(global_free)"
 status=0
-run_pipeline refinar     "Ready for Refinement" 2 2 "Technical Refinement" "Spec Review"        || status=1
-run_pipeline desenvolver "Ready for Dev"        2 4 "Coding,Validation"    "Coding" "Validation" || status=1
-run_pipeline deployar    "Ready for Prod"       1 0 ""                                         || status=1
+run_pipeline refinar     "Ready for Refinement" "${LIM[0]}" "${LIM[1]}" "Technical Refinement" "Spec Review"        || status=1
+run_pipeline desenvolver "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding,Validation"    "Coding" "Validation" || status=1
+run_pipeline deployar    "Ready for Prod"       "${LIM[4]}" 0           ""                                         || status=1
 exit $status
