@@ -25,7 +25,7 @@ html:root:not([data-x]){--page:#0d1014;--sheet:#151a21;--surface:#1b212a;--ink:#
 --muted:#6b6a66;--rule:#d9d9d4;--linen:#d9d9d4;--linen-ink:#23262b}}
 h1,section h2{font-weight:600}
 section h2{font-size:17px;line-height:1.3}
-.count{font-size:17px;font-weight:600}
+.count{display:none}
 button{background:transparent;color:var(--ink);border-color:var(--rule)}
 </style>
 <script>
@@ -202,7 +202,7 @@ class Factory:
         if time.time() - at > 60:
             repo = aghanim_config.dotted(self.config(p), "project.repo")
             comments, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100&sort=created&direction=desc")
-            reason = next((c["body"][:1200] for c in comments or []
+            reason = next((c["body"][:4000] for c in comments or []
                            if isinstance(c, dict) and "blocked" in (c.get("body") or "").lower()), "")
             self._reasons[(p, n)] = (time.time(), reason)
         return reason
