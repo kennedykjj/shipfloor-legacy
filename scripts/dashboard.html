@@ -16,6 +16,7 @@
   --faint: #8b887f;
   --gold: #e2b356;
   --gold-soft: rgba(226, 179, 86, .28);
+  --coin: #e2b356;
   --azure: #63b2ff;
   --azure-soft: rgba(99, 178, 255, .16);
   --azure-ink: #0b2440;
@@ -39,6 +40,7 @@
     --faint: #686661;
     --gold: #855a0c;
     --gold-soft: rgba(154, 107, 18, .25);
+    --coin: #c99a3c;
     --azure: #1a5fb4;
     --azure-soft: rgba(26, 95, 180, .1);
     --azure-ink: #ffffff;
@@ -63,9 +65,12 @@ button, textarea, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--azure); outline-offset: 2px; border-radius: 4px; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .gold { color: var(--gold); }
+/* the coin: a small struck disc, lit from the top left, with a darker rim */
 .coin::before {
-  content: ""; display: inline-block; width: .5em; height: .5em; margin-right: .32em;
-  border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 1px var(--gold-soft); vertical-align: .08em;
+  content: ""; display: inline-block; width: .66em; height: .66em; margin-right: .34em;
+  border-radius: 50%; vertical-align: -.02em;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, .6), transparent 42%), var(--coin);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coin) 60%, #4a3206), 0 0 0 1px var(--gold-soft);
 }
 .est { color: var(--faint); font-size: 11px; margin-left: 4px; font-family: var(--sans); letter-spacing: 0; cursor: help; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -82,7 +87,8 @@ header {
 .stat { padding: 11px 18px; border-right: 1px solid var(--edge); display: flex; flex-direction: column; justify-content: center; min-width: 0; }
 .stat .v { font-size: 19px; font-weight: 600; line-height: 1.15; white-space: nowrap; }
 .stat .v small { font-size: 13px; color: var(--faint); font-weight: 500; }
-.stat .k { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
+.stat .k { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
+kbd { font: 11px var(--mono); padding: 0 4px; border: 1px solid var(--edge-hi); border-bottom-width: 2px; border-radius: 4px; color: var(--muted); margin-left: 4px; cursor: help; }
 .slots { display: flex; gap: 14px; }
 .slot .v { font-size: 15px; }
 .meter { height: 3px; background: var(--edge); border-radius: 4px; margin-top: 5px; overflow: hidden; width: 100%; }
@@ -120,12 +126,14 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   display: flex; align-items: center; gap: 6px; flex: none;
 }
 .col h2 .n { margin-left: auto; color: var(--faint); font-weight: 500; }
-.col h2 .who { width: 13px; height: 13px; flex: none; color: var(--faint); }
-.col.owner h2 .who { color: var(--azure); }
+.col h2 .yours { color: var(--azure); font-weight: 500; }
+.col .more-btn { flex: none; background: none; border: 1px dashed var(--edge-hi); border-radius: 6px; padding: 6px 10px; color: var(--muted); cursor: pointer; font-size: 12.5px; text-align: left; }
+.col .more-btn:hover { color: var(--text); border-color: var(--text); }
 .lane.none .col h2 { white-space: normal; line-height: 1.3; align-items: flex-start; }
 .clock { margin-left: auto; color: var(--muted); font-size: 11.5px; }
 .col.owner h2 { color: var(--text); }
 .col .cards { overflow-y: auto; padding: 0 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.board.more-x { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
 .col .cards.more { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 34px), transparent); }
 
 .card {
@@ -137,6 +145,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .card:hover { border-color: var(--edge-hi); transform: translateY(-1px); box-shadow: var(--shadow); }
 .card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .card .no { font-size: 12.5px; color: var(--muted); }
+.card.await .no { color: var(--text); }
 .card .cost { font-size: 12.5px; }
 .card .cost .spent { color: var(--muted); }
 .card .title { margin-top: 3px; font-size: 13px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -151,15 +160,34 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 @property --sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 @keyframes sweep { from { --sweep: 0deg; } to { --sweep: 360deg; } }
 .card.running { border-color: var(--edge-hi); }
-.card .blocked { margin-top: 6px; font-size: 11.5px; color: var(--bad); }
-.card .blocked.infra { color: var(--warn); }
-.block-note { margin: 12px 20px 0; padding: 10px 12px; border: 1px solid var(--edge-hi); border-radius: 6px; display: flex; gap: 12px; align-items: flex-start; font-size: 12.5px; }
-.block-note p { margin: 0; flex: 1; color: var(--muted); white-space: pre-wrap; max-height: 8.5em; overflow: auto; }
-.block-note b { color: var(--bad); font-weight: 600; }
-.block-note.infra b { color: var(--warn); }
+.card .blocked { margin-top: 7px; display: inline-block; font-size: 12px; line-height: 1.3; padding: 0 6px; border: 1px solid var(--edge-hi); border-radius: 4px; color: var(--muted); }
+.card .blocked b { color: var(--bad); font-weight: 600; }
+.card .blocked.infra b { color: var(--warn); }
+/* a block note: the one line that explains, the failed gate, the full report folded */
+.block-note { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--edge-hi); border-radius: 6px; font-size: 12.5px; display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; align-items: start; }
+.block-note .bn-k { color: var(--muted); }
+.block-note .bn-k b { color: var(--bad); font-weight: 600; }
+.block-note.infra .bn-k b { color: var(--warn); }
+.block-note .bn-lead { grid-column: 1; margin: 0; color: var(--text); }
+.block-note .bn-gate { grid-column: 1; margin: 0; color: var(--muted); }
+.block-note .btn { grid-column: 2; grid-row: 1 / span 3; align-self: start; }
+.block-note details { grid-column: 1 / -1; color: var(--muted); }
+.block-note summary { cursor: pointer; width: max-content; }
+.block-note summary:hover { color: var(--text); }
+.block-note .md { margin-top: 6px; max-height: 16em; overflow: auto; padding-right: 6px; }
+.block-note .md p { margin: 4px 0; } .block-note .md .h { color: var(--text); font-weight: 600; }
+.block-note .md ul { margin: 4px 0; padding-left: 18px; } .block-note .md li { margin: 2px 0; }
+.block-note .md pre { margin: 4px 0; padding: 6px 8px; background: var(--ground); border-radius: 4px; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.block-note code { font: 11.5px var(--mono); }
+.block-note .bn-err { grid-column: 1 / -1; color: var(--bad); }
+.block-note .bn-err:empty { display: none; }
 .stat.stacks.stuck .v { color: var(--warn); }
 .card.await { border-color: var(--azure); box-shadow: 0 0 0 1px var(--azure) inset; background: linear-gradient(180deg, var(--azure-soft), var(--panel)); }
 .card .waits { margin-top: 6px; font-size: 11.5px; color: var(--azure); }
+/* an item that waits for the owner: its top edge is lit in azure and its waits line becomes the
+   item's footer band, ruled like the tooltip head but in the owner's color */
+.card.await { border-top-color: color-mix(in srgb, var(--azure) 55%, var(--text)); }
+.card.await .waits { margin: 9px -10px -9px; padding: 6px 10px 7px; border-top: 1px solid color-mix(in srgb, var(--azure) 45%, transparent); background: var(--azure-soft); font-size: 12px; font-weight: 600; letter-spacing: .01em; }
 .card.moving { opacity: .55; }
 .card.open { border-color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
@@ -176,20 +204,23 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 }
 .drawer:not(.open) { box-shadow: none; border: 0; }
 .drawer.open { width: min(660px, 52vw); }
+/* cards that wait for the owner keep the review's width on every tab, so tabs never reflow the drawer */
 .drawer.wide { width: min(1180px, 72vw); }
 .tip-head { padding: 16px 20px 14px; border-top: 1px solid var(--edge-hi); border-bottom: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); flex: none; }
-.tip-head .row1 { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.tip-head .row1 { padding-right: 76px; }
 .tip-head h3 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; text-wrap: balance; }
 .tip-head h3:focus { outline: none; }
 .tip-head h3 .num { color: var(--muted); font-weight: 500; margin-right: 8px; }
-.tip-head .close { flex: none; background: none; border: 1px solid var(--edge); border-radius: 5px; color: var(--muted); cursor: pointer; font-size: 12.5px; padding: 3px 9px; }
-.tip-head .close:hover { color: var(--text); border-color: var(--edge-hi); }
+#d-close { position: absolute; top: 16px; right: 20px; z-index: 1; }
+.drawer:not(.open) #d-close { display: none; }
+.tip-head .close, #d-close { flex: none; background: none; border: 1px solid var(--edge); border-radius: 5px; color: var(--muted); cursor: pointer; font-size: 12.5px; padding: 3px 9px; }
+#d-close:hover, .tip-head .close:hover { color: var(--text); border-color: var(--edge-hi); }
 .tip-head .meta { margin-top: 6px; font-size: 12.5px; color: var(--muted); display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; }
 .tip-head .meta .wait { color: var(--azure); }
 .tip-head .meta .live { color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
 .tip-stats { margin: 14px 0 0; display: grid; grid-template-columns: repeat(4, auto); justify-content: start; gap: 4px 28px; }
 .tip-stats div { min-width: 0; }
-.tip-stats dt { font-size: 11px; color: var(--muted); }
+.tip-stats dt { font-size: 12px; color: var(--muted); }
 .tip-stats dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; white-space: nowrap; }
 .tip-stats .total dd { font-size: 20px; line-height: 1.1; }
 .tip-stats .report dd { font: 500 13px var(--sans); padding-top: 3px; }
@@ -214,8 +245,10 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .ok { color: var(--ok); } .bad { color: var(--bad); } .muted { color: var(--muted); }
 .unpriced { color: var(--gold); cursor: help; text-decoration: underline dotted; }
 
+.logwrap { display: flex; flex-direction: column; height: 100%; }
+.logwrap .log { flex: 1; overflow: auto; min-height: 0; }
 .log { margin: 0; padding: 14px 20px 30px; font: 12px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--text); }
-.logbar { display: flex; gap: 10px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); position: sticky; top: 0; background: var(--panel); }
+.logbar { display: flex; gap: 10px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); flex: none; background: var(--panel); }
 
 .gate-run { padding: 4px 20px 14px; border-bottom: 1px solid var(--edge); }
 .gate-run .h { display: flex; justify-content: space-between; font-size: 13px; padding-top: 10px; }
@@ -231,6 +264,7 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .decide-k b { color: var(--text); font-weight: 600; }
 .decide-a { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .decide-a .hint { font-size: 12.5px; color: var(--muted); }
+.decide .stale { margin: 0; font-size: 12.5px; color: var(--warn); }
 .decide-b { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
 .decide-b .acts { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .btn { border-radius: 5px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--edge-hi); background: var(--panel-hi); white-space: nowrap; }
@@ -241,7 +275,8 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .btn.approve.soft:hover { filter: none; border-color: var(--azure); background: color-mix(in srgb, var(--azure) 24%, transparent); }
 .btn.ghost { background: none; border-color: var(--edge); color: var(--muted); padding: 4px 10px; font-size: 12.5px; }
 .btn.ghost:hover { color: var(--text); border-color: var(--edge-hi); }
-.btn:disabled, .btn:disabled:hover { opacity: .5; cursor: not-allowed; border-color: var(--edge-hi); filter: none; }
+.btn:disabled, .btn:disabled:hover { cursor: not-allowed; color: var(--faint); background: var(--panel); border-color: var(--edge); filter: none; }
+.btn.approve:disabled { opacity: .6; color: var(--azure-ink); background: var(--azure); }
 .drawer.busy .btn:disabled { cursor: progress; }
 textarea { width: 100%; min-height: 38px; height: 38px; resize: vertical; background: var(--ground); border: 1px solid var(--edge); border-radius: 5px; padding: 7px 9px; transition: height .16s ease; }
 textarea:focus, textarea.filled { height: 96px; }
@@ -262,6 +297,9 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
   .decide-b .acts { flex-direction: row; flex-wrap: wrap; }
   .decide .btn { white-space: normal; text-align: left; }
   .tip-stats { grid-template-columns: repeat(2, auto); gap: 8px 28px; }
+  #changes:not(.show) { display: none; }
+  .block-note { grid-template-columns: 1fr; }
+  .block-note .btn { grid-column: 1; grid-row: auto; justify-self: start; }
 }
 @media (max-width: 860px) {
   header { flex-wrap: wrap; padding: 4px 12px; }
@@ -279,7 +317,7 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
 <body>
 <header>
   <div class="brand"><b>Aghanim's Anvil</b></div>
-  <div class="stat await none" id="await"><div class="v num" id="await-n">–</div><div class="k" title="Cards in Spec Review and Staged. Press n to open the next one.">awaiting you</div><div class="list" id="await-list"></div></div>
+  <div class="stat await none" id="await"><div class="v num" id="await-n">–</div><div class="k">awaiting you<kbd title="Press n to open the next card that waits for you">n</kbd></div><div class="list" id="await-list"></div></div>
   <div class="stat"><div class="v num" id="pool">–</div><div class="k">pool in use</div></div>
   <div class="stat" id="slots-stat"><div class="slots" id="slots"></div></div>
   <div class="stat"><div class="v num" id="today">–</div><div class="k" id="today-k">runs today</div></div>
@@ -294,23 +332,22 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
     <div id="d-decide"></div>
     <nav class="tabs" id="d-tabs" role="tablist" aria-label="Card sections"></nav>
     <div class="pane" id="pane" role="tabpanel"></div>
+    <button class="close" id="d-close" data-close>Close</button>
   </aside>
 </main>
 <script>
 "use strict";
 const LANES = [["Inbox", "Ready for Refinement"], ["Technical Refinement"], ["Spec Review", "Ready for Dev"], ["Coding"], ["Validation"], ["Staged", "Ready for Prod"], ["Done"]];
 const HUMAN = new Set(["Inbox", "Ready for Refinement", "Spec Review", "Ready for Dev", "Staged", "Ready for Prod"]);
-const ICON = {
-  you: '<svg class="who" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5" r="3" fill="currentColor"/><path d="M2.5 14.5c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6" fill="currentColor"/></svg>',
-  factory: '<svg class="who" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="5" width="10" height="8.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6.2" cy="9.2" r="1.1" fill="currentColor"/><circle cx="9.8" cy="9.2" r="1.1" fill="currentColor"/><path d="M8 5V2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="2" r="1" fill="currentColor"/></svg>',
-};
+const STALE_S = 300;  // a board snapshot older than this is called out
+const DONE_SHOWN = 5;
 const COLUMNS = ["Inbox", "Ready for Refinement", "Technical Refinement", "Spec Review", "Ready for Dev", "Coding", "Validation", "Staged", "Ready for Prod", "Done"];
 const OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
 const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged", "shipped"]);
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
 const S = { overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "",
-  expanded: {}, review: {}, notice: {}, armed: null, busy: false };
+  expanded: {}, review: {}, notice: {}, armed: null, busy: false, showDone: false };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
@@ -387,7 +424,7 @@ function renderStrip() {
   const w = waiting();
   $("await-n").textContent = w.length;
   $("await").classList.toggle("none", !w.length);
-  setHTML($("await-list"), w.map((c) => `<button data-open="${esc(c.key)}" title="${esc(c.column)}${c.title ? `: ${esc(c.title)}` : ""}">#${c.issue}</button>`).join(""));
+  setHTML($("await-list"), w.map((c) => `<button data-open="${esc(c.key)}" title="${esc(c.column)}${c.title ? `: ${esc(c.title)}` : ""}" aria-label="#${c.issue}, ${esc(c.column)}${c.title ? `: ${esc(c.title)}` : ""}">#${c.issue}</button>`).join(""));
   renderFlags();
 }
 function renderFlags() {
@@ -399,12 +436,14 @@ function renderFlags() {
   const orphans = (o?.runs || []).filter((r) => r.orphan);
   if (orphans.length) f.push(`<span class="flag warn" title="${orphans.map((r) => `${r.stage}-${r.issue}.lock`).join(", ")}">${plural(orphans.length, "orphaned lock")}</span>`);
   if (o && o.projects.length > 1) f.push(`<select id="proj" aria-label="Project">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select>`);
+  const p = project();
+  if (p && stale(p)) f.push(`<span class="flag warn" title="The dispatcher has not refreshed the board snapshot for ${Math.round(p.board_age_s / 60)} minutes: columns may be out of date. Approve and Request changes still read the live board before they move a card.">board ${Math.round(p.board_age_s / 60)} min old</span>`);
   if (!f.length && o) f.push('<span class="flag">running</span>');
   setHTML($("flags"), f.join(""));
-  const p = project();
   $("age").textContent = p ? ago(p.board_age_s) + (p.paused ? " · project paused" : "") : "";
 }
 
+const stale = (p) => p?.board_age_s != null && p.board_age_s > STALE_S;
 function renderBoard() {
   const p = project();
   if (!p) { setHTML($("board"), '<p class="placeholder">No project registered. Run <code>aghanim add &lt;repo&gt;</code>.</p>'); return; }
@@ -413,9 +452,14 @@ function renderBoard() {
   const html = LANES.map((lane) => {
     const empty = lane.every((col) => !by[col].length);
     return `<div class="lane ${lane.length > 1 ? "pair" : ""} ${empty ? "none" : ""}">${lane.map((col) => {
-      const cards = by[col]; const who = HUMAN.has(col) ? "you" : "factory";
-      return `<section class="col ${HUMAN.has(col) ? "owner" : ""}" aria-label="${esc(col)}, ${plural(cards.length, "card")}"><h2 title="${who === "you" ? "Your column: cards wait here for you" : "Factory column: agents work these cards"}">${ICON[who]}<span>${esc(col)}</span><span class="n num">${cards.length || ""}</span></h2><div class="cards">${
-        cards.map((c) => cardHtml(p.slug, c)).join("")}</div></section>`;
+      const cards = by[col]; const yours = HUMAN.has(col);
+      // Done is history: show the last few, the rest on request
+      const fold = col === "Done" && !S.showDone && cards.length > DONE_SHOWN + 1;
+      const shown = fold ? cards.slice(-DONE_SHOWN) : cards;
+      const more = fold ? `<button class="more-btn" data-done>Show ${cards.length - DONE_SHOWN} more</button>`
+        : col === "Done" && S.showDone && cards.length > DONE_SHOWN + 1 ? '<button class="more-btn" data-done>Show fewer</button>' : "";
+      return `<section class="col ${yours ? "owner" : ""}" aria-label="${esc(col)}, ${plural(cards.length, "card")}${yours ? ", yours" : ""}"><h2 title="${yours ? "Your column: cards wait here for you" : "Factory column: agents work these cards"}"><span>${esc(col)}</span>${yours ? '<span class="yours">yours</span>' : ""}<span class="n num">${cards.length || ""}</span></h2><div class="cards">${
+        shown.map((c) => cardHtml(p.slug, c)).join("")}${more}</div></section>`;
     }).join("")}</div>`;
   }).join("");
   const focused = document.activeElement?.closest?.("#board [data-open]")?.dataset.open;
@@ -424,17 +468,22 @@ function renderBoard() {
     markOverflow();
   }
 }
-function markOverflow() { document.querySelectorAll("#board .cards").forEach((el) => el.classList.toggle("more", el.scrollHeight > el.clientHeight + 1 && el.scrollTop + el.clientHeight < el.scrollHeight - 4)); }
+function markOverflow() {
+  document.querySelectorAll("#board .cards").forEach((el) => el.classList.toggle("more", el.scrollHeight > el.clientHeight + 1 && el.scrollTop + el.clientHeight < el.scrollHeight - 4));
+  const b = $("board"); b.classList.toggle("more-x", b.scrollWidth > b.clientWidth + 1 && b.scrollLeft + b.clientWidth < b.scrollWidth - 4);
+}
 function cardHtml(slug, c) {
   const key = `${slug}/${c.issue}`; const moving = key in S.moving;
   const cls = ["card", c.running ? "running" : "", c.awaiting && !moving ? "await" : "", moving ? "moving" : "", S.open === key ? "open" : ""].join(" ");
-  const block = c.blocked ? `<div class="blocked ${c.blocked}">${c.blocked === "infra" ? "infra · retrying" : "blocked"}</div>` : "";
+  const block = c.blocked ? `<div class="blocked ${c.blocked}">${c.blocked === "infra" ? "<b>infra</b> · retrying" : "<b>blocked</b> · needs you"}</div>` : "";
+  const status = moving ? `moving to ${S.moving[key]}` : c.running ? `${c.running} running` : c.awaiting ? (c.column === "Staged" ? "ready to ship" : "spec to review") : c.column;
+  const label = `#${c.issue} ${c.title || ""}. ${status}${c.blocked ? `, ${c.blocked === "infra" ? "blocked by infrastructure" : "blocked"}` : ""}${c.cost ? `, cost ${c.cost.toFixed(2)} estimated` : ""}`;
   const extra = moving ? `<div class="waits">moving to ${esc(S.moving[key])}…</div>`
     : c.running ? `<div class="run"><span class="dial" aria-hidden="true"></span>${esc(c.running)} running${clock(liveRun(slug, c.issue, c.running))}</div>`
     : c.awaiting ? `<div class="waits">${c.column === "Staged" ? "ready to ship" : "spec to review"}</div>` : "";
   // gold stays rare: a finished card's cost is history, not a decision
   const cost = c.cost === null ? money(null) : !c.cost ? "" : c.column === "Done" ? `<span class="spent">${c.cost.toFixed(2)}</span>` : money(c.cost);
-  return `<button class="${cls}" data-open="${esc(key)}"><div class="top"><span class="no num">#${c.issue}</span><span class="cost num gold">${cost}</span></div>
+  return `<button class="${cls}" data-open="${esc(key)}" aria-label="${esc(label)}"><div class="top"><span class="no num">#${c.issue}</span><span class="cost num gold">${cost}</span></div>
     <div class="title">${c.title ? esc(c.title) : UNTITLED}</div>${extra}${block}</button>`;
 }
 
@@ -463,7 +512,8 @@ async function loadCard() {
 }
 function renderDrawer() {
   const d = $("drawer");
-  d.className = "drawer" + (S.open ? " open" : "") + (S.open && S.tab === "review" ? " wide" : "") + (S.busy ? " busy" : "");
+  const [op, on] = (S.open || "/").split("/"); const col = S.card?.column || cardOf(op, +on)?.column;
+  d.className = "drawer" + (S.open ? " open" : "") + (S.open && (OWNER[col] || S.tab === "review") ? " wide" : "") + (S.busy ? " busy" : "");
   d.inert = !S.open;
   if (!S.open) { ["d-head", "d-decide", "d-tabs", "pane"].forEach((id) => setHTML($(id), "")); return; }
   const c = S.card; const [p, n] = S.open.split("/"); const ov = cardOf(p, +n);
@@ -471,7 +521,7 @@ function renderDrawer() {
   const onTitle = document.activeElement?.id === "tip-title";
   if (setHTML($("d-head"), headHtml(c, ov, p, n, column)) && onTitle) $("tip-title").focus({ preventScroll: true });
   renderDecide(p, n, column);
-  const tabs = [["sessions", "Sessions", c ? c.sessions.length : ""], ["log", "Log", ""], ["gates", "Gates", c?.reports.length || ""], ["review", "Review", ""]];
+  const tabs = [["sessions", "Sessions", c ? c.sessions.length : ""], ["log", "Log", c ? new Set(c.runs.map((x) => x.log)).size || "" : ""], ["gates", "Gates", c?.reports.length || ""], ["review", "Review", ""]];
   setHTML($("d-tabs"), tabs.map(([id, label, b]) => `<button role="tab" id="tab-${id}" aria-controls="pane" aria-selected="${S.tab === id}" tabindex="${S.tab === id ? 0 : -1}" data-tab="${id}">${label}${b !== "" ? `<span class="b num">${b}</span>` : ""}</button>`).join(""));
   $("pane").setAttribute("aria-labelledby", `tab-${S.tab}`);
   if (setHTML($("pane"), c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>') && S.tab === "log" && $("log")) {
@@ -488,15 +538,52 @@ function headHtml(c, ov, p, n, column) {
     : OWNER[column] ? `<span class="wait">waits for you: ${column === "Staged" ? "ready to ship" : "spec to review"}</span>` : "";
   const rep = c?.reports.length ? c.reports[c.reports.length - 1] : null;
   const issue = c?.repo ? `<a href="https://github.com/${esc(c.repo)}/issues/${n}" target="_blank" rel="noopener">issue on GitHub</a>` : "";
-  return `<div class="tip-head"><div class="row1"><h3 id="tip-title" tabindex="-1"><span class="num">#${n}</span>${title ? esc(title) : UNTITLED}</h3><button class="close" data-close>Close</button></div>
+  const earlier = rep && ov?.running && rep.pipeline !== ov.running ? ` <span class="muted">(before ${esc(ov.running)})</span>` : "";
+  return `<div class="tip-head"><div class="row1"><h3 id="tip-title" tabindex="-1"><span class="num">#${n}</span>${title ? esc(title) : UNTITLED}</h3></div>
     <div class="meta"><span>${esc(column || "–")}</span>${state}${issue ? `<span>${issue}</span>` : ""}</div>
     <dl class="tip-stats">
       <div class="total"><dt>cost, Inbox to now ${EST}</dt><dd class="num gold">${c ? money(c.total) : "–"}</dd></div>
       <div><dt>sessions</dt><dd class="num">${c ? sessions.length : "–"}</dd></div>
       <div><dt>first to last run</dt><dd class="num">${span}</dd></div>
-      <div class="report"><dt>last report</dt><dd>${rep ? `${esc(rep.pipeline)} <span class="${outcome(rep.outcome)}">${esc(rep.outcome)}</span>` : '<span class="muted">none yet</span>'}</dd></div>
+      <div class="report"><dt>last report</dt><dd>${rep ? `${esc(rep.pipeline)} <span class="${outcome(rep.outcome)}">${esc(rep.outcome)}</span>${earlier}` : '<span class="muted">none yet</span>'}</dd></div>
     </dl>
-    ${c?.blocked ? `<div class="block-note ${c.blocked}"><p><b>${c.blocked === "infra" ? "Blocked by infrastructure; the factory retries once." : "Blocked, waiting for you."}</b>${c.block_reason ? "\n" + esc(c.block_reason.replace(/\*\*|`/g, "")) : ""}</p><button class="btn" data-unblock>Unblock &amp; retry</button></div>` : ""}</div>`;
+    ${c?.blocked ? blockNote(c) : ""}</div>`;
+}
+// The block reason is the factory's issue comment, in markdown: lead with what the owner must decide
+// and the failed gate, and fold the full report.
+function blockNote(c) {
+  const src = c.block_reason || ""; const plain = (s) => s.replace(/\*\*/g, "").replace(/`/g, "").replace(/^\s*[-*]\s*/, "").trim();
+  const line = (re) => src.split(/\r?\n/).find((l) => re.test(l)) || "";
+  const decide = plain(line(/must decide|owner must|needs? you to/i)).replace(/^[^:]*(must decide|owner must|needs? you to)[^:]*:\s*/i, "");
+  const gate = (src.match(/failed gates?:\**\s*([^.\n]+)/i) || [])[1] || "";
+  const infra = c.blocked === "infra";
+  return `<div class="block-note ${esc(c.blocked)}"><div class="bn-k"><b>Blocked</b> · ${infra ? "infrastructure failed; the factory retries once" : "the factory stopped and waits for your call"}</div>
+    ${decide ? `<p class="bn-lead">${inline(decide.charAt(0).toUpperCase() + decide.slice(1))}</p>` : ""}
+    ${gate ? `<p class="bn-gate">Failed gate: ${inline(gate.trim())}</p>` : ""}
+    <button class="btn" data-unblock>Unblock &amp; retry</button>
+    ${src ? `<details><summary>Full report</summary><div class="md">${mdLite(src)}</div></details>` : ""}
+    <div class="bn-err" id="bn-err" role="status"></div></div>`;
+}
+const inline = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+// enough markdown for the factory's reports: headings, bullets (with continuation lines), code fences
+function mdLite(src) {
+  const out = []; let list = false, code = null;
+  const put = (html) => { if (list) out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, html + "</li>"); else out.push(html); };
+  for (const raw of src.split(/\r?\n/)) {
+    const l = raw.replace(/\s+$/, "");
+    if (/^\s*```/.test(l)) { if (code) { put(`<pre>${esc(code.join("\n"))}</pre>`); code = null; } else code = []; continue; }
+    if (code) { code.push(l.replace(/^\s{0,4}/, "")); continue; }
+    const li = l.match(/^\s*[-*] (.*)/);
+    if (li) { if (!list) { out.push("<ul>"); list = true; } out.push(`<li>${inline(li[1])}</li>`); continue; }
+    if (list && /^\s{2,}\S/.test(l)) { put(" " + inline(l.trim())); continue; }
+    if (list && l.trim()) { out.push("</ul>"); list = false; }
+    if (!l.trim()) continue;
+    const h = l.match(/^#{1,6}\s+(.*)/);
+    out.push(h ? `<p class="h">${inline(h[1])}</p>` : `<p>${inline(l)}</p>`);
+  }
+  if (code) put(`<pre>${esc(code.join("\n"))}</pre>`);
+  if (list) out.push("</ul>");
+  return out.join("");
 }
 function renderDecide(p, n, column) {
   const key = `${p}/${n}`; const moves = OWNER[column]; const el = $("d-decide"); const note = S.notice[key];
@@ -504,14 +591,15 @@ function renderDecide(p, n, column) {
   const html = S.moving[key] ? `<div class="decide">${notice}</div>`
     : moves ? `<div class="decide" role="group" aria-labelledby="decide-k">
       <div class="decide-k"><b id="decide-k">Your decision</b><span id="rv-progress" class="num"></span></div>
+      ${stale(project()) ? `<p class="stale">The board snapshot is ${Math.round(project().board_age_s / 60)} min old. Approve and Request changes read the live board first and stop if the card moved.</p>` : ""}
       <div class="decide-a"><button class="btn approve" id="approve" data-act="approve" data-label="Approve → ${esc(moves[0])}">Approve → ${esc(moves[0])}</button><span class="hint" id="approve-hint"></span></div>
-      <div class="decide-b"><textarea id="changes" aria-label="What should change" placeholder="What should change (posted as a comment on the issue)"></textarea>
+      <div class="decide-b"><textarea id="changes" aria-label="What should change" placeholder="What should change (posted on the issue)"></textarea>
         <div class="acts"><button class="btn" id="request" data-act="request-changes">Request changes → ${esc(moves[1])}</button><button class="btn ghost" id="fill" hidden></button></div></div>
       ${notice}</div>`
     : note ? `<div class="decide">${notice}</div>` : "";
   const text = $("changes")?.value; const focused = document.activeElement?.id;
   if (setHTML(el, html)) {
-    if (text && $("changes")) $("changes").value = text;
+    if (text && $("changes")) { $("changes").value = text; $("changes").classList.add("show"); }
     if (focused && el.contains($(focused))) $(focused).focus();
   }
   syncDecide();
@@ -527,13 +615,15 @@ function syncDecide() {
   const a = $("approve"); if (!a) return;
   const r = S.review[S.open]; const doubt = reviewDoubt(r); const armed = S.armed === S.open && !!doubt;
   $("rv-progress").textContent = r?.total ? `${r.done} of ${r.total} reviewed${r.changes.length ? ` · ${plural(r.changes.length, "change")}` : ""}`
-    : S.card && !S.card.review ? "no review page" : "";
+    : r ? "nothing to mark in the review" : S.card && !S.card.review ? "no review page" : "";
   a.classList.toggle("soft", !!doubt);
   a.textContent = armed ? `Approve with ${doubt}` : a.dataset.label;
   $("approve-hint").textContent = armed ? "Click again to move it anyway." : doubt ? (r.done < r.total ? `${plural(r.total - r.done, "item")} not reviewed yet` : `The review asks for ${plural(r.changes.length, "change")}.`) : "";
   const t = $("changes"); const typed = !!t.value.trim();
   t.classList.toggle("filled", typed);
-  a.disabled = S.busy; $("request").disabled = S.busy || !typed;
+  // a narrow drawer folds the textarea behind Request changes: the first click opens it
+  const folded = getComputedStyle(t).display === "none";
+  a.disabled = S.busy; $("request").disabled = S.busy || (!typed && !folded);
   const f = $("fill"); f.hidden = !r?.changes.length;
   if (r?.changes.length) f.textContent = `Use the review's ${plural(r.changes.length, "change")}`;
 }
@@ -571,16 +661,17 @@ function sum(tokens) {
 function logPane(c) {
   const logs = [...new Set(c.runs.map((r) => r.log))].reverse();
   if (!logs.length) return '<p class="placeholder">No log for this card yet.</p>';
-  return `<div class="logbar">Log <select id="logsel" aria-label="Log file">${logs.map((l) => `<option ${l === S.log ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><span>follows while open</span></div>
-    <pre class="log" id="log"></pre>`;
+  return `<div class="logwrap"><div class="logbar">Log <select id="logsel" aria-label="Log file">${logs.map((l) => `<option ${l === S.log ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><span>follows while open</span></div>
+    <pre class="log" id="log" tabindex="0"></pre></div>`;
 }
 function gatesPane(c) {
   if (!c.reports.length) return '<p class="placeholder">No report yet. Each stage writes one when it ends.</p>';
   return [...c.reports].reverse().map((r) => {
     const gates = Object.entries(r.gates || {});
     const failed = new Set(r.failed_gates || []);
+    const list = gates.map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`).join("");
     return `<div class="gate-run"><div class="h"><b>${esc(r.pipeline)}</b><span class="${outcome(r.outcome)}">${esc(r.outcome)}</span></div>
-      <div class="gate-list">${gates.map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`).join("") || '<span class="notes">No gates for this stage.</span>'}</div>
+      ${list ? `<div class="gate-list">${list}</div>` : r.notes ? "" : '<div class="notes">No gates for this stage.</div>'}
       ${r.notes ? `<div class="notes">${esc(r.notes)}</div>` : ""}</div>`;
   }).join("");
 }
@@ -592,6 +683,9 @@ function reviewPane(c, p, n, column) {
 
 async function act(action, moveOnly) {
   const key = S.open; const [p, n] = key.split("/"); const column = S.card?.column || cardOf(p, +n)?.column;
+  if (action === "request-changes" && $("changes") && getComputedStyle($("changes")).display === "none") {
+    $("changes").classList.add("show"); $("changes").focus(); syncDecide(); return;
+  }
   if (action === "approve" && !moveOnly && reviewDoubt(S.review[key]) && S.armed !== key) {
     S.armed = key; syncDecide();
     clearTimeout(S.armTimer); S.armTimer = setTimeout(() => { if (S.armed === key) { S.armed = null; syncDecide(); } }, 4000);
@@ -620,8 +714,7 @@ async function unblock() {
   const [p, n] = S.open.split("/");
   const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/unblock`, { method: "POST", body: "{}" });
   if (status !== 200) {
-    const note = document.querySelector(".block-note p");
-    if (note) note.insertAdjacentHTML("beforeend", `<br><span class="bad">${esc(body.error || "Unblock failed.")}</span>`);
+    if ($("bn-err")) $("bn-err").textContent = body.error || "Unblock failed.";
     return;
   }
   await loadCard(); loadOverview();
@@ -637,7 +730,7 @@ async function followLog() {
   if (body.text) {
     S.logText += body.text;
     if (pre) {
-      const box = $("pane"); const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+      const box = pre; const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
       pre.textContent = S.logText;
       if (atEnd || first) box.scrollTop = box.scrollHeight;
     }
@@ -647,7 +740,7 @@ async function followLog() {
 function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog(); }
 
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-open],[data-close],[data-tab],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-open],[data-close],[data-tab],[data-sub],[data-act],[data-retry],#fill,[data-unblock],[data-done],tr.session");
   if (!t) return;
   if (t.dataset.open) openCard(t.dataset.open);
   else if (t.hasAttribute("data-close")) closeCard();
@@ -656,6 +749,7 @@ document.addEventListener("click", (e) => {
   else if (t.dataset.act) act(t.dataset.act);
   else if (t.dataset.retry) act(t.dataset.retry, true);
   else if (t.hasAttribute("data-unblock")) unblock();
+  else if (t.hasAttribute("data-done")) { S.showDone = !S.showDone; renderBoard(); }
   else if (t.id === "fill") { const r = S.review[S.open]; $("changes").value = r.changes.join("\n"); syncDecide(); $("changes").focus(); }
   else if (t.matches("tr.session") && t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; selectTab("log"); }
 });
@@ -687,7 +781,7 @@ window.addEventListener("message", (e) => {
   S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
   syncDecide();
 });
-document.addEventListener("scroll", (e) => { if (e.target.classList?.contains("cards")) markOverflow(); }, true);
+document.addEventListener("scroll", (e) => { if (e.target.classList?.contains("cards") || e.target.id === "board") markOverflow(); }, true);
 window.addEventListener("resize", markOverflow);
 
 loadOverview();

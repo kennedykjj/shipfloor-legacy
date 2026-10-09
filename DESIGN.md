@@ -11,6 +11,8 @@ colors:
   muted: "#8f8b80"
   faint: "#8b887f"
   gold: "#e2b356"
+  coin: "#e2b356"
+  coin-rim: "#4a3206"
   azure: "#63b2ff"
   azure-ink: "#0b2440"
   ok: "#7cc58a"
@@ -25,6 +27,7 @@ colors:
   stone-muted: "#5a5955"
   stone-faint: "#686661"
   stone-gold: "#855a0c"
+  stone-coin: "#c99a3c"
   stone-azure: "#1a5fb4"
   stone-ok: "#2f7d43"
   stone-warn: "#9a5b12"
@@ -145,7 +148,7 @@ A slate-and-parchment ground with one coin-gold and one azure signal. The light 
 - **Aghanim Azure** (`colors.azure`, light `colors.stone-azure`): the owner's color. Used for the "awaiting you" count and its card chips, the awaiting card's border, inset ring and tint, the waits line, the approve button fill (text is `azure-ink`), the focus ring, and the selection tint.
 
 ### Secondary
-- **Coin Gold** (`colors.gold`, light `colors.stone-gold`): cost only. Cost numerals on cards, the session table and the drawer total, the header's spent-today figure, the `$ ?` unpriced marker, the coin mark (`.coin`), and the hairline rule under the tooltip header (gold at 60% mix).
+- **Coin Gold** (`colors.gold`, light `colors.stone-gold`): cost only. Cost numerals on cards, the session table and the drawer total, the header's spent-today figure, the `$ ?` unpriced marker, the coin mark (`.coin`), and the hairline rule under the tooltip header (gold at 60% mix). The coin itself is a struck disc: `colors.coin` (light `colors.stone-coin`, brighter than the text gold so it reads as metal on stone) lit by a white highlight at the top left, with a 1px rim mixed toward `colors.coin-rim`.
 
 ### Neutral
 - **Deep Slate Ground** (`colors.ground`, light `colors.stone-ground`): page background and the textarea well.
@@ -205,20 +208,22 @@ Small, tool-like radii: 4px on flags, gates, chips and selects; 5px on buttons a
 ## Components
 
 ### Cards
-Item tiles: raised-to-panel gradient, 1px border with a lit top edge, 6px radius, 9px 10px padding, number (mono, muted) at left and gold cost at right, title below, optional status line. Hover lifts 1px. A running card gains the lit border and a dial line. An awaiting card takes the azure border, inset azure ring, azure-tinted gradient and an azure waits line ("spec to review" or "ready to ship"). A card being moved dims to 55% and reads "moving...". The open card gets a parchment border. A card in Done shows its cost muted, without the coin: it is history, not a decision, and gold stays rare. A card whose title could not be read from GitHub says "Title not loaded" in faint italic instead of repeating its number.
+Item tiles: raised-to-panel gradient, 1px border with a lit top edge, 6px radius, 9px 10px padding, number (mono, muted) at left and gold cost at right, title below, optional status line. Hover lifts 1px. A running card gains the lit border and a dial line. A blocked card adds a small neutral-outlined flag whose first word carries the outcome color: **blocked** (bad) · needs you, or **infra** (warn) · retrying; the red never fills or borders the card, so the owner's azure stays the loudest thing on the board. An awaiting card takes the azure border, inset azure ring, azure-tinted gradient, a top edge lit in azure (azure mixed 55% with parchment) and a footer band: the waits line ("spec to review" or "ready to ship", 12px 600 azure) runs edge to edge on an azure tint under an azure hairline, the owner's version of the tooltip head's gold rule. A card being moved dims to 55% and reads "moving...". The open card gets a parchment border. A card in Done shows its cost muted, without the coin: it is history, not a decision, and gold stays rare. A card whose title could not be read from GitHub says "Title not loaded" in faint italic instead of repeating its number. Each card's accessible name is short and ordered: number, title, status, blocked, cost.
+
+Column headings are text only: owner columns read their name in parchment followed by a small azure "yours"; factory columns are muted. Done shows its last five cards and a dashed "Show N more" button.
 
 ### Cooldown Dial (signature)
 A 13px circle filled by a conic gradient sweep in parchment over lit-edge, ringed by the dial ring, rotating a full turn every 6s linearly via a registered `--sweep` angle. Appears only on running cards. Under `prefers-reduced-motion: reduce` it stops and shows a static quarter (90deg); card and drawer transitions are also disabled. It is the only continuous motion; the log skeleton shimmer is a loading state only.
 
 ### Header Strip
-Stats with a 11px muted key under a 19px mono value; slot meters are 3px parchment bars at 75% opacity. The "awaiting you" stat is azure and lists the waiting card numbers as small azure mono buttons that open the card. Flags are 12px, 4px-radius outlines; warn and bad take their outcome color.
+Stats with a 12px muted key under a 19px mono value; slot meters are 3px parchment bars at 75% opacity. The "awaiting you" stat is azure and lists the waiting card numbers as small azure mono buttons that open the card. Flags are 12px, 4px-radius outlines; warn and bad take their outcome color. When the board snapshot is older than 5 minutes, a warn flag "board N min old" replaces the neutral "running". The awaiting key carries a small `kbd` "n" for the next-card key; its buttons carry the column and title as their accessible name. On a narrow screen the board fades its right edge while more lanes scroll in.
 
 ### Tooltip Drawer
-Panel with a lit left edge, `role="dialog"` (non-modal), labelled by its title. The tooltip head reads like an item tooltip: the number and title (headline), a bordered Close button at the top right, a meta line (column, the state in azure "waits for you: ..." or a dial and clock when running, the GitHub link), then a stat row of four `dt`/`dd` pairs: cost Inbox to now (gold `total` with "est."), sessions, first to last run, last report (pipeline plus its outcome color). The gold hairline closes the head.
+Panel with a lit left edge, `role="dialog"` (non-modal), labelled by its title. The tooltip head reads like an item tooltip: the number and title (headline), a bordered Close button pinned at the top right (it comes last in the tab order, after the decision and the tabs; Esc closes too), a meta line (column, the state in azure "waits for you: ..." or a dial and clock when running, the GitHub link), then a stat row of four `dt`/`dd` pairs: cost Inbox to now (gold `total` with "est."), sessions, first to last run, last report (pipeline plus its outcome color, and "(before develop)" when another stage runs now). A blocked card adds the block note: "**Blocked** · the factory stopped and waits for your call" (or "infrastructure failed; the factory retries once"), then the one line that says what the owner must decide and the failed gate, both pulled from the factory's issue comment, Unblock & retry at the right, and the full report folded under "Full report" (rendered from its markdown: headings, bullets, code). The gold hairline closes the head.
 
-Under the head, for Spec Review and Staged cards only, sits **the decision**, whatever tab is open: "Your decision" with the review progress on the right ("1 of 3 reviewed · 1 change", mono), Approve with its destination, a hint, the request-changes textarea and Request changes (disabled until there is text), plus "Use the review's N changes", which fills the textarea from the review marks. While the review has unreviewed items or asks for changes, Approve turns **soft** (azure tint, azure text) and asks twice: the first click becomes "Approve with 2 not reviewed" for 4s. After a move the notice names the next waiting card as a button. Notices are a polite live region. A card in an owner column opens on the Review tab; any other card opens on Sessions.
+Under the head, for Spec Review and Staged cards only, sits **the decision**, whatever tab is open: "Your decision" with the review progress on the right ("1 of 3 reviewed · 1 change", mono), Approve with its destination, a hint, the request-changes textarea and Request changes (disabled until there is text), plus "Use the review's N changes", which fills the textarea from the review marks. When the board snapshot is stale, a warn line in the decision says how old it is and that the actions read the live board first. A review with nothing to mark says so ("nothing to mark in the review"). In a drawer narrower than 540px the textarea folds: the first click on Request changes opens it. While the review has unreviewed items or asks for changes, Approve turns **soft** (azure tint, azure text) and asks twice: the first click becomes "Approve with 2 not reviewed" for 4s. After a move the notice names the next waiting card as a button. Notices are a polite live region. A card in an owner column opens on the Review tab and keeps the wide drawer on every tab, so tabs never reflow it; any other card opens on Sessions in the narrow drawer.
 
-Then underlined tabs (Sessions, Log, Gates, Review) with mono counts, a real tablist (roving tabindex, arrow keys, Home and End) over one tabpanel. Sessions are a right-aligned numeric table with sticky heads (start, stage and model, input, output, cache read plus written with the split on hover, time, result, cost), dashed sub-rows for subagents and a total row. Gates map outcomes explicitly: ok, done, pass and merged are ok; fail, error and blocked are bad; anything else is muted; a stage with no gates says "No gates for this stage". The Log opens at its end. The Review tab hosts the review page in a sandboxed iframe.
+Then underlined tabs (Sessions, Log, Gates, Review) with mono counts, a real tablist (roving tabindex, arrow keys, Home and End) over one tabpanel. Sessions are a right-aligned numeric table with sticky heads (start, stage and model, input, output, cache read plus written with the split on hover, time, result, cost), dashed sub-rows for subagents and a total row. Gates map outcomes explicitly: ok, done, pass and merged are ok; fail, error and blocked are bad; anything else is muted; a stage with no gates and no notes says "No gates for this stage". The Log tab counts the card's log files; the log scrolls under its own bar and opens at its end. The Review tab hosts the review page in a sandboxed iframe.
 
 ### Buttons
 - **Approve:** azure fill, `azure-ink` text, 600 weight, 5px radius, 7px 12px; hover brightens 8%.
@@ -227,7 +232,7 @@ Then underlined tabs (Sessions, Log, Gates, Review) with mono counts, a real tab
 - **Focus:** 2px azure outline, 2px offset on every focusable element.
 
 ### Embedded Review Pages
-Agent-written review pages in the iframe are re-themed by `EMBED_CSS` in `scripts/dashboard.py`: their own header hidden, section headings and the count at 17px 600, and their page, sheet, surface, ink, muted and rule variables remapped to ground, panel, raised panel, parchment, muted and hairline (and the stone set in light), system sans for display and body, 600 headings, transparent buttons with hairline borders. The iframe element itself keeps a white background as the fallback under unstyled pages. The same embed adds a small script that posts the page's marks (`review-progress`: done, total, the changes as text) to the dashboard, which accepts them only from that iframe.
+Agent-written review pages in the iframe are re-themed by `EMBED_CSS` in `scripts/dashboard.py`: their own header hidden, section headings at 17px 600, its own reviewed count hidden (the decision shows it), and their page, sheet, surface, ink, muted and rule variables remapped to ground, panel, raised panel, parchment, muted and hairline (and the stone set in light), system sans for display and body, 600 headings, transparent buttons with hairline borders. The iframe element itself keeps a white background as the fallback under unstyled pages. The same embed adds a small script that posts the page's marks (`review-progress`: done, total, the changes as text) to the dashboard, which accepts them only from that iframe.
 
 ### Keyboard and Live Updates
 Esc closes the drawer (not while typing); n opens the next card awaiting you; arrows move between tabs. Opening a card moves focus to its title, closing returns it to the card. The page polls every 5s but rewrites a region only when its markup changed, so focus, scroll, the open select and typed text survive; clocks tick on their own. The first read shows "Reading the factory…", and a failed read raises a "not updating" flag with the error in its title.
@@ -245,6 +250,6 @@ Esc closes the drawer (not while typing); n opens the next card awaiting you; ar
 ### Don't:
 - **Don't** color-code columns or cards with tags or per-stage hues; position and name identify a stage.
 - **Don't** use gold or azure as decoration (borders, headings, icons, dividers) or use red/green for anything but outcomes.
-- **Don't** add emoji, icon fonts or glyph icons; text labels carry actions.
+- **Don't** add emoji, icon fonts or glyph icons; text labels carry actions and column ownership.
 - **Don't** add webfonts, CDN assets or a build step; the dashboard is one self-contained file.
 - **Don't** add resting shadows, gradients beyond the panel step, or a second continuous animation.
