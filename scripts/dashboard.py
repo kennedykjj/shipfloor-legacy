@@ -17,7 +17,8 @@ COMMAND = re.compile(r"<command-name>/(?:aghanim|mylos):([a-z]+)</command-name>\
 RUN_LINE = re.compile(r"^== (start|end) /(?:aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy mylos
 TOKEN_KINDS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
 # The review page inside the dashboard's drawer: the drawer already carries the title and the one
-# action, so the embedded page drops its header and takes the dashboard's palette and type.
+# action, so the embedded page drops its header, takes the dashboard's palette and type, and posts
+# its review marks to the drawer.
 EMBED_CSS = """<style>
 header.top{display:none}
 html:root:not([data-x]){--page:#0d1014;--sheet:#151a21;--surface:#1b212a;--ink:#ebe5d5;--muted:#8f8b80;--rule:#262e39;
@@ -25,8 +26,23 @@ html:root:not([data-x]){--page:#0d1014;--sheet:#151a21;--surface:#1b212a;--ink:#
 @media (prefers-color-scheme:light){html:root:not([data-x]){--page:#e7e7e4;--sheet:#f4f4f2;--surface:#ececea;--ink:#23262b;
 --muted:#6b6a66;--rule:#d9d9d4;--linen:#d9d9d4;--linen-ink:#23262b}}
 h1,section h2{font-weight:600}
+section h2{font-size:17px;line-height:1.3}
+.count{font-size:17px;font-weight:600}
 button{background:transparent;color:var(--ink);border-color:var(--rule)}
-</style>"""
+</style>
+<script>
+/* tells the dashboard how far the review went, so its Approve can say so (the page itself is sandboxed) */
+addEventListener("load",function(){
+ function send(){
+  var c=document.getElementById("count");if(!c)return;
+  var m=c.textContent.match(/(\\d+)\\s*of\\s*(\\d+)/);
+  var chg=[].map.call(document.querySelectorAll(".item.chg"),function(it){
+   var s=it.closest("section"),h=s&&s.querySelector("h2"),p=it.querySelector("p"),t=it.querySelector("textarea");
+   return "- ["+(h?h.textContent:"")+"] "+(p?p.textContent:"")+"\\n  -> "+((t&&t.value.trim())||"(no note)")});
+  parent.postMessage({aghanim:"review-progress",done:m?+m[1]:0,total:m?+m[2]:0,changes:chg},"*")}
+ send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
+ document.addEventListener("input",send)});
+</script>"""
 OWNER_MOVES = {"Spec Review": {"approve": "Ready for Dev", "request-changes": "Ready for Refinement"},
                "Staged": {"approve": "Ready for Prod", "request-changes": "Coding"}}
 
