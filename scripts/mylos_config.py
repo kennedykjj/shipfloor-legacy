@@ -121,9 +121,9 @@ def problems(cfg):
             if not isinstance(v, int) or isinstance(v, bool) or v < 0:
                 errs.append(f"limits.{p}.{k} must be a non-negative integer")
     for k, v in mapping(cfg, "deploy").items():
-        if k == "timeout_min":
+        if k in ("timeout_min", "conflict_max_files", "conflict_max_hunks"):
             if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
-                errs.append("deploy.timeout_min must be a positive integer")
+                errs.append(f"deploy.{k} must be a positive integer")
         elif not isinstance(v, str):
             errs.append(f"deploy.{k} must be a string")
     if "url" in mapping(cfg, "stack") and not isinstance(cfg["stack"]["url"], str):
@@ -170,6 +170,12 @@ def problems(cfg):
             errs.append(f"{where}: migrations needs a glob")
         elif isinstance(mig, dict) and not isinstance(mig.get("comment", "--"), str):
             errs.append(f"{where}: migrations.comment must be a string")
+        elif isinstance(mig, dict) and "version" in mig:
+            try:
+                if not isinstance(mig["version"], str) or re.compile(mig["version"]).groups < 1:
+                    errs.append(f"{where}: migrations.version must be a regex with one group (the version)")
+            except re.error:
+                errs.append(f"{where}: migrations.version is not a valid regex")
     return errs
 
 
@@ -193,7 +199,7 @@ class Config:
             if not full["tests_only"]:
                 full.setdefault("agent", "engineer")
             if full["migrations"]:
-                full["migrations"] = merged(full["migrations"], {"comment": "--"})
+                full["migrations"] = merged(full["migrations"], {"comment": "--", "version": DEFAULT_VERSION})
             full["_path_re"] = any_of([full["path"]])
             full["_migrations_re"] = any_of([full["migrations"]["glob"]]) if full["migrations"] else ""
             self.layers.append(full)
@@ -293,6 +299,34 @@ def describe(cfg, home, worktrees):
     return "\n".join(lines)
 
 
+def migration_check(pattern, lines):
+    """lines: 'E\\tpath' (on the base) or 'N\\tpath' (added since). Prints problems; 1 when any."""
+    version_re, seen, errs = re.compile(pattern), {}, []
+    existing, added = [], []
+    for line in lines:
+        kind, _, path = line.partition("\t")
+        if not path:
+            continue
+        name = path.rsplit("/", 1)[-1]
+        m = version_re.search(name)
+        if not m:
+            errs.append(f"{path}: no version in the name (pattern {pattern})"); continue
+        version = tuple(int(x) for x in re.split(r"[._]", m.group(1)) if x != "")
+        if version in seen and seen[version] != path:
+            errs.append(f"{path}: version {m.group(1)} is also used by {seen[version]}")
+        seen.setdefault(version, path)
+        (existing if kind == "E" else added).append((version, path))
+    if existing and added:
+        newest = max(existing)
+        for version, path in added:
+            if version <= newest[0]:
+                errs.append(f"{path}: older than {newest[1]} already on the base; use a higher version")
+    for e in errs:
+        print(f"migration: {e}", file=sys.stderr)
+    return 1 if errs else 0
+
+
+DEFAULT_VERSION = r"^[A-Za-z]*([0-9]+(?:[._][0-9]+)*)"  # V27__x.sql, 000027_x.up.sql
 STAGES = ("refinar", "desenvolver", "validar", "deployar")
 MACHINE_DEFAULTS = {"pool": 4, "stages": {"refinar": 2, "desenvolver": 2, "validar": 2, "deployar": 1}}
 
@@ -439,6 +473,11 @@ def main(argv):
     if cmd == "patterns" and not rest:  # every regex the gates hand to grep -E, NUL-terminated
         sys.stdout.write("".join(f"{l[k]}\0" for l in cfg.layers for k in ("ran", "assertions", "setup_errors") if l[k]))
         return 0
+    if cmd == "migration-check" and len(rest) == 1:
+        mig = cfg.layer(rest[0])["migrations"]
+        if not mig:
+            return 0
+        return migration_check(mig["version"], sys.stdin.read().splitlines())
     if cmd == "regex" and rest == ["tests-only"]:  # areas only QA writes, even inside an implementer's path
         print(any_of([t for l in cfg.layers if l["tests_only"] for t in l["tests"]])); return 0
     if cmd == "regex" and rest == ["test-config"]:

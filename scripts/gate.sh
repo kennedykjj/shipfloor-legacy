@@ -102,6 +102,17 @@ code_lines() {  # code_lines <file> <comment prefix>: lines that are not comment
   awk -v c="$2" '{ s = $0; sub(/^[[:space:]]+/, "", s); if (c == "" || index(s, c) != 1) print }' "$1"
 }
 
+migration_versions() {  # migration_versions <layer> <base> <ERE>: unique versions, new ones after every existing one
+  # E = on the base (merged, maybe applied); N = added since. Parallel cards collide here.
+  local layer="$1" base="$2" re="$3"
+  {
+    g ls-tree -r -z --name-only "$base" | tr '\0' '\n' | grep -E -- "$re" | sed 's/^/E\t/'
+    { g ls-files -z; g ls-files -z --others --exclude-standard; } | tr '\0' '\n' | sort -u | grep -E -- "$re" \
+      | while IFS= read -r f; do [ -f "$f" ] && ! git cat-file -e "$base:$f" 2>/dev/null && printf 'N\t%s\n' "$f"; done
+  } | mylos_cfg migration-check "$layer" \
+    || { echo "migration: versions of layer '$layer' must be unique and newer than the base's" >&2; return 1; }
+}
+
 gate_migration() {  # every layer's migrations: applied ones are immutable, destructive ones need a rollback
   require_rev "${1:-}"
   local base="$1" spec="${2:-}" destructive="" f layer files
@@ -119,6 +130,7 @@ gate_migration() {  # every layer's migrations: applied ones are immutable, dest
       [ -f "$f" ] || continue
       if code_lines "$f" "${LF[1]}" | grep -Eiq '\b(drop|rename|truncate|delete)\b'; then destructive="$destructive $f"; fi
     done <<< "$files"
+    migration_versions "$layer" "$base" "${LF[0]}" || return 1
   done
   [ -z "$destructive" ] && return 0
   local body; body="$(rollback_section "$spec" 2>/dev/null)"
