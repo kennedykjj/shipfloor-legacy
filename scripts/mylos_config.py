@@ -124,6 +124,9 @@ def problems(cfg):
         if k in ("timeout_min", "conflict_max_files", "conflict_max_hunks"):
             if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
                 errs.append(f"deploy.{k} must be a positive integer")
+        elif k == "healthcheck":
+            if not is_str_list(v) or not all(u.startswith(("http://", "https://")) for u in v):
+                errs.append("deploy.healthcheck must be a list of http(s) URLs")
         elif not isinstance(v, str):
             errs.append(f"deploy.{k} must be a string")
     if "url" in mapping(cfg, "stack") and not isinstance(cfg["stack"]["url"], str):
