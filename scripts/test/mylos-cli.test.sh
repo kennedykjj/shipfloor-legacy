@@ -55,11 +55,11 @@ assert_exit 2 bash "$M" nonsense
 # the machine pool
 assert_contains "$(bash "$M" pool)" "pool: 4"
 assert_exit 0 bash "$M" pool set 6
-assert_exit 0 bash "$M" pool stage validar 3
-out="$(bash "$M" pool)"; assert_contains "$out" "pool: 6"; assert_contains "$out" "validar: 3"
-mkdir -p "$MYLOS_HOME/projects/a/locks/validar-7.lock"; echo "$$ $(date +%s) 7" > "$MYLOS_HOME/projects/a/locks/validar-7.lock/info"
-assert_contains "$(bash "$M" pool)" "validar: 3 (1 running)"
-assert_exit 1 bash "$M" pool stage validar 9
+assert_exit 0 bash "$M" pool stage validate 3
+out="$(bash "$M" pool)"; assert_contains "$out" "pool: 6"; assert_contains "$out" "validate: 3"
+mkdir -p "$MYLOS_HOME/projects/a/locks/validate-7.lock"; echo "$$ $(date +%s) 7" > "$MYLOS_HOME/projects/a/locks/validate-7.lock/info"
+assert_contains "$(bash "$M" pool)" "validate: 3 (1 running)"
+assert_exit 1 bash "$M" pool stage validate 9
 assert_exit 1 bash "$M" pool stage review 1
-assert_contains "$(bash "$M" pool)" "validar: 3"
+assert_contains "$(bash "$M" pool)" "validate: 3"
 finish

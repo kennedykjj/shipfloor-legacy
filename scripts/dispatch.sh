@@ -17,14 +17,14 @@ TTL="${FACTORY_LOCK_TTL:-10800}"
 export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" MYLOS_HOME
 mkdir -p "$HOME_DIR/locks" "$HOME_DIR/logs" "$HOME_DIR/tmp" "$HOME_DIR/reviews" "$WT_ROOT"
 [ -e "$HOME_DIR/PAUSE" ] && exit 0
-mapfile -d '' -t LIM < <(mylos_cfg values limits.refinar.parallel limits.refinar.wip \
-  limits.desenvolver.parallel limits.desenvolver.wip limits.validar.parallel limits.deployar.parallel)
+mapfile -d '' -t LIM < <(mylos_cfg values limits.refine.parallel limits.refine.wip \
+  limits.develop.parallel limits.develop.wip limits.validate.parallel limits.deploy.parallel)
 [ "${#LIM[@]}" -eq 6 ] || { echo "dispatch: cannot read limits" >&2; exit 2; }
 # The machine pool (~/.mylos/config.yml): runs at once on this machine, and per stage, across projects.
 mylos_machine validate || { echo "dispatch: invalid $MYLOS_HOME/config.yml" >&2; exit 2; }
-mapfile -d '' -t POOL < <(mylos_machine values pool stages.refinar stages.desenvolver stages.validar stages.deployar)
+mapfile -d '' -t POOL < <(mylos_machine values pool stages.refine stages.develop stages.validate stages.deploy)
 [ "${#POOL[@]}" -eq 5 ] || { echo "dispatch: cannot read the machine pool" >&2; exit 2; }
-declare -A STAGE_SLOTS=([refinar]="${POOL[1]}" [desenvolver]="${POOL[2]}" [validar]="${POOL[3]}" [deployar]="${POOL[4]}")
+declare -A STAGE_SLOTS=([refine]="${POOL[1]}" [develop]="${POOL[2]}" [validate]="${POOL[3]}" [deploy]="${POOL[4]}")
 
 refresh_control() {  # control checkout = exactly origin/main
   [ "${FACTORY_CONTROL_REFRESH:-1}" = "0" ] && return 0
@@ -85,14 +85,14 @@ launch() {  # launch <pipeline> <issue>
   mkdir "$dir" 2>/dev/null || return 0
   local log="$HOME_DIR/logs/$(date +%F)-$n-$p.log"
   local extra=()
-  [ "$p" = deployar ] && extra=(--allowedTools "Bash(gh pr merge:*)")  # only the deploy pipeline may merge
+  [ "$p" = deploy ] && extra=(--allowedTools "Bash(gh pr merge:*)")  # only the deploy pipeline may merge
   (
     trap '' HUP
     echo "$BASHPID $(date +%s) $n" > "$dir/info"
     echo "== start /mylos:$p $n $(date -Is) pid=$BASHPID" >>"$log"
-    # The prompt goes on stdin: as an argument Git Bash turns "/desenvolver 54" into
-    # "C:/Program Files/Git/desenvolver 54", and MSYS_NO_PATHCONV would leak into mvn and break it.
-    cd "$CONTROL" && printf '/mylos:%s %s' "$p" "$n" | MYLOS_FACTORY=1 "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1
+    # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into
+    # "C:/Program Files/Git/develop 54", and MSYS_NO_PATHCONV would leak into mvn and break it.
+    cd "$CONTROL" && printf '/mylos:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT MYLOS_FACTORY=1 "$CLAUDE" -p --permission-mode acceptEdits --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1
     echo "== end /mylos:$p $n exit=$? $(date -Is)" >>"$log"
     read -r owner _ < "$dir/info" 2>/dev/null
     [ "${owner:-}" = "$BASHPID" ] && rm -rf "$dir"
@@ -171,8 +171,8 @@ usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting"; ex
 
 GLOBAL=$(( ${MYLOS_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
-run_pipeline refinar     "Ready for Refinement" "${LIM[0]}" "${LIM[1]}" "Technical Refinement" "Spec Review"        || status=1
-run_pipeline desenvolver "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding"               "Coding" "Validation" || status=1
-run_pipeline validar     "Validation"           "${LIM[4]}" 0           ""                                         || status=1
-run_pipeline deployar    "Ready for Prod"       "${LIM[5]}" 0           ""                                         || status=1
+run_pipeline refine     "Ready for Refinement" "${LIM[0]}" "${LIM[1]}" "Technical Refinement" "Spec Review"        || status=1
+run_pipeline develop "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding"               "Coding" "Validation" || status=1
+run_pipeline validate     "Validation"           "${LIM[4]}" 0           ""                                         || status=1
+run_pipeline deploy    "Ready for Prod"       "${LIM[5]}" 0           ""                                         || status=1
 exit $status

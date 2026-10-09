@@ -14,10 +14,10 @@ context: [PRODUCT.md, CLAUDE.md]  # what PO, UX, Cybersec and the Tech Lead read
 # forbidden: [docs/engineering/]               # extra paths agents may never change
 # paths: {specs: docs/superpowers/specs/, plans: docs/superpowers/plans/}
 # limits:                                      # runs at once (parallel) and cards in the WIP columns (wip)
-#   refinar: {parallel: 2, wip: 2}
-#   desenvolver: {parallel: 2, wip: 4}
-#   validar: {parallel: 2}
-#   deployar: {parallel: 1}
+#   refine: {parallel: 2, wip: 2}
+#   develop: {parallel: 2, wip: 4}
+#   validate: {parallel: 2}
+#   deploy: {parallel: 1}
 # (the machine pool in ~/.mylos/config.yml caps every project together: `mylos pool`)
 
 layers:

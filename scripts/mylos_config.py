@@ -21,8 +21,8 @@ REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 DEFAULTS = {
     "project": {"main": "main"},
     "paths": {"specs": "docs/superpowers/specs/", "plans": "docs/superpowers/plans/"},
-    "limits": {"refinar": {"parallel": 2, "wip": 2}, "desenvolver": {"parallel": 2, "wip": 4},
-               "validar": {"parallel": 2, "wip": 0}, "deployar": {"parallel": 1, "wip": 0}},
+    "limits": {"refine": {"parallel": 2, "wip": 2}, "develop": {"parallel": 2, "wip": 4},
+               "validate": {"parallel": 2, "wip": 0}, "deploy": {"parallel": 1, "wip": 0}},
     "context": [], "forbidden": [], "review_criteria": "",
 }
 LAYER_DEFAULTS = {"stack": "", "build": "", "assertions": "", "setup_errors": "", "test_config": [],
@@ -341,8 +341,8 @@ def migration_check(pattern, lines):
 
 
 DEFAULT_VERSION = r"^[A-Za-z]*([0-9]+(?:[._][0-9]+)*)"  # V27__x.sql, 000027_x.up.sql
-STAGES = ("refinar", "desenvolver", "validar", "deployar")
-MACHINE_DEFAULTS = {"pool": 4, "stages": {"refinar": 2, "desenvolver": 2, "validar": 2, "deployar": 1}}
+STAGES = ("refine", "develop", "validate", "deploy")
+MACHINE_DEFAULTS = {"pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1}}
 
 
 def machine_problems(raw):

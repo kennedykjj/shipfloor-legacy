@@ -146,7 +146,7 @@ gate_migration() {  # every layer's migrations: applied ones are immutable, dest
   done
   [ -z "$destructive" ] && return 0
   local body; body="$(rollback_section "$spec" 2>/dev/null)"
-  if [ -z "$body" ] || printf '%s' "$body" | grep -qi 'não se aplica'; then
+  if [ -z "$body" ] || printf '%s' "$body" | grep -Eqi 'não se aplica|^[-* ]*(n/a|none|not applicable)[. ]*$'; then
     echo "migration: destructive migration(s)$destructive need a filled '## Rollback' section in $spec" >&2
     return 1
   fi
