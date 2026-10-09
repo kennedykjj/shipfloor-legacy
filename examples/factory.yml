@@ -1,16 +1,16 @@
-# .mylos/factory.yml — what the factory needs to know about this repository.
-# Copy to .mylos/factory.yml, adjust, commit to the main branch, then run `mylos add <this repo>`.
+# .aghanim/factory.yml — what the factory needs to know about this repository.
+# Copy to .aghanim/factory.yml, adjust, commit to the main branch, then run `aghanim add <this repo>`.
 # The factory always reads this file from origin/main, never from a branch under work.
 
 project:
-  name: shop                 # slug: [a-z0-9-]; names ~/.mylos/projects/<name>
+  name: shop                 # slug: [a-z0-9-]; names ~/.aghanim/projects/<name>
   repo: acme/shop            # owner/repo on GitHub
   # main: main               # default branch (default: main)
 
-board: {owner: acme, number: 3}   # GitHub Project v2 (user or organization); `mylos setup-board shop` sets its columns
+board: {owner: acme, number: 3}   # GitHub Project v2 (user or organization); `aghanim setup-board shop` sets its columns
 
 context: [PRODUCT.md, CLAUDE.md]  # what PO, UX, Cybersec and the Tech Lead read about the product
-# review_criteria: .mylos/review-criteria.md   # default: the plugin's generic criteria
+# review_criteria: .aghanim/review-criteria.md   # default: the plugin's generic criteria
 # forbidden: [docs/engineering/]               # extra paths agents may never change
 # paths: {specs: docs/superpowers/specs/, plans: docs/superpowers/plans/}
 # limits:                                      # runs at once (parallel) and cards in the WIP columns (wip)
@@ -18,7 +18,7 @@ context: [PRODUCT.md, CLAUDE.md]  # what PO, UX, Cybersec and the Tech Lead read
 #   develop: {parallel: 2, wip: 4}
 #   validate: {parallel: 2}
 #   deploy: {parallel: 1}
-# (the machine pool in ~/.mylos/config.yml caps every project together: `mylos pool`)
+# (the machine pool in ~/.aghanim/config.yml caps every project together: `aghanim pool`)
 
 layers:
   # Each layer: the area one implementer owns (path), how to build it, and how to run selected
