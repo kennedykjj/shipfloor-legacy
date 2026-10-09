@@ -126,34 +126,38 @@ migration_versions() {  # migration_versions <layer> <base> <ERE>: unique versio
 }
 
 gate_migration() {  # every layer's migrations: applied ones are immutable, destructive ones need a rollback
-  load_layers
   require_rev "${1:-}"
-  local base="$1" spec="${2:-}" destructive="" f layer files
+  local base="$1" spec="${2:-}" destructive="" f layer re comment files plan
   # the order check trusts the base: it must be on this branch's history
   git merge-base --is-ancestor "$base" HEAD 2>/dev/null || { echo "migration: base $base is not an ancestor of HEAD" >&2; exit 2; }
-  MAIN="$(q get project.main)" || exit 2
+  plan="$(q migration-layers)" || exit 2  # first line: main branch; then <layer> <ERE> <comment prefix>
+  MAIN="$(printf '%s\n' "$plan" | head -1)"
   files="$(changed_files "$base")"
-  for layer in $ALL_LAYERS; do
-    layer_fields "$layer" _migrations_re migrations.comment || exit 2
-    [ -z "${LF[0]}" ] && continue
+  while IFS=$'\t' read -r layer re comment; do
+    [ -z "$layer" ] && continue
     while IFS= read -r f; do
       [ -z "$f" ] && continue
-      printf '%s
-' "$f" | grep -Eq -- "${LF[0]}" || continue
+      printf '%s\n' "$f" | grep -Eq -- "$re" || continue
       if git cat-file -e "$base:$f" 2>/dev/null; then
         echo "migration: $f already exists on the base; applied migrations are immutable (add a new file)" >&2; return 1
       fi
       [ -f "$f" ] || continue
-      if code_lines "$f" "${LF[1]}" | grep -Eiq '\b(drop|rename|truncate|delete)\b'; then destructive="$destructive $f"; fi
+      if code_lines "$f" "$comment" | grep -Eiq '\b(drop|rename|truncate|delete)\b'; then destructive="$destructive $f"; fi
     done <<< "$files"
-    migration_versions "$layer" "$base" "${LF[0]}" || return 1
-  done
+    migration_versions "$layer" "$base" "$re" || return 1
+  done < <(printf '%s\n' "$plan" | tail -n +2)
   [ -z "$destructive" ] && return 0
   local body; body="$(rollback_section "$spec" 2>/dev/null)"
   if [ -z "$body" ] || printf '%s' "$body" | grep -Eqi 'não se aplica|^[-* ]*(n/a|none|not applicable)[. ]*$'; then
     echo "migration: destructive migration(s)$destructive need a filled '## Rollback' section in $spec" >&2
     return 1
   fi
+}
+
+gate_fast() {  # gate_fast <base> <spec> [qa]: forbidden + migration + acceptance-intact in one process
+  gate_forbidden "${1:-}" || return $?
+  gate_migration "${1:-}" "${2:-}" || return $?
+  [ -z "${3:-}" ] || gate_acceptance_intact "$3"
 }
 
 gate_build() {  # each implementer layer with changes runs its build from its own directory
@@ -299,6 +303,7 @@ case "$cmd" in
   forbidden)         gate_forbidden "$@" ;;
   acceptance-intact) gate_acceptance_intact "$@" ;;
   migration)         gate_migration "$@" ;;
+  fast)              gate_fast "$@" ;;
   build)             gate_build "$@" ;;
   red)               gate_red "$@" ;;
   green)             gate_green "$@" ;;

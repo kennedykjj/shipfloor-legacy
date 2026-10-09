@@ -28,4 +28,8 @@ setup; run 7 >/dev/null; echo "Ready for Prod" > "$FG/status"; : > "$FG/calls"
 code="$(run 7)"; [ "$code" = 0 ] && [ "$(cat "$FG/status")" = Done ] && pass "resumes after the merge" || fail "exit $code: $(cat "$T/out")"
 case "$(cat "$FG/calls")" in *"pr merge"*) fail "merged twice" ;; *) pass "no second merge" ;; esac
 
+
+# a branch whose name has a "t" (and a tab-free pattern): the PR is still found
+setup; echo feat/7-tests-at-last > "$FG/branch"; git -C "$repo" push -q origin feat/7-x:feat/7-tests-at-last
+code="$(run 7)"; [ "$code" = 0 ] && pass "branch name with t deploys" || fail "exit $code: $(cat "$T/out")"
 finish
