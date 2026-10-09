@@ -34,4 +34,17 @@ got="$(curl -s "$base/api/card/shop/7?t=$tok" | $PY -c 'import json,sys; c=json.
 assert_contains "$got" "24.3 2 develop,refine"
 [ "$(code "$base/api/card/shop/7")" = 403 ] && pass "no token, no data" || fail "served without the token"
 [ "$(code "$base/api/log/shop/..%2F..%2Fregistry.tsv?t=$tok")" = 404 ] && pass "no path outside logs" || fail "served a file outside logs"
+
+# owner actions: the board says 7 is in Spec Review, 8 in Coding, 9 in Staged
+printf 'PVTI_7\t7\t👤 Spec Review\nPVTI_8\t8\t🤖 Coding\nPVTI_9\t9\t👤 Staged\n' > "$FAKE_GH_DIR/items.tsv"
+post() { curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' "$@"; }
+[ "$(post -d '{"column":"Spec Review"}' "$base/api/card/shop/7/approve")" = 403 ] && pass "no token, no action" || fail "acted without the token"
+[ "$(post -d '{"column":"Coding"}' "$base/api/card/shop/8/approve?t=$tok")" = 409 ] && pass "Coding is not the owner's" || fail "approved a card in Coding"
+[ ! -e "$FAKE_GH_DIR/edits" ] && pass "nothing moved" || fail "moved a card it should not"
+[ "$(post -d '{"column":"Spec Review"}' "$base/api/card/shop/7/approve?t=$tok")" = 200 ] && pass "approved" || fail "approve failed"
+assert_contains "$(cat "$FAKE_GH_DIR/edits")" "--id PVTI_7 --field-id FLD_x --single-select-option-id opt5"
+[ "$(post -d '{"column":"Staged","text":"fix the header"}' "$base/api/card/shop/9/request-changes?t=$tok")" = 200 ] && pass "changes requested" || fail "request-changes failed"
+assert_contains "$(cat "$FAKE_GH_DIR/comments")" "fix the header"
+c="$(grep -n '^issue comment 9' "$FAKE_GH_DIR/calls" | cut -d: -f1)"; m="$(grep -n 'item-edit.*PVTI_9.*opt6' "$FAKE_GH_DIR/calls" | cut -d: -f1)"
+[ -n "$c" ] && [ -n "$m" ] && [ "$c" -lt "$m" ] && pass "comment first, then back to Coding" || fail "comment $c, move $m"
 finish

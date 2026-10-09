@@ -24,5 +24,8 @@ case "$args" in
     case "$args" in *"--repo acme/shop"*) ;; *) echo "failed to run git: fatal: not a git repository" >&2; exit 1 ;; esac
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     n="$(echo "$args" | awk '{print $3}')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
+  "issue comment"*)
+    [ -e "$d/fail-comment" ] && { echo "gh: HTTP 502" >&2; exit 1; }
+    cat >> "$d/comments" ;;
   *) echo "fake-gh: unexpected: $args" >&2; exit 9 ;;
 esac
