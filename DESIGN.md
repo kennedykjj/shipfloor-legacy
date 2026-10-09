@@ -1,0 +1,231 @@
+---
+name: Aghanim's Anvil Dashboard
+description: A deep-slate item shop for a software factory: cards are items, the drawer is the item tooltip.
+colors:
+  ground: "#0d1014"
+  panel: "#151a21"
+  panel-hi: "#1b212a"
+  edge: "#262e39"
+  edge-hi: "#36404e"
+  parchment: "#ebe5d5"
+  muted: "#8f8b80"
+  faint: "#5f6068"
+  gold: "#e2b356"
+  azure: "#63b2ff"
+  azure-ink: "#0b2440"
+  ok: "#7cc58a"
+  warn: "#d9a45b"
+  bad: "#f06a5f"
+  stone-ground: "#e7e7e4"
+  stone-panel: "#f4f4f2"
+  stone-panel-hi: "#fbfbfa"
+  stone-edge: "#d9d9d4"
+  stone-edge-hi: "#c4c4bd"
+  stone-ink: "#23262b"
+  stone-muted: "#6b6a66"
+  stone-faint: "#9b9890"
+  stone-gold: "#855a0c"
+  stone-azure: "#1f6fd1"
+  stone-ok: "#2f7d43"
+  stone-warn: "#9a5b12"
+  stone-bad: "#c23b31"
+typography:
+  stat:
+    fontFamily: "ui-monospace, Cascadia Mono, SF Mono, Menlo, Consolas, monospace"
+    fontSize: "19px"
+    fontWeight: 600
+    lineHeight: 1.15
+    letterSpacing: "-0.01em"
+    fontFeature: "tabular-nums"
+  headline:
+    fontFamily: "Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif"
+    fontSize: "17px"
+    fontWeight: 600
+    lineHeight: 1.3
+  title:
+    fontFamily: "Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.35
+  body:
+    fontFamily: "Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.45
+  label:
+    fontFamily: "Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif"
+    fontSize: "11px"
+    fontWeight: 600
+    lineHeight: 1.45
+    letterSpacing: "0.02em"
+  log:
+    fontFamily: "ui-monospace, Cascadia Mono, SF Mono, Menlo, Consolas, monospace"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.55
+rounded:
+  sm: "4px"
+  md: "5px"
+  card: "6px"
+  dial: "50%"
+spacing:
+  xs: "6px"
+  sm: "10px"
+  md: "14px"
+  lg: "20px"
+components:
+  card:
+    backgroundColor: "{colors.panel-hi}"
+    textColor: "{colors.parchment}"
+    rounded: "{rounded.card}"
+    padding: "9px 10px"
+  card-awaiting:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.azure}"
+    rounded: "{rounded.card}"
+    padding: "9px 10px"
+  button-approve:
+    backgroundColor: "{colors.azure}"
+    textColor: "{colors.azure-ink}"
+    rounded: "{rounded.md}"
+    padding: "7px 12px"
+  button-secondary:
+    backgroundColor: "{colors.panel-hi}"
+    textColor: "{colors.parchment}"
+    rounded: "{rounded.md}"
+    padding: "7px 12px"
+  flag:
+    textColor: "{colors.muted}"
+    rounded: "{rounded.sm}"
+    padding: "1px 7px"
+  gate:
+    textColor: "{colors.ok}"
+    rounded: "{rounded.sm}"
+    padding: "2px 7px"
+  drawer:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.parchment}"
+    width: "min(660px, 52vw)"
+---
+
+# Design System: Aghanim's Anvil Dashboard
+
+## Overview
+
+**Creative North Star: "Aghanim's Tooltip"**
+
+The dashboard is an item shop for a software factory. Every card on the board is an item; opening one slides in its tooltip, the drawer: name, gold cost, tabbed sections for sessions, log, gates and review, and one decision. Surfaces are deep slate with a top-lit edge in dark mode and neutral pale stone in light mode, both following `prefers-color-scheme`. The mood is a quiet, dense, glanceable instrument for one owner doing quick checks: open, approve what waits, glance at cost and runs, close.
+
+Two colors carry meaning and nothing else does. Gold means money: the cost numerals and the coin mark. Azure means the owner: what waits for them and the actions they take. Everything else is slate, parchment (or ink on stone) and hairlines. The system rejects the generic grey kanban with colored tags: column identity comes from position and name, never from tag color.
+
+**Key Characteristics:**
+- Item cards with a top-lit border and a faint vertical gradient; the drawer is the same material at tooltip scale.
+- Two meaningful hues (gold for cost, azure for the owner), plus ok/warn/bad for outcomes only.
+- Monospace tabular figures for every number; system sans for everything else.
+- Hairline borders instead of shadows at rest; depth appears on hover and for the drawer.
+- One signature motion: the cooldown dial on running cards.
+
+## Colors
+
+A slate-and-parchment ground with one coin-gold and one azure signal. The light theme keeps the same roles with darkened gold and azure for contrast on stone.
+
+### Primary
+- **Aghanim Azure** (`colors.azure`, light `colors.stone-azure`): the owner's color. Used for the "awaiting you" count and its card chips, the awaiting card's border, inset ring and tint, the waits line, the approve button fill (text is `azure-ink`), the focus ring, and the selection tint.
+
+### Secondary
+- **Coin Gold** (`colors.gold`, light `colors.stone-gold`): cost only. Cost numerals on cards, the session table and the drawer total, the header's spent-today figure, the `$ ?` unpriced marker, the coin mark (`.coin`), and the hairline rule under the tooltip header (gold at 60% mix).
+
+### Neutral
+- **Deep Slate Ground** (`colors.ground`, light `colors.stone-ground`): page background and the textarea well.
+- **Slate Panel** (`colors.panel`) and **Raised Panel** (`colors.panel-hi`): header, drawer, cards (gradient from raised to panel), hover rows. Light: `stone-panel`, `stone-panel-hi`.
+- **Hairline** (`colors.edge`) and **Lit Edge** (`colors.edge-hi`): dividers and borders; the lit edge is the top border of cards and the drawer's left border.
+- **Parchment** (`colors.parchment`, light `colors.stone-ink`): primary text; also the running dial and the selected-tab underline.
+- **Muted** (`colors.muted`) and **Faint** (`colors.faint`): secondary text, column headings, table heads, "est." marks. Light: `stone-muted`, `stone-faint`.
+- **Outcome trio** (`colors.ok`, `colors.warn`, `colors.bad`; light `stone-ok`, `stone-warn`, `stone-bad`): run results, gate pass/fail, paused/offline flags, notices. Never decorative.
+
+### Named Rules
+**The Coin Rule.** Gold appears only on money: cost numerals, the coin mark, the unpriced marker, and the tooltip header's cost rule. Never on buttons, headings, borders of cards or status.
+
+**The Owner Rule.** Azure appears only on what waits for the owner or what the owner does. If a thing does not need a human, it is not azure.
+
+**The Estimate Rule.** Every cost is labelled "est." in faint small type next to the figure; a missing price shows the gold `$ ?` marker with an explanatory title, never a zero.
+
+## Typography
+
+**Display/Body Font:** system sans (Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif)
+**Mono Font:** ui-monospace stack (Cascadia Mono, SF Mono, Menlo, Consolas, monospace)
+
+**Character:** a tool's voice, not a brand's. Sans carries words; monospace with tabular figures carries every count, id, token total and cost so columns align and values do not jitter as they update. No webfonts, no CDN.
+
+### Hierarchy
+- **Stat** (mono, 600, 19px, 1.15; 15px for per-stage slots): the header strip figures, with a 13px faint denominator.
+- **Headline** (sans, 600, 17px, 1.3): the drawer card title; the drawer total is mono 20px 600.
+- **Title** (sans, 400, 13px, 1.35, clamped to two lines): the card title.
+- **Body** (sans, 14px, 1.45): page base; tables at 12.5px, meta lines 12.5px.
+- **Label** (sans, 11-12px; 600 for column headings and section headers, 11px at 0.02em for section keys): column headings, table heads, flags, keys under stats. Sentence case, never uppercase.
+- **Log** (mono, 12px, 1.55, pre-wrap): the log pane.
+
+### Named Rules
+**The Figures Rule.** Any number is mono with `tabular-nums` (`.num`). Prose stays sans.
+
+## Layout
+
+A full-height flex column that never scrolls the page: a slim header strip, then `main` holding the board and the drawer. The strip is a row of stats separated by hairlines (brand, pool in use, per-stage slots with 3px meters, runs today with ok/failed counts, spent today, awaiting you, then factory state right-aligned). The board is ten columns in factory order, each `flex: 1 1 180px` with a 166px floor; empty columns collapse to a 92px stub with a wrapping heading. The two owner columns (Spec Review, Staged) get full-strength headings. Cards stack with an 8px gap inside 10px column padding, and the board scrolls horizontally when columns do not fit.
+
+The drawer is absolutely positioned over the board's right edge: `min(660px, 52vw)`, widening to `min(1180px, 72vw)` for the Review tab. Drawer content uses a 20px side gutter. Below 860px the header wraps, stats drop their borders, and the drawer takes the full width.
+
+## Elevation & Depth
+
+Hybrid, mostly tonal. At rest depth is conveyed by surface steps (ground, panel, raised panel) and hairline borders with a lit top edge; there are no resting shadows. Cards lift 1px with a soft shadow on hover. The drawer casts a leftward soft shadow over the board.
+
+### Shadow Vocabulary
+- **Hover lift** (`box-shadow: 0 10px 30px rgba(0,0,0,.45)`, light `rgba(40,36,28,.14)`; via `--shadow`): card hover with `translateY(-1px)`.
+- **Drawer cast** (`box-shadow: -14px 0 32px -8px rgba(0,0,0,.45)`): open drawer only; removed when closed.
+- **Dial ring** (`0 0 0 2px panel, 0 0 0 3px edge`): the cooldown dial's inset ring.
+
+### Named Rules
+**The Flat-At-Rest Rule.** Cards and panels carry no shadow until hovered or, for the drawer, open.
+
+## Shapes
+
+Small, tool-like radii: 4px on flags, gates, chips and selects; 5px on buttons and the textarea; 6px on cards; a full circle for the dial and the coin. Borders are 1px hairlines; the awaiting card adds a 1px inset azure ring. The tooltip header is closed by a gold hairline, and the drawer is a flat-edged panel with no radius.
+
+## Components
+
+### Cards
+Item tiles: raised-to-panel gradient, 1px border with a lit top edge, 6px radius, 9px 10px padding, number (mono, muted) at left and gold cost at right, title below, optional status line. Hover lifts 1px. A running card gains the lit border and a dial line. An awaiting card takes the azure border, inset azure ring, azure-tinted gradient and an azure waits line ("spec to review" or "ready to ship"). A card being moved dims to 55% and reads "moving...". The open card gets a parchment border.
+
+### Cooldown Dial (signature)
+A 13px circle filled by a conic gradient sweep in parchment over lit-edge, ringed by the dial ring, rotating a full turn every 6s linearly via a registered `--sweep` angle. Appears only on running cards. Under `prefers-reduced-motion: reduce` it stops and shows a static quarter (90deg); card and drawer transitions are also disabled. It is the only continuous motion; the log skeleton shimmer is a loading state only.
+
+### Header Strip
+Stats with a 11px muted key under a 19px mono value; slot meters are 3px parchment bars at 75% opacity. The "awaiting you" stat is azure and lists the waiting card numbers as small azure mono buttons that open the card. Flags are 12px, 4px-radius outlines; warn and bad take their outcome color.
+
+### Tooltip Drawer
+Panel with a lit left edge, a header (title, gold total with "est.", Close text button) closed by the gold hairline, then underlined tabs (Sessions, Log, Gates, Review) with mono counts. Sessions are a right-aligned numeric table with sticky heads, dashed sub-rows for subagents and a total row. The Review tab hosts the review page in a sandboxed iframe under the decision bar.
+
+### Buttons
+- **Approve:** azure fill, `azure-ink` text, 600 weight, 5px radius, 7px 12px; hover brightens 8%.
+- **Secondary (Request changes, Retry):** raised panel, lit-edge border, parchment text; hover border turns parchment.
+- **Disabled:** 50% opacity, progress cursor.
+- **Focus:** 2px azure outline, 2px offset on every focusable element.
+
+### Embedded Review Pages
+Agent-written review pages in the iframe are re-themed by `EMBED_CSS` in `scripts/dashboard.py`: their own header hidden, and their page, sheet, surface, ink, muted and rule variables remapped to ground, panel, raised panel, parchment, muted and hairline (and the stone set in light), system sans for display and body, 600 headings, transparent buttons with hairline borders. The iframe element itself keeps a white background as the fallback under unstyled pages.
+
+## Do's and Don'ts
+
+### Do:
+- **Do** use gold only for cost and the coin mark, and azure only for the owner's waiting items and actions.
+- **Do** set every number in mono with tabular figures and label every cost "est.".
+- **Do** keep surfaces flat at rest and express hierarchy with the panel steps and hairlines.
+- **Do** provide the light-theme value for every new color token in the `prefers-color-scheme: light` block, darkening gold and azure for contrast.
+- **Do** keep the cooldown dial as the single continuous animation and give any new motion a reduced-motion fallback.
+- **Do** keep factory stage and column names verbatim.
+
+### Don't:
+- **Don't** color-code columns or cards with tags or per-stage hues; position and name identify a stage.
+- **Don't** use gold or azure as decoration (borders, headings, icons, dividers) or use red/green for anything but outcomes.
+- **Don't** add emoji, icon fonts or glyph icons; text labels carry actions.
+- **Don't** add webfonts, CDN assets or a build step; the dashboard is one self-contained file.
+- **Don't** add resting shadows, gradients beyond the panel step, or a second continuous animation.
