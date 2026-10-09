@@ -84,6 +84,10 @@ def cost(tokens, prices):
     return total
 
 
+def rounded(usd):
+    return None if usd is None else round(usd, 2)
+
+
 def bash():
     return os.environ.get("AGHANIM_BASH", "bash")
 
@@ -209,6 +213,66 @@ class Factory:
                 "repo": aghanim_config.dotted(self.config(p), "project.repo"),
                 "total": None if None in costs else round(sum(costs), 2), "sessions": sessions, "runs": runs,
                 "reports": self.reports(p, n), "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file()}
+
+    def pool(self):
+        m = aghanim_config.merged(read_yaml(self.home / "config.yml"), aghanim_config.MACHINE_DEFAULTS)
+        return m["pool"], m["stages"]
+
+    def live(self, p):
+        out = []
+        for d in (self.pdir(p) / "locks").glob("*-*.lock"):
+            m = re.fullmatch(r"([a-z]+)-(\d+)\.lock", d.name)
+            if not m:
+                continue
+            stage, n = m.group(1), int(m.group(2))
+            try:
+                epoch = int((d / "info").read_text().split()[1])
+                started = datetime.fromtimestamp(epoch, timezone.utc).isoformat()
+            except (OSError, ValueError, IndexError):
+                started = None
+            last = [r for r in self.runs(p, issue=n) if r["stage"] == stage][-1:]
+            out.append({"project": p, "issue": n, "stage": stage, "started": started,
+                        "orphan": bool(last and last[0]["end"])})  # the run ended and left its lock
+        return out
+
+    def usage_limited(self):
+        for log in self.home.glob("projects/*/logs/*.log"):
+            if log.stat().st_mtime > time.time() - 1800:
+                text = log.read_text(encoding="utf-8", errors="replace")
+                if "hit your session limit" in text[max(0, text.rfind("== start")):]:
+                    return True
+        return False
+
+    def overview(self):
+        size, slots = self.pool()
+        prices, today = self.prices(), datetime.now().date().isoformat()
+        live, projects, finished, today_cost = [], [], [], 0.0
+        for p in self.projects():
+            runs = self.live(p)
+            live += runs
+            per_card = {}
+            for s in self.sessions(p):
+                c = self.session_cost(s, prices)
+                prev = per_card.get(s["issue"], 0.0)
+                per_card[s["issue"]] = None if c is None or prev is None else prev + c
+                if c and parse_ts(s["start"]).astimezone().date().isoformat() == today:
+                    today_cost += c
+            running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
+            columns, age = self.board(p)
+            titles = self.titles(p)
+            projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "board_age_s": age,
+                             "cards": [{"issue": n, "title": titles.get(n, ""), "column": col,
+                                        "cost": rounded(per_card.get(n, 0.0)),
+                                        "running": running.get(n), "awaiting": col in OWNER_MOVES}
+                                       for n, col in columns.items()]})
+            finished += [r for r in self.runs(p, day=today) if r["end"]]
+        used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
+        return {"pool": {"size": size, "used": sum(used.values()),
+                         "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
+                "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(),
+                "runs": live, "projects": projects,
+                "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
+                          "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)}}
 
     def act(self, p, n, action, seen, text, move_only):
         """The owner's approve / request-changes. Moves with gh directly: board.sh move refuses
