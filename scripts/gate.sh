@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Deterministic gates for the factory pipelines.
-# Exit 0 = pass, 1 = blocked (details on stderr), 2 = bad usage or bad revision (never a pass).
+# Exit 0 = pass, 1 = blocked (details on stderr), 2 = bad usage or bad revision (never a pass),
+# 3 = infrastructure (the run's stack did not come up, or no stack slot in time).
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib/project.sh"
+source "$HERE/lib/stack.sh"
 
 # gate.sh -C <worktree> ...: run against that worktree (pipelines never `cd`).
 if [ "${1:-}" = "-C" ]; then
@@ -206,58 +208,33 @@ gate_test_plan() {  # every AC in the spec has a row whose test file its layer's
   printf '%b\n' "${bad#\\n}" >&2; return 1
 }
 
-STACK_LOCK="${FACTORY_HOME:-$AGHANIM_HOME}/locks/stack.lock"
-
-# The one local stack (Docker, port 3000) is used by e2e and verify-ui; parallel pipelines queue on
-# stack.lock. info = "<owner> <epoch>"; a lock older than STACK_TTL is abandoned and gets reclaimed.
-STACK_TTL="${FACTORY_STACK_TTL:-2700}"
-
-stack_acquire() {  # stack_acquire <owner>
-  local owner="$1" waited=0 max="${FACTORY_STACK_WAIT:-1800}" held epoch
-  mkdir -p "$(dirname "$STACK_LOCK")"
-  until mkdir "$STACK_LOCK" 2>/dev/null; do
-    read -r held epoch _ < "$STACK_LOCK/info" 2>/dev/null || read -r held _ < "$STACK_LOCK/owner" 2>/dev/null || true
-    [ -z "${epoch:-}" ] && epoch="$(stat -c %Y "$STACK_LOCK" 2>/dev/null || date +%s)"
-    if [ $(( $(date +%s) - epoch )) -gt "$STACK_TTL" ]; then rm -rf "$STACK_LOCK"; continue; fi
-    [ "${held:-}" = "$owner" ] && return 0
-    [ "$waited" -ge "$max" ] && { echo "stack busy (held by ${held:-?}) for ${max}s; try again later" >&2; return 1; }
-    sleep 1; waited=$((waited + 1))
-  done
-  echo "$owner $(date +%s)" > "$STACK_LOCK/info"
-}
-
-stack_release() {  # stack_release <owner>: only the owner releases
-  local held; read -r held _ < "$STACK_LOCK/info" 2>/dev/null || read -r held _ < "$STACK_LOCK/owner" 2>/dev/null || return 0
-  [ "$held" = "$1" ] && rm -rf "$STACK_LOCK"
-  return 0
-}
-
-with_stack_lock() {  # run a command holding the stack lock
-  local owner="gate-$$"
-  stack_acquire "$owner" || { echo "stack busy; try again later"; return 1; }
-  "$@"; local code=$?
-  stack_release "$owner"; return $code
-}
-
-gate_stack_lock() {  # gate.sh stack-lock acquire|release <owner>
+gate_stack() {  # gate.sh stack up <owner> | down <owner> | status (lib/stack.sh)
   case "${1:-}" in
-    acquire) [ -n "${2:-}" ] || return 2; stack_acquire "$2" ;;
-    release) [ -n "${2:-}" ] || return 2; stack_release "$2" ;;
-    *) echo "stack-lock: acquire|release <owner>" >&2; return 2 ;;
+    up)     [ -n "${2:-}" ] || return 2; stack_up "$2" ;;
+    down)   [ -n "${2:-}" ] || return 2; stack_down "$2" ;;
+    status) stack_status ;;
+    *) echo "stack: up <owner> | down <owner> | status" >&2; return 2 ;;
   esac
+}
+
+stack_around() {  # stack_around <command...>: run it on its own stack slot when the layer needs one; 3 = infrastructure
+  [ "$L_STACK" = true ] || { "$@"; return; }
+  local owner="gate-$$"
+  stack_up "$owner" >/dev/null || return 3  # not in a subshell: the slot's AGHANIM_* stay exported for the runner
+  "$@"; local code=$?
+  stack_down "$owner"; return $code
 }
 
 run_selector() {  # run_selector <layer> <selector>: runner output; returns the runner's exit code
   # The selector reaches the runner as "$1" of `bash -c`, never as shell code.
   export NO_COLOR=1 FORCE_COLOR=0  # runners print plain text so the patterns below match
-  if [ "$L_STACK" = true ] && [ -z "${FACTORY_STACK_HELD:-}" ]; then FACTORY_STACK_HELD=1 with_stack_lock run_selector "$@"; return; fi
   local cmd="${L_TEST//\{selector\}/\"\$1\"}"
   (cd "$ROOT/$L_PATH" 2>/dev/null || { echo "gate: layer directory $L_PATH not found"; exit 1; }; bash -c "$cmd" _ "$2" 2>&1)
 }
 
-load_layer() {  # load_layer <layer>: L_PATH L_TEST L_RAN L_ASSERT L_SETUP L_STACK; 2 = unknown layer
-  layer_fields "$1" path test ran assertions setup_errors needs_stack || return 2
-  L_PATH="${LF[0]}" L_TEST="${LF[1]}" L_RAN="${LF[2]}" L_ASSERT="${LF[3]}" L_SETUP="${LF[4]}" L_STACK="${LF[5]}"
+load_layer() {  # load_layer <layer>: L_PATH L_TEST L_RAN L_ASSERT L_SETUP L_STACK L_RETRY; 2 = unknown layer
+  layer_fields "$1" path test ran assertions setup_errors needs_stack retry || return 2
+  L_PATH="${LF[0]}" L_TEST="${LF[1]}" L_RAN="${LF[2]}" L_ASSERT="${LF[3]}" L_SETUP="${LF[4]}" L_STACK="${LF[5]}" L_RETRY="${LF[6]:-0}"
   local p  # a pattern grep -E rejects reads as "no match" and could let red/green pass wrongly
   for p in "$L_RAN" "$L_ASSERT" "$L_SETUP"; do
     [ -z "$p" ] || ere_ok "$p" || { echo "gate: layer '$1' has an invalid grep -E pattern: $p" >&2; return 2; }
@@ -268,9 +245,13 @@ SETUP_ERRORS='compilation (error|failure)|unresolved reference|cannot find modul
 ASSERTIONS='AssertionFailedError|AssertionError|expected: ?<.*> but was|expect\(.*\)\.[A-Za-z]+\(.*\) failed|^[[:space:]]*Received:'
 
 gate_red() {
-  local layer="${1:-}" sel="${2:-}" out code setup assertions
-  [ -z "$sel" ] && { echo "red: selector required" >&2; return 2; }
-  load_layer "$layer" || return 2
+  [ -z "${2:-}" ] && { echo "red: selector required" >&2; return 2; }
+  load_layer "${1:-}" || return 2
+  stack_around red_run "$1" "$2"
+}
+
+red_run() {  # red_run <layer> <selector>: never retried, a test that must fail cannot be flaky
+  local layer="$1" sel="$2" out code setup assertions
   setup="$SETUP_ERRORS${L_SETUP:+|$L_SETUP}"; assertions="$ASSERTIONS${L_ASSERT:+|$L_ASSERT}"
   out="$(run_selector "$layer" "$sel")"; code=$?
   if [ "$code" -eq 0 ]; then echo "red: tests passed before implementation; they prove nothing" >&2; return 1; fi
@@ -287,10 +268,18 @@ gate_red() {
 }
 
 gate_green() {  # acceptance tests must run (the layer's `ran` pattern) and pass
-  local layer="${1:-}" sel="${2:-}" out code
-  [ -z "$sel" ] && { echo "green: selector required" >&2; return 2; }
-  load_layer "$layer" || return 2
+  [ -z "${2:-}" ] && { echo "green: selector required" >&2; return 2; }
+  load_layer "${1:-}" || return 2
+  stack_around green_run "$1" "$2"
+}
+
+green_run() {  # green_run <layer> <selector>: a layer with retry: 1 runs a failed selector once more
+  local layer="$1" sel="$2" out code
   out="$(run_selector "$layer" "$sel")"; code=$?
+  if [ "$code" -ne 0 ] && [ "${L_RETRY:-0}" -ge 1 ]; then
+    out="$(run_selector "$layer" "$sel")"; code=$?
+    [ "$code" -eq 0 ] && echo "flaky: $layer $sel"
+  fi
   if [ "$code" -ne 0 ]; then echo "green: acceptance tests fail:" >&2; printf '%s
 ' "$out" | tail -20 >&2; return 1; fi
   if ! printf '%s
@@ -308,6 +297,6 @@ case "$cmd" in
   red)               gate_red "$@" ;;
   green)             gate_green "$@" ;;
   test-plan)         gate_test_plan "$@" ;;
-  stack-lock)        gate_stack_lock "$@" ;;
-  *) echo "usage: gate.sh scope|forbidden|acceptance-intact|migration|build|red|green|test-plan ..." >&2; exit 2 ;;
+  stack)             gate_stack "$@" ;;
+  *) echo "usage: gate.sh scope|forbidden|acceptance-intact|migration|build|red|green|test-plan|stack ..." >&2; exit 2 ;;
 esac
