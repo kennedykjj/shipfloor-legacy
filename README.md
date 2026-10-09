@@ -34,6 +34,7 @@ Cards desenvolvidos ao mesmo tempo não quebram o `main`:
 - o gate `migration` recusa versão repetida e migration mais antiga que as do base;
 - `desenvolver`, `validar` e `deployar` trazem o `origin/main` antes dos gates;
 - o deploy só faz merge de um head que contém o `main` atual e passou no CI.
+- para fechar a corrida com merges feitos à mão, ative no GitHub a proteção do branch principal com "Require branches to be up to date before merging" e o CI obrigatório; o `/deployar` avisa no relatório quando ela falta.
 
 No deploy, conflitos são resolvidos pela própria esteira. O card volta para Coding só se o conflito envolve migration, se é grande (`deploy.conflict_max_files`/`conflict_max_hunks`) ou se gates ou CI falham depois de resolver.
 

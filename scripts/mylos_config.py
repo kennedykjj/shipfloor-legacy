@@ -300,9 +300,11 @@ def describe(cfg, home, worktrees):
 
 
 def migration_check(pattern, lines):
-    """lines: 'E\\tpath' (on the base) or 'N\\tpath' (added since). Prints problems; 1 when any."""
-    version_re, seen, errs = re.compile(pattern), {}, []
-    existing, added = [], []
+    """lines: 'E<TAB>path' (on the base or main) or 'N<TAB>path' (the card's own).
+    Blocks (1) only on problems that involve the card's migrations; problems already on main are
+    reported as warnings so one bad file there does not stall every card."""
+    version_re = re.compile(pattern)
+    found, errs, warns = [], [], []
     for line in lines:
         kind, _, path = line.partition("\t")
         if not path:
@@ -310,17 +312,29 @@ def migration_check(pattern, lines):
         name = path.rsplit("/", 1)[-1]
         m = version_re.search(name)
         if not m:
-            errs.append(f"{path}: no version in the name (pattern {pattern})"); continue
-        version = tuple(int(x) for x in re.split(r"[._]", m.group(1)) if x != "")
-        if version in seen and seen[version] != path:
-            errs.append(f"{path}: version {m.group(1)} is also used by {seen[version]}")
-        seen.setdefault(version, path)
-        (existing if kind == "E" else added).append((version, path))
-    if existing and added:
+            (errs if kind == "N" else warns).append(f"{path}: no version in the name (pattern {pattern})"); continue
+        try:
+            version = tuple(int(x) for x in re.split(r"[._]", m.group(1)) if x != "")
+        except (TypeError, ValueError):
+            (errs if kind == "N" else warns).append(f"{path}: '{m.group(1)}' is not a numeric version"); continue
+        # one migration may have several files: up/down pairs (000027_a.up.sql, .down.sql), undo (U27__a)
+        ident = re.sub(r"\.(up|down|undo)$", "", name[m.end():].rsplit(".", 1)[0] if "." in name[m.end():] else name[m.end():])
+        found.append((kind, version, ident, path))
+    by_version = {}
+    for kind, version, ident, path in found:
+        by_version.setdefault(version, []).append((kind, ident, path))
+    for version, items in by_version.items():
+        if len({ident for _, ident, _ in items}) > 1:
+            paths = ", ".join(p for _, _, p in items)
+            (errs if any(k == "N" for k, _, _ in items) else warns).append(f"version {'.'.join(map(str, version))} is used by {paths}")
+    existing = [(v, p) for k, v, _, p in found if k == "E"]
+    if existing:
         newest = max(existing)
-        for version, path in added:
-            if version <= newest[0]:
-                errs.append(f"{path}: older than {newest[1]} already on the base; use a higher version")
+        for kind, version, _, path in found:
+            if kind == "N" and version <= newest[0]:
+                errs.append(f"{path}: not newer than {newest[1]} (on the base or main); use a higher version")
+    for w in warns:
+        print(f"migration: warning (already on the base or main): {w}", file=sys.stderr)
     for e in errs:
         print(f"migration: {e}", file=sys.stderr)
     return 1 if errs else 0

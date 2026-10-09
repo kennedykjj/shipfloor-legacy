@@ -45,4 +45,35 @@ echo 'create table z (id int);' > db/migrations/000027_b.up.sql
 assert_exit 1 bash "$GATE" migration "$base" spec.md
 mv db/migrations/000027_b.up.sql db/migrations/000028_b.up.sql
 assert_exit 0 bash "$GATE" migration "$base" spec.md
+# up/down pairs and undo files are one migration, not a duplicate version
+r="$(new_repo)"; cd "$r"; mkdir -p db/migrations; echo x > db/migrations/000027_a.up.sql; echo x > db/migrations/000027_a.down.sql; git add -A; git commit -qm m
+base="$(git rev-parse HEAD)"; spec; echo x > db/migrations/000028_b.up.sql; echo x > db/migrations/000028_b.down.sql
+assert_exit 0 bash "$GATE" migration "$base" spec.md
+unset FACTORY_CONFIG; export FACTORY_CONFIG="$FACTORY_DIR/test/fixture/factory.yml"
+r="$(new_repo)"; cd "$r"; mkdir -p "$M"; echo x > "$M/V26__a.sql"; git add -A; git commit -qm m; base="$(git rev-parse HEAD)"; spec
+echo x > "$M/V27__b.sql"; echo x > "$M/U27__b.sql"
+assert_exit 0 bash "$GATE" migration "$base" spec.md
+
+# a bad name already on main does not stall cards that add no migration
+r="$(new_repo)"; cd "$r"; mkdir -p "$M"; echo x > "$M/V26__a.sql"; echo x > "$M/Vlatest__x.sql"; echo x > "$M/V26__dup.sql"; git add -A; git commit -qm m
+base="$(git rev-parse HEAD)"; spec; mkdir -p web; echo x > web/a.ts
+assert_exit 0 bash "$GATE" migration "$base" spec.md
+echo x > "$M/V27__new.sql"
+assert_exit 0 bash "$GATE" migration "$base" spec.md   # the card's own migration is fine
+
+# main took the version while the card was being built: caught before merging main
+remote="$(mktemp -d)"; git init -q --bare "$remote"
+r="$(new_repo)"; cd "$r"; git remote add origin "$remote"; mkdir -p "$M"; echo x > "$M/V26__a.sql"; git add -A; git commit -qm m; git push -q origin main
+git checkout -qb card; base="$(git rev-parse HEAD)"; spec; echo x > "$M/V27__card.sql"
+other="$(mktemp -d)"; git clone -q "$remote" "$other"; git -C "$other" config user.email t@t; git -C "$other" config user.name t
+echo x > "$other/$M/V27__main.sql"; git -C "$other" add -A; git -C "$other" commit -qm main; git -C "$other" push -q origin main
+git fetch -q origin
+assert_exit 1 bash "$GATE" migration "$base" spec.md
+mv "$M/V27__card.sql" "$M/V28__card.sql"
+assert_exit 0 bash "$GATE" migration "$base" spec.md
+
+# a base that is not an ancestor of HEAD is a usage error, never a pass
+git checkout -q main; side="$(git rev-parse HEAD)"; git checkout -q card; git commit -qm x --allow-empty
+git checkout -q --orphan lone; git commit -qm lone --allow-empty; lone="$(git rev-parse HEAD)"; git checkout -q card
+assert_exit 2 bash "$GATE" migration "$lone" spec.md
 finish
