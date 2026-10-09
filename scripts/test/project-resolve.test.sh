@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Without FACTORY_CONFIG the scripts find the project through ~/.mylos/registry.tsv and read the
-# config from its control checkout, never from the checkout they run in.
+# config from the snapshot of its main branch, never from the checkout they run in.
 source "$(dirname "$0")/lib.sh"
 CFG="$FACTORY_DIR/mylos-config.sh"
 unset FACTORY_CONFIG FACTORY_HOME FACTORY_REPO FACTORY_PROJECT FACTORY_WT_ROOT
@@ -9,11 +9,11 @@ export MYLOS_HOME="$(mktemp -d)"
 repo="$(new_repo)"
 control="$MYLOS_HOME/projects/shop/control"
 git -C "$repo" worktree add -q --detach "$control"
-mkdir -p "$control/.mylos"; cp "$FACTORY_DIR/test/fixture/factory.yml" "$control/.mylos/factory.yml"
+cp "$FACTORY_DIR/test/fixture/factory.yml" "$MYLOS_HOME/projects/shop/factory.yml"   # the committed snapshot
 mkdir -p "$repo/.mylos"; sed 's#acme/shop#evil/shop#' "$FACTORY_DIR/test/fixture/factory.yml" > "$repo/.mylos/factory.yml"
 printf 'shop\t%s\t%s\n' "$repo" "$MYLOS_HOME/projects/shop/wt" > "$MYLOS_HOME/registry.tsv"
 
-[ "$(cd "$repo" && bash "$CFG" get project.repo)" = "acme/shop" ] && pass "config comes from the control checkout" \
+[ "$(cd "$repo" && bash "$CFG" get project.repo)" = "acme/shop" ] && pass "config comes from the project snapshot" \
   || fail "read $(cd "$repo" && bash "$CFG" get project.repo 2>&1)"
 wt="$(mktemp -d)/7"; git -C "$repo" worktree add -q -b feat/7-x "$wt"
 [ "$(cd "$wt" && bash "$CFG" get project.repo)" = "acme/shop" ] && pass "issue worktree resolves the same project" || fail "worktree did not resolve"

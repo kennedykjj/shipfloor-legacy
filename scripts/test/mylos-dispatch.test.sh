@@ -23,7 +23,8 @@ setup() {
 setup; project shop; project blog
 bash "$MD"; ran="$(cat "$tmp/ran")"
 assert_contains "$ran" "shop "; assert_contains "$ran" "blog "
-assert_contains "$ran" "projects/shop/control/.mylos/factory.yml"
+assert_contains "$ran" "projects/shop/factory.yml"
+case "$ran" in *control/*) fail "config read from the editable control checkout" ;; *) pass "config outside the control checkout" ;; esac
 [ -f "$MYLOS_HOME/projects/blog/control/.mylos/factory.yml" ] && pass "control checkout created" || fail "no control checkout"
 
 # control follows origin/main and drops local edits
@@ -32,6 +33,13 @@ sed -i 's/number: 7/number: 8/' "$r/.mylos/factory.yml"; git -C "$r" commit -qam
 echo tampered >> "$MYLOS_HOME/projects/shop/control/.mylos/factory.yml"
 bash "$MD"; assert_contains "$(cat "$MYLOS_HOME/projects/shop/control/.mylos/factory.yml")" "number: 8"
 case "$(cat "$MYLOS_HOME/projects/shop/control/.mylos/factory.yml")" in *tampered*) fail "kept a local edit" ;; *) pass "local edit dropped" ;; esac
+
+# the gates' config is the committed one: an uncommitted edit in control (where runs work) is ignored
+setup; project shop; export FACTORY_CONTROL_REFRESH=0; mkdir -p "$MYLOS_HOME/projects/shop"
+r="$(cut -f2 "$MYLOS_HOME/registry.tsv")"; git -C "$r" worktree add -q --detach "$MYLOS_HOME/projects/shop/control" main
+sed -i 's/number: 7/number: 99/' "$MYLOS_HOME/projects/shop/control/.mylos/factory.yml"
+bash "$MD"; assert_contains "$(cat "$MYLOS_HOME/projects/shop/factory.yml")" "number: 7"
+unset FACTORY_CONTROL_REFRESH
 
 # global PAUSE stops everything; a project's PAUSE is honored by dispatch.sh itself
 setup; project shop; touch "$MYLOS_HOME/PAUSE"; bash "$MD"

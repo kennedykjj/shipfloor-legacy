@@ -13,7 +13,7 @@ Scripts: `board.sh`, `gate.sh`, `report.sh` and `mylos-config.sh` always mean `b
 
 Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and run builds and tests only through the gates (`build`, `red`, `green`), which run each layer's commands from the layer's directory. Avoid pipes after these commands; redirect long output to a file under `<tmp>` (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Shell variables do not survive between commands: write revisions (`base`, `qa`, `start`) as literal SHAs. Never write under `~/.claude`.
 
-Owner of a file: `mylos-config.sh layer-of <path>` names its layer; that layer's agent (from describe) fixes it.
+Owner of a file: `mylos-config.sh layer-of <repo-relative path>` (e.g. `web/app/page.tsx`, not an absolute path) names its layer; that layer's agent (from describe) fixes it.
 
 ## 1. Pick the card
 - Issue given → use it. Else `n=$(board.sh first "Ready for Dev")`; empty → stop.
@@ -36,8 +36,8 @@ Call `qa-engineer` with `issue spec plan worktree tmp` and the layers block of d
 
 ## 4. Implementation
 - For each plan task, one at a time (they share the worktree), call the task's layer agent (`engineer` unless describe names another) with `issue spec plan task worktree tmp layer=<name> path=<path> stack=<stack>`. Before each call record `start=<HEAD sha>`.
-- After each: `gate.sh scope <layer> <start>`, `gate.sh acceptance-intact <qa>`, `gate.sh migration <base> <spec>`, `gate.sh build <base>`.
-- When all tasks are done: `gate.sh green <layer> <selector>` for every acceptance test selector from the QA commit; the acceptance tests must run and pass.
+- After each: `gate.sh -C <wt> scope <layer> <start>`, `gate.sh -C <wt> acceptance-intact <qa>`, `gate.sh -C <wt> migration <base> <spec>`, `gate.sh -C <wt> build <base>`.
+- When all tasks are done: `gate.sh -C <wt> green <layer> <selector>` for every acceptance test selector from the QA commit; the acceptance tests must run and pass.
 - Failure → same agent again with the gate output as `findings` (max 2 rounds per task), then the failure rule.
 
 ## 5. Validation
