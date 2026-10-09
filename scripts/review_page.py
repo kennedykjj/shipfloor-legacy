@@ -21,25 +21,26 @@ for line in text.splitlines()[1:]:
     if cur is None or not line.strip():
         continue
     s = line.strip()
-    if s.startswith("_") and s.endswith(("_", "não se aplica")):
+    if s.startswith("_") and s.endswith(("_", "n/a", "não se aplica")):
         cur["intro"] = plain(s.strip("_").replace("_ —", " —"))
         continue
     if s.startswith("|"):
         cells = [c.strip() for c in s.strip("|").split("|")]
-        if all(re.fullmatch(r":?-+:?", c) for c in cells) or cells[0] in ("CA", "Papel"):
+        if all(re.fullmatch(r":?-+:?", c) for c in cells) or cells[0] in ("AC", "CA", "Papel", "Role"):
             continue
         cur["items"].append(plain(" · ".join(cells)))
         continue
-    if s.lower() in ("não se aplica", "- nenhuma"):
+    if s.lower() in ("n/a", "- none", "não se aplica", "- nenhuma"):
         continue
-    if re.fullmatch(r"\*\*[^*]+\*\*:?", s):  # a bold label alone ("**Critérios de aceite**")
+    if re.fullmatch(r"\*\*[^*]+\*\*:?", s):  # a bold label alone ("**Acceptance criteria**")
         continue
     cur["items"].append(plain(s[2:] if s.startswith("- ") else s))
 
 data = [s for s in sections if s["items"]]
 # Only open questions are for the owner to decide; everything else is shown read-only.
+# "dúvidas" is the legacy (Portuguese) title.
 for s in data:
-    s["ro"] = s["t"].strip().lower() != "dúvidas"
+    s["ro"] = s["t"].strip().lower() not in ("open questions", "dúvidas")
 data.sort(key=lambda s: s["ro"])  # questions first
 html = open(template_path, encoding="utf-8").read()
 for k, v in {"__DATA__": json.dumps(data, ensure_ascii=False), "__ISSUE__": issue, "__TITLE__": title,
