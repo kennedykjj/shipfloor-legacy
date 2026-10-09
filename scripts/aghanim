@@ -42,7 +42,7 @@ cmd_doctor() {
   if aghanim_python -c 'import yaml' 2>/dev/null; then echo "ok   python + PyYAML"; else echo "FAIL python 3 with PyYAML (pip install pyyaml)"; bad=1; fi
   gh auth status >/dev/null 2>&1 && echo "ok   gh authenticated" || { echo "FAIL gh auth login"; bad=1; }
   if [ -d "$HOME/.mylos" ] && [ ! -e "$AGHANIM_HOME" ]; then  # legacy mylos home
-    echo "WARN found $HOME/.mylos from before the rename; run: aghanim migrate-home"
+    echo "WARN found $HOME/.mylos from before the rename; run: aghanim migrate-home"  # legacy mylos
   fi
   src="$(source_dir)"
   if [ ! -d "$INSTALLED" ]; then echo "FAIL not installed (aghanim install)"; bad=1
