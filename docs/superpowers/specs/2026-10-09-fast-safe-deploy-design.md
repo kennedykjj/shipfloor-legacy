@@ -8,7 +8,7 @@ The first deploys on the generic factory took ~10 minutes of which ~5 were a loc
 
 ## Decisions
 
-1. **Deterministic deploy.** `scripts/deploy.sh <n>` runs the whole deploy; the `/mylos:deploy` skill only runs it, and resolves merge conflicts when the script asks for it.
+1. **Deterministic deploy.** `scripts/deploy.sh <n>` runs the whole deploy and is launched by the dispatcher directly (no agent, no tool timeout). Only when it exits 3 (conflicts) does the dispatcher call the `/mylos:deploy` agent to resolve them, then runs `deploy.sh <n> --continue`, which verifies the resolution (merge of the approved head and main, only conflicted files changed).
 2. **No duplicate tests in the deploy.** The script runs the fast deterministic gates (`forbidden`, `migration`, `acceptance-intact`); build and tests are CI's job on the exact head that will be merged.
 3. **Staged cards stay up to date.** Each dispatcher cycle refreshes cards in Staged and Ready for Prod whose PR is behind main: `deploy.sh <n> --refresh` merges main (only when it merges cleanly), runs the fast gates, pushes and records `deploy-merge`. When the owner approves, the head is usually ready and the deploy is only CI + merge + production.
 4. **Faster CI (Pickio):** pull requests run only the jobs of the layers they change; pushes to main run all.
@@ -31,7 +31,7 @@ exit 0 done (deploy: card in Done; refresh: up to date or nothing to do)
 
 Steps:
 1. Card status must be `Ready for Prod` (refresh: `Staged` or `Ready for Prod`). Exactly one open PR whose head is `feat/<n>-…` or `revert/<n>`.
-2. Accepted heads: the last `staged-head: <sha>` comment on the issue and every `deploy-merge: <sha> <main>` comment after it. The PR head must be one of them; otherwise blocked ("PR changed after it was staged").
+2. Accepted heads: the last `staged-head: <sha>` comment by the factory's own GitHub user, and every `deploy-merge: <sha> <main>` it wrote after it whose first parent is an accepted head and whose second parent is on main. Fork PRs are refused. The worktree must hold exactly the head GitHub reports. The PR head must be one of them; otherwise blocked ("PR changed after it was staged").
 3. Worktree `<worktrees>/<n>` reset to the PR head (not with `--continue`).
 4. If the head does not contain `origin/<main>`: merge it with a factory commit message and trailer.
    - Conflicts: a migration file among them, or more than `conflict_max_files`/`conflict_max_hunks` → abort, back to Coding (exit 4). Otherwise deploy exits 3 for the skill to resolve and rerun with `--continue`; refresh aborts and leaves it to the deploy.

@@ -44,13 +44,23 @@ bash "$D"; assert_contains "$(cat "$FACTORY_HOME/control/scripts/factory/marker"
 echo v2 > "$r/scripts/factory/marker"; git -C "$r" commit -qam v2; git -C "$r" push -q origin main
 echo tampered > "$FACTORY_HOME/control/scripts/factory/marker"
 bash "$D"; assert_contains "$(cat "$FACTORY_HOME/control/scripts/factory/marker")" "v2"
-# C3: only the deploy pipeline may merge
-setup; printf '#!/usr/bin/env bash
-case "$1 $2" in "eligible Ready for Refinement") echo 25 ;; "eligible Ready for Prod") echo 47 ;; *) echo ;; esac
+# the deploy is a script; an agent runs only to resolve conflicts it hands over (exit 3), then --continue
+deploy_case() {  # deploy_case <first exit>: fake deploy.sh exits <first exit>, then 0 on --continue
+  setup; printf '#!/usr/bin/env bash
+case "$1 $2" in "eligible Ready for Prod") echo 47 ;; *) echo ;; esac
 ' > "$tmp/board"
-bash "$D"; out="$(launched)"
-assert_contains "$(printf '%s
-' "$out" | grep '/mylos:deploy 47')" '--allowedTools Bash(gh pr merge:*)'
-case "$(printf '%s
-' "$out" | grep '/mylos:refine 25')" in *"gh pr merge"*) fail "refine may merge" ;; *) pass "refine may not merge" ;; esac
+  printf '#!/usr/bin/env bash
+echo "deploy.sh $*" >> "%s/launched"
+[ "${2:-}" = --continue ] && exit 0
+exit %s
+' "$tmp" "$1" > "$tmp/deploy"
+  chmod +x "$tmp/deploy"; export FACTORY_DEPLOY="$tmp/deploy"; bash "$D"; sleep 2
+}
+deploy_case 0; out="$(cat "$tmp/launched")"
+assert_contains "$out" "deploy.sh 47"
+case "$out" in *"/mylos:deploy"*) fail "an agent ran a clean deploy" ;; *) pass "clean deploy needs no agent" ;; esac
+deploy_case 3; out="$(cat "$tmp/launched")"
+assert_contains "$out" "/mylos:deploy 47"
+assert_contains "$out" "deploy.sh 47 --continue"
+unset FACTORY_DEPLOY
 finish

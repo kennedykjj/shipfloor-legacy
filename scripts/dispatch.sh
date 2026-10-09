@@ -86,15 +86,27 @@ launch() {  # launch <pipeline> <issue>
   mkdir "$dir" 2>/dev/null || return 0
   local log="$HOME_DIR/logs/$(date +%F)-$n-$p.log"
   local extra=()
-  [ "$p" = deploy ] && extra=(--allowedTools "Bash(gh pr merge:*)")  # only the deploy pipeline may merge
   (
     trap '' HUP
     echo "$BASHPID $(date +%s) $n" > "$dir/info"
     echo "== start /mylos:$p $n $(date -Is) pid=$BASHPID" >>"$log"
     # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into
     # "C:/Program Files/Git/develop 54", and MSYS_NO_PATHCONV would leak into mvn and break it.
-    cd "$CONTROL" && printf '/mylos:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT MYLOS_FACTORY=1 "$CLAUDE" -p --permission-mode acceptEdits --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1
-    echo "== end /mylos:$p $n exit=$? $(date -Is)" >>"$log"
+    agent() { printf '/mylos:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT MYLOS_FACTORY=1 "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1; }
+    cd "$CONTROL" || exit 1
+    if [ "$p" = deploy ]; then
+      # The deploy is a script, not an agent: it can wait for CI and production as long as needed.
+      # An agent is called only to resolve the merge conflicts the script hands over (exit 3).
+      local dep="${FACTORY_DEPLOY:-$HERE/deploy.sh}" rc round
+      env -u FACTORY_BOARD_SNAPSHOT bash "$dep" "$n" >>"$log" 2>&1; rc=$?
+      for round in 1 2; do
+        [ "$rc" = 3 ] || break
+        agent; env -u FACTORY_BOARD_SNAPSHOT bash "$dep" "$n" --continue >>"$log" 2>&1; rc=$?
+      done
+      echo "== end /mylos:$p $n exit=$rc $(date -Is)" >>"$log"
+    else
+      agent; echo "== end /mylos:$p $n exit=$? $(date -Is)" >>"$log"
+    fi
     read -r owner _ < "$dir/info" 2>/dev/null
     [ "${owner:-}" = "$BASHPID" ] && rm -rf "$dir"
     # a run that ended still holding the shared stack lock must not block the others

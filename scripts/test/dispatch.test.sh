@@ -22,6 +22,10 @@ EOB
   printf '#!/usr/bin/env bash\necho "$(cat) $*" >> "%s/launched"\n' "$tmp" > "$tmp/claude"
   chmod +x "$tmp/board" "$tmp/claude"
   export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"
+  printf '#!/usr/bin/env bash
+echo "/mylos:deploy $*" >> "%s/launched"
+sleep 2
+' "$tmp" > "$tmp/deploy"; chmod +x "$tmp/deploy"; export FACTORY_DEPLOY="$tmp/deploy"
   : > "$tmp/launched"
 }
 launched() { sleep 1; cat "$tmp/launched"; }
