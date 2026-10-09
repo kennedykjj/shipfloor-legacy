@@ -220,6 +220,7 @@ gate_stack() {  # gate.sh stack up <owner> | down <owner> | status (lib/stack.sh
 stack_around() {  # stack_around <command...>: run it on its own stack slot when the layer needs one; 3 = infrastructure
   [ "$L_STACK" = true ] || { "$@"; return; }
   local owner="gate-$$"
+  trap 'stack_down "$owner"' INT TERM
   stack_up "$owner" >/dev/null || return 3  # not in a subshell: the slot's AGHANIM_* stay exported for the runner
   "$@"; local code=$?
   stack_down "$owner"; return $code

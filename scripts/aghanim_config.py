@@ -181,7 +181,7 @@ def problems(cfg):
         for key in ("needs_stack", "tests_only"):
             if key in layer and not isinstance(layer[key], bool):
                 errs.append(f"{where}: {key} must be true or false")
-        if "retry" in layer and layer["retry"] not in (0, 1) or isinstance(layer.get("retry"), bool):
+        if "retry" in layer and (type(layer["retry"]) is not int or layer["retry"] not in (0, 1)):
             errs.append(f"{where}: retry must be 0 or 1")
         for key in ("ran", "assertions", "setup_errors"):
             if isinstance(layer.get(key), str) and layer[key] and not compiles(layer[key]):

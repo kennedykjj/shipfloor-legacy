@@ -1,4 +1,5 @@
 .superpowers/
+__pycache__/
 .impeccable/*
 !.impeccable/surfaces/
 !.impeccable/design.json
