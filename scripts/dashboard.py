@@ -15,6 +15,8 @@ LEGACY_STAGES = {"refinar": "refine", "desenvolver": "develop", "validar": "vali
 COMMAND = re.compile(r"<command-name>/(?:aghanim|mylos):([a-z]+)</command-name>\s*<command-args>(\d+)</command-args>")  # legacy mylos
 RUN_LINE = re.compile(r"^== (start|end) /(?:aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy mylos
 TOKEN_KINDS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
+OWNER_MOVES = {"Spec Review": {"approve": "Ready for Dev", "request-changes": "Ready for Refinement"},
+               "Staged": {"approve": "Ready for Prod", "request-changes": "Coding"}}
 
 
 def read_yaml(path):
@@ -208,6 +210,53 @@ class Factory:
                 "total": None if None in costs else round(sum(costs), 2), "sessions": sessions, "runs": runs,
                 "reports": self.reports(p, n), "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file()}
 
+    def act(self, p, n, action, seen, text, move_only):
+        """The owner's approve / request-changes. Moves with gh directly: board.sh move refuses
+        owner-only columns on purpose (the agents' guardrail), and an owner path there would be open to agents."""
+        cfg = self.config(p)
+        owner, num, repo = (aghanim_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
+        env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
+        snap = subprocess.run([bash(), (HERE / "board.sh").as_posix(), "snapshot"], env=env,
+                              capture_output=True, text=True, encoding="utf-8")
+        if snap.returncode != 0:
+            return 502, {"error": "cannot read the board: " + snap.stderr.strip()}
+        row = next((c for c in (l.split("\t") for l in snap.stdout.splitlines()) if c[0] == str(n)), None)
+        column = row[1] if row else None
+        if column not in OWNER_MOVES or column != seen:
+            return 409, {"error": f"#{n} is in {column or 'no column'} now", "column": column}
+        target = OWNER_MOVES[column][action]
+        commented = action == "request-changes" and not move_only
+        if commented:
+            if not text.strip():
+                return 400, {"error": "write what should change"}
+            r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
+            if r.returncode != 0:
+                return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip()}
+        err = self.move(p, owner, num, row[2], target)
+        if err:
+            return 502, {"error": err, "commented": commented}
+        return 200, {"moved_to": target}
+
+    def move(self, p, owner, num, item, target):
+        try:
+            project_id, field_id = (self.pdir(p) / "board-ids").read_text().split()[:2]
+        except (OSError, ValueError):
+            a = gh("project", "view", str(num), "--owner", owner, "--format", "json", "--jq", ".id")
+            b = gh("project", "field-list", str(num), "--owner", owner, "--format", "json",
+                   "--jq", '.fields[] | select(.name=="Status") | .id')
+            if a.returncode or b.returncode:
+                return "cannot read the board ids: " + (a.stderr or b.stderr).strip()
+            project_id, field_id = a.stdout.strip(), b.stdout.strip()
+        opts = gh("project", "field-list", str(num), "--owner", owner, "--format", "json",
+                  "--jq", '.fields[] | select(.name=="Status") | .options[] | "\\(.name)\\t\\(.id)"')
+        option = next((i for name, _, i in (l.partition("\t") for l in opts.stdout.splitlines())
+                       if re.sub(r"^[^A-Za-z]+ ", "", name) == target), None)  # columns carry an owner mark
+        if not option:
+            return f"no column '{target}' on the board"
+        r = gh("project", "item-edit", "--project-id", project_id, "--id", item,
+               "--field-id", field_id, "--single-select-option-id", option)
+        return None if r.returncode == 0 else "move failed: " + r.stderr.strip()
+
     def log(self, p, name, start):
         f = self.pdir(p) / "logs" / name
         if not re.fullmatch(r"[\w.-]+\.log", name) or ".." in name or not f.is_file():
@@ -265,6 +314,21 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # one bad file must not take the page down
             return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         self.send(404, {"error": "not found"})
+
+    def do_POST(self):
+        url = urlparse(self.path)
+        parts = url.path.strip("/").split("/")
+        if not self.allowed(parse_qs(url.query)):
+            return self.send(403, {"error": "missing or wrong token"})
+        if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
+                and parts[3].isdigit() and parts[4] in ("approve", "request-changes")):
+            return self.send(404, {"error": "not found"})
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        except ValueError:
+            return self.send(400, {"error": "body is not JSON"})
+        self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),
+                                    str(body.get("text", "")), bool(body.get("move_only"))))
 
 
 def main():
