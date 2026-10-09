@@ -5,6 +5,7 @@
 #   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .aghanim/factory.yml
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
 #   pool [set <n> | stage <stage> <n>]  runs at once on this machine, and per stage
+#   migrate-home [OLD]            move the old ~/.mylos home here (one-time, after the rename; legacy mylos)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib/project.sh"
@@ -140,6 +141,21 @@ cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide a
   esac
 }
 
+cmd_migrate_home() {  # migrate-home [OLD]: move the legacy mylos home to $AGHANIM_HOME and relink its worktrees
+  local old="${1:-$HOME/.mylos}" d  # legacy mylos home
+  [ -d "$old" ] || die "nothing to migrate: $old does not exist"
+  [ ! -e "$AGHANIM_HOME" ] || die "$AGHANIM_HOME already exists; move or remove it first"
+  if [ -n "$(find "$old/locks" "$old"/projects/*/locks -mindepth 1 -maxdepth 1 -name '*.lock' 2>/dev/null)" ]; then
+    die "runs in progress in $old (locks present); wait for them to end"
+  fi
+  mkdir -p "$(dirname "$AGHANIM_HOME")"
+  mv "$old" "$AGHANIM_HOME" || die "cannot move $old to $AGHANIM_HOME"
+  for d in "$AGHANIM_HOME"/projects/*/control "$AGHANIM_HOME"/projects/*/reports-wt; do
+    [ -e "$d/.git" ] && { git -C "$d" worktree repair >/dev/null 2>&1 || echo "aghanim: could not relink $d (git worktree repair)" >&2; }
+  done
+  echo "moved $old to $AGHANIM_HOME; run 'aghanim install' and the dispatcher installer next"
+}
+
 cmd="${1:-}"; shift || true
 case "$cmd" in
   install) cmd_install ;;
@@ -151,6 +167,7 @@ case "$cmd" in
   pause) cmd_pause "$@" ;;
   resume) cmd_resume "$@" ;;
   setup-board) use "${1:-}"; cd "$FACTORY_HOME/control" && exec bash "$HERE/setup-board.sh" ;;
+  migrate-home) cmd_migrate_home "$@" ;;
   metrics) use "${1:-}"; exec bash "$HERE/metrics.sh" ;;
-  *) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
