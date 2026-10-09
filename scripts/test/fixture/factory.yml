@@ -1,0 +1,34 @@
+# Test fixture: an api + web + e2e project shaped like the factory's first one.
+project:
+  name: shop
+  repo: acme/shop
+board: {owner: acme, number: 7}
+context: [PRODUCT.md, CLAUDE.md]
+forbidden: [docs/engineering/]
+stack: {url: "http://localhost:3000"}
+deploy: {ci_workflow: CI, environment: production}
+layers:
+  - name: api
+    path: api/
+    stack: Kotlin/Spring Boot
+    build: '"${FACTORY_MVN:-mvn}" -q test'
+    test: '"${FACTORY_MVN:-mvn}" test -Dtest={selector} -Dsurefire.failIfNoSpecifiedTests=true'
+    ran: 'Tests run: [1-9]'
+    tests: ['api/src/test/**']
+    test_config: [api/src/test/resources/junit-platform.properties]
+    migrations: {glob: 'api/src/main/resources/db/migration/V*__*.sql'}
+  - name: web
+    path: web/
+    stack: Next.js
+    build: '"${FACTORY_PNPM:-pnpm}" exec tsc --noEmit && "${FACTORY_PNPM:-pnpm}" test'
+    test: '"${FACTORY_PNPM:-pnpm}" exec vitest run {selector}'
+    ran: 'Tests +[1-9][0-9]* passed'
+    tests: ['web/**/*.test.ts', 'web/**/*.test.tsx']
+    test_config: ['web/vitest.config.*', 'web/playwright.config.*']
+  - name: e2e
+    path: web/
+    tests_only: true
+    needs_stack: true
+    test: '"${FACTORY_PNPM:-pnpm}" exec playwright test {selector}'
+    ran: '(^|[[:space:]])[1-9][0-9]* passed'
+    tests: ['web/e2e/**']
