@@ -1,0 +1,53 @@
+# .mylos/factory.yml — what the factory needs to know about this repository.
+# Copy to .mylos/factory.yml, adjust, commit to the main branch, then run `mylos add <this repo>`.
+# The factory always reads this file from origin/main, never from a branch under work.
+
+project:
+  name: shop                 # slug: [a-z0-9-]; names ~/.mylos/projects/<name>
+  repo: acme/shop            # owner/repo on GitHub
+  # main: main               # default branch (default: main)
+
+board: {owner: acme, number: 3}   # GitHub Project v2 (user or organization); `mylos setup-board shop` sets its columns
+
+context: [PRODUCT.md, CLAUDE.md]  # what PO, UX, Cybersec and the Tech Lead read about the product
+# review_criteria: .mylos/review-criteria.md   # default: the plugin's generic criteria
+# forbidden: [docs/engineering/]               # extra paths agents may never change
+# paths: {specs: docs/superpowers/specs/, plans: docs/superpowers/plans/}
+# limits:                                      # runs at once (parallel) and cards in the WIP columns (wip)
+#   refinar: {parallel: 2, wip: 2}
+#   desenvolver: {parallel: 2, wip: 4}
+#   deployar: {parallel: 1}
+
+layers:
+  # Each layer: the area one implementer owns (path), how to build it, and how to run selected
+  # tests. Commands run from the layer's directory; {selector} reaches the runner as one argument.
+  - name: api
+    path: api/
+    stack: Go 1.23, chi, sqlc
+    build: go vet ./... && go test ./...
+    test: go test ./... -run {selector} -v
+    ran: '^--- PASS'               # regex proving at least one test ran
+    assertions: '^[[:space:]]+[^ ]+_test\.go:[0-9]+:'   # extra ERE (grep -E) for a real assertion failure (red gate)
+    tests: ['api/**/*_test.go']    # where QA writes this layer's tests
+    migrations: {glob: 'api/migrations/*.sql', comment: '--'}
+    # agent: go-engineer           # a project agent in .claude/agents/ (default: the generic engineer)
+
+  - name: web
+    path: web/
+    stack: Next.js 15, TypeScript, Tailwind
+    build: npm run typecheck && npm test
+    test: npx vitest run {selector}
+    ran: 'Tests +[1-9][0-9]* passed'
+    tests: ['web/**/*.test.ts', 'web/**/*.test.tsx']
+    test_config: ['web/vitest.config.*', 'web/playwright.config.*']   # implementers may not touch these
+
+  - name: e2e                      # tests only: QA writes them, nobody implements here
+    path: web/
+    tests_only: true
+    needs_stack: true              # red/green take the shared stack lock
+    test: npx playwright test {selector}
+    ran: '[1-9][0-9]* passed'
+    tests: ['web/e2e/**']
+
+stack: {url: "http://localhost:3000"}                  # a local stack the e2e tests and UX checks share
+deploy: {ci_workflow: CI, environment: production, timeout_min: 30}   # omit to finish at the merge
