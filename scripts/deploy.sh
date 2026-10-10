@@ -35,7 +35,7 @@ g() { git -C "$WT" "$@"; }
 comment() { "$GH" issue comment "$n" --repo "$REPO" --body "$1" >/dev/null || { say "could not comment on #$n"; return 1; }; }
 reset_worktree() {  # drop any merge in progress or local commit: back to the approved head
   [ -n "$BRANCH" ] && [ -e "$WT/.git" ] || return 0
-  g merge --abort >/dev/null 2>&1; g reset -q --hard "${HEAD_SHA:-origin/$BRANCH}" 2>/dev/null; g clean -qfd 2>/dev/null; return 0
+  g merge --abort >/dev/null 2>&1; g reset -q --hard "${HEAD_SHA:-origin/$BRANCH}" 2>/dev/null; g -c core.longpaths=true clean -qfd 2>/dev/null; return 0
 }
 block() {  # before merging: label, explain, stop
   reset_worktree

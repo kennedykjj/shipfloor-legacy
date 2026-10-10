@@ -42,7 +42,8 @@ refresh_control() {  # control checkout = exactly origin/<main>; touched only wh
   # a lock nobody can still hold is removed first
   for try in 1 2 3; do
     clear_stale_lock "$c"
-    err="$(git -C "$c" reset -q --hard "$ref" 2>&1 && git -C "$c" clean -qfdx 2>&1)" && return 0
+    # core.longpaths: node_modules a run left behind passes Windows' 260 characters, and clean would fail on it
+    err="$(git -C "$c" -c core.longpaths=true reset -q --hard "$ref" 2>&1 && git -C "$c" -c core.longpaths=true clean -qfdx 2>&1)" && return 0
     [ "$try" = 3 ] || sleep "${AGHANIM_LOCK_RETRY_S:-5}"
   done
   WHY="$err"; return 1

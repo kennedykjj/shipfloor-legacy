@@ -3,6 +3,8 @@
 # checkout of origin/main, and skips only the projects it cannot use.
 source "$(dirname "$0")/lib.sh"
 MD="$FACTORY_DIR/aghanim-dispatch.sh"
+PY=python3; $PY -c '' 2>/dev/null || PY=python
+nat() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
 unset FACTORY_CONFIG FACTORY_HOME FACTORY_REPO FACTORY_PROJECT FACTORY_WT_ROOT
 
 project() {  # project <slug> [config]: a repo with a remote whose main carries .aghanim/factory.yml
@@ -82,6 +84,23 @@ assert_contains "$(cut -f1 "$S")" "2026-10-09T20:06:50"
 rm -f "$lock"; bash "$MD" >/dev/null 2>&1
 [ ! -e "$S" ] && pass "a good cycle clears the skip" || fail "SKIPPED kept after a good cycle: $(cat "$S")"
 assert_contains "$(cat "$C/.aghanim/factory.yml")" "number: 9"
+
+# a run left files with very long paths in the control checkout (node_modules on Windows, past 260
+# characters): the refresh still cleans them instead of skipping the project on every cycle
+setup; project shop; bash "$MD" >/dev/null 2>&1
+r="$(cut -f2 "$AGHANIM_HOME/registry.tsv")"; C="$AGHANIM_HOME/projects/shop/control"
+"$PY" -I - "$(nat "$C")" <<'PYEOF'
+import os, sys
+deep = os.path.join(os.path.abspath(sys.argv[1]), "node_modules", *(["a-rather-long-directory-name-0123456789"] * 8))
+if os.name == "nt":
+    deep = "\\\\?\\" + deep
+os.makedirs(deep, exist_ok=True)
+open(os.path.join(deep, "left-by-a-run.js"), "w").close()
+PYEOF
+sed -i "s/number: [0-9]*/number: 12/" "$r/.aghanim/factory.yml"; git -C "$r" commit -qam "bump 12"; git -C "$r" push -q origin main
+out="$(AGHANIM_LOCK_RETRY_S=0 bash "$MD" 2>&1)"
+[ ! -e "$C/node_modules" ] && [ ! -e "$AGHANIM_HOME/projects/shop/SKIPPED" ] && pass "long paths cleaned from the control checkout" || fail "long paths left in control: $out"
+assert_contains "$(cat "$C/.aghanim/factory.yml")" "number: 12"
 
 # no registry → nothing to do, no error
 setup; assert_exit 0 bash "$MD"
