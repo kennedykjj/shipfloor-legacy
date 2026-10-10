@@ -19,19 +19,43 @@ usage_limited() {  # the Claude usage limit is per account: a recent hit in any 
 }
 usage_limited && { echo "$(date -Is) aghanim: Claude usage limit hit recently; waiting"; exit 0; }
 
+STALE_LOCK_MIN="${AGHANIM_STALE_LOCK_MIN:-10}"
+clear_stale_lock() {  # clear_stale_lock <checkout>: git holds index.lock for one command; an old one was left by a git that died
+  local lock; lock="$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null)/index.lock"
+  [ -e "$lock" ] && [ -n "$(find "$lock" -mmin +"$STALE_LOCK_MIN" 2>/dev/null)" ] || return 1
+  rm -f "$lock" || return 1
+  echo "$(date -Is) aghanim: $slug: removed a stale index.lock (older than $STALE_LOCK_MIN min): $lock" >&2
+}
+
+WHY=""  # why refresh_control failed: git's own words
 refresh_control() {  # control checkout = exactly origin/<main>; touched only when main moved
   [ "${FACTORY_CONTROL_REFRESH:-1}" = "0" ] && return 0
-  local c="$FACTORY_HOME/control" ref="origin/$FACTORY_MAIN" try
-  git -C "$FACTORY_REPO" fetch -q origin "$FACTORY_MAIN" || return 1
-  if [ ! -e "$c/.git" ]; then mkdir -p "$FACTORY_HOME"; git -C "$FACTORY_REPO" worktree add -q --detach "$c" "$ref" || return 1; fi
+  local c="$FACTORY_HOME/control" ref="origin/$FACTORY_MAIN" try err
+  err="$(git -C "$FACTORY_REPO" fetch -q origin "$FACTORY_MAIN" 2>&1)" || { WHY="$err"; return 1; }
+  if [ ! -e "$c/.git" ]; then
+    mkdir -p "$FACTORY_HOME"
+    err="$(git -C "$FACTORY_REPO" worktree add -q --detach "$c" "$ref" 2>&1)" || { WHY="$err"; return 1; }
+  fi
   [ "$(git -C "$c" rev-parse HEAD 2>/dev/null)" = "$(git -C "$FACTORY_REPO" rev-parse "$ref")" ] && \
     [ -z "$(git -C "$c" status --porcelain 2>/dev/null)" ] && return 0
-  # a pipeline running inside the control checkout may hold index.lock for a moment: retry
+  # a pipeline running inside the control checkout may hold index.lock for a moment: retry;
+  # a lock nobody can still hold is removed first
   for try in 1 2 3; do
-    git -C "$c" reset -q --hard "$ref" && git -C "$c" clean -qfdx && return 0
-    [ "$try" = 3 ] || sleep 5
+    clear_stale_lock "$c"
+    err="$(git -C "$c" reset -q --hard "$ref" 2>&1 && git -C "$c" clean -qfdx 2>&1)" && return 0
+    [ "$try" = 3 ] || sleep "${AGHANIM_LOCK_RETRY_S:-5}"
   done
-  return 1
+  WHY="$err"; return 1
+}
+
+skip() {  # skip <reason>: log it and leave it in the project's home, where the dashboard and doctor look
+  local f="$FACTORY_HOME/SKIPPED" since why
+  why="$(printf '%s' "$1" | tr '\t\r\n' '   ' | sed 's/  */ /g')"
+  echo "$(date -Is) aghanim: $slug: $why; skipped" >&2
+  mkdir -p "$FACTORY_HOME"
+  since="$(cut -f1 "$f" 2>/dev/null | head -1)"  # the first failed cycle's time is kept
+  printf '%s\t%s\n' "${since:-$(date -Is)}" "$why" > "$f"
+  exit 1
 }
 
 status=0
@@ -39,9 +63,10 @@ while IFS=$'\t' read -r slug repo wt main <&3; do
   [ -z "$slug" ] && continue
   (
     aghanim_use "$slug" "$repo" "$wt" "$main"
-    refresh_control || { echo "$(date -Is) aghanim: $slug: cannot bring the control checkout to origin/$FACTORY_MAIN; skipped" >&2; exit 1; }
-    aghanim_snapshot || { echo "$(date -Is) aghanim: $slug: no .aghanim/factory.yml on origin/$FACTORY_MAIN; skipped" >&2; exit 1; }
-    aghanim_validate || { echo "$(date -Is) aghanim: $slug: invalid .aghanim/factory.yml on origin/$FACTORY_MAIN; skipped" >&2; exit 1; }
+    refresh_control || skip "cannot bring the control checkout to origin/$FACTORY_MAIN${WHY:+: $(printf '%s' "$WHY" | grep -m1 -E '^(fatal|error)' || printf '%s' "$WHY" | head -1)}"
+    aghanim_snapshot || skip "no .aghanim/factory.yml on origin/$FACTORY_MAIN"
+    aghanim_validate || skip "invalid .aghanim/factory.yml on origin/$FACTORY_MAIN"
+    rm -f "$FACTORY_HOME/SKIPPED"
     FACTORY_CONTROL_REFRESH=0 bash "$DISPATCH"
   ) || status=1
 done 3< "$REGISTRY"

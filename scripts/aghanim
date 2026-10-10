@@ -64,6 +64,14 @@ cmd_doctor() {
       ( aghanim_use "$slug" "$repo" "$wt" "$main"
         stale="$(aghanim_stale_tmp | wc -l | tr -d ' ')"
         [ "$stale" -gt 0 ] && echo "WARN $slug: $stale tmp dir(s) of finished cards; run: aghanim clean $slug"
+        if [ -s "$FACTORY_HOME/SKIPPED" ]; then
+          IFS=$'\t' read -r since why < "$FACTORY_HOME/SKIPPED"
+          echo "WARN $slug: the dispatcher skips it since $since: $why"
+        fi
+        if [ -e "$FACTORY_HOME/control/.git" ] && \
+           [ "$(git -C "$FACTORY_HOME/control" rev-parse HEAD 2>/dev/null)" != "$(git -C "$FACTORY_REPO" rev-parse "origin/$FACTORY_MAIN" 2>/dev/null)" ]; then
+          echo "WARN $slug: control checkout is behind origin/$FACTORY_MAIN; the next dispatcher cycle should move it (see ~/.aghanim/logs/dispatcher.log if it does not)"
+        fi
         r="$(aghanim_cfg get project.repo)"; b="$(aghanim_cfg get project.main)"
         strict="$(gh api "repos/$r/branches/$b/protection" --jq .required_status_checks.strict 2>&1)"
         if [ "$strict" = true ]; then echo "ok   $slug: $b requires up-to-date branches"

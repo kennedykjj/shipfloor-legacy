@@ -78,7 +78,7 @@ The factory was called mylos before 0.6.0. To move a machine and its repositorie
 
 `aghanim dashboard` · `aghanim list` · `aghanim pool` · `aghanim pause [project]` · `aghanim resume [project]` · `aghanim remove <project>` · `aghanim metrics <project>` · `aghanim clean <project>`.
 `aghanim dashboard` opens a local page with the pool, live runs, logs, the estimated cost of each card and the review pages, where Spec Review and Staged cards are approved or sent back.
-Logs in `~/.aghanim/logs/dispatcher.log` and `~/.aghanim/projects/<project>/logs/`. Reports on each repository's orphan `factory-reports` branch.
+Logs in `~/.aghanim/logs/dispatcher.log` and `~/.aghanim/projects/<project>/logs/`. A project the dispatcher cannot use in a cycle (its control checkout does not reach `origin/<main>`, or the config there is missing or invalid) is skipped: the reason and the time of the first failed cycle go to `~/.aghanim/projects/<project>/SKIPPED`, the dashboard shows a "skipped since" flag and `aghanim doctor` warns; the first good cycle clears it. An `index.lock` older than 10 minutes in the control checkout (`AGHANIM_STALE_LOCK_MIN`) is treated as left by a dead git and removed. Reports on each repository's orphan `factory-reports` branch.
 
 ## Security
 

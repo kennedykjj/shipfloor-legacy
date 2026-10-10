@@ -46,6 +46,13 @@ assert_contains "$got" "Seven owner **Validate blocked (infrastructure)**: stack
 [ "$(code "$base/api/card/shop/7")" = 403 ] && pass "no token, no data" || fail "served without the token"
 [ "$(code -H "$H_TOK" "$base/api/log/shop/..%2F..%2Fregistry.tsv")" = 404 ] && pass "no path outside logs" || fail "served a file outside logs"
 
+# a project the dispatcher skips says so in the overview
+printf '2026-10-09T20:06:50-03:00	cannot bring the control checkout to origin/main: index.lock exists
+' > "$P/SKIPPED"
+got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; s=json.load(sys.stdin)["projects"][0]["skipped"]; print(s["since"], s["reason"])')"
+assert_contains "$got" "2026-10-09T20:06:50-03:00 cannot bring the control checkout"
+rm "$P/SKIPPED"
+
 # owner actions: the board says 7 is in Spec Review, 8 in Coding, 9 in Staged
 printf 'PVTI_7\t7\t👤 Spec Review\nPVTI_8\t8\t🤖 Coding\nPVTI_9\t9\t👤 Staged\n' > "$FAKE_GH_DIR/items.tsv"
 post() { curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' "$@"; }

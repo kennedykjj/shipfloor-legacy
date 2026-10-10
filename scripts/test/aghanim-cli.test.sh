@@ -82,6 +82,12 @@ printf '5	Done	I5
 6	Coding	I6
 ' > "$H2/board.tsv"
 assert_contains "$(bash "$M" doctor 2>&1)" "aghanim clean shop"
+# doctor names a project the dispatcher skips, and a control checkout behind origin/main
+printf '2026-10-09T20:06:50-03:00\tcannot bring the control checkout to origin/main: index.lock exists\n' > "$H2/SKIPPED"
+out="$(bash "$M" doctor 2>&1)"; assert_contains "$out" "shop: the dispatcher skips it since 2026-10-09T20:06:50"
+assert_contains "$out" "index.lock exists"
+rm "$H2/SKIPPED"; git -C "$r" commit -q --allow-empty -m ahead; git -C "$r" push -q origin HEAD:main
+assert_contains "$(bash "$M" doctor 2>&1)" "shop: control checkout is behind origin/main"
 assert_exit 0 bash "$M" clean shop
 [ ! -e "$H2/tmp/5" ] && [ ! -e "$H2/tmp/8" ] && [ -d "$H2/tmp/6" ] && pass "clean keeps the active card" || fail "clean removed the wrong tmp dirs: $(ls "$H2/tmp")"
 # pool shows the stack slots
