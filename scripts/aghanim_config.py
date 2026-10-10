@@ -21,8 +21,9 @@ REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 DEFAULTS = {
     "project": {"main": "main"},
     "paths": {"specs": "docs/superpowers/specs/", "plans": "docs/superpowers/plans/"},
-    "limits": {"refine": {"parallel": 2, "wip": 2}, "develop": {"parallel": 2, "wip": 4},
-               "validate": {"parallel": 2, "wip": 0}, "deploy": {"parallel": 1, "wip": 0}},
+    # parallel 0 = no cap of the project's own: the machine's stage slots decide. Deploy stays 1: merges are serial.
+    "limits": {"refine": {"parallel": 0, "wip": 2}, "develop": {"parallel": 0, "wip": 4},
+               "validate": {"parallel": 0, "wip": 0}, "deploy": {"parallel": 1, "wip": 0}},
     "context": [], "forbidden": [], "review_criteria": "",
 }
 LAYER_DEFAULTS = {"stack": "", "build": "", "install": "", "assertions": "", "setup_errors": "", "test_config": [],

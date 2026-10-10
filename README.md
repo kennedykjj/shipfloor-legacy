@@ -28,7 +28,7 @@ pool: 4
 stages: {refine: 2, develop: 2, validate: 2, deploy: 1}
 ```
 
-`aghanim pool` shows it and the runs in progress; `aghanim pool set 6` and `aghanim pool stage validate 3` change it. A project's `limits` in `factory.yml` can ask for less.
+`aghanim pool` shows it and the runs in progress; `aghanim pool set 6` and `aghanim pool stage validate 3` change it. A project's `limits` in `factory.yml` can ask for less: `limits.<stage>.parallel` defaults to 0, no cap of the project's own, except deploy, which defaults to 1 (merges into main are serial).
 
 ## Parallel work
 
