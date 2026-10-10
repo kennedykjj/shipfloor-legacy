@@ -58,6 +58,31 @@ setup; project shop; project blog; mkdir -p "$AGHANIM_HOME/projects/blog/logs"
 printf '== start /aghanim:develop 5\nYou'"'"'ve hit your session limit · resets 6pm\n' > "$AGHANIM_HOME/projects/blog/logs/x-5-develop.log"
 bash "$MD"; [ ! -s "$tmp/ran" ] && pass "usage limit pauses all projects" || fail "dispatched during a usage limit"
 
+# an index.lock left behind by a dead git is removed (and named in the log), and the control catches up
+setup; project shop; bash "$MD" >/dev/null 2>&1
+r="$(cut -f2 "$AGHANIM_HOME/registry.tsv")"; C="$AGHANIM_HOME/projects/shop/control"
+bump() { sed -i "s/number: [0-9]*/number: $1/" "$r/.aghanim/factory.yml"; git -C "$r" commit -qam "bump $1"; git -C "$r" push -q origin main; }
+lock="$(git -C "$C" rev-parse --absolute-git-dir)/index.lock"
+bump 8; : > "$lock"; touch -d '30 minutes ago' "$lock"
+out="$(bash "$MD" 2>&1)"
+assert_contains "$out" "removed a stale index.lock"
+assert_contains "$(cat "$C/.aghanim/factory.yml")" "number: 8"
+[ ! -e "$lock" ] && [ ! -e "$AGHANIM_HOME/projects/shop/SKIPPED" ] && pass "stale lock cleared, project not skipped" || fail "stale lock left or project skipped"
+
+# a lock that may still be held skips the project and says why where the dashboard looks;
+# the first failed cycle's time is kept, and the next good cycle clears it
+bump 9; : > "$lock"; : > "$tmp/ran"
+out="$(AGHANIM_LOCK_RETRY_S=0 bash "$MD" 2>&1)"
+assert_contains "$out" "shop: cannot bring the control checkout"
+[ ! -s "$tmp/ran" ] && pass "skipped project not dispatched" || fail "dispatched a project it could not refresh"
+S="$AGHANIM_HOME/projects/shop/SKIPPED"; assert_contains "$(cat "$S" 2>/dev/null)" "index.lock"
+printf '2026-10-09T20:06:50-03:00\t%s\n' "$(cut -f2 "$S")" > "$S"
+AGHANIM_LOCK_RETRY_S=0 bash "$MD" >/dev/null 2>&1
+assert_contains "$(cut -f1 "$S")" "2026-10-09T20:06:50"
+rm -f "$lock"; bash "$MD" >/dev/null 2>&1
+[ ! -e "$S" ] && pass "a good cycle clears the skip" || fail "SKIPPED kept after a good cycle: $(cat "$S")"
+assert_contains "$(cat "$C/.aghanim/factory.yml")" "number: 9"
+
 # no registry → nothing to do, no error
 setup; assert_exit 0 bash "$MD"
 finish

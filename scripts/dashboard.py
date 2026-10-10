@@ -195,6 +195,14 @@ class Factory:
                               "reason": f[4] if len(f) > 4 else ""})
         return slots, queue
 
+    def skipped(self, p):
+        """Why the dispatcher skips this project and since when (aghanim-dispatch.sh writes it), or None."""
+        try:
+            since, _, why = (self.pdir(p) / "SKIPPED").read_text(encoding="utf-8").strip().partition("	")
+        except OSError:
+            return None
+        return {"since": since, "reason": why} if since else None
+
     def block_reason(self, p, n):
         """The last issue comment about the block (the skills write the step, the output and what was tried
         there), read at most once a minute per card."""
@@ -299,6 +307,7 @@ class Factory:
             columns, age = self.board(p)
             titles, blocked = self.titles(p), self.blocked(p)
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "board_age_s": age,
+                             "skipped": self.skipped(p),
                              "cards": [{"issue": n, "title": titles.get(n, ""), "column": col,
                                         "cost": rounded(per_card.get(n, 0.0)),
                                         "running": running.get(n), "awaiting": col in OWNER_MOVES,

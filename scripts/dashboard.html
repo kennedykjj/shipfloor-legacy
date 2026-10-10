@@ -264,7 +264,8 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .decide-k b { color: var(--text); font-weight: 600; }
 .decide-a { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .decide-a .hint { font-size: 12.5px; color: var(--muted); }
-.decide .stale { margin: 0; font-size: 12.5px; color: var(--warn); }
+.decide .stale { margin: 0; font-size: 12.5px; color: var(--warn); overflow-wrap: anywhere; }
+.decide .stale.skipped { color: var(--bad); }
 .decide-b { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
 .decide-b .acts { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .btn { border-radius: 5px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--edge-hi); background: var(--panel-hi); white-space: nowrap; }
@@ -437,6 +438,7 @@ function renderFlags() {
   if (orphans.length) f.push(`<span class="flag warn" title="${orphans.map((r) => `${r.stage}-${r.issue}.lock`).join(", ")}">${plural(orphans.length, "orphaned lock")}</span>`);
   if (o && o.projects.length > 1) f.push(`<select id="proj" aria-label="Project">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select>`);
   const p = project();
+  for (const x of o?.projects || []) if (x.skipped) f.push(`<span class="flag bad" title="${esc(x.skipped.reason)}. Nothing moves in ${esc(x.slug)} until this is fixed; see ~/.aghanim/logs/dispatcher.log.">${esc(x.slug)} skipped since ${when(x.skipped.since)}</span>`);
   if (p && stale(p)) f.push(`<span class="flag warn" title="The dispatcher has not refreshed the board snapshot for ${Math.round(p.board_age_s / 60)} minutes: columns may be out of date. Approve and Request changes still read the live board before they move a card.">board ${Math.round(p.board_age_s / 60)} min old</span>`);
   if (!f.length && o) f.push('<span class="flag">running</span>');
   setHTML($("flags"), f.join(""));
@@ -591,6 +593,7 @@ function renderDecide(p, n, column) {
   const html = S.moving[key] ? `<div class="decide">${notice}</div>`
     : moves ? `<div class="decide" role="group" aria-labelledby="decide-k">
       <div class="decide-k"><b id="decide-k">Your decision</b><span id="rv-progress" class="num"></span></div>
+      ${project()?.skipped ? `<p class="stale skipped">The dispatcher skips ${esc(project().slug)} since ${when(project().skipped.since)}: ${esc(project().skipped.reason)}. A card you move stays where it lands until that is fixed.</p>` : ""}
       ${stale(project()) ? `<p class="stale">The board snapshot is ${Math.round(project().board_age_s / 60)} min old. Approve and Request changes read the live board first and stop if the card moved.</p>` : ""}
       <div class="decide-a"><button class="btn approve" id="approve" data-act="approve" data-label="Approve → ${esc(moves[0])}">Approve → ${esc(moves[0])}</button><span class="hint" id="approve-hint"></span></div>
       <div class="decide-b"><textarea id="changes" aria-label="What should change" placeholder="What should change (posted on the issue)"></textarea>
