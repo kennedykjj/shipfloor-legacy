@@ -25,7 +25,7 @@ DEFAULTS = {
                "validate": {"parallel": 2, "wip": 0}, "deploy": {"parallel": 1, "wip": 0}},
     "context": [], "forbidden": [], "review_criteria": "",
 }
-LAYER_DEFAULTS = {"stack": "", "build": "", "assertions": "", "setup_errors": "", "test_config": [],
+LAYER_DEFAULTS = {"stack": "", "build": "", "install": "", "assertions": "", "setup_errors": "", "test_config": [],
                   "needs_stack": False, "tests_only": False, "migrations": {}, "retry": 0}
 BUILTIN_FORBIDDEN = r"^(\.github/|\.githooks/|\.claude/|\.aghanim/|\.mylos/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"  # legacy mylos dir stays forbidden
 ERE_SPECIAL = set(".^$+(){}[]|\\")
@@ -175,7 +175,7 @@ def problems(cfg):
             errs.append(f"{where}: tests must be a non-empty list of globs")
         if not is_str_list(layer.get("test_config", [])):
             errs.append(f"{where}: test_config must be a list of globs")
-        for key in ("stack", "build", "assertions", "setup_errors", "agent"):
+        for key in ("stack", "build", "install", "assertions", "setup_errors", "agent"):
             if key in layer and not isinstance(layer[key], str):
                 errs.append(f"{where}: {key} must be a string")
         for key in ("needs_stack", "tests_only"):
