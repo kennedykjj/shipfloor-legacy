@@ -189,15 +189,28 @@ gate_fast() {  # gate_fast <base> <spec> [qa]: forbidden + migration + acceptanc
   [ -z "${3:-}" ] || gate_acceptance_intact "$3"
 }
 
+ensure_deps() {  # ensure_deps <layer dir> <install command>: the layer's dependencies, installed by the gate, not by an agent
+  # Once per content of the layer's directory (its tree at HEAD), remembered inside the git dir so the
+  # worktree stays clean. A failing install is infrastructure: exit 3, never a red or green verdict.
+  [ -n "$2" ] || return 0
+  local mark key
+  mark="$(git rev-parse --absolute-git-dir)/aghanim-install-$(printf '%s' "$1" | tr -c 'A-Za-z0-9' _)"
+  key="$(git rev-parse -q --verify "HEAD:${1%/}" 2>/dev/null) $2"
+  [ "$(cat "$mark" 2>/dev/null)" = "$key" ] && return 0
+  (cd "$ROOT/$1" && bash -c "$2") >&2 || { echo "gate: install failed in $1: $2" >&2; return 3; }
+  printf '%s' "$key" > "$mark"
+}
+
 gate_build() {  # each implementer layer with changes runs its build from its own directory
   load_layers
   require_rev "${1:-}"
   local files layer; files="$(changed_files "$1")"
   for layer in $IMPLEMENTERS; do
-    layer_fields "$layer" _path_re path build || exit 2
+    layer_fields "$layer" _path_re path build install || exit 2
     [ -z "${LF[2]}" ] && continue
     printf '%s
 ' "$files" | grep -Eq -- "${LF[0]}" || continue
+    ensure_deps "${LF[1]}" "${LF[3]}" || exit 3
     (cd "$ROOT/${LF[1]}" && bash -c "${LF[2]}") || { echo "build: $layer build failed" >&2; return 1; }
   done
 }
@@ -260,9 +273,10 @@ run_selector() {  # run_selector <layer> <selector>: runner output; returns the 
   (cd "$ROOT/$L_PATH" 2>/dev/null || { echo "gate: layer directory $L_PATH not found"; exit 1; }; bash -c "$cmd" _ "$2" 2>&1)
 }
 
-load_layer() {  # load_layer <layer>: L_PATH L_TEST L_RAN L_ASSERT L_SETUP L_STACK L_RETRY; 2 = unknown layer
-  layer_fields "$1" path test ran assertions setup_errors needs_stack retry || return 2
+load_layer() {  # load_layer <layer>: L_PATH L_TEST L_RAN L_ASSERT L_SETUP L_STACK L_RETRY, dependencies installed; 2 = unknown layer
+  layer_fields "$1" path test ran assertions setup_errors needs_stack retry install || return 2
   L_PATH="${LF[0]}" L_TEST="${LF[1]}" L_RAN="${LF[2]}" L_ASSERT="${LF[3]}" L_SETUP="${LF[4]}" L_STACK="${LF[5]}" L_RETRY="${LF[6]:-0}"
+  ensure_deps "$L_PATH" "${LF[7]}" || exit 3
   local p  # a pattern grep -E rejects reads as "no match" and could let red/green pass wrongly
   for p in "$L_RAN" "$L_ASSERT" "$L_SETUP"; do
     [ -z "$p" ] || ere_ok "$p" || { echo "gate: layer '$1' has an invalid grep -E pattern: $p" >&2; return 2; }
