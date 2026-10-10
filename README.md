@@ -88,4 +88,4 @@ Logs in `~/.aghanim/logs/dispatcher.log` and `~/.aghanim/projects/<project>/logs
 
 ## Development
 
-`bash scripts/test/run.sh` runs the suite. Designs in `docs/superpowers/specs/`.
+`bash scripts/test/run.sh` runs the suite; `bash scripts/test/run.sh --changed` runs only the tests tied to what changed against `origin/main` (use it while editing, and the whole suite before a push). Designs in `docs/superpowers/specs/`.
