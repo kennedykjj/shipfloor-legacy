@@ -263,13 +263,16 @@ if [ "$RESUMED" = 0 ]; then
 fi
 
 # 10. production
+# A card merged by an earlier run is judged by main as it is now: its own merge commit may carry a
+# run that failed for a reason main has since fixed, and that run never turns green.
+CHECK="$MERGED"; [ "${RESUMED:-}" = 1 ] && CHECK="$(git -C "$FACTORY_REPO" rev-parse "origin/$MAIN")"
 failure=""; deploy_url=""
 if [ -n "$CI_WORKFLOW" ]; then
   run=""; for _ in $(seq 1 10); do
-    run="$("$GH" run list --repo "$REPO" --branch "$MAIN" --commit "$MERGED" --workflow "$CI_WORKFLOW" --json databaseId --jq '.[0].databaseId' 2>/dev/null)"
+    run="$("$GH" run list --repo "$REPO" --branch "$MAIN" --commit "$CHECK" --workflow "$CI_WORKFLOW" --json databaseId --jq '.[0].databaseId' 2>/dev/null)"
     [ -n "$run" ] && break; sleep "$POLL"
   done
-  if [ -z "$run" ]; then failure="no '$CI_WORKFLOW' run on $MAIN for $MERGED"
+  if [ -z "$run" ]; then failure="no '$CI_WORKFLOW' run on $MAIN for $CHECK"
   else
     for _ in $(seq 1 "$(polls $(( TIMEOUT_MIN * 60 )))"); do
       concl="$("$GH" run view "$run" --repo "$REPO" --json status,conclusion --jq '.status + " " + (.conclusion // "")' 2>/dev/null)"
@@ -282,7 +285,7 @@ fi
 if [ -z "$failure" ] && [ -n "$ENVIRONMENT" ]; then
   state=""
   for _ in $(seq 1 "$(polls $(( TIMEOUT_MIN * 60 )))"); do
-    d="$("$GH" api "repos/$REPO/deployments?sha=$MERGED" --jq "[.[] | select(.environment == \"$ENVIRONMENT\")][0].id" 2>/dev/null)"
+    d="$("$GH" api "repos/$REPO/deployments?sha=$CHECK" --jq "[.[] | select(.environment == \"$ENVIRONMENT\")][0].id" 2>/dev/null)"
     if [ -n "$d" ] && [ "$d" != null ]; then
       state="$("$GH" api "repos/$REPO/deployments/$d/statuses" --jq '.[0].state' 2>/dev/null)"
       case "$state" in
