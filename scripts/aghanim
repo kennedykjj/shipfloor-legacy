@@ -6,6 +6,7 @@
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
 #   pool [set <n> | stage <stage> <n> | stacks <n>]  runs at once on this machine, per stage, and stack slots
 #   clean <slug>                  remove tmp/<n>/ left by cards that are Done or off the board
+#   accept <slug> <n> <reason>    owner only: take card <n>'s acceptance tests as they stand (acceptance-intact)
 #   dashboard [--port N] [--no-open]  local dashboard: pool, runs, logs, cost per card, reviews
 #   migrate-home [OLD]            move the old ~/.mylos home here (one-time, after the rename; legacy mylos)
 set -uo pipefail
@@ -195,6 +196,28 @@ cmd_migrate_home() {  # migrate-home [OLD]: move the legacy mylos home to $AGHAN
   echo "moved $old to $AGHANIM_HOME; run 'aghanim install' and the dispatcher installer next"
 }
 
+cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>'s acceptance files changed after the QA commit
+  # (a merge from main resolved by hand, a setup line main forced) and takes them as they stand. The gate
+  # then passes those exact contents; any later edit blocks again. Recorded in the project's home.
+  local slug="${1:-}" n="${2:-}"; shift 2 2>/dev/null || true
+  local reason="$*" wt qa f blob took=0
+  [ -n "$slug" ] && [[ "$n" =~ ^[0-9]+$ ]] && [ -n "$reason" ] || die "usage: aghanim accept <project> <n> <reason>" 2
+  use "$slug"; wt="$FACTORY_WT_ROOT/$n"
+  [ -e "$wt/.git" ] || die "no worktree for card $n at $wt"
+  qa="$(git -C "$wt" log --format=%H -1 --grep "acceptance tests for #$n")"
+  [ -n "$qa" ] || die "no QA commit (\"acceptance tests for #$n\") on $(git -C "$wt" rev-parse --abbrev-ref HEAD)"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    git -C "$wt" diff --quiet "$qa" HEAD -- "$f" && continue  # untouched since QA
+    blob="$(git -C "$wt" rev-parse -q --verify "HEAD:$f")" || die "$f was deleted after the QA commit; nothing to accept"
+    grep -qF "$f"$'	'"$blob"$'	' "$FACTORY_HOME/accepted.tsv" 2>/dev/null && continue  # already accepted as it stands
+    [ -z "$(git -C "$wt" status --porcelain -- "$f")" ] || die "$f has uncommitted changes in $wt"
+    printf '%s\t%s\t#%s\t%s\t%s\n' "$f" "$blob" "$n" "$(date -Is)" "$(printf '%s' "$reason" | tr '\t\r\n' '   ')" >> "$FACTORY_HOME/accepted.tsv"
+    echo "accepted $f at ${blob:0:12}"; took=1
+  done < <(git -C "$wt" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
+  [ "$took" = 1 ] || echo "nothing to accept: acceptance-intact already passes for card $n"
+}
+
 cmd="${1:-}"; shift || true
 case "$cmd" in
   install) cmd_install ;;
@@ -204,6 +227,7 @@ case "$cmd" in
   list) cmd_list ;;
   pool) cmd_pool "$@" ;;
   clean) use "${1:-}"; for n in $(aghanim_stale_tmp); do aghanim_clean_tmp "$n"; echo "removed tmp/$n"; done ;;
+  accept) cmd_accept "$@" ;;
   pause) cmd_pause "$@" ;;
   resume) cmd_resume "$@" ;;
   setup-board) use "${1:-}"; cd "$FACTORY_HOME/control" && exec bash "$HERE/setup-board.sh" ;;
