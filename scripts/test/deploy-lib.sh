@@ -17,7 +17,12 @@ build_base() {  # once per file: remote + clone with main and the staged card #7
 
 n/a
 ' > "$r/docs/superpowers/specs/2026-01-01-x-design.md"
-  echo base > "$r/README.md"; echo shared > "$r/shared.txt"
+  echo base > "$r/README.md"; echo shared > "$r/shared.txt"; printf 'one
+two
+three
+four
+five
+' > "$r/lines.txt"
   git -C "$r" add -A; git -C "$r" commit -qm main; git -C "$r" push -q origin main
   git -C "$r" checkout -qb feat/7-x
   mkdir -p "$r/api/src/test"; echo test > "$r/api/src/test/ATest.kt"; git -C "$r" add -A; git -C "$r" commit -qm "test(x): acceptance tests for #7"

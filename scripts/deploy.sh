@@ -156,7 +156,7 @@ merge_main() {  # 0 up to date · 1 merged cleanly · 3 conflicts to resolve · 
 }
 
 check_resolution() {  # --continue: HEAD must be the merge of the approved head and main, changing only conflicted files
-  local p1 p2 extra
+  local p1 p2 auto extra
   g rev-parse -q --verify MERGE_HEAD >/dev/null && block "--continue with the merge still in progress"
   [ -n "$(g diff --name-only --diff-filter=U)" ] && block "--continue with unresolved conflicts"
   [ -s "$TMP/resolve.parents" ] || block "--continue without a conflict handed over by deploy.sh"
@@ -164,7 +164,9 @@ check_resolution() {  # --continue: HEAD must be the merge of the approved head 
   [ "$(g rev-parse -q --verify HEAD^1)" = "$p1" ] && [ "$(g rev-parse -q --verify HEAD^2)" = "$p2" ] \
     || block "--continue: HEAD is not the merge of $p1 and $p2"
   [ "$p1" = "$HEAD_SHA" ] || block "--continue: the PR head moved since the conflicts were handed over"
-  extra="$(comm -12 <(g diff --name-only HEAD^1 HEAD | sort) <(g diff --name-only HEAD^2 HEAD | sort) | grep -vxF -f "$TMP/resolve.files" || true)"
+  # a file both sides changed that git merged on its own differs from both parents too: compare it with git's own merge
+  auto="$(g merge-tree --write-tree "$p1" "$p2" | head -n1)"
+  extra="$(comm -12 <(g diff --name-only HEAD^1 HEAD | sort) <(g diff --name-only HEAD^2 HEAD | sort) | grep -vxF -f "$TMP/resolve.files"     | while IFS= read -r f; do [ "$(g rev-parse -q --verify "HEAD:$f")" = "$(g rev-parse -q --verify "$auto:$f")" ] || echo "$f"; done)"
   [ -z "$extra" ] || block "--continue: the resolution changed files that did not conflict: $(echo $extra)"
   rm -f "$TMP/resolve.parents" "$TMP/resolve.files"
 }
