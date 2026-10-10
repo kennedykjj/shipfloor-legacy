@@ -177,8 +177,9 @@ usage_limited() {  # a run that ended on the Claude usage limit in the last 30 m
 
 # One board read per run, shared by every check below (the GraphQL quota is shared with the pipelines).
 SNAP="$HOME_DIR/board.tsv"
-"$BOARD" snapshot > "$SNAP.tmp" || { rm -f "$SNAP.tmp"; echo "dispatch: board read failed" >&2; exit 1; }
-mv "$SNAP.tmp" "$SNAP"
+# A temp file per process: two dispatches at once must not write, or move away, each other's.
+"$BOARD" snapshot > "$SNAP.$$.tmp" || { rm -f "$SNAP.$$.tmp"; echo "dispatch: board read failed" >&2; exit 1; }
+mv "$SNAP.$$.tmp" "$SNAP"
 export FACTORY_BOARD_SNAPSHOT="$SNAP"
 
 usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting"; exit 0; }
