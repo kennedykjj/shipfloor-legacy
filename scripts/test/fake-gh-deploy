@@ -24,5 +24,7 @@ case "$args" in
     git -C "$w" merge -q --squash "origin/$branch" >/dev/null && git -C "$w" commit -qm "squash #$pr" && git -C "$w" push -q origin HEAD:main
     git -C "$w" rev-parse HEAD > "$d/merged" ;;
   "pr create"*) echo "https://github.com/acme/shop/pull/999" ;;
+  "run list"*) sha="${args##*--commit }"; sha="${sha%% *}"; cat "$d/run-$sha" 2>/dev/null ;;  # run-<sha>: the run id
+  "run view "*) id="${args#run view }"; id="${id%% *}"; cat "$d/concl-$id" 2>/dev/null ;;      # concl-<id>: "completed success"
   *) echo "fake-gh-deploy: unexpected: $args" >&2; exit 9 ;;
 esac
