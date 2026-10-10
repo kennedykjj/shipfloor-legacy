@@ -87,16 +87,37 @@ gate_scope() {  # gate_scope <po|ux|techlead|qa|implementer layer> <base>
   gate_forbidden "$base"
 }
 
+only_main_changed() {  # only_main_changed <qa> <file>: HEAD's file is the QA version plus what merges from main brought, nothing else
+  # Acceptance tests often live in files main also edits. Rebuild the file a clean merge gives
+  # (QA's version + main's version over their common ancestor) and compare: an edit by the card,
+  # or a merge that needed a hand resolution, differs from it.
+  local qa="$1" f="$2" main="" m b tmp rc=1
+  for m in "origin/${FACTORY_MAIN:-main}" "${FACTORY_MAIN:-main}"; do
+    git rev-parse -q --verify "$m^{commit}" >/dev/null && { main="$m"; break; }
+  done
+  [ -n "$main" ] || return 1
+  m="$(git merge-base HEAD "$main" 2>/dev/null)" || return 1  # the newest main commit merged into the card
+  b="$(git merge-base "$qa" "$m" 2>/dev/null)" || return 1
+  [ "$m" != "$b" ] && git cat-file -e "$m:$f" 2>/dev/null || return 1
+  tmp="$(mktemp -d)"
+  g show "$qa:$f" > "$tmp/qa" 2>/dev/null && g show "$m:$f" > "$tmp/main" && { g show "$b:$f" > "$tmp/base" 2>/dev/null || : > "$tmp/base"; } \
+    && git merge-file -q "$tmp/qa" "$tmp/base" "$tmp/main" 2>/dev/null \
+    && g show "HEAD:$f" > "$tmp/head" 2>/dev/null && cmp -s "$tmp/qa" "$tmp/head" && rc=0
+  rm -rf "$tmp"
+  return $rc
+}
+
 gate_acceptance_intact() {
   require_rev "${1:-}"
   local qa="$1" files changed
   files="$(g show --name-only --format= --diff-filter=d "$qa")"  # files the QA commit deleted are not acceptance tests
   [ -z "$files" ] && { echo "acceptance-intact: QA commit $qa has no files" >&2; return 1; }
   changed="$(printf '%s\n' "$files" | while IFS= read -r f; do
-    if [ ! -e "$f" ] || ! git diff --quiet "$qa" HEAD -- "$f" || ! git diff --quiet HEAD -- "$f"; then echo "$f"; fi
+    if [ ! -e "$f" ] || ! git diff --quiet HEAD -- "$f"; then echo "$f"
+    elif ! git diff --quiet "$qa" HEAD -- "$f" && ! only_main_changed "$qa" "$f"; then echo "$f"; fi
   done)"
   [ -z "$changed" ] && return 0
-  echo "acceptance-intact: acceptance tests changed after the QA commit:" >&2; echo "$changed" >&2; return 1
+  echo "acceptance-intact: acceptance tests changed after the QA commit (beyond what merges from main brought):" >&2; echo "$changed" >&2; return 1
 }
 
 rollback_section() {  # body of '## Rollback', without HTML comments and blank lines
