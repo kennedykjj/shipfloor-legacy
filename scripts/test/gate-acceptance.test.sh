@@ -38,4 +38,11 @@ git checkout -q main; shared '  fun a() { main() }'; git commit -qam "main edits
 git checkout -q feat/8-x; git merge -q --no-edit main >/dev/null 2>&1
 shared '  fun a() { main() }'; git commit -qam resolved
 assert_exit 1 bash "$GATE" acceptance-intact "$qa"
+# ...until the owner reviews that file and accepts it as it stands (aghanim accept): that exact content passes,
+# and any later edit blocks again
+printf '%s\t%s\t#8\t2026-10-10\tmain reworded the same line\n' "$T" "$(git rev-parse "HEAD:$T")" > "$FACTORY_HOME/accepted.tsv"
+assert_exit 0 bash "$GATE" acceptance-intact "$qa"
+shared '  fun a() { }'; git commit -qam "edit after the owner accepted"
+assert_exit 1 bash "$GATE" acceptance-intact "$qa"
+rm -f "$FACTORY_HOME/accepted.tsv"
 finish

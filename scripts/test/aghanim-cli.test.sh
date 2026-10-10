@@ -90,6 +90,18 @@ rm "$H2/SKIPPED"; git -C "$r" commit -q --allow-empty -m ahead; git -C "$r" push
 assert_contains "$(bash "$M" doctor 2>&1)" "shop: control checkout is behind origin/main"
 assert_exit 0 bash "$M" clean shop
 [ ! -e "$H2/tmp/5" ] && [ ! -e "$H2/tmp/8" ] && [ -d "$H2/tmp/6" ] && pass "clean keeps the active card" || fail "clean removed the wrong tmp dirs: $(ls "$H2/tmp")"
+# accept: the owner records the acceptance files of a card as reviewed, with a reason, and the gate takes them
+W="$(mktemp -d)/9"; git -C "$r" worktree add -q -b feat/9-x "$W" main; mkdir -p "$W/api/src/test"
+echo qa > "$W/api/src/test/NineTest.kt"; git -C "$W" add -A; git -C "$W" commit -qm "test(x): acceptance tests for #9"
+qa9="$(git -C "$W" rev-parse HEAD)"
+echo resolved > "$W/api/src/test/NineTest.kt"; git -C "$W" commit -qam "merge resolved by hand"
+sed -i "s#^shop\t\([^\t]*\)\t[^\t]*#shop\t\1\t$(dirname "$W")#" "$AGHANIM_HOME/registry.tsv"
+assert_exit 2 bash "$M" accept shop 9
+assert_exit 1 bash "$FACTORY_DIR/gate.sh" -C "$W" acceptance-intact "$qa9"
+out="$(bash "$M" accept shop 9 main reworded the setup 2>&1)"; assert_contains "$out" "api/src/test/NineTest.kt"
+assert_contains "$(cat "$H2/accepted.tsv")" "main reworded the setup"
+assert_exit 0 bash "$FACTORY_DIR/gate.sh" -C "$W" acceptance-intact "$qa9"
+assert_contains "$(bash "$M" accept shop 9 again 2>&1)" "nothing to accept"
 # pool shows the stack slots
 out="$(bash "$M" pool)"; assert_contains "$out" "stacks: 3"; assert_contains "$out" "slot 0: free"
 finish

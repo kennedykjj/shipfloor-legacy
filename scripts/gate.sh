@@ -107,6 +107,11 @@ only_main_changed() {  # only_main_changed <qa> <file>: HEAD's file is the QA ve
   return $rc
 }
 
+owner_accepted() {  # owner_accepted <file>: the owner reviewed this exact content and recorded it (aghanim accept)
+  local blob; blob="$(git rev-parse -q --verify "HEAD:$1" 2>/dev/null)" || return 1
+  [ -f "${FACTORY_HOME:-}/accepted.tsv" ] && awk -F'\t' -v f="$1" -v b="$blob" '$1 == f && $2 == b { ok = 1 } END { exit !ok }' "$FACTORY_HOME/accepted.tsv"
+}
+
 gate_acceptance_intact() {
   require_rev "${1:-}"
   local qa="$1" files changed
@@ -114,10 +119,11 @@ gate_acceptance_intact() {
   [ -z "$files" ] && { echo "acceptance-intact: QA commit $qa has no files" >&2; return 1; }
   changed="$(printf '%s\n' "$files" | while IFS= read -r f; do
     if [ ! -e "$f" ] || ! git diff --quiet HEAD -- "$f"; then echo "$f"
-    elif ! git diff --quiet "$qa" HEAD -- "$f" && ! only_main_changed "$qa" "$f"; then echo "$f"; fi
+    elif ! git diff --quiet "$qa" HEAD -- "$f" && ! only_main_changed "$qa" "$f" && ! owner_accepted "$f"; then echo "$f"; fi
   done)"
   [ -z "$changed" ] && return 0
-  echo "acceptance-intact: acceptance tests changed after the QA commit (beyond what merges from main brought):" >&2; echo "$changed" >&2; return 1
+  echo "acceptance-intact: acceptance tests changed after the QA commit (beyond what merges from main brought):" >&2; echo "$changed" >&2
+  echo "acceptance-intact: the owner can review these files and record them as they stand: aghanim accept <project> <n> <reason>" >&2; return 1
 }
 
 rollback_section() {  # body of '## Rollback', without HTML comments and blank lines
