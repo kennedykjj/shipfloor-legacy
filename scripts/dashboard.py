@@ -1,7 +1,7 @@
 """Local dashboard: one page and a JSON API over ~/.aghanim and the Claude Code transcripts of the
 factory's runs. Read-only, except the owner's approve and request-changes."""
 import argparse, json, os, re, secrets, subprocess, sys, time, webbrowser
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -13,6 +13,7 @@ import aghanim_config  # exits with a clear message when PyYAML is missing
 from dashboard_cost import LEGACY_STAGES, cost, parse_transcript, parse_ts, rounded
 import yaml
 
+FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy mylos
 # The review page inside the dashboard's drawer: the drawer already carries the title and the one
 # action, so the embedded page drops its header, takes the dashboard's palette and type, and posts
@@ -382,6 +383,41 @@ class Factory:
             fh.seek(start)
             return {"text": fh.read(size - start).decode("utf-8", "replace"), "next": size}
 
+    def feed(self, limit=400):
+        """One timeline: the dispatcher's and the stacks' log lines, and every run's start and end."""
+        out = []
+        for source in ("dispatcher", "stacks"):
+            f = self.home / "logs" / f"{source}.log"
+            try:
+                with open(f, "rb") as fh:
+                    cut = max(0, f.stat().st_size - 65536)
+                    fh.seek(cut)
+                    lines = fh.read().decode("utf-8", "replace").splitlines()[1 if cut else 0:]
+            except OSError:
+                continue
+            ts = ""  # a line with no time is a command's stderr: it happened at the timed line above it
+            for line in lines:
+                m = FEED_LINE.match(line)
+                ts, text = m.groups() if m else (ts, line)
+                if text.strip():
+                    out.append({"ts": ts, "source": source, "text": text})
+        today = datetime.now().date()
+        for p in self.projects():
+            for day in (today - timedelta(days=1), today):
+                for r in self.runs(p, day=day.isoformat()):
+                    ev = {"source": p, "issue": r["issue"], "log": r["log"]}
+                    out.append(dict(ev, ts=r["start"], text=f"{r['stage']} #{r['issue']} started"))
+                    if r["end"]:
+                        how = "finished" if r["exit"] == 0 else f"failed, exit {r['exit']}"
+                        out.append(dict(ev, ts=r["end"], exit=r["exit"], text=f"{r['stage']} #{r['issue']} {how}"))
+
+        def at(e):
+            try:
+                return parse_ts(e["ts"]).timestamp()
+            except (ValueError, TypeError):
+                return 0.0
+        return {"events": sorted(out, key=at)[-limit:]}  # the sort is stable: untimed lines keep their place
+
 
 class Handler(BaseHTTPRequestHandler):
     factory, token = None, ""
@@ -419,6 +455,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parts == ["api", "overview"]:
                 return self.send(200, f.overview())
+            if parts == ["api", "feed"]:
+                return self.send(200, f.feed())
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and parts[3].isdigit():
                 return self.send(200, f.card(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "log"]:

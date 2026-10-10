@@ -225,8 +225,14 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .tip-stats .total dd { font-size: 20px; line-height: 1.1; }
 .tip-stats .report dd { font: 500 13px var(--sans); padding-top: 3px; }
 .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--edge); flex: none; }
-.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 10px 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
-.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
+.views { display: flex; align-items: center; gap: 2px; padding: 0 12px; border-right: 1px solid var(--edge); }
+.board[hidden], .feed[hidden] { display: none; }
+.feed { flex: 1; overflow: auto; min-width: 0; }
+.ev { display: grid; grid-template-columns: 12ch 11ch 1fr; gap: 0 12px; }
+.ev button { all: unset; cursor: pointer; text-decoration: underline; }
+.ev button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.tabs button, .views button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 10px 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
+.tabs button[aria-selected="true"], .views button[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--text); }
 .tabs button .b { margin-left: 5px; font-size: 11px; color: var(--faint); }
 .pane { flex: 1; overflow: auto; min-height: 0; }
 .section-k { font-size: 11px; color: var(--muted); letter-spacing: .02em; margin: 14px 20px 6px; font-weight: 600; }
@@ -318,6 +324,7 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
 <body>
 <header>
   <div class="brand"><b>Aghanim's Anvil</b></div>
+  <nav class="views" aria-label="View"><button data-view="board" aria-pressed="true">Board</button><button data-view="feed" aria-pressed="false">Feed</button></nav>
   <div class="stat await none" id="await"><div class="v num" id="await-n">–</div><div class="k">awaiting you<kbd title="Press n to open the next card that waits for you">n</kbd></div><div class="list" id="await-list"></div></div>
   <div class="stat"><div class="v num" id="pool">–</div><div class="k">pool in use</div></div>
   <div class="stat" id="slots-stat"><div class="slots" id="slots"></div></div>
@@ -328,6 +335,7 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
 </header>
 <main>
   <section class="board" id="board" aria-label="Board"><p class="placeholder">Reading the factory…</p></section>
+  <section class="feed log" id="feed" aria-label="Feed" tabindex="0" hidden></section>
   <aside class="drawer" id="drawer" role="dialog" aria-modal="false" aria-labelledby="tip-title" inert>
     <div id="d-head"></div>
     <div id="d-decide"></div>
@@ -347,7 +355,7 @@ const OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Stage
 const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged", "shipped"]);
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
-const S = { overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "",
+const S = { view: "board", overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "",
   expanded: {}, review: {}, notice: {}, armed: null, busy: false, showDone: false };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -712,6 +720,25 @@ async function act(action, moveOnly) {
   renderDrawer();
 }
 
+/* feed: every project's runs and the dispatcher's own log, oldest first */
+function setView(v) {
+  S.view = v;
+  $("board").hidden = v !== "board"; $("feed").hidden = v !== "feed";
+  document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === v));
+  loadFeed();
+}
+async function loadFeed() {
+  if (S.view !== "feed") return;
+  const { status, body } = await api("/api/feed");
+  if (status !== 200) return;
+  const el = $("feed"); const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  const html = body.events.map((e) => {
+    const text = e.issue ? `<button data-open="${esc(e.source)}/${e.issue}" data-log="${esc(e.log)}">${esc(e.text)}</button>` : `<span>${esc(e.text)}</span>`;
+    return `<div class="ev ${e.exit == null ? "" : e.exit === 0 ? "ok" : "bad"}"><span class="muted" title="${esc(e.ts)}">${e.ts ? when(e.ts) : ""}</span><span class="muted">${esc(e.source)}</span>${text}</div>`;
+  }).join("");
+  if (setHTML(el, html || '<p class="placeholder">Nothing logged yet.</p>') && atEnd) el.scrollTop = el.scrollHeight;
+}
+
 let tailing = false;
 async function unblock() {
   const [p, n] = S.open.split("/");
@@ -743,9 +770,11 @@ async function followLog() {
 function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog(); }
 
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-open],[data-close],[data-tab],[data-sub],[data-act],[data-retry],#fill,[data-unblock],[data-done],tr.session");
+  const t = e.target.closest("[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],[data-done],tr.session");
   if (!t) return;
-  if (t.dataset.open) openCard(t.dataset.open);
+  if (t.dataset.open && t.dataset.log) { openCard(t.dataset.open, "log"); S.log = t.dataset.log; S.logNext = -1; S.logText = ""; }  // a feed line opens its own run's log
+  else if (t.dataset.open) openCard(t.dataset.open);
+  else if (t.dataset.view) setView(t.dataset.view);
   else if (t.hasAttribute("data-close")) closeCard();
   else if (t.dataset.tab) selectTab(t.dataset.tab);
   else if (t.dataset.sub) { e.stopPropagation(); S.expanded[t.dataset.sub] = !S.expanded[t.dataset.sub]; renderDrawer(); }
@@ -790,6 +819,7 @@ window.addEventListener("resize", markOverflow);
 loadOverview();
 setTimeout(() => { if (!S.overview && $("board")._html === undefined) setHTML($("board"), '<p class="placeholder">Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.</p>'); }, 6000);
 setInterval(loadOverview, 5000);
+setInterval(loadFeed, 5000);
 setInterval(() => { if (S.open && S.tab !== "log") loadCard(); }, 5000);
 setInterval(followLog, 2000);
 setInterval(() => tick(), 1000);
