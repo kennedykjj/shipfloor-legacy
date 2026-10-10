@@ -33,7 +33,7 @@ refresh_control() {  # control checkout = exactly origin/main
   if [ ! -e "$CONTROL/.git" ]; then
     git -C "$REPO" worktree add -q --detach "$CONTROL" origin/main || return 1
   fi
-  git -C "$CONTROL" reset -q --hard origin/main && git -C "$CONTROL" clean -qfdx
+  git -C "$CONTROL" -c core.longpaths=true reset -q --hard origin/main && git -C "$CONTROL" -c core.longpaths=true clean -qfdx
 }
 
 lock_live() {  # lock_live <lock dir>: 0 = still held; an old lock whose process is gone is removed
