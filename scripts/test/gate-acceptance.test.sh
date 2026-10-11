@@ -108,4 +108,25 @@ assert_exit 0 bash "$GATE" acceptance-intact "$qa"
 sed -i 's/adapted()/weakened()/' "$T"; git commit -qam "edit after the owner accepted"
 assert_exit 1 bash "$GATE" acceptance-intact "$qa"
 rm -f "$FACTORY_HOME/accepted.tsv"
+
+# the QA commit of a card is found one way by every stage: the newest "acceptance tests for #<n>" on the branch
+r="$(new_repo)"; cd "$r"; mkdir -p api/src/test; git checkout -q -b feat/14-x
+assert_exit 2 bash "$GATE" qa-commit
+assert_exit 2 bash "$GATE" qa-commit x
+echo t > api/src/test/OtherTest.kt; git add -A; git commit -qm "test(x): acceptance tests for #142"
+assert_exit 1 bash "$GATE" qa-commit 14
+echo t > api/src/test/ATest.kt; git add -A; git commit -qm "test(x): acceptance tests for #14"; q1="$(git rev-parse HEAD)"
+[ "$(bash "$GATE" qa-commit 14)" = "$q1" ] && pass "qa-commit prints the QA commit" || fail "qa-commit: want $q1"
+[ "$(bash "$GATE" qa-commit 14 --head)" = "$q1" ] && pass "qa-commit --head passes right after QA" || fail "qa-commit --head: want $q1"
+echo impl > api/Impl.kt; git add -A; git commit -qm impl
+[ "$(bash "$GATE" qa-commit 14)" = "$q1" ] && pass "qa-commit after the implementation" || fail "qa-commit after impl: want $q1"
+assert_exit 1 bash "$GATE" qa-commit 14 --head
+# a rework: QA commits again and that commit is the QA commit from then on
+echo t2 > api/src/test/ATest.kt; git commit -qam "test(x): acceptance tests for #14"; q2="$(git rev-parse HEAD)"
+[ "$(bash "$GATE" qa-commit 14 --head)" = "$q2" ] && pass "qa-commit takes the rework's QA commit" || fail "qa-commit rework: want $q2"
+# ...and a rework committed under another message is caught at once, not by a later stage reading the old QA commit
+echo t3 > api/src/test/ATest.kt; git commit -qam "test(x): one world per state for #14"
+out="$(bash "$GATE" qa-commit 14 --head 2>&1)"; code=$?
+[ "$code" = 1 ] && pass "a QA commit under another message blocks" || fail "QA commit under another message: exit $code"
+assert_contains "$out" "acceptance tests for #14"
 finish
