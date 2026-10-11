@@ -11,7 +11,7 @@ stack_settings() {  # machine and project settings: STACKS BASE SPAN WAIT STALE 
   mapfile -d '' -t p < <(shipfloor_cfg values project.name stack.up stack.down stack.ports stack.url stack.health stack.reject stack.timeout)
   STACKS="${m[0]:-3}" BASE="${m[1]:-20000}" SPAN="${m[2]:-20}" WAIT="${FACTORY_STACK_WAIT:-${m[3]:-1800}}" STALE="${m[4]:-90}" HOLD="${m[5]:-2700}"
   NAME="${p[0]:-project}" UP="${p[1]:-}" DOWN="${p[2]:-}" PORTS="${p[3]:-}" URL="${p[4]:-}" HEALTH="${p[5]:-}" REJECT="${p[6]:-}" TIMEOUT="${p[7]:-300}"
-  [ -z "$UP" ] && STACKS=1  # a project that starts no stack of its own shares one fixed stack: one run at a time
+  SOLO=-; [ -z "$UP" ] && SOLO="$NAME"  # a project that starts no stack of its own shares one fixed stack: one of its runs at a time
   mkdir -p "$STACK_LOCKS/stack-queue" "$SHIPFLOOR_HOME/logs"
 }
 
@@ -78,19 +78,34 @@ slot_reclaim() {  # slot_reclaim <k> <reason>
   slot_down "$1"; slot_release "$1" "$2"
 }
 
-stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order, up to WAIT seconds; 3 = gave up
-  local q="$STACK_LOCKS/stack-queue" t f pid run k st waited=0
-  t="$q/$(date +%s%N)-$1"; echo "$$ ${SHIPFLOOR_RUN_LOCK:--}" > "$t"
+solo_busy() {  # solo_busy <project>: 0 when a live slot is held by a run of that no-up project
+  local k
+  for (( k = 0; k < STACKS; k++ )); do
+    [ "$(cat "$(slot_dir "$k")/solo" 2>/dev/null)" = "$1" ] && [ "$(slot_state "$k")" = busy ] && return 0
+  done
+  return 1
+}
+
+stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order (a no-up project's second run is skipped while its first runs), up to WAIT seconds; 3 = gave up
+  local q="$STACK_LOCKS/stack-queue" t f pid run solo k st head waited=0
+  t="$q/$(date +%s%N)-$1"; echo "$$ ${SHIPFLOOR_RUN_LOCK:--} $SOLO" > "$t"
   trap 'rm -f "$t"' EXIT INT TERM
   while :; do
     for f in "$q"/*; do  # tickets of waiters or runs that are gone leave the queue
-      [ -f "$f" ] || continue; read -r pid run < "$f"
+      [ -f "$f" ] || continue; read -r pid run _ < "$f"
       if ! kill -0 "${pid:-0}" 2>/dev/null || { [ "${run:--}" != - ] && [ ! -d "$run" ]; }; then rm -f "$f"; fi
     done
-    if [ "$(ls "$q" | sort | head -1)" = "${t##*/}" ]; then
+    head=""
+    for f in $(ls "$q" | sort); do  # the first ticket not blocked by its own project's running slot
+      read -r pid run solo < "$q/$f" 2>/dev/null || continue
+      if [ "${solo:--}" != - ] && solo_busy "$solo"; then continue; fi
+      head="$f"; break
+    done
+    if [ "$head" = "${t##*/}" ]; then
       for (( k = 0; k < STACKS; k++ )); do
         st="$(slot_state "$k")"; [ "${st%% *}" = stuck ] && slot_reclaim "$k" "${st#stuck }"
         if mkdir "$(slot_dir "$k")" 2>/dev/null; then
+          [ "$SOLO" != - ] && echo "$SOLO" > "$(slot_dir "$k")/solo"
           echo "$1 ${SHIPFLOOR_RUN_LOCK:--} $(date +%s)" > "$(slot_dir "$k")/info"; touch "$(slot_dir "$k")/beat"
           rm -f "$t"; trap - EXIT INT TERM; SLOT="$k"; return 0
         fi
