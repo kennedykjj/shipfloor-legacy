@@ -33,9 +33,9 @@ five
 build_base
 
 setup() {  # each case: a private copy of the base (no git work), plus fresh fakes
-  T="$(mktemp -d)"; cp -r "$BASE/remote.git" "$BASE/repo" "$T/"
-  remote="$T/remote.git"; repo="$T/repo"; git -C "$repo" remote set-url origin "$remote"
-  export FG="$T/fg"; mkdir -p "$FG"; echo "$remote" > "$FG/remote"
+  T="$(mktemp -d)"; cp -r "$BASE/remote.git" "$BASE/repo" "$T/"; point
+  git -C "$repo" remote set-url origin "$remote"
+  mkdir -p "$FG"; echo "$remote" > "$FG/remote"
   echo 78 > "$FG/pr"; echo feat/7-x > "$FG/branch"; echo "api=SUCCESS" > "$FG/ci"
   printf 'factory	staged-head: %s
 ' "$STAGED" > "$FG/comments"
@@ -46,12 +46,25 @@ case "$1" in status) cat "%s/status" ;; move) echo "$3" > "%s/status" ;; esac
   printf '#!/usr/bin/env bash
 exit "$(cat "%s/curl" 2>/dev/null || echo 0)"
 ' "$FG" > "$T/curl"; chmod +x "$T/curl"
-  export FACTORY_CONFIG="$T/factory.yml"
   sed '/^deploy:/d' "$FACTORY_DIR/test/fixture/factory.yml" > "$FACTORY_CONFIG"
   echo 'deploy: {healthcheck: ["https://shop.example/health"]}' >> "$FACTORY_CONFIG"
+  mkdir -p "$FACTORY_HOME"
+}
+point() {  # the case lives in $T: where its remote, repo, fakes and factory home are
+  remote="$T/remote.git"; repo="$T/repo"
+  export FG="$T/fg" FACTORY_CONFIG="$T/factory.yml"
   export FACTORY_HOME="$T/home" FACTORY_WT_ROOT="$T/wt" FACTORY_REPO="$repo" FACTORY_GH="$FACTORY_DIR/test/fake-gh-deploy"
   export FACTORY_BOARD="$T/board" FACTORY_CURL="$T/curl" FACTORY_POLL=0
-  mkdir -p "$FACTORY_HOME"
+}
+red_round() {  # a deploy that met red CI on top of main and handed the card to a fix round ($code: its exit, 3)
+  # The deploy runs once per file; later calls put a copy of that state back in the same place, because
+  # git worktrees hold absolute paths.
+  if [ -z "${RED:-}" ]; then
+    setup; main_commit web/other.ts x; echo "api=FAILURE" > "$FG/ci"; code="$(run 7)"
+    RED="$(mktemp -d)"; RED_T="$T"; cp -r "$T/." "$RED/"
+  else
+    T="$RED_T"; rm -rf "$T"; mkdir "$T"; cp -r "$RED/." "$T/"; point
+  fi
 }
 main_commit() {  # main_commit <file> <content>: another card lands on main
   local w; w="$(mktemp -d)"; git clone -q "$remote" "$w"; git -C "$w" config user.email t@t; git -C "$w" config user.name t

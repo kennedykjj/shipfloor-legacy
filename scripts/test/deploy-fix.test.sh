@@ -10,7 +10,7 @@ git --git-dir="$remote" cat-file -e "main:$M/V3__card.sql" 2>/dev/null && pass "
 assert_contains "$(cat "$FG/comments")" "deploy-fix: "
 
 # red CI after merging main → handed to an agent with the findings (exit 3), nothing sent back
-setup; main_commit web/other.ts x; echo "api=FAILURE" > "$FG/ci"; code="$(run 7)"
+red_round
 [ "$code" = 3 ] && pass "red CI after merge → fix round" || fail "exit $code: $(cat "$T/out")"
 [ "$(cat "$FG/status")" = "Ready for Prod" ] && pass "card stays in Ready for Prod" || fail "status $(cat "$FG/status")"
 assert_contains "$(cat "$FACTORY_HOME/tmp/7/fix.findings")" "api=FAILURE"
@@ -20,11 +20,11 @@ fix api/A.kt 3; echo "api=SUCCESS" > "$FG/ci"; code="$(run 7 --continue)"
 assert_contains "$(cat "$FG/comments")" "deploy-fix: "
 
 # a fix round that commits nothing → back to Coding
-setup; main_commit web/other.ts x; echo "api=FAILURE" > "$FG/ci"; run 7 >/dev/null
+red_round
 code="$(run 7 --continue)"; [ "$code" = 4 ] && [ "$(cat "$FG/status")" = Coding ] && pass "no fix → Coding" || fail "exit $code: $(cat "$T/out")"
 
 # a fix that edits an acceptance test, however small, never ships: acceptance-intact sends it back to Coding
-setup; main_commit web/other.ts x; echo "api=FAILURE" > "$FG/ci"; run 7 >/dev/null
+red_round
 fix api/src/test/ATest.kt 1; echo "api=SUCCESS" > "$FG/ci"; code="$(run 7 --continue)"
 [ "$code" = 4 ] && [ "$(cat "$FG/status")" = Coding ] && pass "fix in an acceptance test → Coding" || fail "exit $code: $(cat "$T/out")"
 [ -e "$FG/merged" ] && fail "merged a weakened acceptance test" || pass "nothing merged"
