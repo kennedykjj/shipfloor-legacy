@@ -32,7 +32,7 @@ assert_exit 1 env FACTORY_CONFIG="$(cfg_with "$HEADER"$'\npaths: {plans: docs/pl
 
 # I5: wrong shapes are invalid (never a crash), and crashes are exit 2
 for extra in 'stack: http://localhost:3000' 'deploy: CI' 'paths: docs/' 'review_criteria: [a]' \
-             'limits: {refine: 3}' 'context: PRODUCT.md'; do
+             'limits: {refine: 3}' 'limits: {develop: {parallel: 1}}' 'context: PRODUCT.md'; do
   assert_exit 1 env FACTORY_CONFIG="$(cfg_with "$HEADER"$'\n'"$extra"$'\n'"$LAYER")" bash "$CFG" validate
 done
 assert_exit 1 env FACTORY_CONFIG="$(cfg_with "$HEADER"$'\nlayers:\n  - {name: a, path: 3, test: t, ran: ok, tests: [a/**]}')" bash "$CFG" validate

@@ -87,10 +87,8 @@ gate_scope() {  # gate_scope <po|ux|techlead|qa|implementer layer> <base>
   gate_forbidden "$base"
 }
 
-merged_with_main() {  # merged_with_main <qa> <file> <out>: the file a clean merge gives, written to <out>; 1 = main brought nothing or the merge needs a hand
-  # Acceptance tests often live in files main also edits. Rebuild the file a clean merge gives
-  # (QA's version + main's version over their common ancestor).
-  local qa="$1" f="$2" out="$3" main="" m b tmp rc=1
+main_sides() {  # main_sides <qa> <file> <dir>: QA's version, main's and their common ancestor's, as <dir>/qa, main and base; 1 = main brought nothing
+  local qa="$1" f="$2" main="" m b
   for m in "origin/${FACTORY_MAIN:-main}" "${FACTORY_MAIN:-main}"; do
     git rev-parse -q --verify "$m^{commit}" >/dev/null && { main="$m"; break; }
   done
@@ -98,9 +96,29 @@ merged_with_main() {  # merged_with_main <qa> <file> <out>: the file a clean mer
   m="$(git merge-base HEAD "$main" 2>/dev/null)" || return 1  # the newest main commit merged into the card
   b="$(git merge-base "$qa" "$m" 2>/dev/null)" || return 1
   [ "$m" != "$b" ] && git cat-file -e "$m:$f" 2>/dev/null || return 1
-  tmp="$(mktemp -d)"
-  g show "$qa:$f" > "$tmp/qa" 2>/dev/null && g show "$m:$f" > "$tmp/main" && { g show "$b:$f" > "$tmp/base" 2>/dev/null || : > "$tmp/base"; } \
-    && git merge-file -q "$tmp/qa" "$tmp/base" "$tmp/main" 2>/dev/null && cp "$tmp/qa" "$out" && rc=0
+  g show "$qa:$f" > "$3/qa" 2>/dev/null && g show "$m:$f" > "$3/main" && { g show "$b:$f" > "$3/base" 2>/dev/null || : > "$3/base"; }
+}
+
+merged_with_main() {  # merged_with_main <qa> <file> <out>: the file a clean merge gives, written to <out>; 1 = main brought nothing or the merge needs a hand
+  # Acceptance tests often live in files main also edits. Rebuild the file a clean merge gives
+  # (QA's version + main's version over their common ancestor).
+  local tmp rc=1; tmp="$(mktemp -d)"
+  main_sides "$1" "$2" "$tmp" && git merge-file -q "$tmp/qa" "$tmp/base" "$tmp/main" 2>/dev/null && cp "$tmp/qa" "$3" && rc=0
+  rm -rf "$tmp"
+  return $rc
+}
+
+both_sides_kept() {  # both_sides_kept <qa> <file>: a hand-resolved merge with main where HEAD is QA's version plus main's and nothing of its own
+  # QA and main appending tests at the same spot conflict in git though neither loses a line. Passes when, blank lines aside:
+  # the lines QA added and the lines main added are all in HEAD, each side's in its order; HEAD has no line that neither has;
+  # and HEAD lacks no line of either, except one copy of a line both added (the same import).
+  local tmp rc=1 x; tmp="$(mktemp -d)"
+  if main_sides "$1" "$2" "$tmp" && g show "HEAD:$2" > "$tmp/head" 2>/dev/null; then
+    for x in qa main base head; do grep -v '^[[:space:]]*$' "$tmp/$x" > "$tmp/$x.l"; done
+    for x in qa main; do diff -d "$tmp/base.l" "$tmp/$x.l" | sed -n 's/^> //p' > "$tmp/$x.add"; LC_ALL=C sort "$tmp/$x.add" > "$tmp/$x.adds"; done
+    cat "$tmp/qa.l" "$tmp/main.l" | LC_ALL=C sort > "$tmp/want"; cat "$tmp/head.l" "$tmp/base.l" | LC_ALL=C sort > "$tmp/got"
+    ! diff -d "$tmp/qa.add" "$tmp/head.l" | grep -q '^<' && ! diff -d "$tmp/main.add" "$tmp/head.l" | grep -q '^<'       && [ -z "$(LC_ALL=C comm -13 "$tmp/want" "$tmp/got")" ]       && [ -z "$(LC_ALL=C comm -23 "$tmp/want" "$tmp/got" | LC_ALL=C comm -23 - <(LC_ALL=C comm -12 "$tmp/qa.adds" "$tmp/main.adds"))" ] && rc=0
+  fi
   rm -rf "$tmp"
   return $rc
 }
@@ -147,7 +165,7 @@ gate_acceptance_intact() {
   changed="$(printf '%s\n' "$files" | while IFS= read -r f; do
     if [ ! -e "$f" ] && ! git cat-file -e "HEAD:$f" 2>/dev/null; then owner_accepted "$f" || echo "$f"  # deleted and committed
     elif [ ! -e "$f" ] || ! git diff --quiet HEAD -- "$f"; then echo "$f"
-    elif git diff --quiet "$qa" HEAD -- "$f" || only_main_changed "$qa" "$f" || owner_accepted "$f" "$qa"; then :
+    elif git diff --quiet "$qa" HEAD -- "$f" || only_main_changed "$qa" "$f" || both_sides_kept "$qa" "$f" || owner_accepted "$f" "$qa"; then :
     elif assertions_kept "$qa" "$f" "$keep"; then echo "acceptance-intact: $f changed, but no assertion line did (acceptance_assertions); passed" >&2
     else echo "$f"; fi
   done)"

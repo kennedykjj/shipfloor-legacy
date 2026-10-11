@@ -2,8 +2,9 @@
 # Deterministic deploy of one card (docs/superpowers/specs/2026-10-09-fast-safe-deploy-design.md).
 # usage: deploy.sh <n> [--refresh | --continue]
 #   --refresh   bring a Staged card's PR up to date with main (clean merges only); never merges to main
-#   --continue  resume after the conflicts printed by a previous run were resolved and committed
-# exit: 0 done · 3 conflicts to resolve · 4 sent back to Coding · 5 blocked · 6 failed after merge (reverted)
+#   --continue  resume after what a previous run handed over (conflicts, or a red gate or CI) was fixed and committed
+# exit: 0 done · 3 handed over to an agent (conflicts in <tmp>/resolve.files, or a fix in <tmp>/fix.findings)
+#       4 sent back (to Coding, or to Staged with a fix the owner has to see) · 5 blocked · 6 failed after merge (reverted)
 #       2 usage, configuration, transient API error or busy card (safe to retry)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -14,14 +15,16 @@ case "$mode" in deploy|--refresh|--continue) ;; *) n="" ;; esac
 [[ "$n" =~ ^[0-9]+$ ]] || { echo "usage: deploy.sh <n> [--refresh | --continue]" >&2; exit 2; }
 aghanim_resolve . || exit 2
 mapfile -d '' -t V < <(aghanim_cfg values project.repo project.main deploy.ci_workflow deploy.environment \
-  deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks   deploy.healthcheck deploy.required_checks)
-[ "${#V[@]}" -eq 11 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
+  deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks   deploy.healthcheck deploy.required_checks deploy.fix_max_files deploy.fix_max_lines)
+[ "${#V[@]}" -eq 13 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
 REPO="${V[0]}" MAIN="${V[1]}" CI_WORKFLOW="${V[2]}" ENVIRONMENT="${V[3]}"
 TIMEOUT_MIN="${V[4]:-30}" MAX_FILES="${V[5]:-5}" MAX_HUNKS="${V[6]:-20}" SPECS="${V[7]}" ALLOW_NO_CHECKS="${V[8]:-false}"
 HEALTH="${V[9]}" REQUIRED="${V[10]}"  # lists, one item per line
+FIX_FILES="${V[11]:-3}" FIX_LINES="${V[12]:-40}"  # a fix within both, outside the acceptance tests, ships without a new approval
 GH="${FACTORY_GH:-gh}"; BOARD="${FACTORY_BOARD:-$HERE/board.sh}"; GATE="$HERE/gate.sh"
 CURL="${FACTORY_CURL:-curl}"; POLL="${FACTORY_POLL:-30}"
 WT="$FACTORY_WT_ROOT/$n"; TMP="$FACTORY_HOME/tmp/$n"; mkdir -p "$TMP"
+[ "$mode" = --continue ] || rm -f "$TMP"/fix.*  # a fresh run starts its fix rounds over
 TRAILER="Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 START="$(date +%s)"; BRANCH=""; PR=""
 polls() { local secs="$1"; [ "$POLL" -gt 0 ] && echo $(( secs / POLL + 1 )) || echo 60; }
@@ -104,19 +107,19 @@ if [ "$RESUMED" = 0 ]; then
   [ -n "$APPROVED" ] || block "no staged-head comment on #$n"
   RECORDED="$(printf '%s\n' "$bodies" | tr -d '\r' | awk -v a="$APPROVED" '
     $1 == "staged-head:" { on = ($2 == a); next }
-    on && $1 == "deploy-merge:" && $2 ~ /^[0-9a-f]+$/ { print $2 }')"
+    on && ($1 == "deploy-merge:" || $1 == "deploy-fix:") && $2 ~ /^[0-9a-f]+$/ { print $2 }')"
 
   # 3. worktree exactly at the PR head GitHub reported
   git -C "$FACTORY_REPO" fetch -q origin || retry_later "fetch failed"
   [ "$(git -C "$FACTORY_REPO" rev-parse "origin/$BRANCH" 2>/dev/null)" = "$HEAD_SHA" ] \
     || retry_later "origin/$BRANCH is not the PR head $HEAD_SHA yet"
-  approved_chain() {  # HEAD_SHA is the approved commit, or a recorded merge of main on top of an approved chain
+  approved_chain() {  # HEAD_SHA is the approved commit, or recorded commits of this script on top of it: merges of main, small fixes
     local c="$HEAD_SHA" p1 p2
     for _ in 1 2 3 4 5 6 7 8 9 10; do
       [ "$c" = "$APPROVED" ] && return 0
       printf '%s\n' "$RECORDED" | grep -qxF -- "$c" || return 1
-      p1="$(git -C "$FACTORY_REPO" rev-parse -q --verify "$c^1")" && p2="$(git -C "$FACTORY_REPO" rev-parse -q --verify "$c^2")" || return 1
-      git -C "$FACTORY_REPO" merge-base --is-ancestor "$p2" "origin/$MAIN" || return 1
+      p1="$(git -C "$FACTORY_REPO" rev-parse -q --verify "$c^1")" || return 1
+      if p2="$(git -C "$FACTORY_REPO" rev-parse -q --verify "$c^2")"; then git -C "$FACTORY_REPO" merge-base --is-ancestor "$p2" "origin/$MAIN" || return 1; fi
       c="$p1"
     done
     return 1
@@ -171,6 +174,60 @@ check_resolution() {  # --continue: HEAD must be the merge of the approved head 
   rm -f "$TMP/resolve.parents" "$TMP/resolve.files"
 }
 
+renumber_migrations() {  # main took the version of a migration the card adds: the card's file moves above main's newest
+  local layer re old new moved=0
+  for layer in $(aghanim_cfg layers); do
+    re="$(aghanim_cfg regex migrations "$layer")"; [ -n "$re" ] || continue
+    while IFS=$'\t' read -r old new; do
+      [ -n "$new" ] && g mv "$old" "$new" || continue
+      moved=1; say "migration $old renumbered to $new: $MAIN took its version"
+    done < <({ g ls-tree -r --name-only "origin/$MAIN" | grep -E -- "$re" | sed 's/^/E\t/'
+               g diff --name-only --diff-filter=A "origin/$MAIN" HEAD | grep -E -- "$re" | sed 's/^/N\t/'; } | aghanim_cfg migration-renumber "$layer")
+  done
+  [ "$moved" = 0 ] || g commit -qm "chore(migration): renumber above $MAIN's newest" -m "$TRAILER"
+}
+
+qa_commit() { g log --format=%H -1 -E --grep "acceptance tests for #$n([^0-9]|\$)" "$(g merge-base HEAD "origin/$MAIN")..HEAD"; }
+
+hand_fix() {  # hand_fix <what failed>: red on top of main, with the findings in <tmp>/fix.findings: an agent gets two rounds before Coding
+  local round; round="$(cat "$TMP/fix.round" 2>/dev/null || echo 0)"
+  if [ "$mode" = --refresh ] || [ "$round" -ge 2 ]; then back_to_coding "$1"; fi
+  echo $(( round + 1 )) > "$TMP/fix.round"; g rev-parse HEAD > "$TMP/fix.parent"
+  say "fix round $(( round + 1 )) of 2: $1"
+  say "fix what $TMP/fix.findings shows, commit, then run: deploy.sh $n --continue"; trap - EXIT; rm -rf "$LOCK"; exit 3
+}
+
+check_fix() {  # --continue after a fix round: commits on top of what was handed over; a small fix ships, a larger one waits for the owner
+  local parent files nfiles lines qa accept="" sha
+  parent="$(cat "$TMP/fix.parent")"; rm -f "$TMP/fix.parent"
+  g rev-parse -q --verify MERGE_HEAD >/dev/null && block "--continue with a merge in progress"
+  [ -z "$(g status --porcelain)" ] || back_to_coding "the fix round left uncommitted changes"
+  sha="$(g rev-parse HEAD)"
+  [ "$sha" != "$parent" ] && g merge-base --is-ancestor "$parent" HEAD && [ -z "$(g rev-list --merges "$parent..HEAD")" ] \
+    || back_to_coding "the fix round fixed nothing: $(tail -5 "$TMP/fix.findings" 2>/dev/null | tr '\n' ' ')"
+  files="$(g diff --name-only "$parent" HEAD)"; nfiles="$(printf '%s\n' "$files" | grep -c .)"
+  lines="$(g diff --numstat "$parent" HEAD | awk '{ s += $1 + $2 } END { print s + 0 }')"
+  qa="$(qa_commit)"; [ -z "$qa" ] || accept="$(g show --name-only --format= "$qa" | grep -xF -f <(printf '%s\n' "$files") | tr '\n' ' ')"
+  if [ "$nfiles" -le "$FIX_FILES" ] && [ "$lines" -le "$FIX_LINES" ] && [ -z "$accept" ]; then
+    say "small fix ($nfiles files, $lines lines): it ships with the approved head"; return 0
+  fi
+  # more than the owner approved: gates, then back to Staged with the fix as the new head to approve
+  fast_gates || back_to_coding "gates failed after the fix: $(tail -5 "$TMP/gates.txt" | tr '\n' ' ')"
+  g push -q --force-with-lease="$BRANCH:$HEAD_SHA" origin "HEAD:$BRANCH" || block "push of $sha failed (the branch moved?)"
+  comment "Back to Staged: the deploy merged $MAIN and an agent fixed what broke ($(tail -3 "$TMP/fix.findings" 2>/dev/null | tr '\n' ' ')). The fix is $nfiles files and $lines lines${accept:+, with acceptance tests ($accept)}: more than deploy.fix_max_files=$FIX_FILES / fix_max_lines=$FIX_LINES let through without you. Review the diff $parent..$sha and approve again.
+staged-head: $sha"
+  "$BOARD" move "$n" Staged >/dev/null || { say "could not move the card to Staged"; exit 2; }
+  say "back to Staged: a fix of $nfiles files, $lines lines${accept:+, acceptance tests} needs the owner"; exit 4
+}
+
+ci_findings() {  # ci_findings <sha>: the red checks and the end of each failed run's log
+  local id; echo "checks on $1: $CI_STATES"
+  for id in $("$GH" run list --repo "$REPO" --commit "$1" --json databaseId,conclusion --jq '.[] | select(.conclusion == "failure") | .databaseId' 2>/dev/null); do
+    [[ "$id" =~ ^[0-9]+$ ]] && "$GH" run view "$id" --repo "$REPO" --log-failed 2>/dev/null | tail -n 150
+  done
+  return 0
+}
+
 fast_gates() {  # deterministic checks only: CI runs build and tests on this exact head
   local mb slug spec qa
   mb="$(g merge-base HEAD "origin/$MAIN")"
@@ -178,11 +235,11 @@ fast_gates() {  # deterministic checks only: CI runs build and tests on this exa
     bash "$GATE" -C "$WT" forbidden "$mb" >"$TMP/gates.txt" 2>&1; return ;;
   esac
   slug="${BRANCH#feat/$n-}"; spec="$(ls "$WT/$SPECS"*-"$slug"-design.md 2>/dev/null | head -1)"
-  qa="$(g log --format=%H -1 -E --grep "acceptance tests for #$n([^0-9]|\$)" "$mb..HEAD")"
+  qa="$(qa_commit)"
   bash "$GATE" -C "$WT" fast "$mb" "${spec:-/dev/null}" $qa >"$TMP/gates.txt" 2>&1
 }
 
-wait_checks() {  # wait_checks <sha>: 0 green, 1 red or timed out
+wait_checks() {  # wait_checks <sha>: 0 green, 1 red (CI_STATES), 2 timed out
   local sha="$1" out head states empty=0 settle=0 req
   for _ in $(seq 1 "$(polls 1800)"); do
     out="$("$GH" pr view "$PR" --repo "$REPO" --json headRefOid,statusCheckRollup --jq \
@@ -193,7 +250,7 @@ wait_checks() {  # wait_checks <sha>: 0 green, 1 red or timed out
         empty=$((empty + 1))
         [ "$empty" -ge 10 ] && [ "$ALLOW_NO_CHECKS" = true ] && { say "no checks reported for $sha (allowed)"; return 0; }
       elif printf '%s' "$states" | grep -Eqi '=(FAILURE|ERROR|CANCELLED|TIMED_OUT|ACTION_REQUIRED|STARTUP_FAILURE|STALE)'; then
-        say "checks failed on $sha: $states"; return 1
+        say "checks failed on $sha: $states"; CI_STATES="$states"; return 1
       elif ! printf '%s' "$states" | tr ',' '\n' | grep -Eqvi '=(SUCCESS|NEUTRAL|SKIPPED)$'; then
         local missing=""
         while IFS= read -r req; do
@@ -205,22 +262,30 @@ wait_checks() {  # wait_checks <sha>: 0 green, 1 red or timed out
     fi
     sleep "$POLL"
   done
-  say "checks did not finish (last: ${states:-none})"; return 1
+  say "checks did not finish (last: ${states:-none})"; return 2
 }
 
-push_recorded() {  # record the merge before pushing it: an unpushed record is harmless, an unrecorded push wedges the card
-  local sha="$1"
+push_recorded() {  # record this script's commits before pushing them: an unpushed record is harmless, an unrecorded push wedges the card
+  # every commit since the PR head: the merge of main (deploy-merge), a renumbered migration or a small fix (deploy-fix)
+  local sha="$1" c lines=""
   [ "$("$BOARD" status "$n")" = "$status" ] || retry_later "the card moved meanwhile"
-  comment "deploy-merge: $sha $(g rev-parse "origin/$MAIN")" || retry_later "cannot record the merge"
+  for c in $(g rev-list --first-parent --reverse "$HEAD_SHA..$sha"); do
+    if g rev-parse -q --verify "$c^2" >/dev/null; then lines+="deploy-merge: $c $(g rev-parse "$c^2")"$'\n'; else lines+="deploy-fix: $c"$'\n'; fi
+    RECORDED="$RECORDED"$'\n'"$c"
+  done
+  comment "${lines%$'\n'}" || retry_later "cannot record the merge"
   g push -q --force-with-lease="$BRANCH:$HEAD_SHA" origin "HEAD:$BRANCH" || block "push of $sha failed (the branch moved?)"
-  RECORDED="$RECORDED"$'\n'"$sha"; HEAD_SHA="$sha"
+  HEAD_SHA="$sha"
   say "merged main into the PR: $sha"
 }
 
 # 4-8. up to date with main, fast gates, pushed, green
 if [ "$RESUMED" = 0 ]; then
   merged=0
-  if [ "$mode" = --continue ]; then check_resolution; merged=1; fi
+  if [ "$mode" = --continue ]; then
+    if [ -s "$TMP/fix.parent" ]; then check_fix; else check_resolution; fi
+    merged=1
+  fi
   for attempt in 1 2 3; do
     if [ "$mode" != --continue ] || [ "$attempt" -gt 1 ]; then
       merge_main; rc=$?
@@ -232,16 +297,21 @@ if [ "$RESUMED" = 0 ]; then
         4) back_to_coding "$REASON" ;;
       esac
     fi
+    [ "$merged" = 1 ] && renumber_migrations
     if ! fast_gates; then
-      [ "$merged" = 1 ] && back_to_coding "gates failed after merging main: $(tail -5 "$TMP/gates.txt" | tr '\n' ' ')"
-      block "gates failed: $(tail -5 "$TMP/gates.txt" | tr '\n' ' ')"
+      [ "$merged" = 1 ] || block "gates failed: $(tail -5 "$TMP/gates.txt" | tr '\n' ' ')"
+      cp "$TMP/gates.txt" "$TMP/fix.findings"
+      hand_fix "gates failed after merging main: $(tail -5 "$TMP/gates.txt" | tr '\n' ' ')"
     fi
     sha="$(g rev-parse HEAD)"
     [ "$sha" != "$HEAD_SHA" ] && push_recorded "$sha"
     [ "$mode" = --refresh ] && { say "up to date with main"; exit 0; }
-    if ! wait_checks "$sha"; then
-      [ "$merged" = 1 ] && back_to_coding "CI failed on the PR after merging main ($sha)"
-      block "CI failed on the PR ($sha)"
+    wait_checks "$sha"; rc=$?
+    if [ "$rc" != 0 ]; then
+      [ "$merged" = 1 ] || block "CI failed on the PR ($sha)"
+      [ "$rc" = 1 ] || back_to_coding "CI did not finish on the PR after merging main ($sha)"
+      ci_findings "$sha" > "$TMP/fix.findings"
+      hand_fix "CI failed on the PR after merging main ($sha)"
     fi
     g fetch -q origin || retry_later "fetch failed"
     g merge-base --is-ancestor "origin/$MAIN" HEAD && break
@@ -268,7 +338,7 @@ fi
 # A card merged by an earlier run is judged by main as it is now: its own merge commit may carry a
 # run that failed for a reason main has since fixed, and that run never turns green.
 CHECK="$MERGED"; [ "${RESUMED:-}" = 1 ] && CHECK="$(git -C "$FACTORY_REPO" rev-parse "origin/$MAIN")"
-failure=""; deploy_url=""
+failure=""; deploy_url=""; faillog=""
 if [ -n "$CI_WORKFLOW" ]; then
   run=""; for _ in $(seq 1 10); do
     run="$("$GH" run list --repo "$REPO" --branch "$MAIN" --commit "$CHECK" --workflow "$CI_WORKFLOW" --json databaseId --jq '.[0].databaseId' 2>/dev/null)"
@@ -276,9 +346,23 @@ if [ -n "$CI_WORKFLOW" ]; then
   done
   if [ -z "$run" ]; then failure="no '$CI_WORKFLOW' run on $MAIN for $CHECK"
   else
+    reran=0
     for _ in $(seq 1 "$(polls $(( TIMEOUT_MIN * 60 )))"); do
       concl="$("$GH" run view "$run" --repo "$REPO" --json status,conclusion --jq '.status + " " + (.conclusion // "")' 2>/dev/null)"
-      case "$concl" in "completed success") break ;; completed*) failure="CI on $MAIN failed (run $run: ${concl#completed })"; break ;; esac
+      case "$concl" in
+        "completed success") break ;;
+        completed*)  # a runner or the network may have failed, not the code: the failed jobs run once more before the revert
+          if [ "$reran" = 0 ] && "$GH" run rerun "$run" --repo "$REPO" --failed >/dev/null 2>&1; then
+            reran=1; say "CI on $MAIN failed (run $run: ${concl#completed }); running its failed jobs once more"
+            for _ in 1 2 3 4 5 6; do  # until GitHub shows the rerun as started
+              sleep "$POLL"
+              [ "$("$GH" run view "$run" --repo "$REPO" --json status,conclusion --jq '.status + " " + (.conclusion // "")' 2>/dev/null)" = "$concl" ] || break
+            done
+            continue
+          fi
+          failure="CI on $MAIN failed (run $run: ${concl#completed })"
+          faillog="$("$GH" run view "$run" --repo "$REPO" --log-failed 2>/dev/null | tail -n 30 | cut -c1-300)"; break ;;
+      esac
       sleep "$POLL"
     done
     [ -z "$failure" ] && [ "$concl" != "completed success" ] && failure="CI on $MAIN did not finish (run $run)"
@@ -319,7 +403,9 @@ if [ -n "$failure" ]; then  # revert, reopen, block
       --body "Reverts the merge of #$n ($MERGED) after a failed production deploy: $failure. Refs #$n." 2>/dev/null | tail -1)" \
       || rpr="(revert branch revert/$n pushed; opening its PR failed)"
     git -C "$FACTORY_REPO" worktree remove --force "$rw" >/dev/null 2>&1
-    comment "Production deploy failed: $failure. Revert PR: $rpr
+    comment "Production deploy failed: $failure. Revert PR: $rpr${faillog:+
+The end of the log of the failed run:
+$faillog}
 staged-head: $rhead"
   else
     comment "Production deploy failed: $failure. The revert could not be prepared automatically: revert $MERGED by hand."
