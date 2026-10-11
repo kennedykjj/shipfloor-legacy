@@ -16,7 +16,9 @@ if kill -0 "$(cat "$CYCLE" 2>/dev/null)" 2>/dev/null; then OVERLAP=--overlap; el
 health() {
   local rc=$?
   [ -n "$OVERLAP" ] || rm -f "$CYCLE"
-  AGHANIM_BASH="$(aghanim_native "$BASH")" aghanim_python "$(aghanim_native "$HERE/aghanim_health.py")" record     --home "$(aghanim_native "$AGHANIM_HOME")" --seconds $(( $(date +%s) - START )) --exit "$rc" $OVERLAP >/dev/null 2>&1 || true
+  local p=("$BASH" "$HERE/aghanim_health.py" "$AGHANIM_HOME")  # one cygpath start for the three
+  if command -v cygpath >/dev/null; then mapfile -t p < <(cygpath -m "${p[@]}"); fi
+  AGHANIM_BASH="${p[0]}" aghanim_python "${p[1]}" record     --home "${p[2]}" --seconds $(( $(date +%s) - START )) --exit "$rc" $OVERLAP >/dev/null 2>&1 || true
 }
 trap health EXIT
 [ -e "$AGHANIM_HOME/PAUSE" ] && exit 0
