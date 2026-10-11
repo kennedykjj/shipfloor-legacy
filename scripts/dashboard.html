@@ -633,7 +633,8 @@ async function loadOverview() {
 }
 const project = () => S.overview?.projects.find((p) => p.slug === S.project);
 const cardOf = (p, n) => S.overview?.projects.find((x) => x.slug === p)?.cards.find((c) => c.issue === n);
-const waiting = () => (S.overview?.projects || []).flatMap((p) => p.cards.map((c) => ({ ...c, key: `${p.slug}/${c.issue}` })))
+// what waits for the owner in the project on screen: the other projects' cards stay with their own board
+const waiting = () => (project()?.cards || []).map((c) => ({ ...c, key: `${S.project}/${c.issue}` }))
   .filter((c) => (c.awaiting || c.blocked === "owner") && !(c.key in S.moving));
 
 function renderStrip() {
@@ -773,10 +774,10 @@ function renderLanes(p, by, key, labels) {
 }
 const fade = () => { const l = $("list"); l.classList.toggle("cut", l.scrollHeight - l.scrollTop - l.clientHeight > 8); };
 function renderYours() {
-  const w = waiting(), many = S.overview.projects.length > 1;
+  const w = waiting();
   $("hy").textContent = w.length ? `${w.length} wait${w.length === 1 ? "s" : ""} for you` : "Nothing waits for you";
   const text = $("qc")?.value, at = document.activeElement, held = at?.closest?.(".pass")?.dataset.key, onText = at?.id === "qc";
-  const html = w.length ? w.map((c) => passHtml(c, many)).join("") : '<li class="empty">The factory moves on its own. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.</li>';
+  const html = w.length ? w.map(passHtml).join("") : '<li class="empty">The factory moves on its own. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.</li>';
   if (setHTML($("list"), html)) {
     if ($("qc") && text != null) $("qc").value = text;
     if (held) (onText ? $("qc") : document.querySelector(`.pass[data-key="${CSS.escape(held)}"] .ptitle`))?.focus({ preventScroll: true });
@@ -877,12 +878,12 @@ async function inboxFlush() {
 }
 function inboxUndo() { const h = INB.hold; if (!h) return; clearTimeout(h.timer); INB.hold = null; delete INB.gone[h.key]; INB.cur = h.key; renderInbox(); }
 // One pass per card that waits: Spec Review leads to the review, Staged approves with a moment to undo.
-function passHtml(c, many) {
+function passHtml(c) {
   const k = esc(c.key), [slug] = c.key.split("/"), pend = S.pending[c.key], stop = c.blocked === "owner", moves = OWNER[c.column];
   const head = (meta) => `<div class="seg"><button class="ptitle" data-open="${k}"><span class="row"><span class="g pnum">#${c.issue}</span>${meta}</span><span class="ptext">${c.title ? esc(c.title) : UNTITLED}</span></button>`;
   if (pend) return `<li class="pass" data-key="${k}">${head(`<span class="cap">Moving to ${esc(pend.to)}</span>`)}<div class="bar"><i></i></div></div><div class="stub"><button class="pill" data-q="undo">Undo</button></div></li>`;
   const cost = c.cost == null ? " · $ ?" : c.cost ? ` · $${c.cost.toFixed(2)}` : "";
-  const meta = stop ? '<span class="cap bad">Blocked · waits for your call</span>' : `<span class="cap">${many ? esc(slug) + " · " : ""}${esc(c.column)}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}</span>`;
+  const meta = stop ? '<span class="cap bad">Blocked · waits for your call</span>' : `<span class="cap">${esc(c.column)}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}</span>`;
   const note = S.note[c.key] ? `<p class="pnote" role="status">${esc(S.note[c.key])}</p>` : "";
   const review = (label, cls) => `<button${cls} data-open="${k}" data-go="review">${label}</button>`, changes = '<button data-q="changes">Request changes</button>', link = gh(slug, c.issue);
   const acts = stop ? `<button class="pill" data-q="unblock">Unblock &amp; retry</button><button data-open="${k}">Details</button><button data-open="${k}" data-go="log">Log</button>${link}`
