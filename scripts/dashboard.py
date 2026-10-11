@@ -637,7 +637,8 @@ class Factory:
             return {"text": fh.read(size - start).decode("utf-8", "replace"), "next": size}
 
     def feed(self, limit=400):
-        """One timeline: the dispatcher's and the stacks' log lines, and every run's start and end."""
+        """One timeline: the dispatcher's and the stacks' log lines, and one line per run, at the time it
+        ended (or started, while it still runs)."""
         out = []
         for source in ("dispatcher", "stacks"):
             f = self.home / "logs" / f"{source}.log"
@@ -658,11 +659,9 @@ class Factory:
         for p in self.projects():
             for day in (today - timedelta(days=1), today):
                 for r in self.runs(p, day=day.isoformat()):
-                    ev = {"source": p, "issue": r["issue"], "log": r["log"]}
-                    out.append(dict(ev, ts=r["start"], text=f"{r['stage']} #{r['issue']} started"))
-                    if r["end"]:
-                        how = "finished" if r["exit"] == 0 else f"failed, exit {r['exit']}"
-                        out.append(dict(ev, ts=r["end"], exit=r["exit"], text=f"{r['stage']} #{r['issue']} {how}"))
+                    out.append({"source": p, "issue": r["issue"], "log": r["log"], "start": r["start"], "end": r["end"],
+                                "exit": r["exit"] if r["end"] else None, "ts": r["end"] or r["start"],
+                                "text": f"{r['stage']} #{r['issue']}"})
 
         def at(e):
             try:
