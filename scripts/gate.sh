@@ -89,14 +89,24 @@ gate_scope() {  # gate_scope <po|ux|techlead|qa|implementer layer> <base>
   gate_forbidden "$base"
 }
 
+main_bases() {  # main_bases <qa>: SIDE_M = the newest main commit merged into the card, SIDE_B = its common ancestor with QA; 1 = no main
+  # The same for every file of a QA commit: found once, kept for the files and checks that follow in this shell.
+  if [ "${SIDE_OF-}" != "$1" ]; then
+    local main="" m
+    SIDE_OF="$1" SIDE_M="" SIDE_B=""
+    for m in "origin/${FACTORY_MAIN:-main}" "${FACTORY_MAIN:-main}"; do
+      git rev-parse -q --verify "$m^{commit}" >/dev/null && { main="$m"; break; }
+    done
+    [ -z "$main" ] || SIDE_M="$(git merge-base HEAD "$main" 2>/dev/null)" || SIDE_M=""
+    [ -z "$SIDE_M" ] || SIDE_B="$(git merge-base "$1" "$SIDE_M" 2>/dev/null)" || SIDE_M=""
+  fi
+  [ -n "$SIDE_M" ]
+}
+
 main_sides() {  # main_sides <qa> <file> <dir>: QA's version, main's and their common ancestor's, as <dir>/qa, main and base; 1 = main brought nothing
-  local qa="$1" f="$2" main="" m b
-  for m in "origin/${FACTORY_MAIN:-main}" "${FACTORY_MAIN:-main}"; do
-    git rev-parse -q --verify "$m^{commit}" >/dev/null && { main="$m"; break; }
-  done
-  [ -n "$main" ] || return 1
-  m="$(git merge-base HEAD "$main" 2>/dev/null)" || return 1  # the newest main commit merged into the card
-  b="$(git merge-base "$qa" "$m" 2>/dev/null)" || return 1
+  local qa="$1" f="$2" m b
+  main_bases "$qa" || return 1
+  m="$SIDE_M" b="$SIDE_B"
   [ "$m" != "$b" ] && git cat-file -e "$m:$f" 2>/dev/null || return 1
   g show "$qa:$f" > "$3/qa" 2>/dev/null && g show "$m:$f" > "$3/main" && { g show "$b:$f" > "$3/base" 2>/dev/null || : > "$3/base"; }
 }
