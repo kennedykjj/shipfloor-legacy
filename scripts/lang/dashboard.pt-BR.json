@@ -75,6 +75,8 @@
     "Send": "Enviar",
     "Undo": "Desfazer",
     "Maximize": "Maximizar",
+    "Minimize": "Minimizar",
+    "Expand": "Expandir",
     "Restore (Esc)": "Restaurar (Esc)",
     "Maximize the session": "Maximizar a sessão",
     "Maximize or restore the card": "Maximizar ou restaurar o card",
@@ -389,6 +391,14 @@
     [
       "^Pause (\\S+)$",
       "Pausar $1"
+    ],
+    [
+      "^Minimize (\\S+)$",
+      "Minimizar $1"
+    ],
+    [
+      "^Expand (\\S+)$",
+      "Expandir $1"
     ],
     [
       "\\bStep (\\d+) of (\\d+)",

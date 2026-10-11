@@ -334,7 +334,8 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .set-body > h1 { font-size: 30px; } .set-body > .lead { margin: 6px 0 0; color: var(--muted); font-size: 14px; max-width: 74ch; }
 .sgroup { margin-top: 20px; } .sgroup > h2 { margin: 0; padding: 14px 20px 0; font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .sgroup > h2 code, .sgroup .from code { font: 11.5px var(--mono); color: var(--faint); text-transform: none; letter-spacing: 0; }
-.sgroup > h2.ptitle2 { padding: 16px 20px 2px; font: 600 20px var(--cond); letter-spacing: .04em; color: var(--text); justify-content: space-between; } .ptitle2 span { font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.sgroup > h2.ptitle2 { padding: 16px 20px 2px; font: 600 20px var(--cond); letter-spacing: .04em; color: var(--text); justify-content: space-between; } .ptitle2 span { font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: auto; } .ptitle2 span b { font-weight: 500; color: var(--warn); }
+.ptitle2 .max { position: static; flex: none; align-self: center; color: var(--muted); } .ptitle2 .max[aria-expanded="false"] svg { transform: rotate(180deg); } .sgroup.shut > h2.ptitle2 { padding-bottom: 14px; }
 .srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--edge); } .sgroup > h2 + .srow { border-top: 0; }
 .srow .st { margin: 0; font-weight: 500; } .srow .sd { margin: 0; font-size: 13px; color: var(--muted); max-width: 66ch; } .srow .sv { font-size: 13.5px; color: var(--soft); text-align: right; max-width: 46ch; overflow-wrap: anywhere; }
 .stp { display: inline-flex; align-items: center; border: 1px solid var(--edge-hi); border-radius: 8px; overflow: hidden; }
@@ -1256,7 +1257,8 @@ async function act(action, moveOnly) {
 /* feed: every project's runs and the dispatcher's own log, oldest first */
 // Settings: this machine's limits and the pauses are the owner's to change here. A project's own settings live in
 // its repository; they are shown as the dispatcher last read them, with where to change them.
-const SET = { data: null, sec: "sessions", draft: {}, err: "" };
+const SET = { data: null, sec: "sessions", draft: {}, err: "", shut: {} };
+try { SET.shut = JSON.parse(localStorage.getItem("shipfloor.shut")) || {}; } catch (e) { /* storage blocked: every project starts open */ }
 const THEMES = { dark: [["tape", "Floor tape"], ["charcoal", "Charcoal"], ["dock", "Dock"], ["machine", "Machine green"], ["blueprint", "Blueprint"], ["foundry", "Foundry"], ["night", "Night shift"], ["terminal", "Terminal"], ["contrast", "High contrast"]],
   light: [["kraft", "Kraft"], ["steel", "Steel"], ["paper", "Drafting paper"]] };
 const STAGE_HELP = { refine: "Writing specs.", develop: "Building a card.", validate: "Reviewing and opening the pull request.", deploy: "Merging and deploying. Always one card at a time per project." };
@@ -1293,11 +1295,11 @@ function renderSettings() {
   } else if (SET.sec === "projects") {
     const list = (v) => Array.isArray(v) ? v.join(", ") : v || "";
     body = `<h1 class="g">Projects</h1><p class="lead">The repositories this factory works on. How the factory operates on a project (the pause and the four limits with steppers) is decided here, for this machine. What a project is (its files, layers and commands) is part of its repository and is shown as last read.</p>
-      ${d.projects.map((p) => { const dep = p.deploy || {};
+      ${d.projects.map((p) => { const dep = p.deploy || {}, shut = !!SET.shut[p.slug];
         const knob = (key, min, max, unit, by = 1) => { const k = `p|${p.slug}|${key}`, x = p.knobs[key], v = setVal(k);
           return `<span class="sknob">${stepper(k, min, max, by)}<small>${v === 0 ? "no limit" : unit}${v !== x.repo ? ` · the repository says ${x.repo || "no limit"}` : ""}</small></span>`; };
-        return `<div class="sgroup panel"><h2 class="ptitle2 g">${esc(p.slug)}<span>${esc(p.repo || "")}${p.board?.number ? ` · board #${p.board.number}` : ""} · ${esc(p.main)}${p.board_url ? ` · <a href="${esc(p.board_url)}" target="_blank" rel="noopener">board on GitHub${EXT}</a>` : ""}</span></h2>
-        ${row("Paused", "The dispatcher skips this project. Other projects keep running, and sessions already running finish.", sw(p.slug, p.paused, `Pause ${p.slug}`))}
+        return `<div class="sgroup panel${shut ? " shut" : ""}"><h2 class="ptitle2 g">${esc(p.slug)}<span>${esc(p.repo || "")}${p.board?.number ? ` · board #${p.board.number}` : ""} · ${esc(p.main)}${p.board_url ? ` · <a href="${esc(p.board_url)}" target="_blank" rel="noopener">board on GitHub${EXT}</a>` : ""}${shut && p.paused ? " · <b>Paused</b>" : ""}</span><button class="max" data-fold="${esc(p.slug)}" aria-expanded="${!shut}" aria-label="${shut ? "Expand" : "Minimize"} ${esc(p.slug)}" title="${shut ? "Expand" : "Minimize"}"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button></h2>
+        ${shut ? "" : `${row("Paused", "The dispatcher skips this project. Other projects keep running, and sessions already running finish.", sw(p.slug, p.paused, `Pause ${p.slug}`))}
         ${row("Cards in progress at once", "Coding and Validation count together, so pull requests do not pile up against main. 0 is no limit.", knob("limits.develop.wip", 0, 40, "cards"))}
         ${row("Specs in refinement at once", "Cards being refined, before they wait for your approval. 0 is no limit.", knob("limits.refine.wip", 0, 40, "cards"))}
         ${row("Minutes the deploy waits for CI and production", "Past this the deploy stops and the card comes back to you.", knob("deploy.timeout_min", 5, 240, "minutes", 5))}
@@ -1307,7 +1309,7 @@ function renderSettings() {
         ${dep.ci_workflow ? row("CI the deploy waits for", "The workflow whose result decides whether a card ships.", `<span class="sv">${esc(dep.ci_workflow)}</span>`) : ""}
         <h2>Layers</h2><div class="swrap"><table><thead><tr><th>layer</th><th>path</th><th>stack</th><th>build</th><th>tests live in</th></tr></thead><tbody>${p.layers.map((l) =>
           `<tr><td>${esc(l.name)}${l.tests_only ? ' <span class="cap">tests only</span>' : ""}</td><td><code>${esc(l.path || "")}</code></td><td>${esc(l.stack || "")}</td><td><code>${esc(l.build || l.test || "")}</code></td><td><code>${esc(list(l.tests))}</code></td></tr>`).join("")}</tbody></table></div>
-        <p class="from">The limits above are kept on this machine, over what the repository says. To change the rest, edit <code>.shipfloor/factory.yml</code> in ${esc(p.repo || "the repository")} on ${esc(p.main)}. The dispatcher reads it again on every cycle.</p></div>`; }).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}`;
+        <p class="from">The limits above are kept on this machine, over what the repository says. To change the rest, edit <code>.shipfloor/factory.yml</code> in ${esc(p.repo || "the repository")} on ${esc(p.main)}. The dispatcher reads it again on every cycle.</p>`}</div>`; }).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}`;
   } else if (SET.sec === "themes") {
     const face = (id) => `<span data-theme="${id}"><span class="c"><span class="n">#184</span><i class="t"></i><i class="m"></i></span><span class="s">${["ok", "warn", "bad"].map((k) => `<i style="--k:var(--${k})"></i>`).join("")}</span></span>`;
     const pick = (id, name, sub = "") => `<button class="thm" data-theme-pick="${id}" aria-pressed="${THEME === id}">${id === "auto" ? `<span class="thp two" aria-hidden="true">${face("tape")}${face("kraft")}</span>` : face(id).replace("<span ", '<span class="thp" aria-hidden="true" ')}<b>${name}</b>${sub ? `<small>${sub}</small>` : ""}</button>`;
@@ -1423,11 +1425,16 @@ function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog
 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
-  const t = e.target.closest("[data-step],[data-theme-pick],[data-setsec],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-step],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.dataset.step) setStep(t);
   else if (t.dataset.themePick) { theme(t.dataset.themePick); renderSettings(); themeReview(); }
   else if (t.dataset.setsec) { SET.sec = t.dataset.setsec; renderSettings(); }
+  else if (t.dataset.fold) {
+    const k = t.dataset.fold; if (SET.shut[k]) delete SET.shut[k]; else SET.shut[k] = 1;
+    try { localStorage.setItem("shipfloor.shut", JSON.stringify(SET.shut)); } catch (e) { /* storage blocked: lasts for this page */ }
+    renderSettings(); [...document.querySelectorAll("[data-fold]")].find((b) => b.dataset.fold === k)?.focus();  // the rewrite took the focus with it
+  }
   else if (t.dataset.set === "save") setSave();
   else if (t.dataset.set === "discard") { SET.draft = {}; SET.err = ""; renderSettings(); }
   else if (t.dataset.iq) { INB.cur = t.dataset.iq; INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox(); }
