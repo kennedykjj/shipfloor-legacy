@@ -215,9 +215,163 @@
     "Pick the card": "Escolher o card",
     "Publish for review": "Publicar para revisão",
     "Paused": "Pausado",
-    "done": "concluído"
+    "done": "concluído",
+    "Settings": "Configurações",
+    "Settings sections": "Seções das configurações",
+    "Pause the factory": "Pausar a fábrica",
+    "Paused: no new run starts on any project. Sessions already running finish.": "Pausada: nenhuma execução nova começa em nenhum projeto. As sessões que já rodam terminam.",
+    "No cycle recorded yet.": "Nenhum ciclo registrado ainda.",
+    "how much runs at once": "quanto roda ao mesmo tempo",
+    "Projects": "Projetos",
+    "Costs": "Custos",
+    "the prices behind the estimate": "os preços por trás da estimativa",
+    "How many agent sessions this machine runs at once, in all and per stage. A change takes effect on the dispatcher's next cycle; sessions already running are never cut.": "Quantas sessões de agente esta máquina roda ao mesmo tempo, no total e por estágio. Uma mudança vale a partir do próximo ciclo do dispatcher; sessões que já rodam nunca são cortadas.",
+    "The pool": "O pool",
+    "Sessions at once": "Sessões ao mesmo tempo",
+    "never used": "nunca usado",
+    "Run environments": "Ambientes de execução",
+    "Local stacks at once": "Stacks locais ao mesmo tempo",
+    "Minutes to wait for a free stack": "Minutos de espera por um stack livre",
+    "A run that cannot get one in time is blocked as infrastructure and retried once.": "Uma execução que não consegue um a tempo é bloqueada por infraestrutura e tentada de novo uma vez.",
+    "The repositories this factory works on. How the factory operates on a project (the pause and the four limits with steppers) is decided here, for this machine. What a project is (its files, layers and commands) is part of its repository and is shown as last read.": "Os repositórios em que esta fábrica trabalha. Como a fábrica opera num projeto (a pausa e os quatro limites com botões) se decide aqui, para esta máquina. O que o projeto é (seus arquivos, camadas e comandos) faz parte do repositório dele e aparece como foi lido por último.",
+    "The dispatcher skips this project. Other projects keep running, and sessions already running finish.": "O dispatcher pula este projeto. Os outros projetos seguem rodando, e as sessões que já rodam terminam.",
+    "Cards in progress at once": "Cards em andamento ao mesmo tempo",
+    "Coding and Validation count together, so pull requests do not pile up against main. 0 is no limit.": "Codificação e Validação contam juntas, para os pull requests não se acumularem contra a main. 0 é sem limite.",
+    "Specs in refinement at once": "Specs em refinamento ao mesmo tempo",
+    "Cards being refined, before they wait for your approval. 0 is no limit.": "Cards sendo refinados, antes de esperarem sua aprovação. 0 é sem limite.",
+    "Minutes the deploy waits for CI and production": "Minutos que o deploy espera pelo CI e pela produção",
+    "Past this the deploy stops and the card comes back to you.": "Passado esse tempo o deploy para e o card volta para você.",
+    "Largest merge conflict an agent may resolve": "Maior conflito de merge que um agente pode resolver",
+    "In files. A larger conflict goes back to Coding instead.": "Em arquivos. Um conflito maior volta para Codificação.",
+    "What the agents read about the product": "O que os agentes leem sobre o produto",
+    "The product owner, UX and the tech lead start from these files.": "O product owner, o UX e o tech lead partem destes arquivos.",
+    "nothing set": "nada definido",
+    "Local stack for e2e and UX checks": "Stack local para e2e e checagens de UX",
+    "Where a run's own copy of the app answers.": "Onde responde a cópia do app de cada execução.",
+    "none": "nenhum",
+    "CI the deploy waits for": "CI que o deploy espera",
+    "The workflow whose result decides whether a card ships.": "O workflow cujo resultado decide se um card vai para produção.",
+    "Layers": "Camadas",
+    "layer": "camada",
+    "path": "caminho",
+    "stack": "stack",
+    "build": "build",
+    "tests live in": "os testes ficam em",
+    "tests only": "só testes",
+    "The limits above are kept on this machine, over what the repository says. To change the rest, edit": "Os limites acima ficam nesta máquina, por cima do que o repositório diz. Para mudar o resto, edite",
+    "The dashboard estimates what a card cost from the tokens of its runs and these prices, in US$ per million tokens.": "O dashboard estima o custo de um card pelos tokens das execuções dele e por estes preços, em US$ por milhão de tokens.",
+    "Prices": "Preços",
+    "model": "modelo",
+    "cache write, 1h": "escrita de cache, 1h",
+    "cache read": "leitura de cache",
+    "To change a price or add a model, edit": "Para mudar um preço ou incluir um modelo, edite",
+    "(copy it from the plugin's": "(copie do",
+    "if it is not there yet).": "do plugin, se ainda não existir).",
+    "Applied on the dispatcher's next cycle. Running sessions are not touched.": "Vale a partir do próximo ciclo do dispatcher. As sessões que rodam não são tocadas.",
+    "Discard": "Descartar",
+    "Save": "Salvar",
+    "Less": "Menos",
+    "More": "Mais",
+    "no limit": "sem limite",
+    "minutes": "minutos",
+    "files": "arquivos",
+    "board on GitHub": "quadro no GitHub",
+    "The settings were not saved.": "As configurações não foram salvas.",
+    "The pause did not go through.": "A pausa não foi aplicada."
   },
   "rx": [
+    [
+      "Running · last cycle (\\S+) ago",
+      "Rodando · último ciclo há $1"
+    ],
+    [
+      ", it took (\\d+)s",
+      ", levou $1s"
+    ],
+    [
+      " and ended with exit (\\d+)",
+      " e terminou com exit $1"
+    ],
+    [
+      "The ceiling for every project together\\.",
+      "O teto para todos os projetos juntos."
+    ],
+    [
+      "Writing specs\\.",
+      "Escrevendo specs."
+    ],
+    [
+      "Building a card\\.",
+      "Construindo um card."
+    ],
+    [
+      "Reviewing and opening the pull request\\.",
+      "Revisando e abrindo o pull request."
+    ],
+    [
+      "Merging and deploying\\. Always one card at a time per project\\.",
+      "Fazendo merge e deploy. Sempre um card por vez em cada projeto."
+    ],
+    [
+      "Usually takes (\\d+) minutes\\.",
+      "Costuma levar $1 minutos."
+    ],
+    [
+      "Now: (\\d+) running\\.",
+      "Agora: $1 rodando."
+    ],
+    [
+      "Each e2e test run takes one, on its own ports\\.",
+      "Cada execução de teste e2e ocupa um, com as próprias portas."
+    ],
+    [
+      "Now: (\\d+) of (\\d+) in use\\.",
+      "Agora: $1 de $2 em uso."
+    ],
+    [
+      "The stages ask for (\\d+) sessions and the pool allows (\\d+): stages will wait for each other\\.",
+      "Os estágios pedem $1 sessões e o pool permite $2: os estágios vão esperar uns pelos outros."
+    ],
+    [
+      "The stages can use (\\d+) sessions at most, so (\\d+) of the pool's (\\d+) are never used\\. Raise a stage, or lower the pool\\.",
+      "Os estágios usam no máximo $1 sessões, então $2 das $3 do pool nunca são usadas. Aumente um estágio ou diminua o pool."
+    ],
+    [
+      "The stages add up to the pool: (\\d+) sessions\\.",
+      "Os estágios somam o pool: $1 sessões."
+    ],
+    [
+      "· the repository says no limit",
+      "· o repositório diz sem limite"
+    ],
+    [
+      "· the repository says (\\d+)",
+      "· o repositório diz $1"
+    ],
+    [
+      "\\bno limit ·",
+      "sem limite ·"
+    ],
+    [
+      "\\bminutes ·",
+      "minutos ·"
+    ],
+    [
+      "\\bfiles ·",
+      "arquivos ·"
+    ],
+    [
+      "\\bin (\\S+) on (\\S+)\\. The dispatcher reads it again on every cycle\\.",
+      "em $1 na $2. O dispatcher lê o arquivo de novo a cada ciclo."
+    ],
+    [
+      "(\\d+) changes? not saved\\.",
+      "$1 mudança(s) não salva(s)."
+    ],
+    [
+      "^Pause (\\S+)$",
+      "Pausar $1"
+    ],
     [
       "\\bStep (\\d+) of (\\d+)",
       "Passo $1 de $2"
