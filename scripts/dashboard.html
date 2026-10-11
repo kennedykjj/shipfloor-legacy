@@ -465,6 +465,45 @@ const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
 
 // Every region is rewritten only when its markup changed, so polling keeps focus, scroll and typed text.
 function setHTML(el, html) { if (el._html === html) return false; el._html = html; el.innerHTML = html; tick(el); return true; }
+// Language: the page is written in English. In another language (the machine's, ~/.aghanim/config.yml) every piece of
+// text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
+// 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
+const LANG = { exact: {}, rx: [] };
+const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .ev > span, iframe, textarea, code";
+function loc(s) {
+  const t = s.trim(); if (!t || !/[A-Za-z]{2}/.test(t)) return s;
+  if (Object.hasOwn(LANG.exact, t)) return s.replace(t, LANG.exact[t]);
+  let out = s; for (const [re, to] of LANG.rx) out = out.replace(re, to);
+  return out;
+}
+function localize(node) {
+  if (node.nodeType === 3) {
+    const p = node.parentElement; if (!p || (p.closest(RAW) && !p.hasAttribute("data-t"))) return;
+    const to = loc(node.nodeValue); if (to !== node.nodeValue) node.nodeValue = to;
+    return;
+  }
+  if (node.nodeType !== 1) return;
+  for (const el of [node, ...node.querySelectorAll("[title], [aria-label], [placeholder]")])
+    for (const a of ["title", "aria-label", "placeholder"]) {
+      const v = el.getAttribute?.(a); if (!v || el.closest(".dot, .chip")) continue;  // a dot's title carries the card's own title
+      const to = loc(v); if (to !== v) el.setAttribute(a, to);
+    }
+  const w = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) localize(n);
+}
+async function loadLang() {
+  const { status, body } = await api("/api/lang");
+  if (status !== 200 || !body.language || body.language === "en") return;
+  LANG.exact = body.exact || {};
+  LANG.rx = (body.rx || []).flatMap(([re, to]) => { try { return [[new RegExp(re, "g"), to]]; } catch { return []; } });
+  document.documentElement.lang = body.language;
+  const seen = new MutationObserver((list) => {  // every write to the page, whoever made it
+    seen.disconnect();
+    for (const m of list) { if (m.type === "childList") m.addedNodes.forEach(localize); else localize(m.type === "attributes" ? m.target : m.target); }
+    watch();
+  });
+  const watch = () => seen.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["title", "aria-label", "placeholder"] });
+  localize(document.body); watch();
+}
 function tick(root = document) { root.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }); }
 
 async function api(path, opts = {}) {
@@ -1141,7 +1180,7 @@ function renderFeed() {
     const id = esc(evId(e)), open = S.feedOpen === evId(e), k = `${esc(e.source)}/${e.issue}`;
     const more = open ? `<div class="ev-more"><pre>${esc(S.feedTail ?? "Reading the log…")}</pre>
       <div class="acts"><button class="btn" data-full="${k}" data-go="log" data-log="${esc(e.log)}">Whole log</button><button class="btn ghost" data-full="${k}">Open card</button></div></div>` : "";
-    return `<div class="ev ${e.end ? (e.exit === 0 ? "ok" : "bad") : "run"}">${head}<span><button data-ev="${id}" aria-expanded="${open}">${esc(e.text)}</button> <span class="muted">· ${e.end ? dur(e.start, e.end) : `${mins(e.start)}m`} ·</span> <b>${e.end ? (e.exit === 0 ? "ok" : `exit ${e.exit}`) : "running"}</b></span></div>${more}`;
+    return `<div class="ev ${e.end ? (e.exit === 0 ? "ok" : "bad") : "run"}">${head}<span><button data-ev="${id}" aria-expanded="${open}">${esc(e.text)}</button> <span class="muted">· ${e.end ? dur(e.start, e.end) : `${mins(e.start)}m`} ·</span> <b data-t>${e.end ? (e.exit === 0 ? "ok" : `exit ${e.exit}`) : "running"}</b></span></div>${more}`;
   }).join("");
   if (!setHTML(el, html || '<p class="placeholder">Nothing logged yet.</p>')) return;
   if (had) el.querySelector(`[data-ev="${CSS.escape(had)}"]`)?.focus({ preventScroll: true });
@@ -1255,7 +1294,7 @@ for (const [ev, on] of [["mouseover", true], ["focusin", true], ["mouseout", fal
 document.querySelectorAll("[data-maxable]").forEach((el) => el.insertAdjacentHTML("afterbegin", `<button class="max" data-max aria-label="Maximize ${el.dataset.maxable}" title="Maximize">${MAX}</button>`));
 $("d-max").innerHTML = MAX;
 $("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
-loadOverview();
+loadLang().finally(loadOverview);
 setTimeout(() => { if (!S.overview) setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); }, 6000);
 setInterval(loadOverview, 2000);
 setInterval(loadFeed, 5000);

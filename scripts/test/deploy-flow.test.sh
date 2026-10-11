@@ -41,4 +41,10 @@ case "$(cat "$FG/calls")" in *"pr merge"*) fail "merged twice" ;; *) pass "no se
 # a branch whose name has a "t" (and a tab-free pattern): the PR is still found
 setup; echo feat/7-tests-at-last > "$FG/branch"; git -C "$repo" push -q origin feat/7-x:feat/7-tests-at-last
 code="$(run 7)"; [ "$code" = 0 ] && pass "branch name with t deploys" || fail "exit $code: $(cat "$T/out")"
+# language: the log line and the card comment come out in the project's language; markers stay as they are
+setup; echo "language: pt-BR" >> "$FACTORY_CONFIG"; main_commit web/other.ts x; code="$(run 7)"
+[ "$code" = 0 ] && pass "pt-BR deploy done" || fail "exit $code: $(cat "$T/out")"
+assert_contains "$(cat "$T/out")" "main mesclada no PR"
+assert_contains "$(cat "$FG/comments")" "Deploy feito: merge"
+assert_contains "$(cat "$FG/comments")" "deploy-merge: "
 finish

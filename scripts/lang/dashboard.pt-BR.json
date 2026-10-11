@@ -1,0 +1,594 @@
+{
+  "_": "pt-BR for the dashboard. The page is written in English; when the machine's language is pt-BR it rewrites what it shows with this file: 'exact' replaces a whole piece of text, 'rx' rewrites a phrase inside one (JavaScript regular expressions, applied in order). Text with no entry stays in English. Card titles, logs and what the agents wrote are never touched.",
+  "exact": {
+    "Factory": "Fábrica",
+    "Feed": "Feed",
+    "Board on GitHub": "Quadro no GitHub",
+    "Pool": "Pool",
+    "Stacks": "Stacks",
+    "Runs today": "Execuções hoje",
+    "Spent est.": "Gasto est.",
+    "est.": "est.",
+    "Lifecycle": "Ciclo de vida",
+    "Today": "Hoje",
+    "Inbox": "Entrada",
+    "Ready for Refinement": "Pronto para refinar",
+    "Technical Refinement": "Refinamento técnico",
+    "Spec Review": "Revisão da spec",
+    "Ready for Dev": "Pronto para dev",
+    "Coding": "Codificação",
+    "Validation": "Validação",
+    "Staged": "Pronto para aprovar",
+    "Ready for Prod": "Pronto para produção",
+    "Done": "Concluído",
+    "Refine": "Refinar",
+    "Develop": "Desenvolver",
+    "Validate": "Validar",
+    "Deploy": "Deploy",
+    "empty": "vazio",
+    "queued": "na fila",
+    "waits for you": "espera você",
+    "blocked": "bloqueado",
+    "running": "rodando",
+    "running, on the step it reported (1 to N)": "rodando, no passo que reportou (1 a N)",
+    "+N: more cards than fit": "+N: mais cards do que cabem",
+    "blocked, needs you": "bloqueado, precisa de você",
+    "blocked by infrastructure, retrying": "bloqueado por infraestrutura, tentando de novo",
+    "Nothing waits for you": "Nada espera você",
+    "Nothing waits for you. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.": "Nada espera você. Os cards aparecem aqui quando uma spec ou um PR pronto precisa da sua decisão, ou quando uma execução bloqueia.",
+    "The factory moves on its own. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.": "A fábrica anda sozinha. Os cards aparecem aqui quando uma spec ou um PR pronto precisa da sua decisão, ou quando uma execução bloqueia.",
+    "Nothing is in progress.": "Nada em andamento.",
+    "Review spec": "Revisar spec",
+    "Review": "Revisão",
+    "Request changes": "Pedir mudanças",
+    "Approve": "Aprovar",
+    "Approve and ship": "Aprovar e publicar",
+    "Approve the spec": "Aprovar a spec",
+    "Unblock & retry": "Desbloquear e tentar de novo",
+    "Unblock and retry": "Desbloquear e tentar de novo",
+    "Details": "Detalhes",
+    "Log": "Log",
+    "next": "próximo",
+    "approve": "aprovar",
+    "review": "revisar",
+    "log": "log",
+    "Blocked": "Bloqueado",
+    "Blocked · waits for your call": "Bloqueado · espera a sua decisão",
+    "Blocked by infrastructure; the factory retries it": "Bloqueado por infraestrutura; a fábrica tenta de novo",
+    "spec to review": "spec para revisar",
+    "ready to ship": "pronto para publicar",
+    "Running": "Rodando",
+    "Waiting": "Esperando",
+    "Runs that ended, by hour": "Execuções encerradas, por hora",
+    "Runs that ended today": "Execuções encerradas hoje",
+    "No run has ended today.": "Nenhuma execução terminou hoje.",
+    "Spend by hour": "Gasto por hora",
+    "A stage usually takes": "Um estágio costuma levar",
+    "Cost by session": "Custo por sessão",
+    "clean": "limpas",
+    "clean ·": "limpas ·",
+    "failed": "falharam",
+    "ended": "terminou",
+    "none yet": "nenhuma ainda",
+    "Close": "Fechar",
+    "Cancel": "Cancelar",
+    "Send": "Enviar",
+    "Undo": "Desfazer",
+    "Maximize": "Maximizar",
+    "Restore (Esc)": "Restaurar (Esc)",
+    "Maximize the session": "Maximizar a sessão",
+    "Maximize or restore the card": "Maximizar ou restaurar o card",
+    "Open session": "Abrir sessão",
+    "Open card": "Abrir card",
+    "Open the card": "Abrir o card",
+    "Whole log": "Log inteiro",
+    "Full report": "Relatório completo",
+    "Card summary": "Resumo do card",
+    "Card sections": "Seções do card",
+    "Open the issue on GitHub": "Abrir a issue no GitHub",
+    "issue on GitHub": "issue no GitHub",
+    "Live": "Ao vivo",
+    "Sessions": "Sessões",
+    "Gates": "Gates",
+    "cost, Inbox to now": "custo, da Entrada até agora",
+    "Total, Inbox to now": "Total, da Entrada até agora",
+    "cost": "custo",
+    "sessions": "sessões",
+    "first to last run": "da primeira à última execução",
+    "last report": "último relatório",
+    "start": "início",
+    "stage": "estágio",
+    "stage · model": "estágio · modelo",
+    "input": "entrada",
+    "output": "saída",
+    "cache": "cache",
+    "time": "tempo",
+    "result": "resultado",
+    "subagent": "subagente",
+    "card": "card",
+    "follows while open": "acompanha enquanto aberto",
+    "Log file": "Arquivo de log",
+    "Loading…": "Carregando…",
+    "(empty)": "(vazio)",
+    "Reading the factory…": "Lendo a fábrica…",
+    "Reading the session…": "Lendo a sessão…",
+    "Reading the log…": "Lendo o log…",
+    "Nothing logged yet.": "Nada registrado ainda.",
+    "No factory session for this card yet.": "Ainda não há sessão da fábrica para este card.",
+    "No factory session for this card yet. Sessions appear here once the dispatcher runs a stage for it.": "Ainda não há sessão da fábrica para este card. As sessões aparecem aqui quando o dispatcher roda um estágio para ele.",
+    "No gates for this stage.": "Sem gates neste estágio.",
+    "No log for this card yet.": "Ainda não há log para este card.",
+    "No report yet. Each stage writes one when it ends.": "Ainda não há relatório. Cada estágio escreve um ao terminar.",
+    "No review page for this card. Refine builds it when the spec is ready.": "Não há página de revisão para este card. O refine a monta quando a spec fica pronta.",
+    "This card has no review page yet.": "Este card ainda não tem página de revisão.",
+    "No validation report for this card yet.": "Ainda não há relatório de validação para este card.",
+    "No run is working on this card now. A message reaches only a run in progress.": "Nenhuma execução trabalha neste card agora. Uma mensagem só chega a uma execução em andamento.",
+    "Enter sends, Shift+Enter starts a new line.": "Enter envia, Shift+Enter começa uma linha nova.",
+    "What the session says and does": "O que a sessão diz e faz",
+    "The message was not sent.": "A mensagem não foi enviada.",
+    "The log could not be read.": "Não foi possível ler o log.",
+    "The action failed.": "A ação falhou.",
+    "Unblock failed.": "O desbloqueio falhou.",
+    "Your decision": "Sua decisão",
+    "Your note": "Sua nota",
+    "What should change": "O que deve mudar",
+    "What should change?": "O que deve mudar?",
+    "What should change (posted on the issue)": "O que deve mudar (vai para a issue)",
+    "What should change in the spec?": "O que deve mudar na spec?",
+    "What should be done instead?": "O que deve ser feito em vez disso?",
+    "Click again to move it anyway.": "Clique de novo para mover mesmo assim.",
+    "Write the note first: it goes with the decision.": "Escreva a nota primeiro: ela vai junto com a decisão.",
+    "You can undo for a few seconds after confirming.": "Dá para desfazer por alguns segundos depois de confirmar.",
+    "Retry the move": "Tentar mover de novo",
+    "The factory left no note about this block. The log has what the run did.": "A fábrica não deixou nota sobre este bloqueio. O log mostra o que a execução fez.",
+    "The spec asks you": "A spec pergunta a você",
+    "A spec is ready for your approval": "Uma spec está pronta para a sua aprovação",
+    "A pull request is ready to ship": "Um pull request está pronto para publicar",
+    "A run stopped and needs you": "Uma execução parou e precisa de você",
+    "Build this spec?": "Construir esta spec?",
+    "Build it": "Construir",
+    "Ship it to production?": "Publicar em produção?",
+    "How should this run continue?": "Como esta execução deve continuar?",
+    "It needs rework": "Precisa de retrabalho",
+    "Rewrite it": "Reescrever",
+    "Just try again": "Só tentar de novo",
+    "Not yet": "Ainda não",
+    "Send back to Coding": "Devolver para Coding",
+    "Accept the tests and continue": "Aceitar os testes e continuar",
+    "The edits are right": "As edições estão certas",
+    "Something has to change before it ships.": "Algo precisa mudar antes de publicar.",
+    "Something in the card's work is wrong.": "Algo no trabalho do card está errado.",
+    "Something is missing or wrong in the spec.": "Falta algo ou há algo errado na spec.",
+    "The cause was outside the card, or you already fixed it.": "A causa estava fora do card, ou você já a corrigiu.",
+    "The change is what you asked for.": "A mudança é o que você pediu.",
+    "The criteria describe what you want.": "Os critérios descrevem o que você quer.",
+    "The tests had to change, and they still check what the spec asks.": "Os testes precisaram mudar, e ainda conferem o que a spec pede.",
+    "Why are the edits right? It is recorded with the acceptance.": "Por que as edições estão certas? Fica registrado com o aceite.",
+    "Optional: your answer to the open question, posted on the issue": "Opcional: sua resposta à pergunta em aberto, publicada na issue",
+    "Acceptance criteria": "Critérios de aceitação",
+    "What will be true when it is done": "O que será verdade quando estiver pronto",
+    "What the validation said": "O que a validação disse",
+    "What the factory already tried": "O que a fábrica já tentou",
+    "What changed in the acceptance tests since QA wrote them": "O que mudou nos testes de aceitação desde que o QA os escreveu",
+    "Where it stopped": "Onde parou",
+    "Upstream": "Antes",
+    "Downstream": "Depois",
+    "Stays in Coding": "Fica em Coding",
+    "Goes back to Coding": "Volta para Coding",
+    "Factory paused": "Fábrica pausada",
+    "Usage limit hit": "Limite de uso atingido",
+    "Waiting for the usage limit to reset": "Esperando o limite de uso voltar",
+    "Agents wait for the limit to reset.": "Os agentes esperam o limite voltar.",
+    "Stack stuck": "Stack travada",
+    "A run environment did not come back; hover Stacks for the slot.": "Um ambiente de execução não voltou; passe o mouse em Stacks para ver o slot.",
+    "Not updating": "Sem atualizar",
+    "The dispatcher is skipping this project": "O dispatcher está pulando este projeto",
+    "Columns may be out of date. Approve and Request changes still read the live board before they move a card.": "As colunas podem estar desatualizadas. Aprovar e Pedir mudanças ainda leem o quadro ao vivo antes de mover um card.",
+    "The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card.": "O quadro vem da última leitura do dispatcher. Aprovar e Pedir mudanças leem o quadro ao vivo antes de mover um card.",
+    "Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.": "Ainda lendo a fábrica. A primeira leitura processa a transcrição de cada execução e pede ao GitHub os títulos das issues, então pode levar alguns segundos.",
+    "Title not loaded": "Título não carregado",
+    "The dashboard could not read the issue titles from GitHub (gh).": "O dashboard não conseguiu ler os títulos das issues no GitHub (gh).",
+    "A model in this card has no price. Add it to ~/.aghanim/prices.yml.": "Um modelo deste card não tem preço. Adicione em ~/.aghanim/prices.yml.",
+    "Estimated from the run transcripts' tokens and ~/.aghanim/prices.yml": "Estimado pelos tokens das transcrições e por ~/.aghanim/prices.yml",
+    "Cache read plus cache written; hover a row for the split": "Cache lido mais cache escrito; passe o mouse numa linha para ver a divisão",
+    "Sessions running now, out of the pool size": "Sessões rodando agora, sobre o tamanho do pool",
+    "What waits for you, the oldest first": "O que espera você, do mais antigo ao mais novo",
+    "Where every card is in the pipeline": "Onde cada card está no pipeline",
+    "No step reported yet": "Nenhum passo reportado ainda",
+    "This stage reports no steps": "Este estágio não reporta passos",
+    "running long": "demorando",
+    "Project": "Projeto",
+    "View": "Visão",
+    "Plan": "Plano",
+    "Acceptance tests": "Testes de aceitação",
+    "Implementation": "Implementação",
+    "Up to date with main": "Em dia com a main",
+    "Last gates": "Últimos gates",
+    "Hand over to validation": "Entrega para validação",
+    "Report": "Relatório",
+    "UX/UI and architecture": "UX/UI e arquitetura",
+    "Product": "Produto",
+    "Architecture": "Arquitetura",
+    "Security": "Segurança",
+    "Test plan": "Plano de testes",
+    "Pull request": "Pull request",
+    "Pick the card": "Escolher o card",
+    "Publish for review": "Publicar para revisão",
+    "Paused": "Pausado",
+    "done": "concluído"
+  },
+  "rx": [
+    [
+      "\\bStep (\\d+) of (\\d+)",
+      "Passo $1 de $2"
+    ],
+    [
+      "\\bstep (\\d+) of (\\d+)",
+      "passo $1 de $2"
+    ],
+    [
+      "(\\d+) min in this step",
+      "$1 min neste passo"
+    ],
+    [
+      "· finishing\\b",
+      "· finalizando"
+    ],
+    [
+      "(\\d+) in progress",
+      "$1 em andamento"
+    ],
+    [
+      "(\\d+) running · (\\d+) waiting",
+      "$1 rodando · $2 esperando"
+    ],
+    [
+      "^(\\d+) waits? for you$",
+      "$1 esperando você"
+    ],
+    [
+      "(\\d+) of (\\d+) slots?",
+      "$1 de $2 slots"
+    ],
+    [
+      "(\\d+) queued",
+      "$1 na fila"
+    ],
+    [
+      "(\\d+) for you",
+      "$1 para você"
+    ],
+    [
+      "^(\\d+) cards?$",
+      "$1 cards"
+    ],
+    [
+      "Closest to Done first",
+      "Mais perto do fim primeiro"
+    ],
+    [
+      "board read (\\S+) ago",
+      "quadro lido há $1"
+    ],
+    [
+      "project paused",
+      "projeto pausado"
+    ],
+    [
+      "(\\d+) failed\\b",
+      "$1 falharam"
+    ],
+    [
+      "(\\d+) clean\\b",
+      "$1 limpas"
+    ],
+    [
+      "^Approve → ",
+      "Aprovar → "
+    ],
+    [
+      "^Request changes → ",
+      "Pedir mudanças → "
+    ],
+    [
+      "^Approve with (.*)$",
+      "Aprovar com $1"
+    ],
+    [
+      "(\\d+) not reviewed\\b",
+      "$1 não revisados"
+    ],
+    [
+      "^Moving to ",
+      "Movendo para "
+    ],
+    [
+      "^moving to ",
+      "movendo para "
+    ],
+    [
+      "^Next waiting: ",
+      "Próximo esperando: "
+    ],
+    [
+      "waits for you: ready to ship",
+      "espera você: pronto para publicar"
+    ],
+    [
+      "waits for you: spec to review",
+      "espera você: spec para revisar"
+    ],
+    [
+      "\\(before (\\w+)\\)",
+      "(antes de $1)"
+    ],
+    [
+      "^The board snapshot is (\\d+) min old\\. Approve and Request changes read the live board first and stop if the card moved\\.$",
+      "A leitura do quadro tem $1 min. Aprovar e Pedir mudanças leem o quadro ao vivo primeiro e param se o card mudou de coluna."
+    ],
+    [
+      "^The dispatcher skips (.*) since (.*?): (.*)\\. A card you move stays where it lands until that is fixed\\.$",
+      "O dispatcher pula $1 desde $2: $3. Um card que você mover fica onde cair até isso ser corrigido."
+    ],
+    [
+      "^Board (\\d+) min old$",
+      "Quadro com $1 min"
+    ],
+    [
+      "^This stage usually takes about (\\d+) min$",
+      "Este estágio costuma levar cerca de $1 min"
+    ],
+    [
+      "^Maximize the session of ",
+      "Maximizar a sessão de "
+    ],
+    [
+      "^Maximize what waits for you$",
+      "Maximizar o que espera você"
+    ],
+    [
+      "^Maximize what is in progress$",
+      "Maximizar o que está em andamento"
+    ],
+    [
+      "^Maximize the lifecycle$",
+      "Maximizar o ciclo de vida"
+    ],
+    [
+      "^Maximize today$",
+      "Maximizar hoje"
+    ],
+    [
+      "^Restore what waits for you$",
+      "Restaurar o que espera você"
+    ],
+    [
+      "^Restore what is in progress$",
+      "Restaurar o que está em andamento"
+    ],
+    [
+      "^Restore the lifecycle$",
+      "Restaurar o ciclo de vida"
+    ],
+    [
+      "^Restore today$",
+      "Restaurar hoje"
+    ],
+    [
+      "^Message to the (\\w+) run$",
+      "Mensagem para a execução de $1"
+    ],
+    [
+      "^Tell the (\\w+) run what to change\\. It reads this after its current tool call\\.$",
+      "Diga à execução de $1 o que mudar. Ela lê isto depois da chamada de ferramenta atual."
+    ],
+    [
+      "^Nothing to decide: the card is in (.*)\\. Approval opens in Spec Review and Staged\\.$",
+      "Nada a decidir: o card está em $1. A aprovação abre em Spec Review e Staged."
+    ],
+    [
+      "^What should change in (#\\d+)\\? It is posted on the issue\\.$",
+      "O que deve mudar em $1? Vai para a issue."
+    ],
+    [
+      "^and (\\d+) more lines, in the card's worktree$",
+      "e mais $1 linhas, no worktree do card"
+    ],
+    [
+      "^Failed gate: ",
+      "Gate que falhou: "
+    ],
+    [
+      "^Review page for ",
+      "Página de revisão de "
+    ],
+    [
+      "^Run environments in use",
+      "Ambientes de execução em uso"
+    ],
+    [
+      "(\\d+) of (\\d+) reviewed",
+      "$1 de $2 revisados"
+    ],
+    [
+      "(\\d+) changes?\\b",
+      "$1 mudanças"
+    ],
+    [
+      "(\\d+) items? not reviewed yet",
+      "$1 itens ainda não revisados"
+    ],
+    [
+      "^The review asks for ",
+      "A revisão pede "
+    ],
+    [
+      "^Use the review's ",
+      "Usar as da revisão: "
+    ],
+    [
+      "^(#\\d+) (.*) in a few seconds\\.$",
+      "$1 $2 em alguns segundos."
+    ],
+    [
+      "\\brunning (\\d+) min\\b",
+      "rodando há $1 min"
+    ],
+    [
+      "\\brunning\\b",
+      "rodando"
+    ],
+    [
+      "\\bwaits for you\\b",
+      "espera você"
+    ],
+    [
+      "\\bqueued\\b",
+      "na fila"
+    ],
+    [
+      "^Nothing waits for you$",
+      "Nada espera você"
+    ],
+    [
+      "· Pick the card( ·|$)",
+      "· Escolher o card$1"
+    ],
+    [
+      "· Plan( ·|$)",
+      "· Plano$1"
+    ],
+    [
+      "· Acceptance tests( ·|$)",
+      "· Testes de aceitação$1"
+    ],
+    [
+      "· Implementation( ·|$)",
+      "· Implementação$1"
+    ],
+    [
+      "· Up to date with main( ·|$)",
+      "· Em dia com a main$1"
+    ],
+    [
+      "· Last gates( ·|$)",
+      "· Últimos gates$1"
+    ],
+    [
+      "· Hand over to validation( ·|$)",
+      "· Entrega para validação$1"
+    ],
+    [
+      "· Report( ·|$)",
+      "· Relatório$1"
+    ],
+    [
+      "· UX\\/UI and architecture( ·|$)",
+      "· UX/UI e arquitetura$1"
+    ],
+    [
+      "· Publish for review( ·|$)",
+      "· Publicar para revisão$1"
+    ],
+    [
+      "· Review( ·|$)",
+      "· Revisão$1"
+    ],
+    [
+      "^Waiting for a (\\w+) slot · (\\d+) of (\\d+) busy$",
+      "Esperando um slot de $1 · $2 de $3 ocupados"
+    ],
+    [
+      "^Waiting for the pool · (\\d+) of (\\d+) busy$",
+      "Esperando o pool · $1 de $2 ocupados"
+    ],
+    [
+      "^Queued for (\\w+)$",
+      "Na fila para $1"
+    ],
+    [
+      "^Staged · ",
+      "Pronto para aprovar · "
+    ],
+    [
+      "^Coding · ",
+      "Codificação · "
+    ],
+    [
+      "^Validation · ",
+      "Validação · "
+    ],
+    [
+      "^Inbox · ",
+      "Entrada · "
+    ],
+    [
+      "Records that you take the acceptance tests as they stand\\. The gate passes them and (\\w+) runs again\\.",
+      "Registra que você aceita os testes de aceitação como estão. O gate os aprova e o $1 roda de novo."
+    ],
+    [
+      "Takes the block off and (\\w+) runs again\\.",
+      "Tira o bloqueio e o $1 roda de novo."
+    ],
+    [
+      "Goes back to (.*?) with your note, posted on the issue\\.",
+      "Volta para $1 com a sua nota, publicada na issue."
+    ],
+    [
+      "Stays in Coding with your note, posted on the issue\\.",
+      "Fica em Coding com a sua nota, publicada na issue."
+    ],
+    [
+      "The pull request stays open\\.",
+      "O pull request continua aberto."
+    ],
+    [
+      "^Goes to (.*?)\\.( |$)",
+      "Vai para $1.$2"
+    ],
+    [
+      "(\\w+) has a free slot, so it can start soon\\.",
+      "$1 tem um slot livre, então pode começar logo."
+    ],
+    [
+      "(\\w+) is full \\((\\d+) of (\\d+)(.*?)\\), so it waits its turn\\.",
+      "$1 está cheio ($2 de $3$4), então espera a vez."
+    ],
+    [
+      "\\bgoes back to ",
+      "volta para "
+    ],
+    [
+      "\\bgoes to ",
+      "vai para "
+    ],
+    [
+      "\\bis unblocked and retries\\b",
+      "é desbloqueado e tenta de novo"
+    ],
+    [
+      "\\btakes the tests and continues\\b",
+      "aceita os testes e continua"
+    ],
+    [
+      "\\bReady for Refinement\\b",
+      "Pronto para refinar"
+    ],
+    [
+      "\\bTechnical Refinement\\b",
+      "Refinamento técnico"
+    ],
+    [
+      "\\bSpec Review\\b",
+      "Revisão da spec"
+    ],
+    [
+      "\\bReady for Dev\\b",
+      "Pronto para dev"
+    ],
+    [
+      "\\bReady for Prod\\b",
+      "Pronto para produção"
+    ]
+  ]
+}

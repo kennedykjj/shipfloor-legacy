@@ -82,6 +82,15 @@ Logs in `~/.aghanim/logs/dispatcher.log` and `~/.aghanim/projects/<project>/logs
 
 Every dispatcher cycle appends one line to `~/.aghanim/logs/health-<YYYY-MM>.jsonl`: each project's cards per column and blocked cards, runs against the pool and the stage slots, busy stacks, the machine's CPU, free memory and free disk, and how the cycle went (seconds, exit code, whether another cycle was still running). The dashboard and `aghanim doctor` raise what the last three cycles show: a stage with a free slot and cards waiting through all three, more runs than a limit, two cycles at once.
 
+## Language
+
+The factory speaks English unless told otherwise. Two keys change that, each `en` (default) or `pt-BR`:
+
+- `language` in a project's `.aghanim/factory.yml`: what people read about that project. The agents write specs, comments, reports and review pages in it; the gates' messages and what the deploy logs and posts on the card come out in it.
+- `language` in `~/.aghanim/config.yml`: this machine. The dashboard and the dispatcher's own log lines.
+
+What other code reads stays in English whatever the language: commit messages, the spec's `##` headings, the markers on a card (`staged-head:`, `deploy-merge:`, `deploy-fix:`, "Factory report"), labels, and the board's column names on GitHub (the dashboard shows them translated). The scripts and the page are written in English and translated where their text leaves them, by the catalogs in `scripts/lang/` (`<code>.sed` for the scripts, `dashboard.<code>.json` for the page): a phrase with no entry there comes out in English, and a new language is a new pair of files plus its code in `LANGS` (`scripts/aghanim_config.py`).
+
 ## Security
 
 - Scripts run from the installed copy in `~/.aghanim/factory`, outside every worktree.

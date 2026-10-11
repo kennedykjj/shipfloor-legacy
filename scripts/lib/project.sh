@@ -117,6 +117,12 @@ aghanim_sweep_tmp() {  # removes what outlived its card under the project's tmp/
   done
 }
 
+aghanim_say() {  # aghanim_say <language>: stdin, written in English, comes out in that language (lang/<language>.sed)
+  # The scripts keep saying things in English; the catalog rewrites the phrases it knows and passes the rest.
+  local f="$AGHANIM_LIB/../lang/${1:-en}.sed"
+  if [ "${1:-en}" != en ] && [ -f "$f" ]; then sed -E -f "$f"; else cat; fi
+}
+
 aghanim_machine() {  # aghanim_machine <validate|values|show|set ...>: the machine-wide agent pool (~/.aghanim/config.yml)
   AGHANIM_MACHINE_CONFIG="$(aghanim_native "$AGHANIM_HOME/config.yml")"     aghanim_python "$(aghanim_native "$AGHANIM_LIB/../aghanim_config.py")" machine "$@"
 }

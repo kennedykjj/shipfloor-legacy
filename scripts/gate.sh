@@ -387,18 +387,26 @@ green_run() {  # green_run <layer> <selector>: a layer with retry: 1 runs a fail
 }
 
 cmd="${1:-}"; shift || true
-case "$cmd" in
-  scope)             gate_scope "$@" ;;
-  forbidden)         gate_forbidden "$@" ;;
-  acceptance-intact) gate_acceptance_intact "$@" ;;
-  acceptance-own)    require_rev "${1:-}"; own_key "$1" "${2:-}" ;;  # for aghanim accept
-  qa-commit)         gate_qa_commit "$@" ;;
-  migration)         gate_migration "$@" ;;
-  fast)              gate_fast "$@" ;;
-  build)             gate_build "$@" ;;
-  red)               gate_red "$@" ;;
-  green)             gate_green "$@" ;;
-  test-plan)         gate_test_plan "$@" ;;
-  stack)             gate_stack "$@" ;;
-  *) echo "usage: gate.sh scope|forbidden|acceptance-intact|qa-commit|migration|build|red|green|test-plan|stack ..." >&2; exit 2 ;;
-esac
+run() {
+  case "$cmd" in
+    scope)             gate_scope "$@" ;;
+    forbidden)         gate_forbidden "$@" ;;
+    acceptance-intact) gate_acceptance_intact "$@" ;;
+    acceptance-own)    require_rev "${1:-}"; own_key "$1" "${2:-}" ;;  # for aghanim accept
+    qa-commit)         gate_qa_commit "$@" ;;
+    migration)         gate_migration "$@" ;;
+    fast)              gate_fast "$@" ;;
+    build)             gate_build "$@" ;;
+    red)               gate_red "$@" ;;
+    green)             gate_green "$@" ;;
+    test-plan)         gate_test_plan "$@" ;;
+    stack)             gate_stack "$@" ;;
+    *) echo "usage: gate.sh scope|forbidden|acceptance-intact|qa-commit|migration|build|red|green|test-plan|stack ..." >&2; exit 2 ;;
+  esac
+}
+# what a gate says on stderr goes out in the project's language; stdout is read by callers and stays as it is
+# shortcut: the key is read straight from the YAML (a top-level scalar the config check already validated), not through
+# aghanim_cfg: one more python start per gate call is what every pipeline step would pay
+GLANG="$(sed -n "s/^language:[[:space:]]*[\"']\{0,1\}\([A-Za-z-]*\).*/\1/p" "$FACTORY_CONFIG" 2>/dev/null | head -1)"
+if [ "${GLANG:-en}" = en ]; then run "$@"; exit; fi
+{ run "$@" 2>&1 1>&3 | aghanim_say "$GLANG" >&2; exit "${PIPESTATUS[0]}"; } 3>&1

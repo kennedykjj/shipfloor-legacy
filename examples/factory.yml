@@ -9,6 +9,7 @@ project:
 
 board: {owner: acme, number: 3}   # GitHub Project v2 (user or organization); `aghanim setup-board shop` sets its columns
 
+# language: pt-BR                  # what people read about this project: specs, comments, reports, gate output (default: en)
 context: [PRODUCT.md, CLAUDE.md]  # what PO, UX, Cybersec and the Tech Lead read about the product
 # review_criteria: .aghanim/review-criteria.md   # default: the plugin's generic criteria
 # forbidden: [docs/engineering/]               # extra paths agents may never change
