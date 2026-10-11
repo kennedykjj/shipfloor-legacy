@@ -119,6 +119,18 @@ def alerts(home):
         out.append(f"{key}: more runs than the limit")
     if any(c["cycle"]["overlap"] for c in last):
         out.append("two dispatcher cycles ran at once")
+    every = shipfloor_config.MACHINE_DEFAULTS["dispatcher"]["every_min"]
+    try:
+        cfg = (shipfloor_config.yaml.safe_load((Path(home) / "config.yml").read_text(encoding="utf-8")) or {}).get("dispatcher", {})
+        every = cfg.get("every_min", every) if cfg.get("every_min") in shipfloor_config.DISPATCHER_EVERY else every
+    except (OSError, ValueError, AttributeError, shipfloor_config.yaml.YAMLError):  # no config, or one the dispatcher itself refuses
+        pass
+    try:
+        late = (datetime.now().astimezone() - datetime.fromisoformat(last[-1]["ts"])).total_seconds() / 60
+    except (IndexError, KeyError, ValueError, TypeError):
+        late = 0  # no health line yet: nothing to be late
+    if late > 1.5 * every:
+        out.append(f"no dispatcher cycle for {round(late)} min (it runs every {every})")
     return out
 
 
