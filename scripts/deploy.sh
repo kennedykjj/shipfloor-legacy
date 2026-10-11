@@ -13,8 +13,8 @@ source "$HERE/lib/project.sh"
 n="${1:-}"; mode="${2:-deploy}"
 case "$mode" in deploy|--refresh|--continue) ;; *) n="" ;; esac
 [[ "$n" =~ ^[0-9]+$ ]] || { echo "usage: deploy.sh <n> [--refresh | --continue]" >&2; exit 2; }
-aghanim_resolve . || exit 2
-mapfile -d '' -t V < <(aghanim_cfg values project.repo project.main deploy.ci_workflow deploy.environment \
+shipfloor_resolve . || exit 2
+mapfile -d '' -t V < <(shipfloor_cfg values project.repo project.main deploy.ci_workflow deploy.environment \
   deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks   deploy.healthcheck deploy.required_checks deploy.fix_max_files deploy.fix_max_lines language)
 [ "${#V[@]}" -eq 14 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
 REPO="${V[0]}" MAIN="${V[1]}" CI_WORKFLOW="${V[2]}" ENVIRONMENT="${V[3]}"
@@ -34,9 +34,9 @@ TAB=$'\t'
 # the PR's branch as one whole tab-separated field; inside a bracket expression "\t" is a backslash
 # and a "t", not a tab, so the tab is spliced in
 PR_FIELD="${TAB}(feat/$n-[^${TAB}]*|revert/$n)${TAB}"
-say() { echo "deploy #$n: $*" | aghanim_say "$DLANG"; }
+say() { echo "deploy #$n: $*" | shipfloor_say "$DLANG"; }
 g() { git -C "$WT" "$@"; }
-comment() { "$GH" issue comment "$n" --repo "$REPO" --body "$(printf '%s\n' "$1" | aghanim_say "$DLANG")" >/dev/null || { say "could not comment on #$n"; return 1; }; }
+comment() { "$GH" issue comment "$n" --repo "$REPO" --body "$(printf '%s\n' "$1" | shipfloor_say "$DLANG")" >/dev/null || { say "could not comment on #$n"; return 1; }; }
 reset_worktree() {  # drop any merge in progress or local commit: back to the approved head
   [ -n "$BRANCH" ] && [ -e "$WT/.git" ] || return 0
   g merge --abort >/dev/null 2>&1; g reset -q --hard "${HEAD_SHA:-origin/$BRANCH}" 2>/dev/null; g -c core.longpaths=true clean -qfd 2>/dev/null; return 0
@@ -151,7 +151,7 @@ merge_main() {  # 0 up to date · 1 merged cleanly · 3 conflicts to resolve · 
     if [ -n "$re" ] && printf '%s\n' "$CONFLICTS" | grep -Eq -- "$re"; then
       REASON="a migration conflicts with main: $(printf '%s\n' "$CONFLICTS" | grep -E -- "$re" | tr '\n' ' ')"; return 4
     fi
-  done < <(aghanim_cfg migration-layers | tail -n +2)
+  done < <(shipfloor_cfg migration-layers | tail -n +2)
   [ "$files" -gt "$MAX_FILES" ] && { REASON="$files files conflict with main (limit $MAX_FILES)"; return 4; }
   [ "$hunks" -gt "$MAX_HUNKS" ] && { REASON="$hunks hunks conflict with main (limit $MAX_HUNKS)"; return 4; }
   printf '%s\n' "$HEAD_SHA" "$main_sha" > "$TMP/resolve.parents"; printf '%s\n' "$CONFLICTS" > "$TMP/resolve.files"
@@ -181,8 +181,8 @@ renumber_migrations() {  # main took the version of a migration the card adds: t
       [ -n "$new" ] && g mv "$old" "$new" || continue
       moved=1; say "migration $old renumbered to $new: $MAIN took its version"
     done < <({ g ls-tree -r --name-only "origin/$MAIN" | grep -E -- "$re" | sed 's/^/E\t/'
-               g diff --name-only --diff-filter=A "origin/$MAIN" HEAD | grep -E -- "$re" | sed 's/^/N\t/'; } | aghanim_cfg migration-renumber "$layer")
-  done < <(aghanim_cfg migration-layers | tail -n +2)
+               g diff --name-only --diff-filter=A "origin/$MAIN" HEAD | grep -E -- "$re" | sed 's/^/N\t/'; } | shipfloor_cfg migration-renumber "$layer")
+  done < <(shipfloor_cfg migration-layers | tail -n +2)
   [ "$moved" = 0 ] || g commit -qm "chore(migration): renumber above $MAIN's newest" -m "$TRAILER"
 }
 

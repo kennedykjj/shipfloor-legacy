@@ -2,12 +2,12 @@
 # Helpers for factory script tests. Each test file sources this.
 FACTORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FAILS=0
-export FACTORY_HOME="${FACTORY_HOME:-$(mktemp -d)}"  # never touch the real ~/.aghanim
+export FACTORY_HOME="${FACTORY_HOME:-$(mktemp -d)}"  # never touch the real ~/.shipfloor
 export FACTORY_CLEANUP=0   # never stop real processes from tests
 export FACTORY_CONFIG="${FACTORY_CONFIG:-$FACTORY_DIR/test/fixture/factory.yml}"
-# found once here: a config query runs in a subshell, where what aghanim_python finds is lost
+# found once here: a config query runs in a subshell, where what shipfloor_python finds is lost
 export FACTORY_PYTHON="${FACTORY_PYTHON:-$(python3 -c '' >/dev/null 2>&1 && echo python3 || echo python)}"
-export AGHANIM_HOME="${AGHANIM_HOME:-$(mktemp -d)}"  # never touch the real ~/.aghanim
+export SHIPFLOOR_HOME="${SHIPFLOOR_HOME:-$(mktemp -d)}"  # never touch the real ~/.shipfloor
 
 # One template repo per test file; new_repo copies it (one process) instead of six git commands.
 REPO_TEMPLATE="$(mktemp -d)"

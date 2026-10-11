@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
-# aghanim: installs the factory scripts and manages the projects the dispatcher serves.
-#   install                       copy scripts and templates to ~/.aghanim/factory
+# shipfloor: installs the factory scripts and manages the projects the dispatcher serves.
+#   install                       copy scripts and templates to ~/.shipfloor/factory
 #   doctor                        check tools, the installed copy and every project's config
-#   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .aghanim/factory.yml
+#   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .shipfloor/factory.yml
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
 #   pool [set <n> | stage <stage> <n> | stacks <n>]  runs at once on this machine, per stage, and stack slots
 #   clean <slug>                  remove what cards left under tmp/ (the dispatcher does it every cycle)
 #   accept <slug> <n> <reason>    owner only: take card <n>'s acceptance tests as they stand (acceptance-intact)
 #   dashboard [--port N] [--no-open]  local dashboard: pool, runs, logs, cost per card, reviews
-#   migrate-home [OLD]            move the old ~/.mylos home here (one-time, after the rename; legacy mylos)
+#   migrate-home [OLD]            move the old ~/.aghanim home here (one-time, after the rename; legacy aghanim)
 set -uo pipefail
 HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
-REGISTRY="$AGHANIM_HOME/registry.tsv"
-INSTALLED="$AGHANIM_HOME/factory"
+REGISTRY="$SHIPFLOOR_HOME/registry.tsv"
+INSTALLED="$SHIPFLOOR_HOME/factory"
 
-die() { echo "aghanim: $1" >&2; exit "${2:-1}"; }
+die() { echo "shipfloor: $1" >&2; exit "${2:-1}"; }
 entry() { [ -f "$REGISTRY" ] && awk -F'\t' -v s="$1" '$1==s' "$REGISTRY"; }
 use() {  # use <slug>: export that project's settings or fail
-  local line; line="$(entry "$1")"; [ -n "$line" ] || die "no project '$1' (aghanim list)"
+  local line; line="$(entry "$1")"; [ -n "$line" ] || die "no project '$1' (shipfloor list)"
   local slug repo wt main; IFS=$'\t' read -r slug repo wt main <<< "$line"
-  aghanim_use "$slug" "$repo" "$wt" "$main"
+  shipfloor_use "$slug" "$repo" "$wt" "$main"
 }
 source_dir() {  # the plugin checkout this copy came from
   if [ -f "$HERE/.source" ]; then cat "$HERE/.source"; else (cd "$HERE/.." && pwd); fi
@@ -29,60 +29,60 @@ source_dir() {  # the plugin checkout this copy came from
 cmd_install() {
   local src; src="$(source_dir)"
   [ -f "$src/scripts/gate.sh" ] || die "cannot find the plugin at $src"
-  mkdir -p "$INSTALLED" "$AGHANIM_HOME/projects" "$AGHANIM_HOME/logs"
+  mkdir -p "$INSTALLED" "$SHIPFLOOR_HOME/projects" "$SHIPFLOOR_HOME/logs"
   (cd "$src/scripts" && find . -path ./test -prune -o -type f -print) | while IFS= read -r f; do
     mkdir -p "$INSTALLED/$(dirname "$f")"; cp "$src/scripts/$f" "$INSTALLED/$f"
   done
-  # drop what the plugin no longer ships (e.g. the legacy mylos scripts carried over by migrate-home)
+  # drop what the plugin no longer ships (e.g. the legacy aghanim scripts carried over by migrate-home)
   (cd "$INSTALLED" && find . -type f ! -name .source ! -path './templates/*' -print) | while IFS= read -r f; do
     [ -f "$src/scripts/$f" ] || rm -f "$INSTALLED/$f"
   done
   rm -rf "$INSTALLED/templates"; cp -r "$src/templates" "$INSTALLED/templates"
   echo "$src" > "$INSTALLED/.source"
   echo "installed $src → $INSTALLED"
-  echo "next: aghanim add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
+  echo "next: shipfloor add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
 }
 
 cmd_doctor() {
   local bad=0 t src
   for t in git gh claude; do command -v "$t" >/dev/null && echo "ok   $t" || { echo "FAIL $t not found"; bad=1; }; done
-  if aghanim_python -c 'import yaml' 2>/dev/null; then echo "ok   python + PyYAML"; else echo "FAIL python 3 with PyYAML (pip install pyyaml)"; bad=1; fi
+  if shipfloor_python -c 'import yaml' 2>/dev/null; then echo "ok   python + PyYAML"; else echo "FAIL python 3 with PyYAML (pip install pyyaml)"; bad=1; fi
   gh auth status >/dev/null 2>&1 && echo "ok   gh authenticated" || { echo "FAIL gh auth login"; bad=1; }
-  if [ -d "$HOME/.mylos" ] && [ ! -e "$AGHANIM_HOME" ]; then  # legacy mylos home
-    echo "WARN found $HOME/.mylos from before the rename; run: aghanim migrate-home"  # legacy mylos
+  if [ -d "$HOME/.aghanim" ] && [ ! -e "$SHIPFLOOR_HOME" ]; then  # legacy aghanim home
+    echo "WARN found $HOME/.aghanim from before the rename; run: shipfloor migrate-home"  # legacy aghanim
   fi
   src="$(source_dir)"
-  if [ ! -d "$INSTALLED" ]; then echo "FAIL not installed (aghanim install)"; bad=1
+  if [ ! -d "$INSTALLED" ]; then echo "FAIL not installed (shipfloor install)"; bad=1
   elif diff -rq -x test -x .source "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
-  else echo "WARN installed copy differs from $src (aghanim install)"; fi
+  else echo "WARN installed copy differs from $src (shipfloor install)"; fi
   local alert
   while IFS= read -r alert; do
-    [ -n "$alert" ] && echo "WARN health: $alert (~/.aghanim/logs/health-*.jsonl)"
-  done < <(aghanim_python "$(aghanim_native "$HERE/aghanim_health.py")" alerts --home "$(aghanim_native "$AGHANIM_HOME")" 2>/dev/null | tr -d '\r')
+    [ -n "$alert" ] && echo "WARN health: $alert (~/.shipfloor/logs/health-*.jsonl)"
+  done < <(shipfloor_python "$(shipfloor_native "$HERE/shipfloor_health.py")" alerts --home "$(shipfloor_native "$SHIPFLOOR_HOME")" 2>/dev/null | tr -d '\r')
   if [ -s "$REGISTRY" ]; then
     local slug repo wt main
     while IFS=$'\t' read -r slug repo wt main; do
       [ -z "$slug" ] && continue
-      ( aghanim_use "$slug" "$repo" "$wt" "$main"; aghanim_validate ) \
+      ( shipfloor_use "$slug" "$repo" "$wt" "$main"; shipfloor_validate ) \
         && echo "ok   project $slug" || { echo "FAIL project $slug: invalid or missing config"; bad=1; continue; }
-      ( aghanim_use "$slug" "$repo" "$wt" "$main"
-        stale="$(aghanim_stale_tmp | wc -l | tr -d ' ')"
-        [ "$stale" -gt 0 ] && echo "WARN $slug: $stale tmp dir(s) of finished cards; run: aghanim clean $slug"
+      ( shipfloor_use "$slug" "$repo" "$wt" "$main"
+        stale="$(shipfloor_stale_tmp | wc -l | tr -d ' ')"
+        [ "$stale" -gt 0 ] && echo "WARN $slug: $stale tmp dir(s) of finished cards; run: shipfloor clean $slug"
         if [ -s "$FACTORY_HOME/SKIPPED" ]; then
           IFS=$'\t' read -r since why < "$FACTORY_HOME/SKIPPED"
           echo "WARN $slug: the dispatcher skips it since $since: $why"
         fi
         if [ -e "$FACTORY_HOME/control/.git" ] && \
            [ "$(git -C "$FACTORY_HOME/control" rev-parse HEAD 2>/dev/null)" != "$(git -C "$FACTORY_REPO" rev-parse "origin/$FACTORY_MAIN" 2>/dev/null)" ]; then
-          echo "WARN $slug: control checkout is behind origin/$FACTORY_MAIN; the next dispatcher cycle should move it (see ~/.aghanim/logs/dispatcher.log if it does not)"
+          echo "WARN $slug: control checkout is behind origin/$FACTORY_MAIN; the next dispatcher cycle should move it (see ~/.shipfloor/logs/dispatcher.log if it does not)"
         fi
-        r="$(aghanim_cfg get project.repo)"; b="$(aghanim_cfg get project.main)"
+        r="$(shipfloor_cfg get project.repo)"; b="$(shipfloor_cfg get project.main)"
         strict="$(gh api "repos/$r/branches/$b/protection" --jq .required_status_checks.strict 2>&1)"
         if [ "$strict" = true ]; then echo "ok   $slug: $b requires up-to-date branches"
         else echo "WARN $slug: $b does not require up-to-date branches (${strict##*: }); a hand merge can race the deploy"; fi )
     done < "$REGISTRY"
-  else echo "WARN no projects (aghanim add <repo>)"; fi
+  else echo "WARN no projects (shipfloor add <repo>)"; fi
   return $bad
 }
 
@@ -95,28 +95,28 @@ cmd_add() {
       *) die "add: unknown option $1" 2 ;;
     esac
   done
-  [ -n "$repo" ] || die "usage: aghanim add <repo> [--worktrees DIR] [--main BRANCH]" 2
+  [ -n "$repo" ] || die "usage: shipfloor add <repo> [--worktrees DIR] [--main BRANCH]" 2
   repo="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" || die "$repo is not a git repository"
   [ -n "$main" ] || main="$(git -C "$repo" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
   [ -n "$main" ] || main=main
   git -C "$repo" fetch -q origin "$main" || die "cannot fetch origin/$main in $repo"
   local cfg slug; cfg="$(mktemp)"
-  local p; p="$(aghanim_config_path "$(aghanim_native "$repo")" "origin/$main")" || die "origin/$main has no .aghanim/factory.yml"
-  MSYS2_ARG_CONV_EXCL="*" git -C "$(aghanim_native "$repo")" show "origin/$main:$p" > "$cfg" 2>/dev/null || die "cannot read $p on origin/$main"
-  FACTORY_CONFIG="$cfg" aghanim_validate || die "invalid $p on origin/$main"
-  slug="$(FACTORY_CONFIG="$cfg" aghanim_cfg get project.name)"
+  local p; p="$(shipfloor_config_path "$(shipfloor_native "$repo")" "origin/$main")" || die "origin/$main has no .shipfloor/factory.yml"
+  MSYS2_ARG_CONV_EXCL="*" git -C "$(shipfloor_native "$repo")" show "origin/$main:$p" > "$cfg" 2>/dev/null || die "cannot read $p on origin/$main"
+  FACTORY_CONFIG="$cfg" shipfloor_validate || die "invalid $p on origin/$main"
+  slug="$(FACTORY_CONFIG="$cfg" shipfloor_cfg get project.name)"
   local current; current="$(entry "$slug" | cut -f2)"
   if [ -n "$current" ] && [ "$(git_common "$current")" != "$(git_common "$repo")" ]; then
     die "project '$slug' is already registered for $current"
   fi
-  local home="$AGHANIM_HOME/projects/$slug"
+  local home="$SHIPFLOOR_HOME/projects/$slug"
   [ -n "$wt" ] || wt="$(entry "$slug" | cut -f3)"  # adding again keeps the registered worktrees
   [ -n "$wt" ] || wt="$home/wt"
   mkdir -p "$home" "$wt"
   if [ ! -e "$home/control/.git" ]; then git -C "$repo" worktree add -q --detach "$home/control" "origin/$main" || die "cannot create $home/control"
   else git -C "$home/control" checkout -q --detach "origin/$main" || die "cannot move $home/control to origin/$main"; fi
-  aghanim_use "$slug" "$repo" "$wt" "$main"
-  aghanim_snapshot || die "cannot read .aghanim/factory.yml from $home/control"
+  shipfloor_use "$slug" "$repo" "$wt" "$main"
+  shipfloor_snapshot || die "cannot read .shipfloor/factory.yml from $home/control"
   { [ -f "$REGISTRY" ] && awk -F'\t' -v s="$slug" '$1!=s' "$REGISTRY"; printf '%s\t%s\t%s\t%s\n' "$slug" "$repo" "$wt" "$main"; } > "$REGISTRY.tmp"
   mv "$REGISTRY.tmp" "$REGISTRY"
   echo "registered $slug ($repo, worktrees in $wt)"
@@ -131,21 +131,21 @@ cmd_remove() {
 
 cmd_list() {
   [ -s "$REGISTRY" ] || { echo "no projects"; return 0; }
-  [ -e "$AGHANIM_HOME/PAUSE" ] && echo "(all paused)"
+  [ -e "$SHIPFLOOR_HOME/PAUSE" ] && echo "(all paused)"
   local slug repo wt main state
   while IFS=$'\t' read -r slug repo wt main; do
     [ -z "$slug" ] && continue
-    state=active; [ -e "$AGHANIM_HOME/projects/$slug/PAUSE" ] && state=paused
+    state=active; [ -e "$SHIPFLOOR_HOME/projects/$slug/PAUSE" ] && state=paused
     printf '%s\t%s\t%s\t%s\n' "$slug" "$state" "$repo" "$wt"
   done < "$REGISTRY"
 }
 
 cmd_pause() {
-  if [ -z "${1:-}" ]; then mkdir -p "$AGHANIM_HOME"; touch "$AGHANIM_HOME/PAUSE"; return 0; fi
+  if [ -z "${1:-}" ]; then mkdir -p "$SHIPFLOOR_HOME"; touch "$SHIPFLOOR_HOME/PAUSE"; return 0; fi
   use "$1"; mkdir -p "$FACTORY_HOME"; touch "$FACTORY_HOME/PAUSE"
 }
 cmd_resume() {
-  if [ -z "${1:-}" ]; then rm -f "$AGHANIM_HOME/PAUSE"; return 0; fi
+  if [ -z "${1:-}" ]; then rm -f "$SHIPFLOOR_HOME/PAUSE"; return 0; fi
   use "$1"; rm -f "$FACTORY_HOME/PAUSE"
 }
 
@@ -153,11 +153,11 @@ cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide a
   case "${1:-}" in
     "")
       local out line stage n lock
-      out="$(aghanim_machine show)" || return $?
+      out="$(shipfloor_machine show)" || return $?
       while IFS= read -r line; do
         if [[ "$line" =~ ^\ \ ([a-z]+):\  ]]; then
           stage="${BASH_REMATCH[1]}"; n=0
-          for lock in "$AGHANIM_HOME"/projects/*/locks/"$stage"-*.lock; do [ -d "$lock" ] && n=$(( n + 1 )); done
+          for lock in "$SHIPFLOOR_HOME"/projects/*/locks/"$stage"-*.lock; do [ -d "$lock" ] && n=$(( n + 1 )); done
           [ "$n" -gt 0 ] && line="$line ($n running)"
         fi
         echo "$line"
@@ -167,37 +167,37 @@ cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide a
         if [ "$k" = queue ]; then [ "$st" -gt 0 ] && echo "  queue: $st waiting"
         else echo "  slot $k: $st${owner:+ $owner}$( [ "$st" = free ] || echo " ($(( held / 60 ))m)")${why:+ — $why}"; fi
       done ;;
-    set) aghanim_machine set pool "${2:-}" ;;
-    stage) aghanim_machine set "stages.${2:-}" "${3:-}" ;;
-    stacks) aghanim_machine set stacks "${2:-}" ;;
-    *) die "usage: aghanim pool [set <n> | stage <refine|develop|validate|deploy> <n> | stacks <n>]" 2 ;;
+    set) shipfloor_machine set pool "${2:-}" ;;
+    stage) shipfloor_machine set "stages.${2:-}" "${3:-}" ;;
+    stacks) shipfloor_machine set stacks "${2:-}" ;;
+    *) die "usage: shipfloor pool [set <n> | stage <refine|develop|validate|deploy> <n> | stacks <n>]" 2 ;;
   esac
 }
 
 cmd_dashboard() {  # dashboard [--port N] [--no-open]: serves the local dashboard until Ctrl+C
-  AGHANIM_BASH="$(aghanim_native "$BASH")" aghanim_python "$(aghanim_native "$HERE/dashboard.py")" \
-    --home "$(aghanim_native "$AGHANIM_HOME")" "$@"
+  SHIPFLOOR_BASH="$(shipfloor_native "$BASH")" shipfloor_python "$(shipfloor_native "$HERE/dashboard.py")" \
+    --home "$(shipfloor_native "$SHIPFLOOR_HOME")" "$@"
 }
 
-cmd_migrate_home() {  # migrate-home [OLD]: move the legacy mylos home to $AGHANIM_HOME and relink its worktrees
-  local old="${1:-$HOME/.mylos}" d  # legacy mylos home
+cmd_migrate_home() {  # migrate-home [OLD]: move the legacy aghanim home to $SHIPFLOOR_HOME and relink its worktrees
+  local old="${1:-$HOME/.aghanim}" d  # legacy aghanim home
   [ -d "$old" ] || die "nothing to migrate: $old does not exist"
-  [ ! -e "$AGHANIM_HOME" ] || die "$AGHANIM_HOME already exists; move or remove it first"
+  [ ! -e "$SHIPFLOOR_HOME" ] || die "$SHIPFLOOR_HOME already exists; move or remove it first"
   if [ -n "$(find "$old/locks" "$old"/projects/*/locks -mindepth 1 -maxdepth 1 -name '*.lock' 2>/dev/null)" ]; then
     die "runs in progress in $old (locks present); wait for them to end"
   fi
-  mkdir -p "$(dirname "$AGHANIM_HOME")"
-  mv "$old" "$AGHANIM_HOME" || die "cannot move $old to $AGHANIM_HOME"
+  mkdir -p "$(dirname "$SHIPFLOOR_HOME")"
+  mv "$old" "$SHIPFLOOR_HOME" || die "cannot move $old to $SHIPFLOOR_HOME"
   if [ -f "$REGISTRY" ]; then  # worktree roots inside the old home move with it
-    awk -F'	' -v OFS='	' -v a="$old" -v b="$(aghanim_native "$old")" -v n="$AGHANIM_HOME" '
+    awk -F'	' -v OFS='	' -v a="$old" -v b="$(shipfloor_native "$old")" -v n="$SHIPFLOOR_HOME" '
       { for (p in pre) delete pre[p]; pre[a]; pre[b]
         for (p in pre) if (index($3, p "/") == 1 || $3 == p) { $3 = n substr($3, length(p) + 1); break }
         print }' "$REGISTRY" > "$REGISTRY.tmp" && mv "$REGISTRY.tmp" "$REGISTRY"
   fi
-  for d in "$AGHANIM_HOME"/projects/*/control "$AGHANIM_HOME"/projects/*/reports-wt "$AGHANIM_HOME"/projects/*/wt/*; do
-    [ -e "$d/.git" ] && { git -C "$d" worktree repair >/dev/null 2>&1 || echo "aghanim: could not relink $d (git worktree repair)" >&2; }
+  for d in "$SHIPFLOOR_HOME"/projects/*/control "$SHIPFLOOR_HOME"/projects/*/reports-wt "$SHIPFLOOR_HOME"/projects/*/wt/*; do
+    [ -e "$d/.git" ] && { git -C "$d" worktree repair >/dev/null 2>&1 || echo "shipfloor: could not relink $d (git worktree repair)" >&2; }
   done
-  echo "moved $old to $AGHANIM_HOME; run 'aghanim install' and the dispatcher installer next"
+  echo "moved $old to $SHIPFLOOR_HOME; run 'shipfloor install' and the dispatcher installer next"
 }
 
 cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>'s acceptance files changed after the QA commit
@@ -205,7 +205,7 @@ cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>
   # then passes those exact contents; any later edit blocks again. Recorded in the project's home.
   local slug="${1:-}" n="${2:-}"; shift 2 2>/dev/null || true
   local reason="$*" wt qa f blob key took=0
-  [ -n "$slug" ] && [[ "$n" =~ ^[0-9]+$ ]] && [ -n "$reason" ] || die "usage: aghanim accept <project> <n> <reason>" 2
+  [ -n "$slug" ] && [[ "$n" =~ ^[0-9]+$ ]] && [ -n "$reason" ] || die "usage: shipfloor accept <project> <n> <reason>" 2
   use "$slug"; wt="$FACTORY_WT_ROOT/$n"
   [ -e "$wt/.git" ] || die "no worktree for card $n at $wt"
   qa="$(bash "$HERE/gate.sh" -C "$wt" qa-commit "$n" 2>/dev/null)"
@@ -232,7 +232,7 @@ case "$cmd" in
   remove) cmd_remove "$@" ;;
   list) cmd_list ;;
   pool) cmd_pool "$@" ;;
-  clean) use "${1:-}"; aghanim_sweep_tmp | sed 's/^/removed /' ;;
+  clean) use "${1:-}"; shipfloor_sweep_tmp | sed 's/^/removed /' ;;
   accept) cmd_accept "$@" ;;
   pause) cmd_pause "$@" ;;
   resume) cmd_resume "$@" ;;

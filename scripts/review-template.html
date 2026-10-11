@@ -111,7 +111,7 @@ const KEY="__KEY__";
 let st={};try{st=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){st={}}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-const fmt=s=>esc(s).replace(/(\/refine|\/develop|\/validate|\/deploy|feat\/&lt;n&gt;-&lt;slug&gt;|origin\/main|docs\/[\w\/.-]+|\.aghanim\/[\w.-]*|\.github\/|\.githooks\/|\.claude\/|\.env\*|gate\.sh|dispatch\.sh|install-dispatcher\.ps1|factory-guard(\.yml)?|claude -p|--dangerously-skip-permissions|pull_request_target|verify-ui|CLAUDE\.md|PAUSE|blocked|cybersec(?= |$|\))|ui(?= \()|(?:AC|CA)-\d)/g,'<span class="cmd">$1</span>');
+const fmt=s=>esc(s).replace(/(\/refine|\/develop|\/validate|\/deploy|feat\/&lt;n&gt;-&lt;slug&gt;|origin\/main|docs\/[\w\/.-]+|\.shipfloor\/[\w.-]*|\.github\/|\.githooks\/|\.claude\/|\.env\*|gate\.sh|dispatch\.sh|install-dispatcher\.ps1|factory-guard(\.yml)?|claude -p|--dangerously-skip-permissions|pull_request_target|verify-ui|CLAUDE\.md|PAUSE|blocked|cybersec(?= |$|\))|ui(?= \()|(?:AC|CA)-\d)/g,'<span class="cmd">$1</span>');
 
 function sim(kind){
  if(kind==="board")return `<div class="sim" id="simBoard"><h3>Simulator: who moves the card</h3><div class="board" id="sbCols"></div><div class="acts" id="sbActs"></div><div class="out" id="sbOut"></div></div>`;

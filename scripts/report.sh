@@ -4,7 +4,7 @@
 #   "agents":[{"role","tokens","duration_s"}],"rounds":{step:n},"gates_failed":[...],"flaky":["<layer> <selector>"],"manual_edit":true|false|null}
 set -euo pipefail
 source "$(dirname "$0")/lib/project.sh"
-aghanim_resolve . || exit 2
+shipfloor_resolve . || exit 2
 [ $# -eq 5 ] || { echo "usage: report.sh <issue> <slug> <pipeline> <report.json> <report.md>" >&2; exit 2; }
 issue="$1" slug="$2" pipeline="$3" json="$4" md="$5"
 HOME_DIR="$FACTORY_HOME"

@@ -1,5 +1,5 @@
 ---
-name: Aghanim's Anvil Dashboard
+name: Shipfloor Dashboard
 description: A deep-slate item shop for a software factory: cards are items, the drawer is the item tooltip.
 colors:
   ground: "#0d1014"
@@ -123,11 +123,11 @@ components:
     width: "min(660px, 52vw)"
 ---
 
-# Design System: Aghanim's Anvil Dashboard
+# Design System: Shipfloor Dashboard
 
 ## Overview
 
-**Creative North Star: "Aghanim's Tooltip"**
+**Creative North Star: "The Item Tooltip"**
 
 The dashboard is an item shop for a software factory. Every card on the board is an item; opening one slides in its tooltip, the drawer: name, gold cost, tabbed sections for sessions, log, gates and review, and one decision. Surfaces are deep slate with a top-lit edge in dark mode and neutral pale stone in light mode, both following `prefers-color-scheme`. The mood is a quiet, dense, glanceable instrument for one owner doing quick checks: open, approve what waits, glance at cost and runs, close.
 
@@ -145,7 +145,7 @@ Two colors carry meaning and nothing else does. Gold means money: the cost numer
 A slate-and-parchment ground with one coin-gold and one azure signal. The light theme keeps the same roles with darkened gold and azure for contrast on stone.
 
 ### Primary
-- **Aghanim Azure** (`colors.azure`, light `colors.stone-azure`): the owner's color. Used for the "awaiting you" count and its card chips, the awaiting card's border, inset ring and tint, the waits line, the approve button fill (text is `azure-ink`), the focus ring, and the selection tint.
+- **Owner Azure** (`colors.azure`, light `colors.stone-azure`): the owner's color. Used for the "awaiting you" count and its card chips, the awaiting card's border, inset ring and tint, the waits line, the approve button fill (text is `azure-ink`), the focus ring, and the selection tint.
 
 ### Secondary
 - **Coin Gold** (`colors.gold`, light `colors.stone-gold`): cost only. Cost numerals on cards, the session table and the drawer total, the header's spent-today figure, the `$ ?` unpriced marker, the coin mark (`.coin`), and the hairline rule under the tooltip header (gold at 60% mix). The coin itself is a struck disc: `colors.coin` (light `colors.stone-coin`, brighter than the text gold so it reads as metal on stone) lit by a white highlight at the top left, with a 1px rim mixed toward `colors.coin-rim`.
@@ -235,7 +235,14 @@ A click on a dot of the lifecycle line opens the **peek**, never the drawer: the
 One timeline in mono, oldest first, in three columns: time, source, text. The dispatcher's and the stacks' lines are plain text. A run is **one row**, placed at the time it ended (or started, while it runs): the stage and number as an underlined button, then the duration and the result ("· 7m · ok", "· 2m · exit 4", "· 6m · running"). The row takes the outcome color: ok, bad, or parchment while running. A click opens the row in place, never a drawer: under it, indented to the text column behind a 2px hairline, the last 12 lines of that run's log in soft mono, then "Whole log" (the card maximized on the Log tab of that run) and "Open card" (ghost). The open run's lines are read again on every refresh, so a running one moves. One row is open at a time; the button carries `aria-expanded` and keeps focus across refreshes. The feed follows its end only while no row is open.
 
 ### Language
-The page is written in English and shown in the machine's language (`language` in `~/.aghanim/config.yml`). In another language, every piece of text is rewritten as it enters the document, from the catalog the server sends (`scripts/lang/dashboard.<code>.json`): a whole piece by `exact`, a phrase inside one by `rx`. So a new string needs no code, only an entry; one with no entry shows in English. What the factory did not write is never rewritten: card titles, logs, and what the agents said (the `RAW` selector). Board columns keep their GitHub names in the data and show translated.
+The page is written in English and shown in the machine's language (`language` in `~/.shipfloor/config.yml`). In another language, every piece of text is rewritten as it enters the document, from the catalog the server sends (`scripts/lang/dashboard.<code>.json`): a whole piece by `exact`, a phrase inside one by `rx`. So a new string needs no code, only an entry; one with no entry shows in English. What the factory did not write is never rewritten: card titles, logs, and what the agents said (the `RAW` selector). Board columns keep their GitHub names in the data and show translated.
+
+### Themes
+The owner picks how the dashboard looks in Settings, under Themes. A theme only changes color tokens: the base block in `scripts/dashboard.html` is Charcoal, and each `[data-theme="<id>"]` block sets the same tokens (ground, panels, edges, the four text steps, the accent `sand`, ok/warn/bad, the two glows, the lifecycle track, `refine`). A light theme also sets `--ov`, `--well`, `--scrim`, `--shadow` and `color-scheme: light`. No color is written out in a rule: tints come from `color-mix` over a token.
+
+Nine dark themes (Floor tape, Charcoal, Dock, Machine green, Blueprint, Foundry, Night shift, Terminal, High contrast) and three light ones (Kraft, Steel, Drafting paper). Auto, the default, follows the system: Floor tape in dark, Kraft in light. The choice lives in the browser (`localStorage`, `shipfloor.theme`) and is applied before the first paint. In every theme the accent is not one of the outcome colors, so where the accent is yellow the warning is orange.
+
+A swatch is a button that carries its theme's `data-theme`, so it is drawn with the same tokens as the page it stands for. The embedded review page gets the theme's colors as a message. To add a theme: one block in the CSS and one entry in `THEMES`; `scripts/test/theme.test.sh` refuses a theme with a missing token or with text under 4.5:1 on its ground and panels.
 
 ### Buttons
 - **Approve:** azure fill, `azure-ink` text, 600 weight, 5px radius, 7px 12px; hover brightens 8%.

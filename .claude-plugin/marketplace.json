@@ -1,13 +1,13 @@
 {
-  "name": "aghanim",
+  "name": "shipfloor",
   "owner": {
     "name": "Kennedy Fernando"
   },
   "plugins": [
     {
-      "name": "aghanim",
+      "name": "sf",
       "source": "./",
-      "description": "Aghanim's Anvil — a software factory for Claude Code. Turns GitHub issues into shipped PRs: agents refine, build and validate; deterministic gates they can't edit decide what passes."
+      "description": "Shipfloor — a software factory for Claude Code. Turns GitHub issues into shipped PRs: agents refine, build and validate; deterministic gates they can't edit decide what passes."
     }
   ]
 }
