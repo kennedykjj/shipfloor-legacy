@@ -1,6 +1,6 @@
 ---
 name: validate
-description: Factory pipeline 3, validation (Tech Lead). Takes the next card from Validation (or the issue given), brings it up to date with main, reruns the gates, reviews it (code, UX, security), has the owners fix blockers, opens or updates the PR, waits for CI and leaves the card in Staged. Started by the dispatcher or by "/aghanim:validate [n]".
+description: Factory pipeline 3, validation (Tech Lead). Takes the next card from Validation (or the issue given), reruns the gates, reviews it (code, UX, security), has the owners fix blockers, opens or updates the PR, waits for CI and leaves the card in Staged. Started by the dispatcher or by "/aghanim:validate [n]".
 ---
 
 # /validate — Tech Lead, validation
@@ -22,9 +22,9 @@ Owner of a file: `aghanim-config.sh layer-of <repo-relative path>` names its lay
 - Else `n=$(board.sh first Validation)`; empty → stop.
 - Worktree `<worktrees>/<n>` on `feat/<n>-<slug>` (reuse it; else create it from `origin/feat/<n>-<slug>`). Spec = the `<specs>*-<slug>-design.md` on the branch. `qa` = the QA commit: `git -C <wt> log --format=%H -1 --grep "acceptance tests for #<n>"`; the acceptance selectors come from the files it added.
 
-## 2. Up to date with main
-- `git -C <wt> fetch origin` and `git -C <wt> merge --no-edit -m "Merge origin/<main> into feat/<n>-<slug>" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" origin/<main>`. Conflicts → each file to its owner agent with the conflict hunks as `findings` (never drop main's changes); commit the merge.
-- `mb=$(git -C <wt> merge-base HEAD origin/<main>)`. Gates (all with `-C <wt>`): `forbidden <mb>`, `migration <mb> <spec>`, `acceptance-intact <qa>`, `build <mb>` and every `green <layer> <selector>`. A failure goes to the file's owner agent with the gate output (max 2 rounds), then the failure rule.
+## 2. Gates
+The branch is not merged with main here: the deploy does that, once, on the approved head.
+- `git -C <wt> fetch origin`; `mb=$(git -C <wt> merge-base HEAD origin/<main>)`. Gates (all with `-C <wt>`): `forbidden <mb>`, `migration <mb> <spec>`, `acceptance-intact <qa>`, `build <mb>` and every `green <layer> <selector>`. A failure goes to the file's owner agent with the gate output (max 2 rounds), then the failure rule.
 
 ## 3. Review
 - Your code review of `git -C <wt> diff origin/<main>...HEAD` against the review criteria file and `CLAUDE.md`.
@@ -35,6 +35,7 @@ Owner of a file: `aghanim-config.sh layer-of <repo-relative path>` names its lay
 ## 4. Pull request
 - `git -C <wt> push origin feat/<n>-<slug>`.
 - If no open PR exists for the branch: `gh pr create --repo <repo> --base <main> --head feat/<n>-<slug> --title "<type>(<scope>): <issue title in english, lowercase>" --body` with: spec link, ACs covered (one line each with the test name), 🟡/⚪ findings per reviewer, `Closes #<n>`, and the line `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. If one exists, comment on it what changed.
+- `gh pr view <pr> --repo <repo> --json mergeable --jq .mergeable` is `CONFLICTING` (retry while it is `UNKNOWN`) → CI cannot run on the PR: only then merge main (`git -C <wt> merge --no-edit -m "Merge origin/<main> into feat/<n>-<slug>" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" origin/<main>`; each conflicted file to its owner agent with the conflict hunks as `findings`; never drop main's changes; in an acceptance test file keep every line of both sides, one side's hunk whole and then the other's: `acceptance-intact` passes only that), commit the merge, rerun the step 2 gates and push again.
 - Wait until checks exist for the pushed head (`gh pr view <pr> --repo <repo> --json headRefOid,statusCheckRollup`, retry every 30 s up to 5 min), then `gh pr checks <pr> --repo <repo> --watch --fail-fast`. Red CI → treat as a gate failure (step 2 rule) and push again.
 - Green → comment on the issue with the PR link and a last line exactly `staged-head: <full head sha of the PR>` (deploy merges only that commit); write the report (step 6); then `board.sh move <n> Staged` as the last action.
 - Never push to a branch whose card is in Staged or Ready for Prod.

@@ -12,10 +12,6 @@ git --git-dir="$remote" show main:api/A.kt >/dev/null 2>&1 && pass "squashed int
 setup; main_commit web/other.ts x; code="$(run 7)"; [ "$code" = 0 ] && pass "deploy after updating" || fail "exit $code: $(cat "$T/out")"
 assert_contains "$(cat "$FG/comments")" "deploy-merge: "
 
-# red CI after merging main → back to Coding
-setup; main_commit web/other.ts x; echo "api=FAILURE" > "$FG/ci"; code="$(run 7)"
-[ "$code" = 4 ] && pass "red CI after merge → Coding" || fail "exit $code: $(cat "$T/out")"
-
 # failed health check after merge → revert PR, reopened, blocked
 setup; echo 22 > "$FG/curl"; code="$(run 7)"
 [ "$code" = 6 ] && pass "failed health check → revert" || fail "exit $code: $(cat "$T/out")"

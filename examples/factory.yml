@@ -14,12 +14,10 @@ context: [PRODUCT.md, CLAUDE.md]  # what PO, UX, Cybersec and the Tech Lead read
 # forbidden: [docs/engineering/]               # extra paths agents may never change
 # acceptance_assertions: 'assert|expect\('   # let through edits to acceptance tests that touch no assertion line (default: every edit blocks)
 # paths: {specs: docs/superpowers/specs/, plans: docs/superpowers/plans/}
-# limits:                                      # runs at once (parallel) and cards in the WIP columns (wip)
-#   refine: {parallel: 0, wip: 2}              # parallel 0 (the default) = no cap of the project's own:
-#   develop: {parallel: 0, wip: 4}             # the machine's stage slots decide. deploy defaults to 1.
-#   validate: {parallel: 0}
-#   deploy: {parallel: 1}
-# (the machine pool in ~/.aghanim/config.yml caps every project together: `aghanim pool`)
+# limits:                                      # cards in the WIP columns
+#   refine: {wip: 2}                           # Spec Review
+#   develop: {wip: 4}                          # Coding + Validation
+# (runs at once: the machine pool in ~/.aghanim/config.yml, `aghanim pool`; deploys are one at a time per project)
 
 layers:
   # Each layer: the area one implementer owns (path), how to build it, and how to run selected
@@ -53,4 +51,4 @@ layers:
     tests: ['web/e2e/**']
 
 stack: {url: "http://localhost:3000"}                  # a local stack the e2e tests and UX checks share
-deploy: {ci_workflow: CI, environment: production, timeout_min: 30, conflict_max_files: 5, conflict_max_hunks: 20, refresh_staged: false}   # omit ci/environment to finish at the merge
+deploy: {ci_workflow: CI, environment: production, timeout_min: 30, conflict_max_files: 5, conflict_max_hunks: 20, fix_max_files: 3, fix_max_lines: 40, refresh_staged: false}   # omit ci/environment to finish at the merge

@@ -73,7 +73,7 @@ def snapshot(home, seconds, code, overlap):
             return sum(c == col and n not in blocked and n not in busy for n, c in columns.items())
         stages = {}
         for st, (queue, resumes, wip_cols) in STAGES.items():
-            running, cap, wip = sum(r["stage"] == st for r in runs), limits[st]["parallel"], limits[st]["wip"]
+            running, cap, wip = sum(r["stage"] == st for r in runs), (1 if st == "deploy" else 0), limits[st]["wip"]  # cap: deploy is serial per project
             queued, orphans = waiting(queue), sum(waiting(c) for c in resumes)
             room = queued if not wip else max(0, wip - sum(c in wip_cols for c in columns.values()))
             free = min(slots[st] - used[st], free_pool, cap - running if cap else pool)

@@ -46,6 +46,26 @@ shared '  fun a() { }'; git commit -qam "edit after the owner accepted"
 assert_exit 1 bash "$GATE" acceptance-intact "$qa"
 rm -f "$FACTORY_HOME/accepted.tsv"
 
+# QA and main append tests at the same spot: git conflicts, but a resolution that keeps both hunks whole, in either order, passes
+for order in qa-first main-first; do
+  r="$(new_repo)"; cd "$r"; mkdir -p api/src/test
+  shared '  fun old() {}'; git add -A; git commit -qm shared
+  git checkout -q -b feat/12-x; shared '  fun old() {}' '' '  fun acceptance12() { check() }'; git commit -qam qa; qa="$(git rev-parse HEAD)"
+  git checkout -q main; shared '  fun old() {}' '' '  fun fromMain() { other() }'; git commit -qam "main appends a test"
+  git checkout -q feat/12-x; git merge -q --no-edit main >/dev/null 2>&1
+  if [ "$order" = qa-first ]; then shared '  fun old() {}' '' '  fun acceptance12() { check() }' '' '  fun fromMain() { other() }'
+  else shared '  fun old() {}' '' '  fun fromMain() { other() }' '' '  fun acceptance12() { check() }'; fi
+  git commit -qam resolved
+  assert_exit 0 bash "$GATE" acceptance-intact "$qa"
+done
+# ...but not one that changes a line of either side
+shared '  fun old() {}' '' '  fun fromMain() { other() }' '' '  fun acceptance12() { }'; git commit -qam weaken
+assert_exit 1 bash "$GATE" acceptance-intact "$qa"
+shared '  fun old() {}' '' '  fun fromMain() { }' '' '  fun acceptance12() { check() }'; git commit -qam "edit main's test"
+assert_exit 1 bash "$GATE" acceptance-intact "$qa"
+shared '  fun fromMain() { other() }' '' '  fun acceptance12() { check() }'; git commit -qam "drop a test both sides had"
+assert_exit 1 bash "$GATE" acceptance-intact "$qa"
+
 # a file the QA commit added and the implementation deleted (a stub that let the red tests compile) blocks...
 r="$(new_repo)"; cd "$r"; mkdir -p api/src/test
 echo 'test' > api/src/test/ATest.kt; echo 'stub' > api/src/test/RedStubs.kt; git add -A; git commit -qm qa; qa="$(git rev-parse HEAD)"

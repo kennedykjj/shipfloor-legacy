@@ -11,13 +11,13 @@ The board (a GitHub Project v2) has fixed columns. The owner moves cards between
 | Pipeline | Takes from | Leaves in | What it does |
 |---|---|---|---|
 | `/aghanim:refine` | Ready for Refinement | Spec Review | PO, UX/UI and Cybersec write the spec; the Tech Lead writes architecture and test plan |
-| `/aghanim:develop` | Ready for Dev | Validation | plan, failing acceptance tests (QA), implementation per layer, up to date with `main` |
-| `/aghanim:validate` | Validation | Staged | up to date with `main`, gates, review (code, UX, security), PR with green CI |
-| `/aghanim:deploy` | Ready for Prod | Done | up to date with `main` (resolving conflicts), merge tested on the current `main`, waits for CI and deploy; on failure opens a revert PR |
+| `/aghanim:develop` | Ready for Dev | Validation | plan, failing acceptance tests (QA), implementation per layer |
+| `/aghanim:validate` | Validation | Staged | gates, review (code, UX, security), PR with green CI |
+| `/aghanim:deploy` | Ready for Prod | Done | up to date with `main` (resolving conflicts, fixing what breaks), merge tested on the current `main`, waits for CI and deploy; on failure opens a revert PR |
 
 The gates (`scripts/gate.sh`) do not depend on the model: file scope per role, forbidden paths, untouched acceptance tests, immutable, unique and ordered migrations, build per layer, red by assertion (not by a compile error) and green with at least one test run.
 
-A dispatcher (a scheduled task every 3 minutes) goes through every registered project and starts pipelines with `claude -p`, within the machine's agent pool, each stage's slots, the project's limits and the WIP.
+A dispatcher (a scheduled task every 3 minutes) goes through every registered project and starts pipelines with `claude -p`, within the machine's agent pool, each stage's slots and the project's WIP.
 
 ## Agent pool
 
@@ -28,17 +28,17 @@ pool: 4
 stages: {refine: 2, develop: 2, validate: 2, deploy: 1}
 ```
 
-`aghanim pool` shows it and the runs in progress; `aghanim pool set 6` and `aghanim pool stage validate 3` change it. A project's `limits` in `factory.yml` can ask for less: `limits.<stage>.parallel` defaults to 0, no cap of the project's own, except deploy, which defaults to 1 (merges into main are serial).
+`aghanim pool` shows it and the runs in progress; `aghanim pool set 6` and `aghanim pool stage validate 3` change it. A project runs one deploy at a time (merges into main are serial); its `limits.<stage>.wip` in `factory.yml` caps the cards waiting in Spec Review (refine, default 2) and in Coding + Validation (develop, default 4).
 
 ## Parallel work
 
 Cards built at the same time do not break `main`:
 - the `migration` gate refuses a version used twice and a migration older than the base's or `main`'s;
-- `develop`, `validate` and `deploy` merge `origin/main` before the gates;
+- only `deploy` merges `origin/main`, once, on the head the owner approved (`validate` does it only when the PR conflicts with main, so CI can run); the PR's CI already tests the branch merged with main;
 - `deploy` merges only a head that contains the current `main` and passed CI; with `deploy.refresh_staged: true` the dispatcher also keeps Staged PRs on top of `main` (faster approvals, but every refresh reruns CI: leave it off when Actions minutes are tight);
 - to close the race with merges made by hand, enable branch protection on the main branch with "Require branches to be up to date before merging" and required CI; `/aghanim:deploy` reports when it is missing.
 
-On deploy, conflicts are resolved by the pipeline itself. The card goes back to Coding only when a migration conflicts, when the conflict is large (`deploy.conflict_max_files` / `conflict_max_hunks`), or when gates or CI fail after resolving.
+On deploy, what breaks on top of `main` is repaired in place. Conflicts are resolved by an agent, which may touch only the conflicted files. A migration whose version `main` took is renumbered above main's newest. A gate or CI that goes red after the merge gets up to two agent rounds: a fix within `deploy.fix_max_files` / `fix_max_lines` (3 files, 40 lines) that touches no acceptance test ships with the approved head, recorded on the issue as `deploy-fix`; a larger one goes back to Staged for a new approval. A CI run on `main` that fails has its failed jobs run once more before the revert. The card goes back to Coding only when a migration file itself conflicts, when the conflict is large (`deploy.conflict_max_files` / `conflict_max_hunks`), or when the two rounds do not turn it green.
 
 ## Requirements
 
@@ -80,7 +80,7 @@ The factory was called mylos before 0.6.0. To move a machine and its repositorie
 `aghanim dashboard` (or `/aghanim:dashboard` inside Claude Code) opens a local page with the pool, live runs, logs (per card, and a Feed view with the dispatcher's log and every run's start and end in one timeline), the estimated cost of each card and the review pages, where Spec Review and Staged cards are approved or sent back.
 Logs in `~/.aghanim/logs/dispatcher.log` and `~/.aghanim/projects/<project>/logs/`. A layer may set `install` (for example `pnpm install --frozen-lockfile`): the gates run it in the layer's directory before its build or tests, once per content of that directory, so no agent has to install a worktree's dependencies; a failing install is exit 3 (infrastructure). A project the dispatcher cannot use in a cycle (its control checkout does not reach `origin/<main>`, or the config there is missing or invalid) is skipped: the reason and the time of the first failed cycle go to `~/.aghanim/projects/<project>/SKIPPED`, the dashboard shows a "skipped since" flag and `aghanim doctor` warns; the first good cycle clears it. An `index.lock` older than 10 minutes in the control checkout (`AGHANIM_STALE_LOCK_MIN`) is treated as left by a dead git and removed. Reports on each repository's orphan `factory-reports` branch. At the end of every cycle the dispatcher empties what cards left under the project's `tmp/`: the `tmp/<n>/` of a card that is Done or off the board, and stray files or folders beside them once nobody touched them for 3 days, unless their name carries the number of a card still in progress (`aghanim clean <project>` does the same on demand).
 
-Every dispatcher cycle appends one line to `~/.aghanim/logs/health-<YYYY-MM>.jsonl`: each project's cards per column and blocked cards, runs against the pool, the stage slots and the project's limits, busy stacks, the machine's CPU, free memory and free disk, and how the cycle went (seconds, exit code, whether another cycle was still running). The dashboard and `aghanim doctor` raise what the last three cycles show: a stage with a free slot and cards waiting through all three, more runs than a limit, two cycles at once.
+Every dispatcher cycle appends one line to `~/.aghanim/logs/health-<YYYY-MM>.jsonl`: each project's cards per column and blocked cards, runs against the pool and the stage slots, busy stacks, the machine's CPU, free memory and free disk, and how the cycle went (seconds, exit code, whether another cycle was still running). The dashboard and `aghanim doctor` raise what the last three cycles show: a stage with a free slot and cards waiting through all three, more runs than a limit, two cycles at once.
 
 ## Security
 
