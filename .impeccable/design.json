@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-10-09T00:00:00Z",
-  "title": "Design System: Aghanim's Anvil Dashboard",
+  "title": "Design System: Shipfloor Dashboard",
   "extensions": {
     "colorMeta": {
       "ground": { "role": "neutral", "displayName": "Deep Slate Ground", "canonical": "#0d1014", "tonalRamp": ["#0d1014", "#151a21", "#1b212a", "#262e39", "#36404e", "#5f6068", "#8f8b80", "#ebe5d5"] },
@@ -13,7 +13,7 @@
       "muted": { "role": "neutral", "displayName": "Muted", "canonical": "#8f8b80" },
       "faint": { "role": "neutral", "displayName": "Faint", "canonical": "#5f6068" },
       "gold": { "role": "secondary", "displayName": "Coin Gold", "canonical": "#e2b356", "light": "#855a0c", "tonalRamp": ["#3d2d0e", "#5f4713", "#855a0c", "#a87b1c", "#c99a35", "#e2b356", "#edc97e", "#f6e1b4"] },
-      "azure": { "role": "primary", "displayName": "Aghanim Azure", "canonical": "#63b2ff", "light": "#1f6fd1", "tonalRamp": ["#0b2440", "#123a6a", "#1f6fd1", "#3b8ae6", "#63b2ff", "#8ac6ff", "#b4daff", "#dcedff"] },
+      "azure": { "role": "primary", "displayName": "Owner Azure", "canonical": "#63b2ff", "light": "#1f6fd1", "tonalRamp": ["#0b2440", "#123a6a", "#1f6fd1", "#3b8ae6", "#63b2ff", "#8ac6ff", "#b4daff", "#dcedff"] },
       "azure-ink": { "role": "neutral", "displayName": "Azure Ink", "canonical": "#0b2440", "light": "#ffffff" },
       "ok": { "role": "outcome", "displayName": "Outcome Green", "canonical": "#7cc58a", "light": "#2f7d43" },
       "warn": { "role": "outcome", "displayName": "Outcome Amber", "canonical": "#d9a45b", "light": "#9a5b12" },
@@ -116,7 +116,7 @@
     }
   ],
   "narrative": {
-    "northStar": "Aghanim's Tooltip",
+    "northStar": "The Item Tooltip",
     "overview": "The dashboard is an item shop for a software factory. Every card on the board is an item; opening one slides in its tooltip, the drawer: name, gold cost, tabbed sections for sessions, log, gates and review, and one decision. Surfaces are deep slate with a top-lit edge in dark mode and neutral pale stone in light mode, both following prefers-color-scheme. The mood is a quiet, dense, glanceable instrument for one owner doing quick checks: open, approve what waits, glance at cost and runs, close.\n\nTwo colors carry meaning and nothing else does. Gold means money: the cost numerals and the coin mark. Azure means the owner: what waits for them and the actions they take. Everything else is slate, parchment (or ink on stone) and hairlines. The system rejects the generic grey kanban with colored tags: column identity comes from position and name, never from tag color.",
     "keyCharacteristics": [
       "Item cards with a top-lit border and a faint vertical gradient; the drawer is the same material at tooltip scale.",

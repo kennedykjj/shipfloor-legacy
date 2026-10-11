@@ -38,7 +38,7 @@ git checkout -q main; shared '  fun a() { main() }'; git commit -qam "main edits
 git checkout -q feat/8-x; git merge -q --no-edit main >/dev/null 2>&1
 shared '  fun a() { main() }'; git commit -qam resolved
 assert_exit 1 bash "$GATE" acceptance-intact "$qa"
-# ...until the owner reviews that file and accepts it as it stands (aghanim accept): that exact content passes,
+# ...until the owner reviews that file and accepts it as it stands (shipfloor accept): that exact content passes,
 # and any later edit blocks again
 printf '%s\t%s\t#8\t2026-10-10\tmain reworded the same line\n' "$T" "$(git rev-parse "HEAD:$T")" > "$FACTORY_HOME/accepted.tsv"
 assert_exit 0 bash "$GATE" acceptance-intact "$qa"
@@ -138,7 +138,7 @@ out="$(FACTORY_CONFIG="$PT" bash "$GATE" acceptance-intact "$qa" 2>&1)"; code=$?
 [ "$code" = 1 ] && pass "pt-BR gate still blocks" || fail "pt-BR gate: exit $code"
 assert_contains "$out" "acceptance-intact: os testes de aceitação mudaram depois do commit do QA"
 FACTORY_CONFIG="$PT" assert_exit 0 bash "$GATE" acceptance-intact "$(git rev-parse HEAD)"
-assert_exit 1 env FACTORY_CONFIG="$(f="$(mktemp)"; { cat "$FACTORY_CONFIG"; echo "language: klingon"; } > "$f"; echo "$f")" bash "$FACTORY_DIR/aghanim-config.sh" validate
+assert_exit 1 env FACTORY_CONFIG="$(f="$(mktemp)"; { cat "$FACTORY_CONFIG"; echo "language: klingon"; } > "$f"; echo "$f")" bash "$FACTORY_DIR/shipfloor-config.sh" validate
 
 # QA amends its own acceptance tests: the amendment becomes the baseline, the gate keeps it honest, and what an
 # earlier QA commit wrote stays protected

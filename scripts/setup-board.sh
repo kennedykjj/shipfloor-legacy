@@ -4,8 +4,8 @@
 # ignoring the 👤/🤖 owner mark. Cards whose status has no column keep an empty Status (listed).
 set -euo pipefail
 source "$(dirname "$0")/lib/project.sh"
-aghanim_resolve . || exit 2
-mapfile -d '' -t V < <(aghanim_cfg values board.owner board.number project.repo)
+shipfloor_resolve . || exit 2
+mapfile -d '' -t V < <(shipfloor_cfg values board.owner board.number project.repo)
 OWNER="${V[0]}" NUM="${V[1]}" REPO="${V[2]}"
 PROJECT="$(gh project view "$NUM" --owner "$OWNER" --format json --jq .id)"
 FIELD="$(gh project field-list "$NUM" --owner "$OWNER" --format json --jq '.fields[] | select(.name=="Status") | .id')"
@@ -26,5 +26,5 @@ done
 gh label create ui --repo "$REPO" --color 1d76db --description "Issue touches UI; UX/UI joins the refinement" --force
 gh label create cybersec --repo "$REPO" --color b60205 --description "Owner asked for a security review in the pipelines" --force
 gh label create blocked --repo "$REPO" --color 000000 --description "The factory stopped on this card; the owner decides" --force
-rm -f "${FACTORY_HOME:-$AGHANIM_HOME}/board-ids"
+rm -f "${FACTORY_HOME:-$SHIPFLOOR_HOME}/board-ids"
 gh project item-list "$NUM" --owner "$OWNER" --limit 500 --format json --jq '[.items[] | .status] | group_by(.) | map("\(.[0]): \(length)") | .[]'

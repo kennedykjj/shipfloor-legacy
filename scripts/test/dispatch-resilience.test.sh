@@ -17,28 +17,28 @@ case "$1 ${2:-}" in
   *) echo ;;
 esac
 EOB
-  printf '#!/usr/bin/env bash\necho "$(cat) $* retry=${AGHANIM_INFRA_RETRY:-0}" >> "%s/launched"\n' "$tmp" > "$tmp/claude"
+  printf '#!/usr/bin/env bash\necho "$(cat) $* retry=${SHIPFLOOR_INFRA_RETRY:-0}" >> "%s/launched"\n' "$tmp" > "$tmp/claude"
   chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
 }
-launched() { grep -o '/aghanim:[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
+launched() { grep -o '/sf:[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
 
 # orphan in Coding (no live lock) resumes; it already counts toward WIP
-setup; O_COD="42" W_CV=1; run_dispatch; assert_contains "$(launched)" "/aghanim:develop 42"
+setup; O_COD="42" W_CV=1; run_dispatch; assert_contains "$(launched)" "/sf:develop 42"
 # orphan resumes before new cards; both fit in 2 runs
-setup; O_COD="42" Q_DEV="60" W_CV=1; run_dispatch; out="$(launched)"; assert_contains "$out" "/aghanim:develop 42"; assert_contains "$out" "/aghanim:develop 60"
+setup; O_COD="42" Q_DEV="60" W_CV=1; run_dispatch; out="$(launched)"; assert_contains "$out" "/sf:develop 42"; assert_contains "$out" "/sf:develop 60"
 # two Coding orphans fill develop's 2 runs: no new card; a Validation card goes to validate
-setup; O_COD="42 43" O_VAL="54" Q_DEV="60" W_CV=2; run_dispatch; out="$(launched)"; assert_contains "$out" "/aghanim:develop 42 /aghanim:develop 43"
+setup; O_COD="42 43" O_VAL="54" Q_DEV="60" W_CV=2; run_dispatch; out="$(launched)"; assert_contains "$out" "/sf:develop 42 /sf:develop 43"
 case "$out" in *60*) fail "started a new card with both runs busy" ;; *) pass "runs respected with orphans" ;; esac
-assert_contains "$out" "/aghanim:validate 54"
+assert_contains "$out" "/sf:validate 54"
 # usage limit: a run that ended with "session limit" in the last 30 min pauses launches
-setup; Q_DEV="60"; printf '== start /aghanim:develop 54\nYou'"'"'ve hit your session limit · resets 6:10pm\n== end /aghanim:develop 54 exit=1\n' > "$FACTORY_HOME/logs/$(date +%F)-54-develop.log"
+setup; Q_DEV="60"; printf '== start /sf:develop 54\nYou'"'"'ve hit your session limit · resets 6:10pm\n== end /sf:develop 54 exit=1\n' > "$FACTORY_HOME/logs/$(date +%F)-54-develop.log"
 run_dispatch; [ -z "$(launched)" ] && pass "backs off after a usage limit" || fail "launched during usage limit"
 touch -d '-40 minutes' "$FACTORY_HOME/logs/$(date +%F)-54-develop.log"
-run_dispatch; assert_contains "$(launched)" "/aghanim:develop 60"
-# blocked:infra: cleaned (tmp/<n>/ goes), label removed, relaunched once with AGHANIM_INFRA_RETRY=1
+run_dispatch; assert_contains "$(launched)" "/sf:develop 60"
+# blocked:infra: cleaned (tmp/<n>/ goes), label removed, relaunched once with SHIPFLOOR_INFRA_RETRY=1
 setup; INFRA="70" O_VAL="70"; mkdir -p "$FACTORY_HOME/tmp/70/junk"; run_dispatch
 assert_contains "$(cat "$FACTORY_HOME/labels" 2>/dev/null)" "label 70 remove blocked:infra"
-assert_contains "$(grep '/aghanim:validate 70 ' "$tmp/launched")" "retry=1"
+assert_contains "$(grep '/sf:validate 70 ' "$tmp/launched")" "retry=1"
 [ ! -e "$FACTORY_HOME/tmp/70" ] && pass "infra leftovers cleaned" || fail "tmp/70 kept"
 [ -e "$FACTORY_HOME/infra/70" ] && pass "the retry's marker outlives the retried run" || fail "marker cleared by the retried run"
 # next cycle: the card is no longer blocked:infra, so the marker goes

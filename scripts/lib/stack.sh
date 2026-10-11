@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Stack slots: each run that needs the local stack leases a slot, which gives it a port range and
-# its own compose project. The one place slot state is computed (gate.sh, dispatch.sh, aghanim and
+# its own compose project. The one place slot state is computed (gate.sh, dispatch.sh, shipfloor and
 # the dashboard all ask here). Sourced after lib/project.sh, with a resolved project.
 
-STACK_LOCKS="$AGHANIM_HOME/locks"
+STACK_LOCKS="$SHIPFLOOR_HOME/locks"
 
 stack_settings() {  # machine and project settings: STACKS BASE SPAN WAIT STALE HOLD NAME UP DOWN PORTS URL HEALTH REJECT TIMEOUT
   local m p
-  mapfile -d '' -t m < <(aghanim_machine values stacks ports.base ports.span stack_wait stack_stale stack_hold_max)
-  mapfile -d '' -t p < <(aghanim_cfg values project.name stack.up stack.down stack.ports stack.url stack.health stack.reject stack.timeout)
+  mapfile -d '' -t m < <(shipfloor_machine values stacks ports.base ports.span stack_wait stack_stale stack_hold_max)
+  mapfile -d '' -t p < <(shipfloor_cfg values project.name stack.up stack.down stack.ports stack.url stack.health stack.reject stack.timeout)
   STACKS="${m[0]:-3}" BASE="${m[1]:-20000}" SPAN="${m[2]:-20}" WAIT="${FACTORY_STACK_WAIT:-${m[3]:-1800}}" STALE="${m[4]:-90}" HOLD="${m[5]:-2700}"
   NAME="${p[0]:-project}" UP="${p[1]:-}" DOWN="${p[2]:-}" PORTS="${p[3]:-}" URL="${p[4]:-}" HEALTH="${p[5]:-}" REJECT="${p[6]:-}" TIMEOUT="${p[7]:-300}"
   [ -z "$UP" ] && STACKS=1  # a project that starts no stack of its own shares one fixed stack: one run at a time
-  mkdir -p "$STACK_LOCKS/stack-queue" "$AGHANIM_HOME/logs"
+  mkdir -p "$STACK_LOCKS/stack-queue" "$SHIPFLOOR_HOME/logs"
 }
 
 slot_dir() { echo "$STACK_LOCKS/stack-$1.lock"; }
@@ -37,9 +37,9 @@ fill_ports() {  # fill_ports <k> <template>: {name} → that port of slot k
 
 slot_env() {  # slot_env <k>: export the slot's environment for up, down, tests and agents
   local name i=0
-  export AGHANIM_SLOT="$1" AGHANIM_STACK="aghanim-$NAME-$1"
-  for name in $PORTS; do export "AGHANIM_PORT_${name^^}=$(( BASE + $1 * SPAN + i ))"; i=$(( i + 1 )); done
-  export AGHANIM_STACK_URL; AGHANIM_STACK_URL="$(fill_ports "$1" "$URL")"
+  export SHIPFLOOR_SLOT="$1" SHIPFLOOR_STACK="shipfloor-$NAME-$1"
+  for name in $PORTS; do export "SHIPFLOOR_PORT_${name^^}=$(( BASE + $1 * SPAN + i ))"; i=$(( i + 1 )); done
+  export SHIPFLOOR_STACK_URL; SHIPFLOOR_STACK_URL="$(fill_ports "$1" "$URL")"
 }
 
 free_range() {  # free_range <k>: stop what still listens on the slot's ports; Docker's own processes are left to `down`
@@ -72,13 +72,13 @@ slot_release() {  # slot_release <k> [heartbeat]: stop its heartbeat (unless it 
 
 slot_reclaim() {  # slot_reclaim <k> <reason>
   local owner=?; [ -f "$(slot_dir "$1")/info" ] && read -r owner _ < "$(slot_dir "$1")/info"
-  echo "$(date -Is) reclaimed slot $1 from ${owner:-?} $2" >> "$AGHANIM_HOME/logs/stacks.log"
+  echo "$(date -Is) reclaimed slot $1 from ${owner:-?} $2" >> "$SHIPFLOOR_HOME/logs/stacks.log"
   slot_down "$1"; slot_release "$1" "$2"
 }
 
 stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order, up to WAIT seconds; 3 = gave up
   local q="$STACK_LOCKS/stack-queue" t f pid run k st waited=0
-  t="$q/$(date +%s%N)-$1"; echo "$$ ${AGHANIM_RUN_LOCK:--}" > "$t"
+  t="$q/$(date +%s%N)-$1"; echo "$$ ${SHIPFLOOR_RUN_LOCK:--}" > "$t"
   trap 'rm -f "$t"' EXIT INT TERM
   while :; do
     for f in "$q"/*; do  # tickets of waiters or runs that are gone leave the queue
@@ -89,7 +89,7 @@ stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order, 
       for (( k = 0; k < STACKS; k++ )); do
         st="$(slot_state "$k")"; [ "${st%% *}" = stuck ] && slot_reclaim "$k" "${st#stuck }"
         if mkdir "$(slot_dir "$k")" 2>/dev/null; then
-          echo "$1 ${AGHANIM_RUN_LOCK:--} $(date +%s)" > "$(slot_dir "$k")/info"; touch "$(slot_dir "$k")/beat"
+          echo "$1 ${SHIPFLOOR_RUN_LOCK:--} $(date +%s)" > "$(slot_dir "$k")/info"; touch "$(slot_dir "$k")/beat"
           rm -f "$t"; trap - EXIT INT TERM; SLOT="$k"; return 0
         fi
       done
@@ -104,7 +104,7 @@ stack_up() {  # stack_up <owner>: lease, clean the range, up, wait for health; p
   local d i body="" health
   stack_settings; stack_lease "$1" || return 3
   d="$(slot_dir "$SLOT")"; slot_env "$SLOT"
-  env | grep -E '^AGHANIM_(SLOT|STACK|STACK_URL|PORT_[A-Z0-9]+)=' > "$d/env"; printf '%s' "$DOWN" > "$d/down"; pwd > "$d/cwd"
+  env | grep -E '^SHIPFLOOR_(SLOT|STACK|STACK_URL|PORT_[A-Z0-9]+)=' > "$d/env"; printf '%s' "$DOWN" > "$d/down"; pwd > "$d/cwd"
   ( trap '' HUP; cd /; while [ -d "$d" ]; do touch "$d/beat" 2>/dev/null; sleep 15; done ) >/dev/null 2>&1 &
   echo $! > "$d/beat.pid"
   slot_down "$SLOT"
@@ -124,7 +124,7 @@ stack_up() {  # stack_up <owner>: lease, clean the range, up, wait for health; p
       slot_down "$SLOT"; slot_release "$SLOT"; return 3
     fi
   fi
-  echo "${AGHANIM_STACK_URL:-$URL}"
+  echo "${SHIPFLOOR_STACK_URL:-$URL}"
 }
 
 stack_down() {  # stack_down <owner>: down, free the range, release; a no-op when <owner> holds no slot

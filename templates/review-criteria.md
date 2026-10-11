@@ -1,6 +1,6 @@
 # Review criteria (Tech Lead)
 
-Default criteria for any stack. A project replaces them with `review_criteria:` in `.aghanim/factory.yml` (e.g. `.aghanim/review-criteria.md`).
+Default criteria for any stack. A project replaces them with `review_criteria:` in `.shipfloor/factory.yml` (e.g. `.shipfloor/review-criteria.md`).
 
 Severity: 🔴 blocker (goes back to the owner of the file), 🟡 should-fix (comment on the PR), ⚪ nit (comment on the PR).
 Project rules in `CLAUDE.md` also apply; a violation of a CLAUDE.md "never" rule is 🔴.

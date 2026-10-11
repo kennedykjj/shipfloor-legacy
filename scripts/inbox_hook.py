@@ -10,7 +10,7 @@ INTRO = ("Message from the owner, sent while you work. Where it differs from you
 
 
 def main():
-    inbox = Path(os.environ["AGHANIM_RUN_LOCK"]) / "inbox"
+    inbox = Path(os.environ["SHIPFLOOR_RUN_LOCK"]) / "inbox"
     who = re.sub(r"[^\w-]", "", str(json.load(sys.stdin).get("agent_id") or "lead"))
     seen = inbox.with_name(f"inbox.{who}")
     lines = inbox.read_text(encoding="utf-8").splitlines()

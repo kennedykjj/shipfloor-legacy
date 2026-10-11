@@ -1,5 +1,5 @@
 # pt-BR for what the factory's scripts say: gate output, the deploy's log lines and card comments, the dispatcher's log.
-# The scripts write English; aghanim_say pipes it through this file when the language is pt-BR (sed -E).
+# The scripts write English; shipfloor_say pipes it through this file when the language is pt-BR (sed -E).
 # A message with no rule here passes in English. Markers other code reads (staged-head:, deploy-merge:, deploy-fix:,
 # "== start", "== end", "Factory report", gate names, column names) have no rule on purpose.
 # Order matters: the longer phrase comes before the shorter one it contains.
@@ -7,7 +7,7 @@
 # gates
 s~acceptance tests changed after the QA commit \(beyond what merges from main brought\):~os testes de aceitação mudaram depois do commit do QA (além do que os merges da main trouxeram):~
 s~acceptance tests changed after the QA commit~os testes de aceitação mudaram depois do commit do QA~
-s~the owner can review these files and record them as they stand: aghanim accept~o owner pode revisar estes arquivos e registrá-los como estão: aghanim accept~
+s~the owner can review these files and record them as they stand: shipfloor accept~o owner pode revisar estes arquivos e registrá-los como estão: shipfloor accept~
 s~(acceptance-intact: .*) changed, but no assertion line did \(acceptance_assertions\); passed~\1 mudou, mas nenhuma linha de asserção mudou (acceptance_assertions); passou~
 s~QA commit (.*) has no files~o commit do QA \1 não tem arquivos~
 s~the last commit is not a QA commit~o último commit não é um commit do QA~
@@ -143,8 +143,8 @@ s~: up to date with main~: em dia com a main~
 s~Claude usage limit hit recently; waiting~limite de uso do Claude atingido há pouco; aguardando~
 s~removed a stale index\.lock \(older than ([0-9]+) min\): ~removido um index.lock velho (mais de \1 min): ~
 s~cannot bring the control checkout to ~não foi possível levar o control checkout até ~
-s~no \.aghanim/factory\.yml on ~sem .aghanim/factory.yml em ~
-s~invalid \.aghanim/factory\.yml on ~.aghanim/factory.yml inválido em ~
+s~no \.shipfloor/factory\.yml on ~sem .shipfloor/factory.yml em ~
+s~invalid \.shipfloor/factory\.yml on ~.shipfloor/factory.yml inválido em ~
 s~; skipped$~; pulado~
 s~dispatch: invalid config ~dispatch: config inválida: ~
 s~dispatch: cannot read limits~dispatch: não foi possível ler os limites~

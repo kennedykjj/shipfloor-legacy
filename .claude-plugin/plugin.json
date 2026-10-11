@@ -1,7 +1,7 @@
 {
-  "name": "aghanim",
-  "version": "0.6.0",
-  "description": "Aghanim's Anvil — a software factory for Claude Code. Turns GitHub issues into shipped PRs: agents refine, build and validate; deterministic gates they can't edit decide what passes.",
+  "name": "sf",
+  "version": "0.7.0",
+  "description": "Shipfloor — a software factory for Claude Code. Turns GitHub issues into shipped PRs: agents refine, build and validate; deterministic gates they can't edit decide what passes.",
   "author": {
     "name": "Kennedy Fernando"
   }

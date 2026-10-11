@@ -1,4 +1,4 @@
-"""Reads and validates a project's .aghanim/factory.yml and answers the factory scripts' queries.
+"""Reads and validates a project's .shipfloor/factory.yml and answers the factory scripts' queries.
 
 Exit codes: 0 ok, 1 negative answer (invalid config on validate, missing key, no owner layer),
 2 unusable (missing or invalid config, unknown layer or role, bad usage). Read-only.
@@ -12,7 +12,7 @@ sys.stderr.reconfigure(encoding="utf-8", newline="\n")
 try:
     import yaml
 except ImportError:
-    print("aghanim-config: PyYAML is missing (pip install pyyaml)", file=sys.stderr)
+    print("shipfloor-config: PyYAML is missing (pip install pyyaml)", file=sys.stderr)
     sys.exit(2)
 
 RESERVED = {"po", "ux", "techlead", "qa"}
@@ -32,7 +32,7 @@ DEFAULTS = {
 }
 LAYER_DEFAULTS = {"stack": "", "build": "", "install": "", "assertions": "", "setup_errors": "", "test_config": [],
                   "needs_stack": False, "tests_only": False, "migrations": {}, "retry": 0}
-BUILTIN_FORBIDDEN = r"^(\.github/|\.githooks/|\.claude/|\.aghanim/|\.mylos/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"  # legacy mylos dir stays forbidden
+BUILTIN_FORBIDDEN = r"^(\.github/|\.githooks/|\.claude/|\.shipfloor/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"
 ERE_SPECIAL = set(".^$+(){}[]|\\")
 
 
@@ -129,7 +129,7 @@ def problems(cfg):
             errs.append(f"limits.{p} must be a mapping like {{wip: 4}}"); continue
         for k, v in lim.items():
             if k != "wip":
-                errs.append(f"limits.{p}.{k} is not a limit (only wip; runs at once are set by `aghanim pool`)")
+                errs.append(f"limits.{p}.{k} is not a limit (only wip; runs at once are set by `shipfloor pool`)")
             elif not isinstance(v, int) or isinstance(v, bool) or v < 0:
                 errs.append(f"limits.{p}.{k} must be a non-negative integer")
     for k, v in mapping(cfg, "deploy").items():
@@ -356,7 +356,7 @@ def describe(cfg, home, worktrees):
              f"home: {home}", f"worktrees: {worktrees}", f"tmp: {home}/tmp/<n>", f"reviews: {home}/reviews",
              f"specs: {d['paths']['specs']}  plans: {d['paths']['plans']}",
              f"context: {', '.join(d['context']) or '(none)'}",
-             f"review criteria: {d['review_criteria'] or '~/.aghanim/factory/templates/review-criteria.md'}",
+             f"review criteria: {d['review_criteria'] or '~/.shipfloor/factory/templates/review-criteria.md'}",
              f"language: {LANGS[d['language']]} ({d['language']})",
              f"stack: {('yes, ' + str(d['stack'].get('url', ''))) if d.get('stack') else 'none'}"]
     dep = d.get("deploy") or {}
@@ -493,8 +493,8 @@ def machine_problems(raw):
 
 
 def machine(rest):
-    """machine <validate | values <key>... | show | set <key> <int>> on $AGHANIM_MACHINE_CONFIG."""
-    path = os.environ.get("AGHANIM_MACHINE_CONFIG", "")
+    """machine <validate | values <key>... | show | set <key> <int>> on $SHIPFLOOR_MACHINE_CONFIG."""
+    path = os.environ.get("SHIPFLOOR_MACHINE_CONFIG", "")
     raw = {}
     if path and os.path.isfile(path):
         with open(path, encoding="utf-8") as f:
@@ -508,15 +508,15 @@ def machine(rest):
     cmd, args = (rest[0], rest[1:]) if rest else ("", [])
     if cmd == "validate" and not args:
         for e in errs:
-            print(f"aghanim-config: {path}: {e}", file=sys.stderr)
+            print(f"shipfloor-config: {path}: {e}", file=sys.stderr)
         return 1 if errs else 0
     if cmd == "set" and len(args) == 2:
         if isinstance(raw, yaml.YAMLError):
-            print(f"aghanim-config: {path} is not valid YAML; fix it by hand", file=sys.stderr); return 1
+            print(f"shipfloor-config: {path} is not valid YAML; fix it by hand", file=sys.stderr); return 1
         try:
             value = int(args[1])
         except ValueError:
-            print(f"aghanim-config: {args[1]} is not an integer", file=sys.stderr); return 1
+            print(f"shipfloor-config: {args[1]} is not an integer", file=sys.stderr); return 1
         new = json.loads(json.dumps(raw))
         if args[0] in MACHINE_INTS:
             new[args[0]] = value
@@ -525,15 +525,15 @@ def machine(rest):
                 new["stages"] = {}
             new.setdefault("stages", {})[args[0].split(".")[1]] = value
         else:
-            print(f"aghanim-config: cannot set {args[0]} ({', '.join(MACHINE_INTS)} or stages.<stage>)", file=sys.stderr); return 1
+            print(f"shipfloor-config: cannot set {args[0]} ({', '.join(MACHINE_INTS)} or stages.<stage>)", file=sys.stderr); return 1
         new_errs = machine_problems(new)
         if new_errs:
             for e in new_errs:
-                print(f"aghanim-config: {e}", file=sys.stderr)
+                print(f"shipfloor-config: {e}", file=sys.stderr)
             return 1
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write("# aghanim machine config: runs at once on this machine (pool) and per stage\n")
+            f.write("# shipfloor machine config: runs at once on this machine (pool) and per stage\n")
             yaml.safe_dump(new, f, sort_keys=False)
         return 0
     if errs:
@@ -567,7 +567,7 @@ def main(argv):
         else:
             raise Unusable(f"unknown flag {flag}")
     if not args:
-        raise Unusable("usage: aghanim-config validate|get|layers|layer|regex|layer-of|describe ...")
+        raise Unusable("usage: shipfloor-config validate|get|layers|layer|regex|layer-of|describe ...")
     cmd, rest = args[0], args[1:]
     if cmd == "machine":
         return machine(rest)
@@ -578,13 +578,13 @@ def main(argv):
         raw = load(path)
     except Unusable as e:
         if cmd == "validate":
-            print(f"aghanim-config: {e}", file=sys.stderr); return 1
+            print(f"shipfloor-config: {e}", file=sys.stderr); return 1
         raise
     raw, over_errs = with_overrides(raw, overrides_of(path))
     errs = problems(raw) + over_errs
     if cmd == "validate":
         for e in errs:
-            print(f"aghanim-config: {path}: {e}", file=sys.stderr)
+            print(f"shipfloor-config: {path}: {e}", file=sys.stderr)
         return 1 if errs else 0
     if errs:
         raise Unusable(f"{path} is invalid: " + "; ".join(errs))
@@ -652,8 +652,8 @@ if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
     except Unusable as e:
-        print(f"aghanim-config: {e}", file=sys.stderr)
+        print(f"shipfloor-config: {e}", file=sys.stderr)
         sys.exit(2)
     except Exception as e:  # a crash is never a negative answer (exit 1): it is unusable
-        print(f"aghanim-config: internal error: {e!r}", file=sys.stderr)
+        print(f"shipfloor-config: internal error: {e!r}", file=sys.stderr)
         sys.exit(2)

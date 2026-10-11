@@ -16,16 +16,16 @@ fi
 
 # Paths, layers and commands come from the project's config (its control checkout), never from
 # the worktree under test. No project or a broken config is exit 2, never a pass.
-aghanim_resolve . || exit 2
+shipfloor_resolve . || exit 2
 root() { git rev-parse --show-toplevel 2>/dev/null || pwd; }  # asked only by the gates that run a layer's command
 g() { git -c core.quotePath=false "$@"; }
 q() {  # q <query...>: one config answer; a failing query stops the gate with exit 2
-  local out; out="$(aghanim_cfg "$@")" || { echo "gate: config query failed: $*" >&2; exit 2; }
+  local out; out="$(shipfloor_cfg "$@")" || { echo "gate: config query failed: $*" >&2; exit 2; }
   printf '%s' "$out"
 }
 layer_fields() {  # layer_fields <layer> <field>...: values into the array LF; 2 = unknown layer
   LF=()
-  mapfile -d '' -t LF < <(aghanim_cfg fields "$@" 2>/dev/null)
+  mapfile -d '' -t LF < <(shipfloor_cfg fields "$@" 2>/dev/null)
   [ "${#LF[@]}" -eq $(( $# - 1 )) ] || { echo "gate: unknown layer '$1'" >&2; return 2; }
 }
 load_layers() {  # only the gates that iterate layers pay for reading them
@@ -66,7 +66,7 @@ gate_forbidden() {
 gate_scope() {  # gate_scope <po|ux|techlead|qa|implementer layer> <base>
   local role="${1:-}" base="${2:-}" allowed
   [ -z "$role" ] && { echo "scope: role required" >&2; return 2; }
-  allowed="$(aghanim_cfg regex scope "$role" 2>/dev/null)" || { echo "scope: unknown role '$role'" >&2; return 2; }
+  allowed="$(shipfloor_cfg regex scope "$role" 2>/dev/null)" || { echo "scope: unknown role '$role'" >&2; return 2; }
   [ -n "$allowed" ] || { echo "scope: role '$role' has no area in the config" >&2; return 2; }
   require_rev "$base"
   local files bad; files="$(changed_files "$base")"
@@ -150,7 +150,7 @@ own_edit() {  # own_edit <qa> <file>: the lines the card itself removed (<) or a
   rm -f "$tmp"; return 0
 }
 
-own_key() {  # own_key <qa> <file>: what aghanim accept records for the card's own edit; a merge from main elsewhere in the file keeps it
+own_key() {  # own_key <qa> <file>: what shipfloor accept records for the card's own edit; a merge from main elsewhere in the file keeps it
   local own; own="$(own_edit "$1" "$2")" && [ -n "$own" ] || return 1
   echo "own:$(git hash-object --stdin <<< "$own")"
 }
@@ -161,7 +161,7 @@ assertions_kept() {  # assertions_kept <qa> <file> <regex>: the card's own edits
   ! grep -Eq -- "$3" <<< "$own"
 }
 
-owner_accepted() {  # owner_accepted <file> [qa]: the owner reviewed the card's own edit, this exact content or its deletion, and recorded it (aghanim accept)
+owner_accepted() {  # owner_accepted <file> [qa]: the owner reviewed the card's own edit, this exact content or its deletion, and recorded it (shipfloor accept)
   local blob own=""; [ -f "${FACTORY_HOME:-}/accepted.tsv" ] || return 1
   blob="$(git rev-parse -q --verify "HEAD:$1" 2>/dev/null)" || blob=deleted
   [ "$blob" = deleted ] || [ -z "${2:-}" ] || own="$(own_key "$2" "$1")"
@@ -175,7 +175,7 @@ qa_commits() {  # qa_commits <n> [rev]: card <n>'s QA commits up to rev, newest 
 gate_acceptance_intact() {
   require_rev "${1:-}"
   local qa="$1" files changed keep n c
-  keep="${FAST[2]-$(aghanim_cfg get acceptance_assertions 2>/dev/null)}"
+  keep="${FAST[2]-$(shipfloor_cfg get acceptance_assertions 2>/dev/null)}"
   # The newest QA commit is the baseline, but an amendment that touched one file must not leave the rest of the
   # card's acceptance tests unprotected: the files of every QA commit of the card count, as they are at the baseline.
   n="$(g log -1 --format=%s "$qa" | grep -oE 'acceptance tests for #[0-9]+' | grep -oE '[0-9]+$')"
@@ -192,7 +192,7 @@ gate_acceptance_intact() {
   done)"
   [ -z "$changed" ] && return 0
   echo "acceptance-intact: acceptance tests changed after the QA commit (beyond what merges from main brought):" >&2; echo "$changed" >&2
-  echo "acceptance-intact: the owner can review these files and record them as they stand: aghanim accept <project> <n> <reason>" >&2; return 1
+  echo "acceptance-intact: the owner can review these files and record them as they stand: shipfloor accept <project> <n> <reason>" >&2; return 1
 }
 
 # QA may correct its own acceptance tests when the implementation shows one was wrong, or when a merge from main
@@ -211,7 +211,7 @@ gate_qa_amend() {  # qa-amend <n>
   allowed="$(q regex scope qa)" || exit 2
   bad="$(g show --name-only --format= "$new" | sed '/^$/d' | grep -Ev -- "$allowed" || true)"
   if [ -n "$bad" ]; then echo "qa-amend: the amendment touches files that are not tests:" >&2; echo "$bad" >&2; return 1; fi
-  keep="$(aghanim_cfg get acceptance_assertions 2>/dev/null)"; keep="${keep:-assert|expect\(|verify\(|should}"
+  keep="$(shipfloor_cfg get acceptance_assertions 2>/dev/null)"; keep="${keep:-assert|expect\(|verify\(|should}"
   mapfile -t fs < <(for c in $all; do g show --name-only --format= "$c"; done | sed '/^$/d' | sort -u)
   d="$(g diff -U0 "$prev" "$new" -- "${fs[@]}" | grep -E '^[+-]' | grep -Ev '^(\+\+\+|---) ' || true)"
   off="$(grep -E '^\+' <<< "$d" | grep -E -- "$SKIP_MARKS" || true)"
@@ -256,7 +256,7 @@ migration_versions() {  # migration_versions <layer> <base> <ERE>: unique versio
           [ -n "$main_ref" ] && git cat-file -e "$main_ref:$f" 2>/dev/null && continue
           printf 'N\t%s\n' "$f"
         done
-  } | aghanim_cfg migration-check "$layer" \
+  } | shipfloor_cfg migration-check "$layer" \
     || { echo "migration: versions of layer '$layer' must be unique and newer than the base's" >&2; return 1; }
 }
 
@@ -291,7 +291,7 @@ gate_migration() {  # every layer's migrations: applied ones are immutable, dest
 
 gate_fast() {  # gate_fast <base> <spec> [qa]: forbidden + migration + acceptance-intact in one process
   # one config start for the three (FAST: forbidden ERE, migration plan, acceptance_assertions); alone, each gate asks for its own
-  mapfile -d '' -t FAST < <(aghanim_cfg gate-fast)
+  mapfile -d '' -t FAST < <(shipfloor_cfg gate-fast)
   [ "${#FAST[@]}" -eq 3 ] || { echo "gate: config query failed: gate-fast" >&2; exit 2; }
   require_rev "${1:-}"
   CHANGED="$(changed_files "$1")"; CHANGED_OF="$1"
@@ -305,7 +305,7 @@ ensure_deps() {  # ensure_deps <layer dir> <install command>: the layer's depend
   # worktree stays clean. A failing install is infrastructure: exit 3, never a red or green verdict.
   [ -n "$2" ] || return 0
   local mark key
-  mark="$(git rev-parse --absolute-git-dir)/aghanim-install-$(printf '%s' "$1" | tr -c 'A-Za-z0-9' _)"
+  mark="$(git rev-parse --absolute-git-dir)/shipfloor-install-$(printf '%s' "$1" | tr -c 'A-Za-z0-9' _)"
   key="$(git rev-parse -q --verify "HEAD:${1%/}" 2>/dev/null) $2"
   [ "$(cat "$mark" 2>/dev/null)" = "$key" ] && return 0
   (cd "$(root)/$1" && bash -c "$2") >&2 || { echo "gate: install failed in $1: $2" >&2; return 3; }
@@ -372,7 +372,7 @@ stack_around() {  # stack_around <command...>: run it on its own stack slot when
   [ "$L_STACK" = true ] || { "$@"; return; }
   local owner="gate-$$"
   trap 'stack_down "$owner"' INT TERM
-  stack_up "$owner" >/dev/null || return 3  # not in a subshell: the slot's AGHANIM_* stay exported for the runner
+  stack_up "$owner" >/dev/null || return 3  # not in a subshell: the slot's SHIPFLOOR_* stay exported for the runner
   "$@"; local code=$?
   stack_down "$owner"; return $code
 }
@@ -445,7 +445,7 @@ run() {
     scope)             gate_scope "$@" ;;
     forbidden)         gate_forbidden "$@" ;;
     acceptance-intact) gate_acceptance_intact "$@" ;;
-    acceptance-own)    require_rev "${1:-}"; own_key "$1" "${2:-}" ;;  # for aghanim accept
+    acceptance-own)    require_rev "${1:-}"; own_key "$1" "${2:-}" ;;  # for shipfloor accept
     qa-commit)         gate_qa_commit "$@" ;;
     qa-amend)          gate_qa_amend "$@" ;;
     migration)         gate_migration "$@" ;;
@@ -460,8 +460,8 @@ run() {
 }
 # what a gate says on stderr goes out in the project's language; stdout is read by callers and stays as it is
 # shortcut: the key is read straight from the YAML (a top-level scalar the config check already validated), not through
-# aghanim_cfg: one more python start per gate call is what every pipeline step would pay
+# shipfloor_cfg: one more python start per gate call is what every pipeline step would pay
 GLANG=""; LANG_RE='^language:[[:space:]]*["'"'"']?([A-Za-z-]*)'
 while IFS= read -r GLINE; do [[ "$GLINE" =~ $LANG_RE ]] && { GLANG="${BASH_REMATCH[1]}"; break; }; done 2>/dev/null < "$FACTORY_CONFIG"
 if [ "${GLANG:-en}" = en ]; then run "$@"; exit; fi
-{ run "$@" 2>&1 1>&3 | aghanim_say "$GLANG" >&2; exit "${PIPESTATUS[0]}"; } 3>&1
+{ run "$@" 2>&1 1>&3 | shipfloor_say "$GLANG" >&2; exit "${PIPESTATUS[0]}"; } 3>&1

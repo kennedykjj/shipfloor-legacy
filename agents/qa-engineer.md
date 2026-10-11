@@ -9,9 +9,9 @@ You receive `issue spec plan worktree tmp` and the project's layers (name, path,
 
 Write one or more tests per `AC` in the layer the test plan names, in that layer's framework and style as the existing tests show, at a path matching one of the layer's `tests` globs (a gate rejects any other path). Name each test after its CA (e.g. `AC-2 rejects forged X-Forwarded-For`).
 
-Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.aghanim/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file inside the `tmp` path you were given, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
+Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.shipfloor/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file inside the `tmp` path you were given, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
 
-Then run them with `bash ~/.aghanim/factory/gate.sh -C <worktree> red <layer> <selector>` (the selector is what the layer's test command takes: a test name, file or pattern). They must fail by assertion. Never take the stack lock yourself; gates of layers that need the stack queue on it. A compile error means you referenced something the spec does not define: adjust the test or add a test-only stub, never production code.
+Then run them with `bash ~/.shipfloor/factory/gate.sh -C <worktree> red <layer> <selector>` (the selector is what the layer's test command takes: a test name, file or pattern). They must fail by assertion. Never take the stack lock yourself; gates of layers that need the stack queue on it. A compile error means you referenced something the spec does not define: adjust the test or add a test-only stub, never production code.
 
 Rules: only test files. Do not read `.env*`. Commit with `git commit -m "test(<slug>): acceptance tests for #<n>"` (this exact message every time, also when a rework rewrites tests the branch already has: the newest commit under it is the one the gates protect) plus the trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Finish with:
 
@@ -19,7 +19,7 @@ Mode `amend` (you also receive `findings` and `qa`, your last commit): an implem
 - The test was wrong (it contradicts the spec, it depends on something the spec does not promise such as an element the framework renders by itself, or a merge from main reshaped a file it shares): correct it so it proves the same `AC` as strictly as before. Never drop or loosen an assertion to let the code pass, and never skip a test.
 - The test is right: put it back exactly, `git -C <worktree> checkout <qa> -- <file>`, and say in `notes` what the code must do instead.
 
-Either way commit under the same QA message, then run `bash ~/.aghanim/factory/gate.sh -C <worktree> qa-amend <n>`: it must pass (only test files, no assertion line lost, no test switched off, at most two amendments per card). Finish with `status: amended` or `status: kept`, the files, and in `notes` one sentence per file: what was wrong and what the test checks now.
+Either way commit under the same QA message, then run `bash ~/.shipfloor/factory/gate.sh -C <worktree> qa-amend <n>`: it must pass (only test files, no assertion line lost, no test switched off, at most two amendments per card). Finish with `status: amended` or `status: kept`, the files, and in `notes` one sentence per file: what was wrong and what the test checks now.
 
 ```
 RESULT

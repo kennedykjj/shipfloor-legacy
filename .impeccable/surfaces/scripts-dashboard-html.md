@@ -5,7 +5,7 @@ primary_target: "scripts/dashboard.html"
 related_targets: []
 ---
 
-Scope: scripts/dashboard.html, the local dashboard served by `aghanim dashboard`. Mode: Operate.
+Scope: scripts/dashboard.html, the local dashboard served by `shipfloor dashboard`. Mode: Operate.
 Audience: the factory's owner, a developer, in quick checks: open, approve what waits, glance at cost and runs, close.
 Task: see pool, slots, live runs, logs, gates and the estimated cost of each card; approve or send back Spec Review and Staged cards.
 Constraints: one self-contained HTML file, no CDN, no build; dark and light from prefers-color-scheme; factory names verbatim; no emoji; costs labeled est.

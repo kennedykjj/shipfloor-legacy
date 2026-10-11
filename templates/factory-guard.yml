@@ -23,7 +23,7 @@ jobs:
         run: |
           case "$HEAD" in feat/[0-9]*-*) ;; *) echo "not a factory branch: $HEAD"; exit 0 ;; esac
           files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')"
-          bad="$(printf '%s\n' "$files" | grep -E '^(\.github/|\.githooks/|\.claude/|\.aghanim/|\.mylos/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env' || true)"  # legacy mylos dir stays forbidden
+          bad="$(printf '%s\n' "$files" | grep -E '^(\.github/|\.githooks/|\.claude/|\.shipfloor/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env' || true)"
           if [ -n "$bad" ]; then
             echo "::error::Factory PR touches protected paths:"
             printf '%s\n' "$bad"

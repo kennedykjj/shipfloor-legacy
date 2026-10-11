@@ -2,7 +2,7 @@
 # Regression tests for the whole-branch review of the project-agnostic factory.
 source "$(dirname "$0")/lib.sh"
 GATE="$FACTORY_DIR/gate.sh"
-CFG="$FACTORY_DIR/aghanim-config.sh"
+CFG="$FACTORY_DIR/shipfloor-config.sh"
 cfg_with() { local f; f="$(mktemp)"; printf '%s\n' "$1" > "$f"; echo "$f"; }
 HEADER=$'project: {name: x, repo: a/x}\nboard: {owner: a, number: 1}'
 LAYER=$'layers:\n  - {name: app, path: app/, test: "echo ok", ran: ok, tests: ["app/**/*_test.go"]}'
