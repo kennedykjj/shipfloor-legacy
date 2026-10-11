@@ -53,6 +53,12 @@ printf '== start /aghanim:develop 7 %sT10:05:00-03:00 pid=1\n== end /aghanim:dev
 got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print(" | ".join(e["text"] + (" exit=%s" % e["exit"] if e.get("issue") else "") for e in json.load(sys.stdin)["events"]))')"
 assert_contains "$got" "aghanim: shop: first | mv: stderr | develop #7 exit=4 | aghanim: shop: last"
 [ "$(code "$base/api/feed")" = 403 ] && pass "no token, no feed" || fail "served the feed without the token"
+# the page's language is the machine's: English sends no catalog, pt-BR sends its own
+lang() { curl -s -H "$H_TOK" "$base/api/lang" | $PY -c 'import json,sys; d=json.load(sys.stdin); print(d["language"], len(d["exact"]) > 50, len(d["rx"]) > 20, d["exact"].get("Close", ""))'; }
+assert_contains "$(lang)" "en False False"
+[ -f "$H/config.yml" ] && cp "$H/config.yml" "$H/config.yml.bak"; echo "language: pt-BR" >> "$H/config.yml"
+assert_contains "$(lang)" "pt-BR True True Fechar"
+if [ -f "$H/config.yml.bak" ]; then mv "$H/config.yml.bak" "$H/config.yml"; else rm "$H/config.yml"; fi
 rm "$P/logs/$D-7-develop.log"
 # the overview says how long a stage usually takes (clean runs only) and when a card's last run ended
 printf '== start /aghanim:develop 7 2026-10-09T10:00:00-03:00 pid=1\n== end /aghanim:develop 7 exit=0 2026-10-09T10:01:00-03:00\n== start /aghanim:develop 7 2026-10-09T11:00:00-03:00 pid=2\n== end /aghanim:develop 7 exit=4 2026-10-09T11:30:00-03:00\n' > "$P/logs/2026-10-09-7-develop.log"

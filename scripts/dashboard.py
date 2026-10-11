@@ -16,8 +16,8 @@ import yaml
 
 # The steps a run announces with `aghanim-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
 STEPS = {"refine": {1: "Pick the card", 2: "Worktree", 3: "Product Owner", 4: "UX/UI and architecture", 5: "Cybersec", 6: "Publish for review", 8: "Report"},
-         "develop": {1: "Pick the card", 2: "Plan", 3: "Acceptance tests", 4: "Implementation", 5: "Up to date with main", 6: "Hand over to validation", 8: "Report"},
-         "validate": {1: "Pick the card", 2: "Up to date with main", 3: "Review", 4: "Pull request", 6: "Report"}}
+         "develop": {1: "Pick the card", 2: "Plan", 3: "Acceptance tests", 4: "Implementation", 5: "Last gates", 6: "Hand over to validation", 8: "Report"},
+         "validate": {1: "Pick the card", 2: "Gates", 3: "Review", 4: "Pull request", 6: "Report"}}
 STACKS_TTL_S = 15
 PIPELINES = set(LEGACY_STAGES.values())
 #  how the skills open a block note: "Factory validate, step 2 (gates): blocked." or "Validate, step 2 (gates): ..."
@@ -636,6 +636,17 @@ class Factory:
             fh.seek(start)
             return {"text": fh.read(size - start).decode("utf-8", "replace"), "next": size}
 
+    def lang(self):
+        """The machine's language (~/.aghanim/config.yml) and its catalog for the page, lang/dashboard.<code>.json:
+        'exact' replaces a whole piece of text, 'rx' rewrites a phrase inside one. English has none."""
+        code = str(read_yaml(self.home / "config.yml").get("language", "en"))
+        f = HERE / "lang" / f"dashboard.{code}.json"
+        try:
+            cat = json.loads(f.read_text(encoding="utf-8")) if re.fullmatch(r"[A-Za-z-]{2,10}", code) else {}
+        except (OSError, ValueError):
+            cat = {}
+        return {"language": code, "exact": cat.get("exact", {}), "rx": cat.get("rx", [])}
+
     def feed(self, limit=400):
         """One timeline: the dispatcher's and the stacks' log lines, and one line per run, at the time it
         ended (or started, while it still runs)."""
@@ -707,6 +718,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parts == ["api", "overview"]:
                 return self.send(200, f.overview())
+            if parts == ["api", "lang"]:
+                return self.send(200, f.lang())
             if parts == ["api", "feed"]:
                 return self.send(200, f.feed())
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and parts[3].isdigit():

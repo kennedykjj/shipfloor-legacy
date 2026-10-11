@@ -234,6 +234,9 @@ A click on a dot of the lifecycle line opens the **peek**, never the drawer: the
 ### Feed
 One timeline in mono, oldest first, in three columns: time, source, text. The dispatcher's and the stacks' lines are plain text. A run is **one row**, placed at the time it ended (or started, while it runs): the stage and number as an underlined button, then the duration and the result ("· 7m · ok", "· 2m · exit 4", "· 6m · running"). The row takes the outcome color: ok, bad, or parchment while running. A click opens the row in place, never a drawer: under it, indented to the text column behind a 2px hairline, the last 12 lines of that run's log in soft mono, then "Whole log" (the card maximized on the Log tab of that run) and "Open card" (ghost). The open run's lines are read again on every refresh, so a running one moves. One row is open at a time; the button carries `aria-expanded` and keeps focus across refreshes. The feed follows its end only while no row is open.
 
+### Language
+The page is written in English and shown in the machine's language (`language` in `~/.aghanim/config.yml`). In another language, every piece of text is rewritten as it enters the document, from the catalog the server sends (`scripts/lang/dashboard.<code>.json`): a whole piece by `exact`, a phrase inside one by `rx`. So a new string needs no code, only an entry; one with no entry shows in English. What the factory did not write is never rewritten: card titles, logs, and what the agents said (the `RAW` selector). Board columns keep their GitHub names in the data and show translated.
+
 ### Buttons
 - **Approve:** azure fill, `azure-ink` text, 600 weight, 5px radius, 7px 12px; hover brightens 8%.
 - **Secondary (Request changes, Retry):** raised panel, lit-edge border, parchment text; hover border turns parchment.

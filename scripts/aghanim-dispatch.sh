@@ -28,14 +28,15 @@ usage_limited() {  # the Claude usage limit is per account: a recent hit in any 
   done < <(find "$AGHANIM_HOME/projects" -path '*/logs/*.log' -mmin -30 2>/dev/null)
   return 1
 }
-usage_limited && { echo "$(date -Is) aghanim: Claude usage limit hit recently; waiting"; exit 0; }
+MLANG="$(aghanim_machine values language 2>/dev/null | tr -d '\0')"  # the dispatcher's own log lines
+usage_limited && { echo "$(date -Is) aghanim: Claude usage limit hit recently; waiting" | aghanim_say "$MLANG"; exit 0; }
 
 STALE_LOCK_MIN="${AGHANIM_STALE_LOCK_MIN:-10}"
 clear_stale_lock() {  # clear_stale_lock <checkout>: git holds index.lock for one command; an old one was left by a git that died
   local lock; lock="$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null)/index.lock"
   [ -e "$lock" ] && [ -n "$(find "$lock" -mmin +"$STALE_LOCK_MIN" 2>/dev/null)" ] || return 1
   rm -f "$lock" || return 1
-  echo "$(date -Is) aghanim: $slug: removed a stale index.lock (older than $STALE_LOCK_MIN min): $lock" >&2
+  echo "$(date -Is) aghanim: $slug: removed a stale index.lock (older than $STALE_LOCK_MIN min): $lock" | aghanim_say "$MLANG" >&2
 }
 
 WHY=""  # why refresh_control failed: git's own words
@@ -63,7 +64,7 @@ refresh_control() {  # control checkout = exactly origin/<main>; touched only wh
 skip() {  # skip <reason>: log it and leave it in the project's home, where the dashboard and doctor look
   local f="$FACTORY_HOME/SKIPPED" since why
   why="$(printf '%s' "$1" | tr '\t\r\n' '   ' | sed 's/  */ /g')"
-  echo "$(date -Is) aghanim: $slug: $why; skipped" >&2
+  echo "$(date -Is) aghanim: $slug: $why; skipped" | aghanim_say "$MLANG" >&2
   mkdir -p "$FACTORY_HOME"
   since="$(cut -f1 "$f" 2>/dev/null | head -1)"  # the first failed cycle's time is kept
   printf '%s\t%s\n' "${since:-$(date -Is)}" "$why" > "$f"

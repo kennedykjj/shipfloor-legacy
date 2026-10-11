@@ -7,3 +7,5 @@ scripts/test/fake-gh text eol=lf
 *.ps1 text eol=crlf
 scripts/aghanim text eol=lf
 scripts/test/fake-gh-deploy text eol=lf
+*.sed text eol=lf
+*.json text eol=lf

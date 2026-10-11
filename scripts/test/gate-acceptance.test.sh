@@ -129,4 +129,14 @@ echo t3 > api/src/test/ATest.kt; git commit -qam "test(x): one world per state f
 out="$(bash "$GATE" qa-commit 14 --head 2>&1)"; code=$?
 [ "$code" = 1 ] && pass "a QA commit under another message blocks" || fail "QA commit under another message: exit $code"
 assert_contains "$out" "acceptance tests for #14"
+# language: what a gate says comes out in the project's language; the exit code and the gate's name do not change
+PT="$(mktemp)"; { cat "$FACTORY_CONFIG"; echo "language: pt-BR"; } > "$PT"
+r="$(new_repo)"; cd "$r"; mkdir -p api/src/test; git checkout -q -b feat/13-x
+echo 'test' > api/src/test/ATest.kt; git add -A; git commit -qm qa; qa="$(git rev-parse HEAD)"
+echo 'weakened' > api/src/test/ATest.kt; git commit -qam weaken
+out="$(FACTORY_CONFIG="$PT" bash "$GATE" acceptance-intact "$qa" 2>&1)"; code=$?
+[ "$code" = 1 ] && pass "pt-BR gate still blocks" || fail "pt-BR gate: exit $code"
+assert_contains "$out" "acceptance-intact: os testes de aceitação mudaram depois do commit do QA"
+FACTORY_CONFIG="$PT" assert_exit 0 bash "$GATE" acceptance-intact "$(git rev-parse HEAD)"
+assert_exit 1 env FACTORY_CONFIG="$(f="$(mktemp)"; { cat "$FACTORY_CONFIG"; echo "language: klingon"; } > "$f"; echo "$f")" bash "$FACTORY_DIR/aghanim-config.sh" validate
 finish
