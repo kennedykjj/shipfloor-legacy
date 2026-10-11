@@ -112,18 +112,30 @@ only_main_changed() {  # only_main_changed <qa> <file>: HEAD's file is the QA ve
   rm -f "$tmp"; return $rc
 }
 
-assertions_kept() {  # assertions_kept <qa> <file> <regex>: the card's own edits add or remove no line matching <regex> (acceptance_assertions)
-  # Compared with the clean merge when there is one, else with QA's version: that diff is larger, so it only blocks more.
-  local tmp own; [ -n "$3" ] || return 1; tmp="$(mktemp)"
+own_edit() {  # own_edit <qa> <file>: the lines the card itself removed (<) or added (>), without what merges from main brought
+  # Against the clean merge when there is one, else against QA's version: that diff is larger, so it only blocks more.
+  local tmp; tmp="$(mktemp)"
   merged_with_main "$1" "$2" "$tmp" || g show "$1:$2" > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
-  own="$(g show "HEAD:$2" 2>/dev/null | diff "$tmp" - | grep '^[<>]')"  # diff exits 1 on a difference: no pipeline status here
-  rm -f "$tmp"
+  g show "HEAD:$2" 2>/dev/null | diff "$tmp" - | grep '^[<>]'  # diff exits 1 on a difference: the status says nothing
+  rm -f "$tmp"; return 0
+}
+
+own_key() {  # own_key <qa> <file>: what aghanim accept records for the card's own edit; a merge from main elsewhere in the file keeps it
+  local own; own="$(own_edit "$1" "$2")" && [ -n "$own" ] || return 1
+  echo "own:$(git hash-object --stdin <<< "$own")"
+}
+
+assertions_kept() {  # assertions_kept <qa> <file> <regex>: the card's own edits add or remove no line matching <regex> (acceptance_assertions)
+  local own; [ -n "$3" ] || return 1
+  own="$(own_edit "$1" "$2")" || return 1
   ! grep -Eq -- "$3" <<< "$own"
 }
 
-owner_accepted() {  # owner_accepted <file>: the owner reviewed this exact content, or its deletion, and recorded it (aghanim accept)
-  local blob; blob="$(git rev-parse -q --verify "HEAD:$1" 2>/dev/null)" || blob=deleted
-  [ -f "${FACTORY_HOME:-}/accepted.tsv" ] && awk -F'\t' -v f="$1" -v b="$blob" '$1 == f && $2 == b { ok = 1 } END { exit !ok }' "$FACTORY_HOME/accepted.tsv"
+owner_accepted() {  # owner_accepted <file> [qa]: the owner reviewed the card's own edit, this exact content or its deletion, and recorded it (aghanim accept)
+  local blob own=""; [ -f "${FACTORY_HOME:-}/accepted.tsv" ] || return 1
+  blob="$(git rev-parse -q --verify "HEAD:$1" 2>/dev/null)" || blob=deleted
+  [ "$blob" = deleted ] || [ -z "${2:-}" ] || own="$(own_key "$2" "$1")"
+  awk -F'\t' -v f="$1" -v b="$blob" -v o="$own" '$1 == f && ($2 == b || (o != "" && $2 == o)) { ok = 1 } END { exit !ok }' "$FACTORY_HOME/accepted.tsv"
 }
 
 gate_acceptance_intact() {
@@ -135,7 +147,7 @@ gate_acceptance_intact() {
   changed="$(printf '%s\n' "$files" | while IFS= read -r f; do
     if [ ! -e "$f" ] && ! git cat-file -e "HEAD:$f" 2>/dev/null; then owner_accepted "$f" || echo "$f"  # deleted and committed
     elif [ ! -e "$f" ] || ! git diff --quiet HEAD -- "$f"; then echo "$f"
-    elif git diff --quiet "$qa" HEAD -- "$f" || only_main_changed "$qa" "$f" || owner_accepted "$f"; then :
+    elif git diff --quiet "$qa" HEAD -- "$f" || only_main_changed "$qa" "$f" || owner_accepted "$f" "$qa"; then :
     elif assertions_kept "$qa" "$f" "$keep"; then echo "acceptance-intact: $f changed, but no assertion line did (acceptance_assertions); passed" >&2
     else echo "$f"; fi
   done)"
@@ -351,6 +363,7 @@ case "$cmd" in
   scope)             gate_scope "$@" ;;
   forbidden)         gate_forbidden "$@" ;;
   acceptance-intact) gate_acceptance_intact "$@" ;;
+  acceptance-own)    require_rev "${1:-}"; own_key "$1" "${2:-}" ;;  # for aghanim accept
   migration)         gate_migration "$@" ;;
   fast)              gate_fast "$@" ;;
   build)             gate_build "$@" ;;
