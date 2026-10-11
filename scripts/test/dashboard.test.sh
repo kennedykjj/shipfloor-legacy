@@ -54,6 +54,21 @@ got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print(" |
 assert_contains "$got" "aghanim: shop: first | mv: stderr | develop #7 started | develop #7 failed, exit 4 | aghanim: shop: last"
 [ "$(code "$base/api/feed")" = 403 ] && pass "no token, no feed" || fail "served the feed without the token"
 rm "$P/logs/$D-7-develop.log"
+# the overview says how long a stage usually takes (clean runs only) and when a card's last run ended
+printf '== start /aghanim:develop 7 2026-10-09T10:00:00-03:00 pid=1\n== end /aghanim:develop 7 exit=0 2026-10-09T10:01:00-03:00\n== start /aghanim:develop 7 2026-10-09T11:00:00-03:00 pid=2\n== end /aghanim:develop 7 exit=4 2026-10-09T11:30:00-03:00\n' > "$P/logs/2026-10-09-7-develop.log"
+printf '7	Staged
+' > "$P/board.tsv"
+got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; p=json.load(sys.stdin)["projects"][0]; print(p["typical_s"], [c["since"] for c in p["cards"] if c["issue"] == 7])')"
+assert_contains "$got" "{'develop': 60} ['2026-10-09T11:30:00-03:00']"
+rm "$P/logs/2026-10-09-7-develop.log" "$P/board.tsv"
+
+# a live run tells its step (as its place among the stage's steps) and the last things its session did
+mkdir -p "$P/locks/validate-9.lock"; printf '1 1791600000 9\n' > "$P/locks/validate-9.lock/info"; printf '3\t1791600300\n' > "$P/locks/validate-9.lock/step"
+{ cmd '"<command-name>/aghanim:validate</command-name>\n<command-args>9</command-args>"'
+  printf '{"type":"assistant","timestamp":"2026-10-09T10:06:00Z","message":{"id":"m9","content":[{"type":"text","text":"The e2e gate failed; reading its log."},{"type":"tool_use","name":"Bash","input":{"description":"Rerun the e2e gate","command":"x"}}]}}\n'; } > "$T/s4.jsonl"
+got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runs"] if x["issue"] == 9][0]; print(r["step"]["i"], r["steps"], r["step"]["label"], "|".join(a["kind"] + ":" + a["text"] for a in r["activity"]))')"
+assert_contains "$got" "3 5 Review says:The e2e gate failed; reading its log.|Bash:Rerun the e2e gate"
+rm -r "$P/locks/validate-9.lock" "$T/s4.jsonl"
 
 # a project the dispatcher skips says so in the overview
 printf '2026-10-09T20:06:50-03:00	cannot bring the control checkout to origin/main: index.lock exists
