@@ -49,6 +49,8 @@ odd_names() {  # 0 when a changed name has a control character (it could hide fr
 }
 
 changed_files() {  # one name per line (gate_forbidden refuses names with control characters)
+  # gate_fast lists them once for its gates (CHANGED, the names since CHANGED_OF)
+  if [ -n "${CHANGED_OF-}" ] && [ "$CHANGED_OF" = "$1" ]; then [ -z "$CHANGED" ] || printf '%s\n' "$CHANGED"; return 0; fi
   raw_changes "$1" | tr '\0' '\n' | sed '/^$/d' | sort -u
 }
 
@@ -281,8 +283,10 @@ gate_fast() {  # gate_fast <base> <spec> [qa]: forbidden + migration + acceptanc
   # one config start for the three (FAST: forbidden ERE, migration plan, acceptance_assertions); alone, each gate asks for its own
   mapfile -d '' -t FAST < <(aghanim_cfg gate-fast)
   [ "${#FAST[@]}" -eq 3 ] || { echo "gate: config query failed: gate-fast" >&2; exit 2; }
-  gate_forbidden "${1:-}" || return $?
-  gate_migration "${1:-}" "${2:-}" || return $?
+  require_rev "${1:-}"
+  CHANGED="$(changed_files "$1")"; CHANGED_OF="$1"
+  gate_forbidden "$1" || return $?
+  gate_migration "$1" "${2:-}" || return $?
   [ -z "${3:-}" ] || gate_acceptance_intact "$3"
 }
 
