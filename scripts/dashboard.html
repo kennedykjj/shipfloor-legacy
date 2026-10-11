@@ -304,6 +304,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .stp { display: inline-flex; align-items: center; border: 1px solid var(--edge-hi); border-radius: 8px; overflow: hidden; }
 .stp button { width: 34px; height: 34px; background: var(--panel-hi); border: 0; cursor: pointer; font-size: 17px; } .stp button:hover { background: var(--edge); }
 .stp output { min-width: 46px; text-align: center; font: 600 17px var(--cond); } .stp.dirty output { color: var(--sand); }
+.sknob { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; } .sknob small { font-size: 12px; color: var(--muted); }
 .sw { position: relative; width: 44px; height: 24px; flex: none; display: inline-block; } .sw input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
 .sw i { position: absolute; inset: 0; border-radius: 12px; background: var(--edge-hi); pointer-events: none; } .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--text); transition: transform .15s; }
 .sw input:checked + i { background: var(--bad); } .sw input:checked + i::after { transform: translateX(20px); } .sw input:focus-visible + i { outline: 2px solid var(--sand); outline-offset: 2px; }
@@ -1199,7 +1200,8 @@ async function act(action, moveOnly) {
 const SET = { data: null, sec: "sessions", draft: {}, err: "" };
 const STAGE_HELP = { refine: "Writing specs.", develop: "Building a card.", validate: "Reviewing and opening the pull request.", deploy: "Merging and deploying. Always one card at a time per project." };
 const STAGE_HUE = { refine: "#8fa8c7", develop: "var(--text)", validate: "var(--sand)", deploy: "var(--ok)" };
-const setWas = (k) => k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : SET.data.machine[k];
+const knobOf = (k) => { const [, slug, key] = k.split("|"); return SET.data.projects.find((p) => p.slug === slug)?.knobs[key]; };  // "p|<project>|<knob>"
+const setWas = (k) => k.startsWith("p|") ? knobOf(k).value : k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : SET.data.machine[k];
 const setVal = (k) => k in SET.draft ? SET.draft[k] : setWas(k);
 async function loadSettings() { const { status, body } = await api("/api/settings"); if (status === 200) { SET.data = body; renderSettings(); } }
 function renderSettings() {
@@ -1229,18 +1231,22 @@ function renderSettings() {
         ${row("Minutes to wait for a free stack", "A run that cannot get one in time is blocked as infrastructure and retried once.", stepper("stack_wait", 5, 240, 5))}</div>`;
   } else if (SET.sec === "projects") {
     const list = (v) => Array.isArray(v) ? v.join(", ") : v || "";
-    body = `<h1 class="g">Projects</h1><p class="lead">The repositories this factory works on. A project's settings are part of its repository, so they are reviewed and versioned with the code; pausing is the one thing decided here.</p>
-      ${d.projects.map((p) => { const dep = p.deploy || {}, wip = (st) => p.limits?.[st]?.wip ? `${p.limits[st].wip} cards` : "no limit";
+    body = `<h1 class="g">Projects</h1><p class="lead">The repositories this factory works on. How the factory operates on a project (the pause and the four limits with steppers) is decided here, for this machine. What a project is (its files, layers and commands) is part of its repository and is shown as last read.</p>
+      ${d.projects.map((p) => { const dep = p.deploy || {};
+        const knob = (key, min, max, unit, by = 1) => { const k = `p|${p.slug}|${key}`, x = p.knobs[key], v = setVal(k);
+          return `<span class="sknob">${stepper(k, min, max, by)}<small>${v === 0 ? "no limit" : unit}${v !== x.repo ? ` · the repository says ${x.repo || "no limit"}` : ""}</small></span>`; };
         return `<div class="sgroup panel"><h2 class="ptitle2 g">${esc(p.slug)}<span>${esc(p.repo || "")}${p.board?.number ? ` · board #${p.board.number}` : ""} · ${esc(p.main)}${p.board_url ? ` · <a href="${esc(p.board_url)}" target="_blank" rel="noopener">board on GitHub${EXT}</a>` : ""}</span></h2>
         ${row("Paused", "The dispatcher skips this project. Other projects keep running, and sessions already running finish.", sw(p.slug, p.paused, `Pause ${p.slug}`))}
-        ${row("Cards in progress at once", "Coding and Validation count together, so pull requests do not pile up against main.", `<span class="sv">${wip("develop")}</span>`)}
-        ${row("Specs in refinement at once", "Cards being refined, before they wait for your approval.", `<span class="sv">${wip("refine")}</span>`)}
+        ${row("Cards in progress at once", "Coding and Validation count together, so pull requests do not pile up against main. 0 is no limit.", knob("limits.develop.wip", 0, 40, "cards"))}
+        ${row("Specs in refinement at once", "Cards being refined, before they wait for your approval. 0 is no limit.", knob("limits.refine.wip", 0, 40, "cards"))}
+        ${row("Minutes the deploy waits for CI and production", "Past this the deploy stops and the card comes back to you.", knob("deploy.timeout_min", 5, 240, "minutes", 5))}
+        ${row("Largest merge conflict an agent may resolve", "In files. A larger conflict goes back to Coding instead.", knob("deploy.conflict_max_files", 1, 40, "files"))}
         ${row("What the agents read about the product", "The product owner, UX and the tech lead start from these files.", `<span class="sv">${esc(list(p.context)) || "nothing set"}</span>`)}
         ${row("Local stack for e2e and UX checks", "Where a run's own copy of the app answers.", `<span class="sv">${esc(p.stack?.url || "none")}</span>`)}
-        ${row("Deploy", "How long the deploy waits for CI and production, and how large a merge conflict an agent may resolve.", `<span class="sv">${dep.timeout_min ? `waits up to ${dep.timeout_min} min` : "default wait"}${dep.conflict_max_files ? ` · conflicts up to ${plural(dep.conflict_max_files, "file")}` : ""}${dep.ci_workflow ? ` · CI: ${esc(dep.ci_workflow)}` : ""}</span>`)}
+        ${dep.ci_workflow ? row("CI the deploy waits for", "The workflow whose result decides whether a card ships.", `<span class="sv">${esc(dep.ci_workflow)}</span>`) : ""}
         <h2>Layers</h2><div class="swrap"><table><thead><tr><th>layer</th><th>path</th><th>stack</th><th>build</th><th>tests live in</th></tr></thead><tbody>${p.layers.map((l) =>
           `<tr><td>${esc(l.name)}${l.tests_only ? ' <span class="cap">tests only</span>' : ""}</td><td><code>${esc(l.path || "")}</code></td><td>${esc(l.stack || "")}</td><td><code>${esc(l.build || l.test || "")}</code></td><td><code>${esc(list(l.tests))}</code></td></tr>`).join("")}</tbody></table></div>
-        <p class="from">To change any of these, edit <code>.aghanim/factory.yml</code> in ${esc(p.repo || "the repository")} on ${esc(p.main)}. The dispatcher reads it again on every cycle.</p></div>`; }).join("") || '<p class="empty">No project registered. Run <code>aghanim add &lt;repo&gt;</code>.</p>'}`;
+        <p class="from">The limits above are kept on this machine, over what the repository says. To change the rest, edit <code>.aghanim/factory.yml</code> in ${esc(p.repo || "the repository")} on ${esc(p.main)}. The dispatcher reads it again on every cycle.</p></div>`; }).join("") || '<p class="empty">No project registered. Run <code>aghanim add &lt;repo&gt;</code>.</p>'}`;
   } else {
     const models = Object.entries(d.prices || {});
     body = `<h1 class="g">Costs</h1><p class="lead">The dashboard estimates what a card cost from the tokens of its runs and these prices, in US$ per million tokens.</p>
@@ -1259,11 +1265,20 @@ function setStep(t) {
   SET.err = ""; renderSettings();
 }
 async function setSave() {
-  const body = { stages: {} };
-  for (const [k, v] of Object.entries(SET.draft)) { if (k.startsWith("stages.")) body.stages[k.slice(7)] = v; else body[k] = k === "stack_wait" ? v * 60 : v; }
-  const r = await api("/api/settings/machine", { method: "POST", body: JSON.stringify(body) });
-  if (r.status === 200) { SET.data = r.body; SET.draft = {}; SET.err = ""; loadOverview(); } else SET.err = r.body.error || "The settings were not saved.";
-  renderSettings();
+  const body = { stages: {} }, per = {};  // this machine's limits in one request, then each project's overrides
+  for (const [k, v] of Object.entries(SET.draft)) {
+    if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = v === knobOf(k).repo ? null : v; }
+    else if (k.startsWith("stages.")) body.stages[k.slice(7)] = v; else body[k] = k === "stack_wait" ? v * 60 : v;
+  }
+  const posts = [...(Object.keys(body).length > 1 || Object.keys(body.stages).length ? [["machine", body]] : []), ...Object.entries(per).map(([project, values]) => ["project", { project, values }])];
+  SET.err = "";
+  for (const [what, payload] of posts) {
+    const r = await api(`/api/settings/${what}`, { method: "POST", body: JSON.stringify(payload) });
+    if (r.status !== 200) { SET.err = r.body.error || "The settings were not saved."; break; }
+    SET.data = r.body;
+    for (const k of Object.keys(SET.draft)) if (what === "machine" ? !k.startsWith("p|") : k.startsWith(`p|${payload.project}|`)) delete SET.draft[k];
+  }
+  loadOverview(); renderSettings();
 }
 async function setPause(input) {  // a pause is urgent: it applies at once, not with Save
   const r = await api("/api/settings/pause", { method: "POST", body: JSON.stringify({ project: input.dataset.pause || null, paused: input.checked }) });

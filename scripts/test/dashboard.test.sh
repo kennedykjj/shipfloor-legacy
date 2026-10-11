@@ -170,6 +170,22 @@ assert_contains "$(sget)" "8 4 2 2 True shop True"
 post -d '{"paused":false}' "$base/api/settings/pause" -H "$H_TOK" >/dev/null; post -d '{"project":"shop","paused":false}' "$base/api/settings/pause" -H "$H_TOK" >/dev/null
 [ ! -e "$H/PAUSE" ] && [ ! -e "$P/PAUSE" ] && pass "resumed" || fail "resume failed"
 rm "$H/config.yml"
+# a project's operational limits can be set on this machine: kept in overrides.yml beside the project's config,
+# laid over factory.yml by every config reader, and gone again when the owner goes back to the repository's value
+knobs() { curl -s -H "$H_TOK" "$base/api/settings" | $PY -c 'import json,sys; k=json.load(sys.stdin)["projects"][0]["knobs"]; print(k["limits.develop.wip"]["value"], k["limits.develop.wip"]["repo"], k["deploy.timeout_min"]["value"], k["deploy.timeout_min"]["repo"])'; }
+was="$(knobs)"; wip_repo="${was%% *}"
+cfgget() { FACTORY_CONFIG="$P/factory.yml" bash "$FACTORY_DIR/aghanim-config.sh" get "$1" | tr -d '\r'; }
+[ "$(post -d '{"project":"shop","values":{"limits.develop.wip":9,"deploy.timeout_min":45}}' "$base/api/settings/project" -H "$H_TOK")" = 200 ] && pass "project limits overridden" || fail "overriding the project limits failed"
+assert_contains "$(knobs)" "9 $wip_repo 45 "
+assert_contains "wip=$(cfgget limits.develop.wip) timeout=$(cfgget deploy.timeout_min)" "wip=9 timeout=45"
+[ "$(post -d '{"project":"shop","values":{"limits.develop.wip":-1}}' "$base/api/settings/project" -H "$H_TOK")" = 400 ] && pass "a negative limit is refused" || fail "took a negative limit"
+[ "$(post -d '{"project":"shop","values":{"project.repo":"x/y"}}' "$base/api/settings/project" -H "$H_TOK")" = 400 ] && pass "only the operational limits can be overridden" || fail "overrode something else"
+[ "$(post -d '{"project":"shop","values":{"limits.develop.wip":3}}' "$base/api/settings/project")" = 403 ] && pass "no token, no override" || fail "overrode without the token"
+printf 'layers: []\n' > "$P/overrides.yml.bad"; cp "$P/overrides.yml" "$P/overrides.yml.keep"; cp "$P/overrides.yml.bad" "$P/overrides.yml"
+assert_contains "$(FACTORY_CONFIG="$P/factory.yml" bash "$FACTORY_DIR/aghanim-config.sh" validate 2>&1 || true)" "overrides.yml: layers cannot be overridden"
+cp "$P/overrides.yml.keep" "$P/overrides.yml"; rm "$P/overrides.yml.bad" "$P/overrides.yml.keep"
+[ "$(post -d '{"project":"shop","values":{"limits.develop.wip":null,"deploy.timeout_min":null}}' "$base/api/settings/project" -H "$H_TOK")" = 200 ] && [ ! -e "$P/overrides.yml" ] && pass "back to the repository's values" || fail "the overrides were not removed"
+assert_contains "$(knobs)" "$was"
 # the overview lists the runs that ended today, newest first (the Today panel), and the deploy script's own
 # lock inside a deploy run is not a second run
 printf '== start /aghanim:refine 12 %sT08:00:00-03:00 pid=1
