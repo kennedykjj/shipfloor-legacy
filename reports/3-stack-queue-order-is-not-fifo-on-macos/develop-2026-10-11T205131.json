@@ -1,0 +1,17 @@
+{
+  "issue": 3,
+  "slug": "stack-queue-order-is-not-fifo-on-macos",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T23:37:00Z",
+  "finished_at": "2026-10-11T23:51:13Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 35221, "duration_s": 174},
+    {"role": "engineer", "tokens": 16907, "duration_s": 123}
+  ],
+  "rounds": {"acceptance_tests": 1, "implementation": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
