@@ -61,6 +61,12 @@ addEventListener("load",function(){
    var s=it.closest("section"),h=s&&s.querySelector("h2"),p=it.querySelector("p"),t=it.querySelector("textarea");
    return "- ["+(h?h.textContent:"")+"] "+(p?p.textContent:"")+"\\n  -> "+((t&&t.value.trim())||"(no note)")});
   parent.postMessage({shipfloor:"review-progress",done:m?+m[1]:0,total:m?+m[2]:0,changes:chg},"*")}
+ /* the dashboard's theme: it answers "ready" with its colors, and sends them again when the owner changes theme */
+ addEventListener("message",function(e){
+  var m=e.data,r=document.documentElement;if(e.source!==parent||!m||m.shipfloor!=="theme")return;
+  for(var k in m.vars)if(/^[a-z-]+$/.test(k))r.style.setProperty("--"+k,m.vars[k]);
+  r.style.colorScheme=m.light?"light":"dark"});
+ parent.postMessage({shipfloor:"ready"},"*");
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""

@@ -237,6 +237,13 @@ One timeline in mono, oldest first, in three columns: time, source, text. The di
 ### Language
 The page is written in English and shown in the machine's language (`language` in `~/.shipfloor/config.yml`). In another language, every piece of text is rewritten as it enters the document, from the catalog the server sends (`scripts/lang/dashboard.<code>.json`): a whole piece by `exact`, a phrase inside one by `rx`. So a new string needs no code, only an entry; one with no entry shows in English. What the factory did not write is never rewritten: card titles, logs, and what the agents said (the `RAW` selector). Board columns keep their GitHub names in the data and show translated.
 
+### Themes
+The owner picks how the dashboard looks in Settings, under Themes. A theme only changes color tokens: the base block in `scripts/dashboard.html` is Charcoal, and each `[data-theme="<id>"]` block sets the same tokens (ground, panels, edges, the four text steps, the accent `sand`, ok/warn/bad, the two glows, the lifecycle track, `refine`). A light theme also sets `--ov`, `--well`, `--scrim`, `--shadow` and `color-scheme: light`. No color is written out in a rule: tints come from `color-mix` over a token.
+
+Nine dark themes (Floor tape, Charcoal, Dock, Machine green, Blueprint, Foundry, Night shift, Terminal, High contrast) and three light ones (Kraft, Steel, Drafting paper). Auto, the default, follows the system: Floor tape in dark, Kraft in light. The choice lives in the browser (`localStorage`, `shipfloor.theme`) and is applied before the first paint. In every theme the accent is not one of the outcome colors, so where the accent is yellow the warning is orange.
+
+A swatch is a button that carries its theme's `data-theme`, so it is drawn with the same tokens as the page it stands for. The embedded review page gets the theme's colors as a message. To add a theme: one block in the CSS and one entry in `THEMES`; `scripts/test/theme.test.sh` refuses a theme with a missing token or with text under 4.5:1 on its ground and panels.
+
 ### Buttons
 - **Approve:** azure fill, `azure-ink` text, 600 weight, 5px radius, 7px 12px; hover brightens 8%.
 - **Secondary (Request changes, Retry):** raised panel, lit-edge border, parchment text; hover border turns parchment.
