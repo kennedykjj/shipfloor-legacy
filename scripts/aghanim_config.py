@@ -25,6 +25,8 @@ DEFAULTS = {
     "limits": {"refine": {"parallel": 0, "wip": 2}, "develop": {"parallel": 0, "wip": 4},
                "validate": {"parallel": 0, "wip": 0}, "deploy": {"parallel": 1, "wip": 0}},
     "context": [], "forbidden": [], "review_criteria": "",
+    # acceptance-intact lets through an edit to an acceptance test that adds or removes no line matching this. "" = every edit blocks.
+    "acceptance_assertions": "",
 }
 LAYER_DEFAULTS = {"stack": "", "build": "", "install": "", "assertions": "", "setup_errors": "", "test_config": [],
                   "needs_stack": False, "tests_only": False, "migrations": {}, "retry": 0}
@@ -112,6 +114,9 @@ def problems(cfg):
             errs.append(f"{key} must be a list of strings")
     if not isinstance(cfg.get("review_criteria", ""), str):
         errs.append("review_criteria must be a path")
+    keep = cfg.get("acceptance_assertions", "")
+    if not isinstance(keep, str) or (keep and not compiles(keep)):
+        errs.append("acceptance_assertions must be a valid extended regex (grep -E)")
     for k, v in mapping(cfg, "paths").items():
         if not isinstance(v, str) or not v.endswith("/") or v.strip("/.") == "":
             errs.append(f"paths.{k} must be a directory like docs/specs/")
@@ -529,6 +534,7 @@ def main(argv):
         print(cfg.scope(rest[1])); return 0
     if cmd == "patterns" and not rest:  # every regex the gates hand to grep -E, NUL-terminated
         sys.stdout.write("".join(f"{l[k]}\0" for l in cfg.layers for k in ("ran", "assertions", "setup_errors") if l[k]))
+        sys.stdout.write(f"{cfg.data['acceptance_assertions']}\0" if cfg.data["acceptance_assertions"] else "")
         return 0
     if cmd == "migration-check" and len(rest) == 1:
         mig = cfg.layer(rest[0])["migrations"]

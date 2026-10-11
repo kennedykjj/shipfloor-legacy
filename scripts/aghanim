@@ -197,7 +197,7 @@ cmd_migrate_home() {  # migrate-home [OLD]: move the legacy mylos home to $AGHAN
 }
 
 cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>'s acceptance files changed after the QA commit
-  # (a merge from main resolved by hand, a setup line main forced) and takes them as they stand. The gate
+  # (a merge from main resolved by hand, a setup line main forced, a stub deleted) and takes them as they stand. The gate
   # then passes those exact contents; any later edit blocks again. Recorded in the project's home.
   local slug="${1:-}" n="${2:-}"; shift 2 2>/dev/null || true
   local reason="$*" wt qa f blob took=0
@@ -209,11 +209,11 @@ cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     git -C "$wt" diff --quiet "$qa" HEAD -- "$f" && continue  # untouched since QA
-    blob="$(git -C "$wt" rev-parse -q --verify "HEAD:$f")" || die "$f was deleted after the QA commit; nothing to accept"
+    blob="$(git -C "$wt" rev-parse -q --verify "HEAD:$f")" || blob=deleted  # a stub the real code replaced
     grep -qF "$f"$'	'"$blob"$'	' "$FACTORY_HOME/accepted.tsv" 2>/dev/null && continue  # already accepted as it stands
     [ -z "$(git -C "$wt" status --porcelain -- "$f")" ] || die "$f has uncommitted changes in $wt"
     printf '%s\t%s\t#%s\t%s\t%s\n' "$f" "$blob" "$n" "$(date -Is)" "$(printf '%s' "$reason" | tr '\t\r\n' '   ')" >> "$FACTORY_HOME/accepted.tsv"
-    echo "accepted $f at ${blob:0:12}"; took=1
+    if [ "$blob" = deleted ]; then echo "accepted the deletion of $f"; else echo "accepted $f at ${blob:0:12}"; fi; took=1
   done < <(git -C "$wt" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
   [ "$took" = 1 ] || echo "nothing to accept: acceptance-intact already passes for card $n"
 }
