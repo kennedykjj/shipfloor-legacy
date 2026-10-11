@@ -450,7 +450,16 @@ MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develo
                     "stacks": 3, "ports": {"base": 20000, "span": 20},
                     "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3}}
 DISPATCHER_EVERY = (1, 3, 5, 10)  # minutes between dispatcher cycles; the installer's trigger reads it
-MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
+
+
+def dispatcher_every(raw):
+    """The pace a raw machine config sets (minutes between cycles), or the default when it sets none or a bad one."""
+    disp = raw.get("dispatcher") if isinstance(raw, dict) else None
+    every = disp.get("every_min") if isinstance(disp, dict) else None
+    return every if type(every) is int and every in DISPATCHER_EVERY else MACHINE_DEFAULTS["dispatcher"]["every_min"]
+
+
+MACHINE_INTS = ("pool","stacks", "stack_wait", "stack_stale", "stack_hold_max")
 
 
 def machine_problems(raw):
@@ -503,6 +512,8 @@ def machine_problems(raw):
 def machine(rest):
     """machine <validate | values <key>... | show | set <key> <int>> on $SHIPFLOOR_MACHINE_CONFIG."""
     path = os.environ.get("SHIPFLOOR_MACHINE_CONFIG", "")
+    if not path and os.environ.get("SHIPFLOOR_HOME"):  # asked through shipfloor-config.sh (the installer does): the home's file
+        path = os.path.join(os.environ["SHIPFLOOR_HOME"], "config.yml")
     raw = {}
     if path and os.path.isfile(path):
         with open(path, encoding="utf-8") as f:
