@@ -1,0 +1,21 @@
+{
+  "issue": 32,
+  "slug": "settings-choose-how-often-the-dispatcher",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T20:03:00-03:00",
+  "finished_at": "2026-10-11T20:35:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 72305, "duration_s": 251},
+    {"role": "qa-engineer", "tokens": 21803, "duration_s": 38},
+    {"role": "engineer", "tokens": 34093, "duration_s": 84},
+    {"role": "engineer", "tokens": 58907, "duration_s": 136},
+    {"role": "engineer", "tokens": 24363, "duration_s": 134},
+    {"role": "engineer", "tokens": 57344, "duration_s": 439}
+  ],
+  "rounds": {"acceptance-tests": 1, "task-2": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
