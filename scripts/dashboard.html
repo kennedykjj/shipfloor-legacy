@@ -145,7 +145,45 @@ main { min-height: 0; display: grid; }
 .side h1 { font-size: 26px; }
 h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-weight: 500; }
 #list { list-style: none; margin: 12px -6px 0; overflow-y: auto; min-height: 0; padding: 0 6px; }
-.yours.maxed #list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 0 28px; align-content: start; -webkit-mask-image: none; mask-image: none; }
+/* what waits for you, maximized: a decision inbox. The queue, what to read, and the decision as options that each say what happens next */
+.inbox, .yours.maxed #list, .yours.maxed .foot, .iconf[hidden], .itoast[hidden] { display: none; }
+.yours.maxed .inbox { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 350px; margin-top: 12px; border-top: 1px solid var(--edge); }
+.ique { border-right: 1px solid var(--edge); overflow-y: auto; }
+.ique button { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--edge); border-left: 3px solid transparent; padding: 10px 12px; cursor: pointer; }
+.ique button[aria-current="true"] { background: var(--panel-hi); border-left-color: var(--sand); }
+.ique .row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .ique .pnum { font-size: 21px; }
+.ique p { margin: 2px 0 0; font-size: 13px; color: var(--soft); } .ique .ask { font-size: 12px; color: var(--muted); }
+.iread { padding: 16px 26px 20px; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.iread p { margin: 0 0 6px; } .iread ul { margin: 4px 0; padding-left: 18px; } .iread .h { font-weight: 600; }
+.iread pre { margin: 4px 0; padding: 6px 8px; background: var(--ground); border-radius: 4px; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.iq-k { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--sand); }
+.iread h2 { margin: 0; font-size: 21px; font-weight: 600; line-height: 1.25; text-wrap: balance; }
+.ifacts { display: flex; gap: 6px 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; } .ifacts .lnk { font-size: 12.5px; margin-left: 6px; }
+.tag { font-size: 11.5px; border: 1px solid var(--edge-hi); border-radius: 4px; padding: 1px 7px; color: var(--muted); white-space: nowrap; }
+.tag.ok { color: var(--ok); border-color: #9fcbaa80; } .tag.bad { color: var(--bad); border-color: #e58f8080; } .tag.warn { color: var(--warn); border-color: #dcb87280; }
+.isec { display: flex; flex-direction: column; gap: 7px; max-width: 78ch; }
+.isec h3 { margin: 0; font-size: 11px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.isec .body { font-size: 14px; color: var(--soft); } .isec .plain { font-size: 15.5px; line-height: 1.45; color: var(--text); }
+.iacs { list-style: none; margin: 0; padding: 0; } .iacs li { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 0 8px; padding: 6px 0; border-top: 1px solid var(--edge); font-size: 14px; color: var(--soft); }
+.iacs b { font: 500 12px/1.7 var(--mono); color: var(--sand); }
+.iask { border: 1px solid #dcb87273; border-radius: 8px; padding: 10px 12px; background: #dcb87212; max-width: 78ch; } .iask .cap { color: var(--warn); } .iask p { margin: 3px 0 0; color: var(--text); }
+.iwhere { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; flex-wrap: wrap; }
+.iwhere li { flex: 1 1 96px; border-top: 3px solid var(--edge-hi); padding: 6px 4px 0 0; font-size: 12.5px; color: var(--muted); } .iwhere b { display: block; font-size: 11px; letter-spacing: .1em; color: var(--faint); }
+.iwhere .ok { border-top-color: var(--muted); } .iwhere .fail { border-top-color: var(--bad); color: var(--text); } .iwhere .fail b { color: var(--bad); }
+.idiff { font: 12.5px/1.6 var(--mono); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; } .idiff div { padding: 1px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.idiff .f { background: var(--panel-hi); color: var(--muted); padding: 5px 12px; border-top: 1px solid var(--edge); } .idiff .f:first-child { border-top: 0; }
+.idiff .m { color: var(--bad); background: #e58f8017; } .idiff .p { color: var(--ok); background: #9fcbaa17; }
+.idec { border-left: 1px solid var(--edge); background: #0000002e; padding: 16px 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.idec h2 { margin: 0; font-size: 17px; letter-spacing: .06em; } #io { display: contents; }
+.iopt { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--edge-hi); border-radius: 10px; padding: 11px 13px; cursor: pointer; } .iopt:hover { border-color: var(--muted); }
+.iopt[aria-pressed="true"] { border-color: var(--text); background: var(--panel-hi); box-shadow: inset 3px 0 0 var(--text); }
+.iopt .t { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; font-weight: 600; font-size: 15px; } .iopt kbd { font-size: 11px; margin: 0; color: var(--muted); }
+.iopt .when { margin: 3px 0 0; font-size: 13px; color: var(--muted); } .iopt .then { margin: 7px 0 0; padding-top: 7px; border-top: 1px dashed var(--edge-hi); font-size: 13px; color: var(--soft); }
+.iopt .then::before { content: "→ "; color: var(--sand); } .iopt .caveat { color: var(--warn); }
+.iconf { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--edge-hi); } #inote, #inote:focus { height: 76px; } .ihint { margin: 0; font-size: 12.5px; color: var(--muted); }
+.itoast { display: flex; gap: 10px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ok); border: 1px solid #9fcbaa73; border-radius: 8px; padding: 8px 10px; }
+.itoast button { background: none; border: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+@media (max-width: 1180px) { .yours.maxed .inbox { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .ique, .idec { border: 0; overflow: visible; } .iread { overflow: visible; padding-inline: 0; } }
 #list.cut { -webkit-mask-image: linear-gradient(#000 calc(100% - 44px), transparent); mask-image: linear-gradient(#000 calc(100% - 44px), transparent); }
 .pass { border-top: 1px solid var(--hair); padding: 10px 2px 12px; } .pass.hot { background: #ffffff09; }
 .ptitle { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
@@ -375,6 +413,10 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
     <div class="cols" id="cols" hidden>
       <div class="side">
         <section class="yours panel" data-maxable="what waits for you" aria-labelledby="hy"><h1 class="g" id="hy"></h1><ul id="list"></ul>
+          <div class="inbox" id="inbox"><nav class="ique" id="iq" aria-label="What waits for you, the oldest first"></nav><article class="iread" id="ir"></article>
+            <aside class="idec" aria-label="Your decision"><h2 class="g">Your decision</h2><div id="io"></div>
+              <div class="iconf" id="ic" hidden><textarea id="inote" aria-label="Your note"></textarea><button class="btn approve" id="igo"></button><p class="ihint" id="ihint"></p></div>
+              <div class="itoast" id="itoast" role="status" hidden><span id="imsg"></span><button id="iundo">Undo</button></div><p class="pnote" id="ierr" role="status"></p></aside></div>
           <p class="foot cap"><span><kbd>N</kbd>next</span><span><kbd>A</kbd>approve</span><span><kbd>R</kbd>review</span><span><kbd>L</kbd>log</span></p></section>
         <section class="telem panel" data-maxable="today" aria-labelledby="ht"><h1 class="g" id="ht">Today</h1><div id="telem"></div></section>
       </div>
@@ -623,7 +665,100 @@ function renderYours() {
     if (held) (onText ? $("qc") : document.querySelector(`.pass[data-key="${CSS.escape(held)}"] .ptitle`))?.focus({ preventScroll: true });
   }
   fade();
+  if (inboxOn()) renderInbox();
 }
+// What waits for you, maximized: a decision inbox. The queue (the oldest wait first), what to read to decide the
+// card in focus, and the decision as options that each say when to choose them and what happens next.
+const INB = { cur: null, pick: null, data: {}, gone: {}, hold: null, loading: null, err: "" };
+const inboxOn = () => document.querySelector(".yours").classList.contains("maxed");
+const inboxCards = () => waiting().filter((c) => !(Date.now() - INB.gone[c.key] < 30000)).sort((a, b) => (a.since || "~") < (b.since || "~") ? -1 : 1);
+const asks = (c) => c.blocked === "owner" ? "How should this run continue?" : c.column === "Spec Review" ? "Build this spec?" : "Ship it to production?";
+function room(slug, column) {  // what awaits a card that moves to a factory column
+  const st = STAGE_OF[column], s = S.overview.pool.stages[st]; if (!s) return "";
+  const q = (S.overview.projects.find((p) => p.slug === slug)?.cards || []).filter((c) => c.column === column && !c.running).length;
+  return s.running < s.slots ? ` ${STAGE_NAME[st]} has a free slot, so it can start soon.` : ` ${STAGE_NAME[st]} is full (${s.running} of ${s.slots}${q ? `, ${q} queued` : ""}), so it waits its turn.`;
+}
+function optionsFor(c, d) {
+  const [slug] = c.key.split("/"), b = d?.block, stage = b?.stage || STAGE_OF[c.column] || "the stage", [yes, no] = OWNER[c.column] || [];
+  if (c.blocked === "owner") return [
+    b?.gate === "acceptance-intact" && { id: "accept", t: "The edits are right", when: "The tests had to change, and they still check what the spec asks.", then: `Records that you take the acceptance tests as they stand. The gate passes them and ${stage} runs again.`, verb: "Accept the tests and continue", note: "Why are the edits right? It is recorded with the acceptance.", need: true, done: "takes the tests and continues" },
+    { id: "send-back", t: "It needs rework", when: "Something in the card's work is wrong.", then: `${c.column === "Coding" ? "Stays in Coding" : "Goes back to Coding"} with your note, posted on the issue.${room(slug, "Coding")}`, verb: "Send back to Coding", note: "What should be done instead?", need: true, done: "goes back to Coding" },
+    { id: "unblock", t: "Just try again", when: "The cause was outside the card, or you already fixed it.", then: `Takes the block off and ${stage} runs again.`, caveat: b?.times > 1 ? `It has stopped ${b.times} times; with nothing changed it stops again.` : "", verb: "Unblock and retry", done: "is unblocked and retries" }].filter(Boolean);
+  return c.column === "Spec Review" ? [
+    { id: "approve", t: "Build it", when: "The criteria describe what you want.", then: `Goes to ${yes}.${room(slug, yes)}`, verb: "Approve the spec", note: d?.spec?.questions?.length ? "Optional: your answer to the open question, posted on the issue" : "", done: `goes to ${yes}` },
+    { id: "request-changes", t: "Rewrite it", when: "Something is missing or wrong in the spec.", then: `Goes back to ${no} with your note, posted on the issue.${room(slug, no)}`, verb: "Request changes", note: "What should change in the spec?", need: true, done: `goes back to ${no}` }]
+  : [{ id: "approve", t: "Ship it", when: "The change is what you asked for.", then: `Goes to ${yes}.${room(slug, yes)}`, verb: "Approve and ship", done: `goes to ${yes}` },
+    { id: "request-changes", t: "Not yet", when: "Something has to change before it ships.", then: `Goes back to ${no} with your note, posted on the issue. The pull request stays open.${room(slug, no)}`, verb: "Send back to Coding", note: "What should change?", need: true, done: `goes back to ${no}` }];
+}
+function diffHtml(src) {  // only the lines that changed, under the file they are in
+  const rows = [];
+  for (const l of src.split("\n")) {
+    if (l.startsWith("diff --git")) rows.push(`<div class="f">${esc(l.split(" b/").pop())}</div>`);
+    else if (/^(---|\+\+\+)/.test(l)) continue;
+    else if (l[0] === "+") rows.push(`<div class="p">${esc(l)}</div>`);
+    else if (l[0] === "-") rows.push(`<div class="m">${esc(l)}</div>`);
+  }
+  return rows.length > 90 ? rows.slice(0, 90).join("") + `<div class="f">and ${rows.length - 90} more lines, in the card's worktree</div>` : rows.join("");
+}
+// The question first, then only what answers it. A block is told in order: where the run stopped, why, what
+// changed, what the factory already tried.
+function readHtml(c, d) {
+  const tag = (text, k = "") => text ? `<span class="tag ${k}">${text}</span>` : "", sec = (h, body, cls = "body") => body ? `<div class="isec"><h3>${h}</h3><div class="${cls}">${body}</div></div>` : "";
+  const stop = c.blocked === "owner", b = d?.block, s = d?.spec, pr = d?.pr, k = esc(c.key), cost = tag(c.cost ? `$${c.cost.toFixed(2)} so far` : "");
+  const facts = stop ? tag(`blocked${c.since ? ` ${dur(c.since, new Date())} ago` : ""}`, "bad") + tag(b?.stage ? esc(b.stage) : "") + tag(b?.times > 1 ? `stopped ${b.times} times` : "", "warn") + tag(b?.gate ? `gate: ${esc(b.gate)}` : "", "bad") + cost
+    : c.column === "Spec Review" ? tag(s ? `${s.criteria.length} acceptance ${s.criteria.length === 1 ? "criterion" : "criteria"}` : "") + tag(s?.questions.length ? `${plural(s.questions.length, "question")} for you` : "", "warn") + cost
+    : tag(pr ? `CI ${esc(pr.ci)}` : "", pr?.ci === "green" ? "ok" : pr?.ci === "failed" ? "bad" : "warn") + tag(pr ? `PR #${pr.number} · ${plural(pr.files, "file")} · +${pr.additions} −${pr.deletions}` : "") + cost;
+  const head = `<div><p class="iq-k">${stop ? "A run stopped and needs you" : c.column === "Spec Review" ? "A spec is ready for your approval" : "A pull request is ready to ship"}</p>
+    <h2>${c.title ? esc(c.title) : UNTITLED}</h2><div class="ifacts">${facts}<button class="lnk" data-open="${k}"${stop ? "" : ' data-go="review"'}>Open the card</button></div></div>`;
+  if (!d) return head + '<div class="skeleton" style="margin-inline:0"></div><div class="skeleton" style="margin-inline:0;width:70%"></div>';
+  const criteria = sec(stop ? "" : c.column === "Spec Review" ? "What will be true when it is done" : "Acceptance criteria", s?.criteria.length ? `<ol class="iacs">${s.criteria.map((x) => `<li><b>${esc(x.id)}</b><span>${esc(x.text)}</span></li>`).join("")}</ol>` : "");
+  if (stop) return head + (b ? sec("Where it stopped", b.steps.length && b.step ? `<ol class="iwhere">${b.steps.map((x, i) => `<li class="${x.k < b.step ? "ok" : x.k === b.step ? "fail" : ""}"><b>${x.k === b.step ? "STOPPED HERE" : i + 1}</b>${esc(x.label)}</li>`).join("")}</ol>` : "")
+    + sec("Why", b.why ? mdLite(b.why) : "", "plain") + sec("What changed in the acceptance tests since QA wrote them", b.diff ? `<div class="idiff">${diffHtml(b.diff)}</div>` : "")
+    + sec("What the factory already tried", b.tried ? mdLite(b.tried) : "") : "") + (b?.why ? "" : '<p class="empty">The factory left no note about this block. The log has what the run did.</p>');
+  const ask = s?.questions.length ? `<div class="iask"><span class="cap">The spec asks you</span>${s.questions.map((q) => `<p>${esc(q)}</p>`).join("")}</div>` : "";
+  if (c.column === "Spec Review") return head + (s ? ask + sec("Problem", esc(s.problem), "plain") + criteria : '<p class="empty">This card has no review page yet.</p>');
+  return head + sec("What the validation said", d.report?.notes ? mdLite(d.report.notes) : "") + criteria + (pr || d.report || s ? "" : '<p class="empty">No validation report for this card yet.</p>');
+}
+async function loadDecide(key) {
+  if (INB.loading === key) return; INB.loading = key; const [p, n] = key.split("/");
+  const { status, body } = await api(`/api/decide/${encodeURIComponent(p)}/${n}`); INB.loading = null;
+  INB.data[key] = status === 200 ? { ...body, at: Date.now() } : { at: Date.now() };
+  if (inboxOn()) renderInbox();
+}
+function renderInbox() {
+  const w = inboxCards();
+  if (!w.some((c) => c.key === INB.cur)) { INB.cur = w[0]?.key || null; INB.pick = null; }
+  const c = w.find((x) => x.key === INB.cur), d = c && INB.data[c.key];
+  setHTML($("iq"), w.map((x) => { const stop = x.blocked === "owner";
+    return `<button class="${stop ? "stop" : ""}" data-iq="${esc(x.key)}" aria-current="${x.key === INB.cur}"><span class="row"><span class="g pnum">#${x.issue}</span><span class="cap${stop ? " bad" : ""}">${stop ? "Blocked" : esc(x.column)}${x.since ? ` · ${dur(x.since, new Date())}` : ""}</span></span><p>${x.title ? esc(x.title) : UNTITLED}</p><p class="ask">${asks(x)}</p></button>`; }).join(""));
+  $("itoast").hidden = !INB.hold; if (INB.hold) $("imsg").textContent = `#${INB.hold.key.split("/")[1]} ${INB.hold.o.done} in a few seconds.`;
+  $("ierr").textContent = INB.err;
+  if (!c) { setHTML($("ir"), '<p class="empty">Nothing waits for you. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.</p>'); setHTML($("io"), ""); $("ic").hidden = true; return; }
+  if (!d || Date.now() - d.at > 60000) loadDecide(c.key);
+  setHTML($("ir"), readHtml(c, d));
+  const opts = optionsFor(c, d), o = opts[INB.pick];
+  setHTML($("io"), opts.map((x, i) => `<button class="iopt" data-io="${i}" aria-pressed="${INB.pick === i}"><span class="t">${x.t}<kbd>${i + 1}</kbd></span><p class="when">${x.when}</p><p class="then">${esc(x.then)}${x.caveat ? ` <span class="caveat">${esc(x.caveat)}</span>` : ""}</p></button>`).join(""));
+  $("ic").hidden = !o; if (!o) return;
+  $("inote").hidden = !o.note; $("inote").placeholder = o.note || ""; $("igo").textContent = o.verb;
+  const need = o.need && !$("inote").value.trim();
+  $("igo").disabled = need; $("ihint").textContent = need ? "Write the note first: it goes with the decision." : "You can undo for a few seconds after confirming.";
+}
+// A decision waits five seconds, so a wrong click can be undone; the next card opens meanwhile.
+function inboxConfirm() {
+  const c = inboxCards().find((x) => x.key === INB.cur), o = c && optionsFor(c, INB.data[c.key])[INB.pick]; if (!o) return;
+  const text = $("inote").value.trim(); if (o.need && !text) return $("inote").focus();
+  if (INB.hold) inboxFlush();
+  INB.hold = { key: c.key, o, text, column: c.column, timer: setTimeout(inboxFlush, 5000) };
+  INB.gone[c.key] = Date.now(); INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox();
+}
+async function inboxFlush() {
+  const h = INB.hold; if (!h) return; clearTimeout(h.timer); INB.hold = null; const [p, n] = h.key.split("/");
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${h.o.id}`, { method: "POST", body: JSON.stringify({ column: h.column, text: h.text, move_only: false }) });
+  if (status === 200) { if (body.moved_to) S.moving[h.key] = body.moved_to; delete INB.data[h.key]; loadOverview(); }
+  else { delete INB.gone[h.key]; INB.cur = h.key; INB.err = `#${n}: ${body.error || "the decision did not go through"}`; }
+  if (inboxOn()) renderInbox();
+}
+function inboxUndo() { const h = INB.hold; if (!h) return; clearTimeout(h.timer); INB.hold = null; delete INB.gone[h.key]; INB.cur = h.key; renderInbox(); }
 // One pass per card that waits: Spec Review leads to the review, Staged approves with a moment to undo.
 function passHtml(c, many) {
   const k = esc(c.key), [slug] = c.key.split("/"), pend = S.pending[c.key], stop = c.blocked === "owner", moves = OWNER[c.column];
@@ -1054,9 +1189,13 @@ function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog
 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
-  const t = e.target.closest("[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
-  if (t.hasAttribute("data-max")) maximize(t.parentElement, !t.parentElement.classList.contains("maxed"));
+  if (t.dataset.iq) { INB.cur = t.dataset.iq; INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox(); }
+  else if (t.dataset.io) { INB.pick = +t.dataset.io; renderInbox(); if (!$("inote").hidden) $("inote").focus(); }
+  else if (t.id === "igo") inboxConfirm();
+  else if (t.id === "iundo") inboxUndo();
+  else if (t.hasAttribute("data-max")) maximize(t.parentElement, !t.parentElement.classList.contains("maxed"));
   else if (t.hasAttribute("data-dmax")) grow($("drawer"), () => { S.full = !S.full; renderDrawer(); });
   else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, t.dataset.go); if (t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; } }, t.closest(".tile"));  // a card in progress opens maximized, 90% of the screen: the side drawer would cover its own tile
   else if (t.dataset.ev) toggleEv(t.dataset.ev);
@@ -1076,7 +1215,7 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("submit", (e) => { if (e.target.id === "compose") { e.preventDefault(); say(); } });
 document.addEventListener("keydown", (e) => { if (e.target.id === "say" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); say(); } });
-document.addEventListener("input", (e) => { if (e.target.id === "changes") syncDecide(); });
+document.addEventListener("input", (e) => { if (e.target.id === "changes") syncDecide(); if (e.target.id === "inote") renderInbox(); });
 document.addEventListener("change", (e) => {
   if (e.target.id === "logsel") { S.log = e.target.value; S.logNext = -1; S.logText = ""; renderDrawer(); followLog(); }
   if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
@@ -1084,6 +1223,7 @@ document.addEventListener("change", (e) => {
 document.addEventListener("keydown", (e) => {
   const typing = e.target.closest?.("textarea, input, select");
   if (e.key === "Escape" && S.peek && !S.open) { peek(S.peek); return; }
+  if (!typing && inboxOn() && /^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); document.querySelector(`[data-io="${+e.key - 1}"]`)?.click(); return; }
   if (e.key === "Escape" && !typing && maxed()) { maximize(maxed(), false); return; }
   if (e.key === "Escape" && S.open && !typing) { closeCard(); return; }
   const tab = e.target.closest?.('[role="tab"]');

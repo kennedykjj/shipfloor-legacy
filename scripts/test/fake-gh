@@ -17,7 +17,7 @@ if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
       printf ']}]}\n'; exit 0 ;;
     "issue list"*) echo '[{"number":7,"title":"Seven"}]'; exit 0 ;;
     "api repos/acme/shop/issues?labels="*) echo '[{"number":7}]'; exit 0 ;;
-    "api repos/acme/shop/issues/"*"/comments"*) echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
+    "api repos/acme/shop/issues/"*"/comments"*) [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
   esac
 fi
 case "$args" in
