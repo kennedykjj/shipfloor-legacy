@@ -8,38 +8,38 @@ web
 
 ## Stack
 
-Bash and Python 3 (stdlib + PyYAML) scripts installed in `~/.aghanim/factory`. The local dashboard is one self-contained HTML file served by `scripts/dashboard.py`: no framework, no CDN, no build.
+Bash and Python 3 (stdlib + PyYAML) scripts installed in `~/.shipfloor/factory`. The local dashboard is one self-contained HTML file served by `scripts/dashboard.py`: no framework, no CDN, no build.
 
 ## Users
 
-The factory's owner, a developer who runs Aghanim's Anvil on their own machine, and other developers who install the plugin. The dashboard is used in quick checks: open it, approve what is waiting, glance at cost and runs, close it.
+The factory's owner, a developer who runs Shipfloor on their own machine, and other developers who install the plugin. The dashboard is used in quick checks: open it, approve what is waiting, glance at cost and runs, close it.
 
 ## Product Purpose
 
-Aghanim's Anvil is a software factory for Claude Code: GitHub issues become shipped PRs through agents (refine, develop, validate, deploy) held by deterministic gates. The dashboard is its local control room: pool and slots, live runs, each run's log, the estimated cost of each card from Inbox to Done, and the review pages where the owner approves or sends back Spec Review and Staged cards.
+Shipfloor is a software factory for Claude Code: GitHub issues become shipped PRs through agents (refine, develop, validate, deploy) held by deterministic gates. The dashboard is its local control room: pool and slots, live runs, each run's log, the estimated cost of each card from Inbox to Done, and the review pages where the owner approves or sends back Spec Review and Staged cards.
 
 ## Positioning
 
-The gates are scripts, not the agents' word; the agents strike and the gates hold. Cost is measured from the Claude Code transcripts of every run, not from what an agent reports.
+The gates are scripts, not the agents' word; the agents build and the gates hold. Cost is measured from the Claude Code transcripts of every run, not from what an agent reports.
 
 ## Operating Context
 
-The GitHub Project board is the source of truth for card columns; the dashboard reads the dispatcher's snapshot and moves only the owner's cards. Runs, logs, locks and reports live under `~/.aghanim`. The owner works in a terminal and a browser on Windows, macOS or Linux.
+The GitHub Project board is the source of truth for card columns; the dashboard reads the dispatcher's snapshot and moves only the owner's cards. Runs, logs, locks and reports live under `~/.shipfloor`. The owner works in a terminal and a browser on Windows, macOS or Linux.
 
 ## Capabilities and Constraints
 
 - Columns, in order: Inbox, Ready for Refinement, Technical Refinement, Spec Review, Ready for Dev, Coding, Validation, Staged, Ready for Prod, Done. Stages: refine, develop, validate, deploy.
 - Owner-only actions: approve and request changes on Spec Review and Staged cards.
-- Cost is an estimate from a price table (`~/.aghanim/prices.yml`), always labeled as such.
+- Cost is an estimate from a price table (`~/.shipfloor/prices.yml`), always labeled as such.
 - Local only (127.0.0.1); no remote or phone access.
 
 ## Brand Commitments
 
-Name: Aghanim's Anvil (CLI and plugin: `aghanim`). Brand line: "Aghanim's Anvil — a software factory for Claude Code". The name comes from an invented Dota-style item; the anvil stands for the deterministic gates.
+Name: Shipfloor (CLI: `shipfloor`; plugin and slash commands: `sf`). Brand line: "Shipfloor — a software factory for Claude Code". The name is "shop floor" with ship: the floor of the factory that software ships from.
 
 ## Evidence on Hand
 
-Real data from the owner's factory under `~/.aghanim` (registry, board snapshot, logs, reports) and the run transcripts. No testimonials, customers or benchmarks exist; none may be invented.
+Real data from the owner's factory under `~/.shipfloor` (registry, board snapshot, logs, reports) and the run transcripts. No testimonials, customers or benchmarks exist; none may be invented.
 
 ## Product Principles
 

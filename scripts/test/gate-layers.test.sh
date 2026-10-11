@@ -40,7 +40,7 @@ assert_exit 2 bash "$GATE" scope nope "$base"
 
 r="$(new_repo)"; cd "$r"; layout; base="$(git rev-parse HEAD)"; mkdir -p services/a/pkg; echo x > services/a/pkg/x_test.go
 assert_exit 0 bash "$GATE" scope qa "$base"
-mkdir -p .aghanim; echo x > .aghanim/factory.yml
+mkdir -p .shipfloor; echo x > .shipfloor/factory.yml
 assert_exit 1 bash "$GATE" scope qa "$base"
 
 # build runs only the changed layers, from the layer's directory
@@ -72,5 +72,5 @@ assert_exit 1 bash "$GATE" migration "$base" spec.md
 
 # no project → never a pass
 r="$(new_repo)"; cd "$r"; base="$(git rev-parse HEAD)"
-assert_exit 2 env -u FACTORY_CONFIG AGHANIM_HOME="$(mktemp -d)" bash "$GATE" scope qa "$base"
+assert_exit 2 env -u FACTORY_CONFIG SHIPFLOOR_HOME="$(mktemp -d)" bash "$GATE" scope qa "$base"
 finish

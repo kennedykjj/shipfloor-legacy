@@ -4,10 +4,10 @@
 source "$(dirname "$0")/lib.sh"
 D="$FACTORY_DIR/dispatch.sh"
 setup() {
-  export AGHANIM_HOME="$(mktemp -d)"
-  export FACTORY_HOME="$AGHANIM_HOME/projects/shop" FACTORY_CONTROL_REFRESH=0 FACTORY_WT_ROOT="$(mktemp -d)" FACTORY_PROJECT=shop
+  export SHIPFLOOR_HOME="$(mktemp -d)"
+  export FACTORY_HOME="$SHIPFLOOR_HOME/projects/shop" FACTORY_CONTROL_REFRESH=0 FACTORY_WT_ROOT="$(mktemp -d)" FACTORY_PROJECT=shop
   export FACTORY_CONFIG="$FACTORY_DIR/test/fixture/factory.yml" Q_REF= Q_DEV= Q_VAL= Q_PROD= O_COD=
-  unset AGHANIM_MAX_PARALLEL
+  unset SHIPFLOOR_MAX_PARALLEL
   tmp="$(mktemp -d)"; mkdir -p "$FACTORY_HOME/control"
   cat > "$tmp/board" <<'EOB'
 #!/usr/bin/env bash
@@ -30,11 +30,11 @@ echo "refresh $*" >> "%s/refreshed"
   : > "$tmp/launched"; : > "$tmp/refreshed"; Q_STG=
 }
 launched() { sort "$tmp/launched" | tr '\n' ' '; }
-live_lock() { mkdir -p "$AGHANIM_HOME/projects/$1/locks/$2.lock"; echo "$$ $(date +%s) 1" > "$AGHANIM_HOME/projects/$1/locks/$2.lock/info"; }
-machine() { printf '%s\n' "$1" > "$AGHANIM_HOME/config.yml"; }
+live_lock() { mkdir -p "$SHIPFLOOR_HOME/projects/$1/locks/$2.lock"; echo "$$ $(date +%s) 1" > "$SHIPFLOOR_HOME/projects/$1/locks/$2.lock/info"; }
+machine() { printf '%s\n' "$1" > "$SHIPFLOOR_HOME/config.yml"; }
 
 # validate takes its cards from Validation
-setup; Q_VAL="36" run_dispatch; assert_contains "$(launched)" "/aghanim:validate 36"
+setup; Q_VAL="36" run_dispatch; assert_contains "$(launched)" "/sf:validate 36"
 # a card in Validation is not a develop orphan any more
 case "$(launched)" in *"develop 36"*) fail "develop resumed a Validation card" ;; *) pass "Validation is validate's queue" ;; esac
 
@@ -42,12 +42,12 @@ case "$(launched)" in *"develop 36"*) fail "develop resumed a Validation card" ;
 setup; machine $'pool: 6\nstages: {develop: 1}'; live_lock other develop-9
 Q_DEV="26" Q_REF="25" run_dispatch; out="$(launched)"
 case "$out" in *develop*) fail "develop past its stage slots: $out" ;; *) pass "stage slots shared across projects" ;; esac
-assert_contains "$out" "/aghanim:refine 25"
+assert_contains "$out" "/sf:refine 25"
 
 # the pool caps every stage together
 setup; machine $'pool: 2\nstages: {refine: 2, develop: 2, validate: 2, deploy: 1}'; live_lock other refine-3
 Q_REF="25" Q_DEV="26" Q_VAL="27" run_dispatch; out="$(launched)"
-[ "$(printf '%s' "$out" | grep -o '/aghanim:' | wc -l)" -eq 1 ] && pass "pool of 2 with one live run → one launch" || fail "pool exceeded: $out"
+[ "$(printf '%s' "$out" | grep -o '/sf:' | wc -l)" -eq 1 ] && pass "pool of 2 with one live run → one launch" || fail "pool exceeded: $out"
 
 # a stage with 0 slots never runs
 setup; machine $'pool: 4\nstages: {deploy: 0}'; Q_PROD="47" run_dispatch
@@ -56,7 +56,7 @@ setup; machine $'pool: 4\nstages: {deploy: 0}'; Q_PROD="47" run_dispatch
 # a project sets no cap of its own: the stage's machine slots decide
 setup; machine $'pool: 6
 stages: {develop: 3}'; Q_DEV="26 27 28" run_dispatch; out="$(launched)"
-[ "$(printf '%s' "$out" | grep -o '/aghanim:develop' | wc -l)" -eq 3 ] && pass "no project cap by default" || fail "project default capped the stage: $out"
+[ "$(printf '%s' "$out" | grep -o '/sf:develop' | wc -l)" -eq 3 ] && pass "no project cap by default" || fail "project default capped the stage: $out"
 # deploy keeps one at a time by default (merges into main are serial), whatever the machine allows
 setup; machine $'pool: 6
 stages: {deploy: 3}'; Q_PROD="47 48" run_dispatch; out="$(cat "$tmp/refreshed")"  # the deploy is a script: the fake logs each call

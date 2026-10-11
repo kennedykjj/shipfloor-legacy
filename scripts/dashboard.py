@@ -1,4 +1,4 @@
-"""Local dashboard: one page and a JSON API over ~/.aghanim and the Claude Code transcripts of the
+"""Local dashboard: one page and a JSON API over ~/.shipfloor and the Claude Code transcripts of the
 factory's runs. Read-only, except the owner's decisions on a card that waits, messages to a running card and this machine's
 settings (the pool and the pauses)."""
 import argparse, json, os, re, secrets, statistics, subprocess, sys, threading, time, webbrowser
@@ -11,12 +11,12 @@ from urllib.parse import parse_qs, unquote, urlparse
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
-import aghanim_config  # exits with a clear message when PyYAML is missing
-import aghanim_health
+import shipfloor_config  # exits with a clear message when PyYAML is missing
+import shipfloor_health
 from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, rounded
 import yaml
 
-# The steps a run announces with `aghanim-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
+# The steps a run announces with `shipfloor-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
 STEPS = {"refine": {1: "Pick the card", 2: "Worktree", 3: "Product Owner", 4: "UX/UI and architecture", 5: "Cybersec", 6: "Publish for review", 8: "Report"},
          "develop": {1: "Pick the card", 2: "Plan", 3: "Acceptance tests", 4: "Implementation", 5: "Last gates", 6: "Hand over to validation", 8: "Report"},
          "validate": {1: "Pick the card", 2: "Gates", 3: "Review", 4: "Pull request", 6: "Report"}}
@@ -24,8 +24,8 @@ STACKS_TTL_S = 15
 PIPELINES = set(LEGACY_STAGES.values())
 # What the owner may set per project on this machine (overrides.yml), and what each is when nobody set it:
 # the project config's defaults for the limits, deploy.sh's own for the deploy.
-KNOBS = {"limits.refine.wip": aghanim_config.DEFAULTS["limits"]["refine"]["wip"],
-         "limits.develop.wip": aghanim_config.DEFAULTS["limits"]["develop"]["wip"],
+KNOBS = {"limits.refine.wip": shipfloor_config.DEFAULTS["limits"]["refine"]["wip"],
+         "limits.develop.wip": shipfloor_config.DEFAULTS["limits"]["develop"]["wip"],
          "deploy.timeout_min": 30, "deploy.conflict_max_files": 5}
 #  how the skills open a block note: "Factory validate, step 2 (gates): blocked." or "Validate, step 2 (gates): ..."
 BLOCK_LINE = re.compile(r"(?:Factory )?\b(refine|develop|validate|deploy),? step (\d+)(?:\s*\([^)\n]*\))?:?\s*(?:blocked\.?\s*)?", re.I)
@@ -36,7 +36,7 @@ mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --form
 """
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
-RUN_LINE = re.compile(r"^== (start|end) /(?:aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy mylos
+RUN_LINE = re.compile(r"^== (start|end) /(?:sf|aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy aghanim, legacy mylos
 # The review page inside the dashboard's drawer: the drawer already carries the title and the one
 # action, so the embedded page drops its header, takes the dashboard's palette and type, and posts
 # its review marks to the drawer.
@@ -60,7 +60,13 @@ addEventListener("load",function(){
   var chg=[].map.call(document.querySelectorAll(".item.chg"),function(it){
    var s=it.closest("section"),h=s&&s.querySelector("h2"),p=it.querySelector("p"),t=it.querySelector("textarea");
    return "- ["+(h?h.textContent:"")+"] "+(p?p.textContent:"")+"\\n  -> "+((t&&t.value.trim())||"(no note)")});
-  parent.postMessage({aghanim:"review-progress",done:m?+m[1]:0,total:m?+m[2]:0,changes:chg},"*")}
+  parent.postMessage({shipfloor:"review-progress",done:m?+m[1]:0,total:m?+m[2]:0,changes:chg},"*")}
+ /* the dashboard's theme: it answers "ready" with its colors, and sends them again when the owner changes theme */
+ addEventListener("message",function(e){
+  var m=e.data,r=document.documentElement;if(e.source!==parent||!m||m.shipfloor!=="theme")return;
+  for(var k in m.vars)if(/^[a-z-]+$/.test(k))r.style.setProperty("--"+k,m.vars[k]);
+  r.style.colorScheme=m.light?"light":"dark"});
+ parent.postMessage({shipfloor:"ready"},"*");
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
@@ -77,7 +83,7 @@ def read_yaml(path):
 
 
 def bash():
-    return os.environ.get("AGHANIM_BASH", "bash")
+    return os.environ.get("SHIPFLOOR_BASH", "bash")
 
 
 def gh(*args, input=None):  # through bash, so FACTORY_GH can be a script on Windows too
@@ -210,7 +216,7 @@ class Factory:
         def read():
             try:
                 env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)),
-                           AGHANIM_HOME=str(self.home))
+                           SHIPFLOOR_HOME=str(self.home))
                 env.pop("FACTORY_BOARD_SNAPSHOT", None)
                 r = subprocess.run([bash(), (HERE / "board.sh").as_posix(), "snapshot"], env=env, cwd=str(self.pdir(p)),
                                    capture_output=True, text=True, encoding="utf-8", timeout=30)
@@ -235,7 +241,7 @@ class Factory:
     def titles(self, p):
         at, known = self._titles.get(p, (0, {}))
         if time.time() - at > 300:
-            repo = aghanim_config.dotted(self.config(p), "project.repo")
+            repo = shipfloor_config.dotted(self.config(p), "project.repo")
             issues, _ = gh_json("issue", "list", "--repo", str(repo), "--state", "all", "--limit", "300", "--json", "number,title")
             if isinstance(issues, list):
                 known = {i["number"]: i.get("title", "") for i in issues if isinstance(i, dict) and "number" in i}
@@ -246,7 +252,7 @@ class Factory:
         """{n: "owner" | "infra"} from the block labels, read at most once a minute."""
         at, known = self._blocked.get(p, (0, {}))
         if time.time() - at > 60:
-            repo, known = aghanim_config.dotted(self.config(p), "project.repo"), {}
+            repo, known = shipfloor_config.dotted(self.config(p), "project.repo"), {}
             for label, kind in (("blocked:infra", "infra"), ("blocked", "owner")):
                 issues, _ = gh_json("api", f"repos/{repo}/issues?labels={label}&state=open&per_page=100")
                 known.update({i["number"]: kind for i in issues or [] if isinstance(i, dict) and "number" in i})
@@ -265,7 +271,7 @@ class Factory:
             return [], 0
         p = projects[0]
         env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)),
-                   AGHANIM_HOME=str(self.home))
+                   SHIPFLOOR_HOME=str(self.home))
         r = subprocess.run([bash(), (HERE / "gate.sh").as_posix(), "stack", "status"], env=env, cwd=str(self.pdir(p)),
                            capture_output=True, text=True, encoding="utf-8")
         slots, queue = [], 0
@@ -280,7 +286,7 @@ class Factory:
         return slots, queue
 
     def skipped(self, p):
-        """Why the dispatcher skips this project and since when (aghanim-dispatch.sh writes it), or None."""
+        """Why the dispatcher skips this project and since when (shipfloor-dispatch.sh writes it), or None."""
         try:
             since, _, why = (self.pdir(p) / "SKIPPED").read_text(encoding="utf-8").strip().partition("	")
         except OSError:
@@ -293,7 +299,7 @@ class Factory:
         its report. Read at most once a minute per card."""
         at, reason = self._reasons.get((p, n), (0, ""))
         if time.time() - at > 60:
-            repo = aghanim_config.dotted(self.config(p), "project.repo")
+            repo = shipfloor_config.dotted(self.config(p), "project.repo")
             pages, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100", "--paginate", "--slurp")
             bodies = [c.get("body") or "" for page in pages or [] for c in (page if isinstance(page, list) else [page])
                       if isinstance(c, dict)]  # GitHub lists an issue's comments oldest first
@@ -351,7 +357,7 @@ class Factory:
         """The card's pull request as GitHub has it now: its size and whether its checks passed."""
         at, pr = self._prs.get((p, number), (0, None))
         if time.time() - at > 60:
-            repo = aghanim_config.dotted(self.config(p), "project.repo")
+            repo = shipfloor_config.dotted(self.config(p), "project.repo")
             d, _ = gh_json("pr", "view", str(number), "--repo", str(repo), "--json", "number,url,additions,deletions,changedFiles,statusCheckRollup")
             if isinstance(d, dict):
                 checks = [(c.get("conclusion") or c.get("state") or c.get("status") or "").upper() for c in d.get("statusCheckRollup") or []]
@@ -372,7 +378,7 @@ class Factory:
                 "report": next((r for r in reversed(reports) if r["pipeline"] == "validate"), None)}
 
     def unblock(self, p, n):
-        repo = aghanim_config.dotted(self.config(p), "project.repo")
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
         errors = []
         for label in ("blocked", "blocked:infra"):
             r = gh("api", "-X", "DELETE", f"repos/{repo}/issues/{n}/labels/{label}")
@@ -410,20 +416,20 @@ class Factory:
         columns, _ = self.board(p)
         reports = self.reports(p, n)
         return {"project": p, "issue": n, "title": self.titles(p).get(n, ""), "column": columns.get(n),
-                "repo": aghanim_config.dotted(self.config(p), "project.repo"),
+                "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
                 "total": None if None in costs else round(sum(costs), 2), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                 "blocked": self.blocked(p).get(n),
                 "block_reason": self.block_reason(p, n) if self.blocked(p).get(n) else ""}
 
     def pool(self):
-        m = aghanim_config.merged(read_yaml(self.home / "config.yml"), aghanim_config.MACHINE_DEFAULTS)
+        m = shipfloor_config.merged(read_yaml(self.home / "config.yml"), shipfloor_config.MACHINE_DEFAULTS)
         return m["pool"], m["stages"]
 
     def settings(self):
         """What the Settings view shows: this machine's limits (config.yml), the pauses, the dispatcher's last
         cycle, and each project's factory.yml as the dispatcher last read it from the project's repository."""
-        m = aghanim_config.merged(read_yaml(self.home / "config.yml"), aghanim_config.MACHINE_DEFAULTS)
+        m = shipfloor_config.merged(read_yaml(self.home / "config.yml"), shipfloor_config.MACHINE_DEFAULTS)
         cycle = None
         try:  # the health history has one line per dispatcher cycle
             with open(sorted((self.home / "logs").glob("health-*.jsonl"))[-1], encoding="utf-8") as f:
@@ -435,10 +441,10 @@ class Factory:
         projects = []
         for p in self.projects():
             repo, row = self.config(p), registry.get(p, [])
-            cfg, _ = aghanim_config.with_overrides(repo, aghanim_config.overrides_of(str(self.pdir(p) / "factory.yml")))
-            knob = lambda c, k: next((v for v in [aghanim_config.dotted(c, k)] if v is not None), KNOBS[k])
+            cfg, _ = shipfloor_config.with_overrides(repo, shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml")))
+            knob = lambda c, k: next((v for v in [shipfloor_config.dotted(c, k)] if v is not None), KNOBS[k])
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "main": row[3] if len(row) > 3 else "main",
-                             "repo": aghanim_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
+                             "repo": shipfloor_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
                              "knobs": {k: {"value": knob(cfg, k), "repo": knob(repo, k)} for k in KNOBS}, "context": cfg.get("context") or [],
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
@@ -463,11 +469,11 @@ class Factory:
                 new[k] = changes[k]
         if isinstance(changes.get("stages"), dict):
             new["stages"] = dict(new["stages"] if isinstance(new.get("stages"), dict) else {}, **changes["stages"])
-        errs = aghanim_config.machine_problems(new)
+        errs = shipfloor_config.machine_problems(new)
         if errs:
             return 400, {"error": "; ".join(errs)}
         with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write("# aghanim machine config: runs at once on this machine (pool) and per stage\n")
+            f.write("# shipfloor machine config: runs at once on this machine (pool) and per stage\n")
             yaml.safe_dump(new, f, sort_keys=False)
         return 200, self.settings()
 
@@ -491,8 +497,8 @@ class Factory:
                 at[leaf] = v
         prune = lambda d: {k: w for k, w in ((k, prune(w) if isinstance(w, dict) else w) for k, w in d.items()) if w != {}}
         over = prune(over)
-        new, errs = aghanim_config.with_overrides(repo, over)
-        errs += [e for e in aghanim_config.problems(new) if e not in aghanim_config.problems(repo)] if over else []
+        new, errs = shipfloor_config.with_overrides(repo, over)
+        errs += [e for e in shipfloor_config.problems(new) if e not in shipfloor_config.problems(repo)] if over else []
         if errs:
             return 400, {"error": "; ".join(errs)}
         if over:
@@ -504,7 +510,7 @@ class Factory:
         return 200, self.settings()
 
     def set_pause(self, project, paused):
-        """Pause or resume the whole factory (no project) or one project: the PAUSE file `aghanim pause` writes."""
+        """Pause or resume the whole factory (no project) or one project: the PAUSE file `shipfloor pause` writes."""
         if project is not None and project not in self.projects():
             return 404, {"error": f"no project {project}"}
         f = (self.pdir(project) if project else self.home) / "PAUSE"
@@ -633,7 +639,7 @@ class Factory:
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(),
-                "alerts": aghanim_health.alerts(self.home),
+                "alerts": shipfloor_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
                           "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)}}
@@ -648,11 +654,11 @@ class Factory:
         return next((c for c in (l.split("\t") for l in snap.stdout.splitlines()) if c[0] == str(n)), None), None
 
     def accept(self, p, n, text):
-        """The owner takes the card's acceptance test edits as they stand (aghanim accept), and the block comes off."""
+        """The owner takes the card's acceptance test edits as they stand (shipfloor accept), and the block comes off."""
         if not text.strip():
             return 400, {"error": "write why the edits are right: it is recorded with the acceptance"}
-        r = subprocess.run([bash(), (HERE / "aghanim").as_posix(), "accept", p, str(n), text.strip()],
-                           env=dict(os.environ, AGHANIM_HOME=str(self.home)), capture_output=True, text=True, encoding="utf-8")
+        r = subprocess.run([bash(), (HERE / "shipfloor").as_posix(), "accept", p, str(n), text.strip()],
+                           env=dict(os.environ, SHIPFLOOR_HOME=str(self.home)), capture_output=True, text=True, encoding="utf-8")
         if r.returncode != 0:
             return 502, {"error": "nothing accepted, the card is still blocked: " + (r.stderr.strip() or r.stdout.strip())}
         self._diffs.pop((p, n), None)
@@ -667,7 +673,7 @@ class Factory:
         if not self.blocked(p).get(n):
             return 409, {"error": f"#{n} is not blocked now"}
         cfg = self.config(p)
-        owner, num, repo = (aghanim_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
+        owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
         row, err = self.board_row(p, n)
         if err or not row:
             return (502, {"error": err}) if err else (409, {"error": f"#{n} is not on the board"})
@@ -684,7 +690,7 @@ class Factory:
         """The owner's approve / request-changes. Moves with gh directly: board.sh move refuses
         owner-only columns on purpose (the agents' guardrail), and an owner path there would be open to agents."""
         cfg = self.config(p)
-        owner, num, repo = (aghanim_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
+        owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
         row, err = self.board_row(p, n)
         if err:
             return 502, {"error": err}
@@ -738,7 +744,7 @@ class Factory:
             return {"text": fh.read(size - start).decode("utf-8", "replace"), "next": size}
 
     def lang(self):
-        """The machine's language (~/.aghanim/config.yml) and its catalog for the page, lang/dashboard.<code>.json:
+        """The machine's language (~/.shipfloor/config.yml) and its catalog for the page, lang/dashboard.<code>.json:
         'exact' replaces a whole piece of text, 'rx' rewrites a phrase inside one. English has none."""
         code = str(read_yaml(self.home / "config.yml").get("language", "en"))
         f = HERE / "lang" / f"dashboard.{code}.json"
@@ -804,7 +810,7 @@ class Handler(BaseHTTPRequestHandler):
         """The API wants the token in a header, which a page cannot send cross-origin without a preflight
         this server never answers; only the review iframe's GET may carry it in the URL."""
         host = (self.headers.get("Host") or "").rsplit(":", 1)[0]
-        given = self.headers.get("X-Aghanim-Token") or (query or {}).get("t", [""])[0]
+        given = self.headers.get("X-Shipfloor-Token") or (query or {}).get("t", [""])[0]
         return host in ("127.0.0.1", "localhost") and secrets.compare_digest(given.encode(), self.token.encode())
 
     def do_GET(self):
@@ -892,7 +898,7 @@ class Server(ThreadingHTTPServer):
 
 
 def main():
-    a = argparse.ArgumentParser(prog="aghanim dashboard")
+    a = argparse.ArgumentParser(prog="shipfloor dashboard")
     a.add_argument("--home", required=True)
     a.add_argument("--port", type=int, default=7717)
     a.add_argument("--no-open", action="store_true")
@@ -907,9 +913,9 @@ def main():
         except OSError:
             continue
     if not server:
-        sys.exit(f"aghanim dashboard: ports {args.port}-{args.port + 9} are taken")
+        sys.exit(f"shipfloor dashboard: ports {args.port}-{args.port + 9} are taken")
     url = f"http://127.0.0.1:{server.server_address[1]}/?t={Handler.token}"
-    print(f"aghanim dashboard: {url}  (Ctrl+C stops it)", flush=True)
+    print(f"shipfloor dashboard: {url}  (Ctrl+C stops it)", flush=True)
     if not args.no_open:
         webbrowser.open(url)
     try:

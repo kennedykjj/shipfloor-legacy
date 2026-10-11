@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# aghanim-config.sh reads, validates and answers queries about .aghanim/factory.yml.
+# shipfloor-config.sh reads, validates and answers queries about .shipfloor/factory.yml.
 source "$(dirname "$0")/lib.sh"
-CFG="$FACTORY_DIR/aghanim-config.sh"
+CFG="$FACTORY_DIR/shipfloor-config.sh"
 c() { bash "$CFG" "$@"; }
 matches() {  # matches <regex> <path>: passes when the ERE matches the path
   if printf '%s\n' "$2" | grep -Eq -- "$1"; then pass "'$2' matches"; else fail "'$2' should match $1"; fi
@@ -39,7 +39,7 @@ assert_exit 2 c regex scope e2e   # tests-only layers have no implementer
 assert_exit 2 c regex scope nope
 tc="$(c regex test-config)"; matches "$tc" web/vitest.config.ts; misses "$tc" web/vitest.config/x/y.ts
 fb="$(c regex forbidden)"
-for f in .aghanim/factory.yml .github/w.yml .claude/x.md CLAUDE.md api/.env web/.env.local docs/engineering/x.md; do matches "$fb" "$f"; done
+for f in .shipfloor/factory.yml .github/w.yml .claude/x.md CLAUDE.md api/.env web/.env.local docs/engineering/x.md; do matches "$fb" "$f"; done
 misses "$fb" api/env.kt; misses "$fb" docs/CLAUDE.md.bak
 matches "$(c regex migrations api)" api/src/main/resources/db/migration/V2__add.sql
 misses "$(c regex migrations api)" api/src/main/resources/db/migration/sub/V2__add.sql

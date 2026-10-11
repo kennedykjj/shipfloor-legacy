@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
 # Starts factory pipelines for one project's cards waiting in the owner's queues. Run every
-# 3 min by aghanim-dispatch.sh, once per registered project. Pipelines run from the project's
+# 3 min by shipfloor-dispatch.sh, once per registered project. Pipelines run from the project's
 # control checkout of origin/main, never from a worktree an agent can edit.
 set -uo pipefail
 HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
 source "$HERE/lib/stack.sh"
-aghanim_resolve . || exit 2
-aghanim_validate || { echo "dispatch: invalid config $FACTORY_CONFIG" | aghanim_say "${MLANG:-en}" >&2; exit 2; }
+shipfloor_resolve . || exit 2
+shipfloor_validate || { echo "dispatch: invalid config $FACTORY_CONFIG" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
 HOME_DIR="${FACTORY_HOME:?FACTORY_HOME unset}"
 REPO="${FACTORY_REPO:-}"
 CONTROL="$HOME_DIR/control"
 WT_ROOT="${FACTORY_WT_ROOT:-$HOME_DIR/wt}"
 CLAUDE="${FACTORY_CLAUDE:-claude}"
-PLUGIN="$(cat "$HERE/.source" 2>/dev/null || (cd "$HERE/.." && pwd))"  # the plugin checkout, as in scripts/aghanim
+PLUGIN="$(cat "$HERE/.source" 2>/dev/null || (cd "$HERE/.." && pwd))"  # the plugin checkout, as in scripts/shipfloor
 BOARD="${FACTORY_BOARD:-$HERE/board.sh}"
 TTL="${FACTORY_LOCK_TTL:-10800}"
-export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" AGHANIM_HOME
+export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" SHIPFLOOR_HOME
 mkdir -p "$HOME_DIR/locks" "$HOME_DIR/logs" "$HOME_DIR/tmp" "$HOME_DIR/reviews" "$WT_ROOT"
 [ -e "$HOME_DIR/PAUSE" ] && exit 0
-mapfile -d '' -t LIM < <(aghanim_cfg values limits.refine.wip limits.develop.wip)
-[ "${#LIM[@]}" -eq 2 ] || { echo "dispatch: cannot read limits" | aghanim_say "${MLANG:-en}" >&2; exit 2; }
-# The machine pool (~/.aghanim/config.yml): runs at once on this machine, and per stage, across projects.
-aghanim_machine validate || { echo "dispatch: invalid $AGHANIM_HOME/config.yml" | aghanim_say "${MLANG:-en}" >&2; exit 2; }
-MLANG="$(aghanim_machine values language 2>/dev/null | tr -d '\0')"
-mapfile -d '' -t POOL < <(aghanim_machine values pool stages.refine stages.develop stages.validate stages.deploy)
-[ "${#POOL[@]}" -eq 5 ] || { echo "dispatch: cannot read the machine pool" | aghanim_say "${MLANG:-en}" >&2; exit 2; }
+mapfile -d '' -t LIM < <(shipfloor_cfg values limits.refine.wip limits.develop.wip)
+[ "${#LIM[@]}" -eq 2 ] || { echo "dispatch: cannot read limits" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
+# The machine pool (~/.shipfloor/config.yml): runs at once on this machine, and per stage, across projects.
+shipfloor_machine validate || { echo "dispatch: invalid $SHIPFLOOR_HOME/config.yml" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
+MLANG="$(shipfloor_machine values language 2>/dev/null | tr -d '\0')"
+mapfile -d '' -t POOL < <(shipfloor_machine values pool stages.refine stages.develop stages.validate stages.deploy)
+[ "${#POOL[@]}" -eq 5 ] || { echo "dispatch: cannot read the machine pool" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
 declare -A STAGE_SLOTS=([refine]="${POOL[1]}" [develop]="${POOL[2]}" [validate]="${POOL[3]}" [deploy]="${POOL[4]}")
 
 refresh_control() {  # control checkout = exactly origin/main
@@ -64,7 +64,7 @@ card_busy() {  # card_busy <issue>: a live run of any pipeline holds this card (
 live_runs() {  # live_runs [stage]: live runs on this machine (every project), of one stage or all
   local d n=0 seen=" "
   local stage="${1:-}"; [ -n "$stage" ] || stage="[a-z]*"  # left unquoted below so it globs
-  for d in "$AGHANIM_HOME"/projects/*/locks/$stage-*.lock "$HOME_DIR"/locks/$stage-*.lock; do
+  for d in "$SHIPFLOOR_HOME"/projects/*/locks/$stage-*.lock "$HOME_DIR"/locks/$stage-*.lock; do
     [ -d "$d" ] || continue
     case "${d##*/}" in refresh-*) continue ;; esac  # refreshes are scripts, not agents
     case "$seen" in *" $d "*) continue ;; esac
@@ -77,8 +77,8 @@ snapshot_status() { awk -F'\t' -v n="$1" '$1==n{print $2}' "$SNAP" 2>/dev/null; 
 
 cleanup_processes() {  # stop processes (dev servers, test runners) left running in the card's worktree
   command -v powershell.exe >/dev/null || return 0
-  AGHANIM_WT="$(aghanim_native "$WT_ROOT/$1/")" powershell.exe -NoProfile -NonInteractive -Command '
-    $p = [regex]::Escape($env:AGHANIM_WT) -replace "/", "[\\/]"
+  SHIPFLOOR_WT="$(shipfloor_native "$WT_ROOT/$1/")" powershell.exe -NoProfile -NonInteractive -Command '
+    $p = [regex]::Escape($env:SHIPFLOOR_WT) -replace "/", "[\\/]"
     Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $p -and $_.ProcessId -ne $PID } |
       ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' >/dev/null 2>&1 || true
 }
@@ -91,16 +91,16 @@ launch() {  # launch <pipeline> <issue>
   # print mode stops background subagents 10 min after the last turn and ends the run half done; 0 waits
   # only the project's settings and this plugin: the owner's personal plugins, MCP servers and
   # output style cost every run ~19k tokens of context and steer its agents
-  local extra=(--setting-sources project,local --strict-mcp-config --plugin-dir "$PLUGIN") envs=(AGHANIM_FACTORY=1 "AGHANIM_RUN_LOCK=$dir" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0)
+  local extra=(--setting-sources project,local --strict-mcp-config --plugin-dir "$PLUGIN") envs=(SHIPFLOOR_FACTORY=1 "SHIPFLOOR_RUN_LOCK=$dir" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0)
   case "$p" in validate|deploy) extra+=(--model sonnet) ;; esac  # orchestration and conflict fixes: half the price
-  local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(AGHANIM_INFRA_RETRY=1); }
+  local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(SHIPFLOOR_INFRA_RETRY=1); }
   (
     trap '' HUP
     echo "$BASHPID $(date +%s) $n" > "$dir/info"
-    echo "== start /aghanim:$p $n $(date -Is) pid=$BASHPID" >>"$log"
+    echo "== start /sf:$p $n $(date -Is) pid=$BASHPID" >>"$log"
     # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into
     # "C:/Program Files/Git/develop 54", and MSYS_NO_PATHCONV would leak into mvn and break it.
-    agent() { printf '/aghanim:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1; }
+    agent() { printf '/sf:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1; }
     cd "$CONTROL" || exit 1
     if [ "$p" = deploy ]; then
       # The deploy is a script, not an agent: it can wait for CI and production as long as needed.
@@ -112,13 +112,13 @@ launch() {  # launch <pipeline> <issue>
         [ "$rc" = 3 ] || break
         agent; env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" bash "$dep" "$n" --continue >>"$log" 2>&1; rc=$?
       done
-      echo "== end /aghanim:$p $n exit=$rc $(date -Is)" >>"$log"
+      echo "== end /sf:$p $n exit=$rc $(date -Is)" >>"$log"
     else
-      agent; echo "== end /aghanim:$p $n exit=$? $(date -Is)" >>"$log"
+      agent; echo "== end /sf:$p $n exit=$? $(date -Is)" >>"$log"
     fi
     # what the run created goes with it, before its lock: its stack slot, its tmp/<n>/, its retry marker
     stack_settings; stack_release_run "$dir"
-    aghanim_clean_tmp "$n"  # the retry's marker stays: it is how the next block goes to the owner
+    shipfloor_clean_tmp "$n"  # the retry's marker stays: it is how the next block goes to the owner
     [ "${FACTORY_CLEANUP:-1}" = 1 ] && cleanup_processes "$n"
     read -r owner _ < "$dir/info" 2>/dev/null
     [ "${owner:-}" = "$BASHPID" ] && rm -rf "$dir"
@@ -135,7 +135,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = t
   [ "$free" -le 0 ] && return 0
   start_run() {
     if [ "$refreshed" = 0 ]; then
-      refresh_control || { echo "dispatch: could not refresh $CONTROL from origin/main" | aghanim_say "${MLANG:-en}" >&2; return 1; }
+      refresh_control || { echo "dispatch: could not refresh $CONTROL from origin/main" | shipfloor_say "${MLANG:-en}" >&2; return 1; }
       refreshed=1
     fi
     launch "$p" "$1"; running="$running"$'\n'"$1"; free=$((free - 1)); GLOBAL=$((GLOBAL - 1))
@@ -185,11 +185,11 @@ usage_limited() {  # a run that ended on the Claude usage limit in the last 30 m
 # One board read per run, shared by every check below (the GraphQL quota is shared with the pipelines).
 SNAP="$HOME_DIR/board.tsv"
 # A temp file per process: two dispatches at once must not write, or move away, each other's.
-"$BOARD" snapshot > "$SNAP.$$.tmp" || { rm -f "$SNAP.$$.tmp"; echo "dispatch: board read failed" | aghanim_say "${MLANG:-en}" >&2; exit 1; }
+"$BOARD" snapshot > "$SNAP.$$.tmp" || { rm -f "$SNAP.$$.tmp"; echo "dispatch: board read failed" | shipfloor_say "${MLANG:-en}" >&2; exit 1; }
 mv "$SNAP.$$.tmp" "$SNAP"
 export FACTORY_BOARD_SNAPSHOT="$SNAP"
 
-usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting" | aghanim_say "${MLANG:-en}"; exit 0; }
+usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting" | shipfloor_say "${MLANG:-en}"; exit 0; }
 
 refresh_staged() {  # keep approved-to-be PRs on top of main: deploy.sh --refresh, a script, no agent slot
   local n dir log cards
@@ -219,11 +219,11 @@ retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a s
     if [ -e "$HOME_DIR/infra/$n" ]; then
       "$BOARD" label "$n" add blocked; "$BOARD" label "$n" remove blocked:infra; rm -f "$HOME_DIR/infra/$n"; continue
     fi
-    aghanim_clean_tmp "$n"; date +%s > "$HOME_DIR/infra/$n"; "$BOARD" label "$n" remove blocked:infra
+    shipfloor_clean_tmp "$n"; date +%s > "$HOME_DIR/infra/$n"; "$BOARD" label "$n" remove blocked:infra
   done
 }
 
-GLOBAL=$(( ${AGHANIM_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
+GLOBAL=$(( ${SHIPFLOOR_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
 retry_infra || status=1
 run_pipeline refine     "Ready for Refinement" 0           "${LIM[0]}" "Technical Refinement" "Spec Review"        || status=1
@@ -232,7 +232,7 @@ run_pipeline validate     "Validation"           0           0          ""      
 # one deploy at a time in a project: merges into its main are serial
 run_pipeline deploy    "Ready for Prod"       1           0          ""                                         || status=1
 # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
-[ "$(aghanim_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
-# What finished cards and stray files left under tmp/ goes with every cycle (the same as `aghanim clean`).
-aghanim_sweep_tmp | sed "s|^|$(date -Is) dispatch: removed |"
+[ "$(shipfloor_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
+# What finished cards and stray files left under tmp/ goes with every cycle (the same as `shipfloor clean`).
+shipfloor_sweep_tmp | sed "s|^|$(date -Is) dispatch: removed |"
 exit $status

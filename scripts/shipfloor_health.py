@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import aghanim_config
+import shipfloor_config
 
 # stage: (queue column, columns whose cards with no live run it resumes, WIP columns), as dispatch.sh runs them
 STAGES = {"refine": ("Ready for Refinement", ("Technical Refinement",), ("Spec Review",)),
@@ -66,7 +66,7 @@ def snapshot(home, seconds, code, overlap):
     for p, runs in live.items():
         columns, age = f.board(p)
         blocked, busy = f.blocked(p), {r["issue"] for r in runs}
-        limits = aghanim_config.merged(f.config(p), aghanim_config.DEFAULTS)["limits"]
+        limits = shipfloor_config.merged(f.config(p), shipfloor_config.DEFAULTS)["limits"]
         stopped = paused or limited or (f.pdir(p) / "PAUSE").exists() or bool(f.skipped(p))
 
         def waiting(col):
@@ -123,7 +123,7 @@ def alerts(home):
 
 
 def main():
-    a = argparse.ArgumentParser(prog="aghanim_health")
+    a = argparse.ArgumentParser(prog="shipfloor_health")
     a.add_argument("command", choices=("record", "alerts"))
     a.add_argument("--home", required=True)
     a.add_argument("--seconds", type=int, default=0)

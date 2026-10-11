@@ -6,7 +6,7 @@ from datetime import datetime
 from inbox_hook import INTRO
 
 LEGACY_STAGES = {"refinar": "refine", "desenvolver": "develop", "validar": "validate", "deployar": "deploy"}  # legacy mylos
-COMMAND = re.compile(r"<command-name>/(?:aghanim|mylos):([a-z]+)</command-name>\s*<command-args>(\d+)</command-args>")  # legacy mylos
+COMMAND = re.compile(r"<command-name>/(?:sf|aghanim|mylos):([a-z]+)</command-name>\s*<command-args>(\d+)</command-args>")  # legacy aghanim, legacy mylos
 TOKEN_KINDS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
 
 
@@ -33,7 +33,7 @@ def doing(block):
 
 
 def parse_transcript(path):
-    """The card a session ran for (its first user message is the dispatcher's /aghanim:<stage> <n>),
+    """The card a session ran for (its first user message is the dispatcher's /sf:<stage> <n>),
     its tokens per model and the last few things it did."""
     stage = issue = start = end = None
     first_user, usage, activity = True, {}, deque(maxlen=4)

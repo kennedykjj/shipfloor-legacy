@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Up to 2 refine/aghanim:develop runs at once (within WIP), 1 deploy, one run per card.
+# Up to 2 refine/develop runs at once (within WIP), 1 deploy, one run per card.
 source "$(dirname "$0")/lib.sh"
 D="$FACTORY_DIR/dispatch.sh"
 setup() {
@@ -20,20 +20,20 @@ EOB
   printf '#!/usr/bin/env bash\necho "$(cat) $*" >> "%s/launched"\n' "$tmp" > "$tmp/claude"
   chmod +x "$tmp/board" "$tmp/claude"; export FACTORY_BOARD="$tmp/board" FACTORY_CLAUDE="$tmp/claude"; : > "$tmp/launched"
   printf '#!/usr/bin/env bash
-echo "/aghanim:deploy $*" >> "%s/launched"
+echo "/sf:deploy $*" >> "%s/launched"
 ' "$tmp" > "$tmp/deploy"; chmod +x "$tmp/deploy"; export FACTORY_DEPLOY="$tmp/deploy"
 }
-launched() { grep -o '/aghanim:[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
+launched() { grep -o '/sf:[a-z]* [0-9]*' "$tmp/launched" | sort | tr '\n' ' '; }
 fresh_lock() { mkdir -p "$FACTORY_HOME/locks/$1.lock"; echo "$$ $(date +%s) ${1##*-}" > "$FACTORY_HOME/locks/$1.lock/info"; }
 
-setup; Q_DEV="26 27"; run_dispatch; assert_contains "$(launched)" "/aghanim:develop 26 /aghanim:develop 27"
-setup; Q_DEV="26 27 28" W_CV=3; run_dispatch; out="$(launched)"; assert_contains "$out" "/aghanim:develop 26"
+setup; Q_DEV="26 27"; run_dispatch; assert_contains "$(launched)" "/sf:develop 26 /sf:develop 27"
+setup; Q_DEV="26 27 28" W_CV=3; run_dispatch; out="$(launched)"; assert_contains "$out" "/sf:develop 26"
 case "$out" in *27*) fail "exceeded WIP: $out" ;; *) pass "respects WIP 4" ;; esac
 setup; Q_DEV="27 28" W_CV=1 SNAP_TSV='26\tCoding\tI26\n'; fresh_lock develop-26
-run_dispatch; out="$(launched)"; assert_contains "$out" "/aghanim:develop 27"
+run_dispatch; out="$(launched)"; assert_contains "$out" "/sf:develop 27"
 case "$out" in *28*) fail "third concurrent run: $out" ;; *) pass "max 2 develop" ;; esac
 setup; Q_DEV="26" ; fresh_lock develop-26; run_dispatch; [ -z "$(launched)" ] && pass "never twice on one card" || fail "relaunched card 26"
-setup; Q_PROD="47 48"; run_dispatch; out="$(launched)"; assert_contains "$out" "/aghanim:deploy 47"
+setup; Q_PROD="47 48"; run_dispatch; out="$(launched)"; assert_contains "$out" "/sf:deploy 47"
 case "$out" in *48*) fail "parallel deploys: $out" ;; *) pass "one deploy at a time" ;; esac
 setup; Q_REF="25 26" W_SR=1 SNAP_TSV='30\tTechnical Refinement\tI30\n'; fresh_lock refine-30
 run_dispatch; [ -z "$(launched)" ] && pass "in-flight refinement counts toward Spec Review WIP" || fail "overfilled Spec Review: $(launched)"
