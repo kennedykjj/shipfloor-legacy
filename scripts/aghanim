@@ -56,6 +56,10 @@ cmd_doctor() {
   elif diff -rq -x test -x .source "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
   else echo "WARN installed copy differs from $src (aghanim install)"; fi
+  local alert
+  while IFS= read -r alert; do
+    [ -n "$alert" ] && echo "WARN health: $alert (~/.aghanim/logs/health-*.jsonl)"
+  done < <(aghanim_python "$(aghanim_native "$HERE/aghanim_health.py")" alerts --home "$(aghanim_native "$AGHANIM_HOME")" 2>/dev/null | tr -d '')
   if [ -s "$REGISTRY" ]; then
     local slug repo wt main
     while IFS=$'\t' read -r slug repo wt main; do
