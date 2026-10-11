@@ -167,9 +167,9 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .block-note summary { cursor: pointer; width: max-content; }
 .block-note summary:hover { color: var(--text); }
 .block-note .md { margin-top: 6px; max-height: 16em; overflow: auto; padding-right: 6px; }
-.block-note .md p { margin: 4px 0; } .block-note .md .h { color: var(--text); font-weight: 600; }
-.block-note .md ul { margin: 4px 0; padding-left: 18px; } .block-note .md li { margin: 2px 0; }
-.block-note .md pre { margin: 4px 0; padding: 6px 8px; background: var(--ground); border-radius: 4px; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.block-note .md p, .lv.md p { margin: 4px 0; } .block-note .md .h, .lv.md .h { color: var(--text); font-weight: 600; }
+.block-note .md ul, .lv.md ul { margin: 4px 0; padding-left: 18px; } .block-note .md li, .lv.md li { margin: 2px 0; }
+.block-note .md pre, .lv.md pre { margin: 4px 0; padding: 6px 8px; background: var(--ground); border-radius: 4px; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
 .block-note code { font: 11.5px var(--mono); }
 .block-note .bn-err { grid-column: 1 / -1; color: var(--bad); }
 .block-note .bn-err:empty { display: none; }
@@ -237,6 +237,22 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .logwrap .log { flex: 1; overflow: auto; min-height: 0; }
 .log { margin: 0; padding: 14px 20px 30px; font: 12px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--text); }
 .logbar { display: flex; gap: 10px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); flex: none; background: var(--panel); }
+
+/* the session as it happens, and the owner's word to the run that is working */
+.live-stream { flex: 1; overflow: auto; min-height: 0; padding: 14px 20px 18px; display: flex; flex-direction: column; gap: 10px; }
+.live-stream .placeholder { padding: 6px 0; }
+.lv { font-size: 13.5px; color: var(--soft); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; }
+.lv time { font-size: 11px; color: var(--faint); margin-right: 8px; }
+.lv.tool { font: 12px/1.5 var(--mono); color: var(--muted); border: 1px solid var(--edge); border-radius: 5px; padding: 5px 9px; }
+.lv.tool b { color: var(--text); font-weight: 500; margin-right: 8px; }
+.lv.md { white-space: normal; }
+.lv.sub { margin-left: 22px; }
+.lv.you { align-self: flex-end; color: var(--text); background: var(--azure-soft); border: 1px solid color-mix(in srgb, var(--sand) 45%, transparent); border-radius: 6px; padding: 7px 11px; }
+.lv.you.wait { border-style: dashed; }
+.lv-k { display: block; margin-top: 3px; font-size: 11px; color: var(--sand); }
+.compose { flex: none; border-top: 1px solid var(--edge-hi); padding: 12px 20px 14px; background: var(--panel-hi); display: flex; flex-direction: column; gap: 8px; }
+.compose-a { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--muted); }
+.live-off { flex: none; margin: 0; padding: 12px 20px; border-top: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
 
 .gate-run { padding: 4px 20px 14px; border-bottom: 1px solid var(--edge); }
 .gate-run .h { display: flex; justify-content: space-between; font-size: 13px; padding-top: 10px; }
@@ -582,7 +598,7 @@ async function post(k, action, text) {
 async function openCard(key, tab) {
   const same = S.open === key; const [p, n] = key.split("/"); const ov = cardOf(p, +n);
   S.tab = tab || (same && S.tab) || (ov && OWNER[ov.column] ? "review" : "sessions");
-  if (!same) { S.card = null; S.log = null; S.logNext = -1; S.logText = ""; S.armed = null; }
+  if (!same) { S.liveHtml = ""; S.card = null; S.log = null; S.logNext = -1; S.logText = ""; S.armed = null; }
   S.open = key;
   renderBoard(); renderDrawer();
   $("tip-title")?.focus({ preventScroll: true });
@@ -612,12 +628,12 @@ function renderDrawer() {
   const onTitle = document.activeElement?.id === "tip-title";
   if (setHTML($("d-head"), headHtml(c, ov, p, n, column)) && onTitle) $("tip-title").focus({ preventScroll: true });
   renderDecide(p, n, column);
-  const tabs = [["sessions", "Sessions", c ? c.sessions.length : ""], ["log", "Log", c ? new Set(c.runs.map((x) => x.log)).size || "" : ""], ["gates", "Gates", c?.reports.length || ""], ["review", "Review", ""]];
+  const tabs = [["live", "Live", ""], ["sessions", "Sessions", c ? c.sessions.length : ""], ["log", "Log", c ? new Set(c.runs.map((x) => x.log)).size || "" : ""], ["gates", "Gates", c?.reports.length || ""], ["review", "Review", ""]];
   setHTML($("d-tabs"), tabs.map(([id, label, b]) => `<button role="tab" id="tab-${id}" aria-controls="pane" aria-selected="${S.tab === id}" tabindex="${S.tab === id ? 0 : -1}" data-tab="${id}">${label}${b !== "" ? `<span class="b num">${b}</span>` : ""}</button>`).join(""));
   $("pane").setAttribute("aria-labelledby", `tab-${S.tab}`);
-  if (setHTML($("pane"), c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>') && S.tab === "log" && $("log")) {
-    $("log").textContent = S.logText || "Loading…";
-  }
+  const fresh = setHTML($("pane"), c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>');
+  if (fresh && S.tab === "log" && $("log")) $("log").textContent = S.logText || "Loading…";
+  if (fresh) paintLive(true);
 }
 function headHtml(c, ov, p, n, column) {
   const sessions = c?.sessions || [];
@@ -721,6 +737,7 @@ function syncDecide() {
 }
 
 function pane(c, p, n, column) {
+  if (S.tab === "live") return livePane(p, n);
   if (S.tab === "sessions") return sessionsPane(c);
   if (S.tab === "log") return logPane(c);
   if (S.tab === "gates") return gatesPane(c);
@@ -744,6 +761,43 @@ function sessionsPane(c) {
   }).join("");
   return `<div class="section-k">Cost by session</div><table><thead><tr><th class="l">start</th><th class="l">stage · model</th><th>input</th><th>output</th><th title="Cache read plus cache written; hover a row for the split">cache</th><th>time</th><th>result</th><th>cost ${EST}</th></tr></thead>
     <tbody>${rows}<tr class="total"><td class="l" colspan="7">Total, Inbox to now</td><td class="num gold">${money(c.total)}</td></tr></tbody></table>`;
+}
+// The latest session as it happens. The stream is painted apart from the pane, so a new line never
+// takes what the owner is typing; a message is read by the run after the tool call it is in.
+function livePane(p, n) {
+  const run = cardOf(p, +n)?.running;
+  return `<div class="logwrap"><div class="live-stream" id="live" tabindex="0" aria-label="What the session says and does"></div>${run
+    ? `<form class="compose" id="compose"><textarea id="say" aria-label="Message to the ${esc(run)} run" placeholder="Tell the ${esc(run)} run what to change. It reads this after its current tool call."></textarea>
+      <div class="compose-a"><span id="say-note">Enter sends, Shift+Enter starts a new line.</span><button class="btn approve">Send</button></div></form>`
+    : '<p class="live-off">No run is working on this card now. A message reaches only a run in progress.</p>'}</div>`;
+}
+function liveEvent(e, waiting) {
+  const sub = e.sub ? " sub" : "";
+  if (e.kind === "owner") return `<div class="lv you${waiting ? " wait" : sub}">${esc(e.text)}<span class="lv-k">${waiting ? "waiting: the run reads it after its current tool call" : `read by ${e.sub ? "a subagent" : "the run"} at ${when(e.ts)}`}</span></div>`;
+  if (e.kind === "says") return `<div class="lv md${sub}"><time>${when(e.ts)}</time>${mdLite(e.text)}</div>`;
+  return `<div class="lv tool${sub}"><b>${esc(e.kind)}</b>${esc(e.text)}</div>`;
+}
+function paintLive(fresh) {
+  const box = $("live"); if (!box) return;
+  const atEnd = fresh || box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+  if (setHTML(box, S.liveHtml || '<p class="placeholder">Reading the session…</p>') && atEnd) box.scrollTop = box.scrollHeight;
+}
+let living = false;
+async function followLive() {
+  if (living || !S.open || S.tab !== "live") return;
+  const key = S.open; const [p, n] = key.split("/");
+  living = true;
+  const { status, body } = await api(`/api/live/${encodeURIComponent(p)}/${n}`).finally(() => { living = false; });
+  if (status !== 200 || key !== S.open) return;
+  S.liveHtml = [...body.events.map((e) => liveEvent(e)), ...body.pending.map((e) => liveEvent({ ...e, kind: "owner" }, true))].join("")
+    || '<p class="placeholder">No factory session for this card yet.</p>';
+  paintLive();
+}
+async function say() {
+  const box = $("say"); const text = box?.value.trim(); if (!text || !S.open) return;
+  const [p, n] = S.open.split("/");
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/message`, { method: "POST", body: JSON.stringify({ text }) });
+  if (status === 200) { box.value = ""; followLive(); } else $("say-note").textContent = body.error || "The message was not sent.";
 }
 function sum(tokens) {
   const t = { input: 0, cache_write_5m: 0, cache_write_1h: 0, cache_read: 0, output: 0 };
@@ -848,7 +902,7 @@ async function followLog() {
   } else if (pre && !S.logText) pre.textContent = "(empty)";
   S.logNext = body.next;
 }
-function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog(); }
+function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog(); if (id === "live") followLive(); }
 
 document.addEventListener("click", (e) => {
   const t = e.target.closest("[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
@@ -866,6 +920,8 @@ document.addEventListener("click", (e) => {
   else if (t.id === "fill") { const r = S.review[S.open]; $("changes").value = r.changes.join("\n"); syncDecide(); $("changes").focus(); }
   else if (t.matches("tr.session") && t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; selectTab("log"); }
 });
+document.addEventListener("submit", (e) => { if (e.target.id === "compose") { e.preventDefault(); say(); } });
+document.addEventListener("keydown", (e) => { if (e.target.id === "say" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); say(); } });
 document.addEventListener("input", (e) => { if (e.target.id === "changes") syncDecide(); });
 document.addEventListener("change", (e) => {
   if (e.target.id === "logsel") { S.log = e.target.value; S.logNext = -1; S.logText = ""; renderDrawer(); followLog(); }
@@ -905,6 +961,7 @@ setInterval(loadOverview, 2000);
 setInterval(loadFeed, 5000);
 setInterval(() => { if (S.open && S.tab !== "log") loadCard(); }, 5000);
 setInterval(followLog, 2000);
+setInterval(followLive, 2000);
 setInterval(() => tick(), 1000);
 </script>
 </body>
