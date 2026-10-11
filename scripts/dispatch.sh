@@ -13,6 +13,7 @@ REPO="${FACTORY_REPO:-}"
 CONTROL="$HOME_DIR/control"
 WT_ROOT="${FACTORY_WT_ROOT:-$HOME_DIR/wt}"
 CLAUDE="${FACTORY_CLAUDE:-claude}"
+PLUGIN="$(cat "$HERE/.source" 2>/dev/null || (cd "$HERE/.." && pwd))"  # the plugin checkout, as in scripts/aghanim
 BOARD="${FACTORY_BOARD:-$HERE/board.sh}"
 TTL="${FACTORY_LOCK_TTL:-10800}"
 export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" AGHANIM_HOME
@@ -86,7 +87,11 @@ launch() {  # launch <pipeline> <issue>
   local p="$1" n="$2" dir="$HOME_DIR/locks/$1-$2.lock"
   mkdir "$dir" 2>/dev/null || return 0
   local log="$HOME_DIR/logs/$(date +%F)-$n-$p.log"
-  local extra=() envs=(AGHANIM_FACTORY=1 "AGHANIM_RUN_LOCK=$dir")
+  # print mode stops background subagents 10 min after the last turn and ends the run half done; 0 waits
+  # only the project's settings and this plugin: the owner's personal plugins, MCP servers and
+  # output style cost every run ~19k tokens of context and steer its agents
+  local extra=(--setting-sources project,local --strict-mcp-config --plugin-dir "$PLUGIN") envs=(AGHANIM_FACTORY=1 "AGHANIM_RUN_LOCK=$dir" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0)
+  case "$p" in validate|deploy) extra+=(--model sonnet) ;; esac  # orchestration and conflict fixes: half the price
   local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(AGHANIM_INFRA_RETRY=1); }
   (
     trap '' HUP

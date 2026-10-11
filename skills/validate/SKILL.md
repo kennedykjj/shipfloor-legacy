@@ -11,6 +11,8 @@ Project: first run `bash ~/.aghanim/factory/aghanim-config.sh describe` and keep
 
 Scripts: `board.sh`, `gate.sh`, `report.sh` and `aghanim-config.sh` always mean `bash ~/.aghanim/factory/<name>` (the installed copy; never a copy inside a worktree). Run gates as `gate.sh -C <worktree> ...`.
 
+Progress: as you begin each numbered step below, run `aghanim-config.sh step <number>` with that step's number (the dashboard shows which step a run is on; the failure rule is not a step).
+
 Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and run builds and tests only through the gates. Avoid pipes after these commands; redirect long output to a file under `<tmp>` (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Shell variables do not survive between commands: write revisions (`qa`, `mb`) as literal SHAs. Never write under `~/.claude`.
 
 Owner of a file: `aghanim-config.sh layer-of <repo-relative path>` names its layer; that layer's agent (from describe) fixes it. A file with no layer is yours.
