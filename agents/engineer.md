@@ -12,7 +12,7 @@ Start with `start=$(git -C <worktree> rev-parse HEAD)`. Implement the task so it
 - `bash ~/.aghanim/factory/gate.sh -C <worktree> green <layer> <selector>` for the acceptance tests of your task.
 Migrations follow the project's existing numbering; destructive changes follow the spec's expand/contract plan.
 
-Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.aghanim/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file under the `tmp` path you were given (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
+Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.aghanim/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file inside the `tmp` path you were given, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
 
 If you receive `findings`, fix exactly those and nothing else.
 
