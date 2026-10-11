@@ -4,7 +4,7 @@
 source "$(dirname "$0")/deploy-lib.sh"
 
 # a fix larger than deploy.fix_max_lines → back to Staged, with the fix as the head to approve; nothing merged
-setup; main_commit web/other.ts x; echo "api=FAILURE" > "$FG/ci"; run 7 >/dev/null
+red_round
 fix api/A.kt 200; fixed="$(git -C "$FACTORY_WT_ROOT/7" rev-parse HEAD)"; echo "api=SUCCESS" > "$FG/ci"; code="$(run 7 --continue)"
 [ "$code" = 4 ] && [ "$(cat "$FG/status")" = Staged ] && pass "large fix → Staged" || fail "exit $code: $(cat "$T/out")"
 assert_contains "$(cat "$FG/comments")" "staged-head: $fixed"
@@ -14,7 +14,7 @@ assert_contains "$(cat "$FG/comments")" "staged-head: $fixed"
 echo "Ready for Prod" > "$FG/status"; code="$(run 7)"; [ "$code" = 0 ] && pass "approved fix deploys" || fail "exit $code: $(cat "$T/out")"
 
 # two rounds that leave CI red → back to Coding
-setup; main_commit web/other.ts x; echo "api=FAILURE" > "$FG/ci"; run 7 >/dev/null
+red_round
 fix api/A.kt 2; code="$(run 7 --continue)"; [ "$code" = 3 ] && pass "second fix round" || fail "exit $code: $(cat "$T/out")"
 fix api/A.kt 3; code="$(run 7 --continue)"
 [ "$code" = 4 ] && [ "$(cat "$FG/status")" = Coding ] && pass "two red rounds → Coding" || fail "exit $code: $(cat "$T/out")"
