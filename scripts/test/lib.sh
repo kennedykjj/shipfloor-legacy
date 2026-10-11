@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Helpers for factory script tests. Each test file sources this.
+# A test never inherits a factory: when the factory works on this repository, a run comes with FACTORY_HOME,
+# FACTORY_CONFIG and SHIPFLOOR_HOME of the real one, and a test would register, pause and remove there.
+for v in $(compgen -v FACTORY_; compgen -v SHIPFLOOR_; compgen -v AGHANIM_); do unset "$v"; done; unset v
 FACTORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FAILS=0
 export FACTORY_HOME="${FACTORY_HOME:-$(mktemp -d)}"  # never touch the real ~/.shipfloor
