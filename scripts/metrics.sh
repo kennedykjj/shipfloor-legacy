@@ -8,7 +8,7 @@ WT="$HOME_DIR/reports-wt"
 git -C "$WT" pull -q --rebase origin factory-reports 2>/dev/null || true
 REPORTS="$WT/reports"
 command -v cygpath >/dev/null && REPORTS="$(cygpath -w "$REPORTS")"
-python -I - "$REPORTS" <<'PY'
+shipfloor_python - "$REPORTS" <<'PY'
 import json, sys, pathlib
 from datetime import datetime
 print("issue\tpipeline\toutcome\ttokens\tduration_min\trounds\tgates_failed\tmanual_edit")
