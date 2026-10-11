@@ -19,6 +19,7 @@ STEPS = {"refine": {1: "Pick the card", 2: "Worktree", 3: "Product Owner", 4: "U
          "develop": {1: "Pick the card", 2: "Plan", 3: "Acceptance tests", 4: "Implementation", 5: "Up to date with main", 6: "Hand over to validation", 8: "Report"},
          "validate": {1: "Pick the card", 2: "Up to date with main", 3: "Review", 4: "Pull request", 6: "Report"}}
 STACKS_TTL_S = 15
+PIPELINES = set(LEGACY_STAGES.values())
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy mylos
@@ -336,7 +337,7 @@ class Factory:
         out = []
         for d in (self.pdir(p) / "locks").glob("*-*.lock"):
             m = re.fullmatch(r"([a-z]+)-(\d+)\.lock", d.name)
-            if not m:
+            if not m or m.group(1) not in PIPELINES:  # deploysh-<n>.lock is the deploy script's own, inside the deploy run
                 continue
             stage, n = m.group(1), int(m.group(2))
             try:
@@ -359,8 +360,7 @@ class Factory:
 
     def inbox(self, p, n):
         """The inbox of the run working on the card now, or None: the run's hook reads it (inbox_hook.py)."""
-        stages = LEGACY_STAGES.values()  # the four pipelines: a script's own lock (deploysh) has no agent to read it
-        run = next((r for r in self.live(p) if r["issue"] == n and r["stage"] in stages and not r["orphan"]), None)
+        run = next((r for r in self.live(p) if r["issue"] == n and not r["orphan"]), None)
         return run and self.pdir(p) / "locks" / f"{run['stage']}-{n}.lock" / "inbox"
 
     def session(self, p, n):
@@ -404,6 +404,7 @@ class Factory:
             live += runs
             per_card, doing, hours = {}, {}, {}
             hour = lambda ts: parse_ts(ts).astimezone().hour
+            all_runs, spent = self.runs(p), {}  # spent: what each of today's runs cost, by (log, start)
             for s in self.sessions(p):
                 doing[(s["issue"], s["stage"])] = s["activity"]  # sessions come oldest first: the latest wins
                 c = self.session_cost(s, prices)
@@ -411,6 +412,11 @@ class Factory:
                 per_card[s["issue"]] = None if c is None or prev is None else prev + c
                 if c and parse_ts(s["start"]).astimezone().date().isoformat() == today:
                     today_cost += c
+                    # as in card(): a session belongs to the last run of its stage that started before it
+                    run = next((r for r in reversed(all_runs) if r["issue"] == s["issue"] and r["stage"] == s["stage"]
+                                and parse_ts(r["start"]).timestamp() <= parse_ts(s["start"]).timestamp() + 120), None)
+                    if run:
+                        spent[(run["log"], run["start"])] = spent.get((run["log"], run["start"]), 0.0) + c
                     hours.setdefault(hour(s["start"]), {"ok": 0, "failed": 0, "cost": 0.0})["cost"] += c
             for r in runs:
                 r["activity"] = doing.get((r["issue"], r["stage"]), [])
@@ -419,7 +425,7 @@ class Factory:
             titles, blocked = self.titles(p), self.blocked(p)
             # how long a stage usually takes (its clean runs) and when each card's last run ended
             took, since = {}, {}
-            for r in self.runs(p):
+            for r in all_runs:
                 if r["end"]:
                     since[r["issue"]] = r["end"]
                     if r["log"].startswith(today):
@@ -431,6 +437,9 @@ class Factory:
                              "typical_s": {st: round(statistics.median(v)) for st, v in took.items()},
                              "hours": [dict(hours.get(h, {"ok": 0, "failed": 0, "cost": 0.0}), h=h)
                                        for h in range(min(hours, default=0), datetime.now().hour + 1)] if hours else [],
+                             "ended": sorted((dict(r, cost=rounded(spent.get((r["log"], r["start"])))) for r in all_runs
+                                              if r["end"] and r["log"].startswith(today)),
+                                             key=lambda r: parse_ts(r["end"]), reverse=True)[:80],  # newest first
                              "repo": (self.config(p).get("project") or {}).get("repo"), "board_url": self.board_url(p),
                              "cards": [{"issue": n, "title": titles.get(n, ""), "column": col, "since": since.get(n),
                                         "cost": rounded(per_card.get(n, 0.0)),
