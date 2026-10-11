@@ -3,7 +3,7 @@
 # For each: bring its control checkout to origin/<main>, validate the config there, then run
 # dispatch.sh for it. A project it cannot use is skipped and logged; the others still run.
 set -uo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
 DISPATCH="${AGHANIM_DISPATCH:-$HERE/dispatch.sh}"
 REGISTRY="$AGHANIM_HOME/registry.tsv"

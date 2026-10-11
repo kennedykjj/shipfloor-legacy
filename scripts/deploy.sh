@@ -7,7 +7,7 @@
 #       4 sent back (to Coding, or to Staged with a fix the owner has to see) · 5 blocked · 6 failed after merge (reverted)
 #       2 usage, configuration, transient API error or busy card (safe to retry)
 set -uo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
 
 n="${1:-}"; mode="${2:-deploy}"
