@@ -1,5 +1,5 @@
 """Local dashboard: one page and a JSON API over ~/.aghanim and the Claude Code transcripts of the
-factory's runs. Read-only, except the owner's approve and request-changes."""
+factory's runs. Read-only, except the owner's approve, request-changes and messages to a running card."""
 import argparse, json, os, re, secrets, statistics, subprocess, sys, threading, time, webbrowser
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,7 +11,7 @@ sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
 import aghanim_config  # exits with a clear message when PyYAML is missing
 import aghanim_health
-from dashboard_cost import LEGACY_STAGES, cost, parse_transcript, parse_ts, rounded
+from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, rounded
 import yaml
 
 # The steps a run announces with `aghanim-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
@@ -120,11 +120,11 @@ class Factory:
                 return read_yaml(f)
         return {}
 
-    def transcript(self, path):
+    def transcript(self, path, parse=parse_transcript):
         st = path.stat()
-        key, hit = (st.st_size, st.st_mtime), self._transcripts.get(path)
+        key, hit = (st.st_size, st.st_mtime), self._transcripts.get((path, parse))
         if not hit or hit[0] != key:
-            hit = self._transcripts[path] = (key, parse_transcript(path))
+            hit = self._transcripts[(path, parse)] = (key, parse(path))
         return hit[1]
 
     def sessions(self, p, issue=None):
@@ -139,7 +139,7 @@ class Factory:
                     continue
                 if s["stage"] and s["start"] and issue in (None, s["issue"]):
                     subs = [self.transcript(a) for a in sorted((d / f.stem / "subagents").glob("*.jsonl"))]
-                    out.append(dict(s, id=f.stem, subagents=subs))
+                    out.append(dict(s, id=f.stem, subagents=subs, path=f))
         return sorted(out, key=lambda s: s["start"] or "")
 
     def session_cost(self, s, prices):
@@ -357,6 +357,36 @@ class Factory:
                         "orphan": bool(last and last[0]["end"])})  # the run ended and left its lock
         return out
 
+    def inbox(self, p, n):
+        """The inbox of the run working on the card now, or None: the run's hook reads it (inbox_hook.py)."""
+        stages = LEGACY_STAGES.values()  # the four pipelines: a script's own lock (deploysh) has no agent to read it
+        run = next((r for r in self.live(p) if r["issue"] == n and r["stage"] in stages and not r["orphan"]), None)
+        return run and self.pdir(p) / "locks" / f"{run['stage']}-{n}.lock" / "inbox"
+
+    def session(self, p, n):
+        """The card's latest session as it happens: the lead's and its subagents' steps in one timeline,
+        and the owner's messages the lead has not read yet."""
+        out = []
+        for s in self.sessions(p, n)[-1:]:
+            out = list(self.transcript(s["path"], events))
+            for a in (s["path"].parent / s["id"] / "subagents").glob("*.jsonl"):
+                out += [dict(e, sub=True) for e in self.transcript(a, events)]
+        inbox, pending = self.inbox(p, n), []
+        if inbox and inbox.is_file():
+            seen = inbox.with_name("inbox.lead")
+            pending = [json.loads(x) for x in inbox.read_text(encoding="utf-8").splitlines()][int(seen.read_text()) if seen.is_file() else 0:]
+        return {"events": sorted(out, key=lambda e: e["ts"] or "")[-300:], "pending": pending, "running": bool(inbox)}
+
+    def message(self, p, n, text):
+        inbox = self.inbox(p, n)
+        if not text.strip():
+            return 400, {"error": "the message is empty"}
+        if not inbox:
+            return 409, {"error": "no run is working on this card now, so nobody would read the message"}
+        with open(inbox, "a", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "text": text.strip()[:4000]}) + "\n")
+        return 200, {"queued": True}
+
     def usage_limited(self):
         for log in self.home.glob("projects/*/logs/*.log"):
             if log.stat().st_mtime > time.time() - 1800:
@@ -553,6 +583,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, f.feed())
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and parts[3].isdigit():
                 return self.send(200, f.card(parts[2], int(parts[3])))
+            if known and len(parts) == 4 and parts[:2] == ["api", "live"] and parts[3].isdigit():
+                return self.send(200, f.session(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "log"]:
                 start = q.get("from", ["-1"])[0]
                 body = f.log(parts[2], parts[3], int(start) if start.lstrip("-").isdigit() else -1)
@@ -577,13 +609,15 @@ class Handler(BaseHTTPRequestHandler):
         if not self.allowed():
             return self.send(403, {"error": "missing or wrong token"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and parts[3].isdigit() and parts[4] in ("approve", "request-changes", "unblock")):
+                and parts[3].isdigit() and parts[4] in ("approve", "request-changes", "unblock", "message")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         except ValueError:
             return self.send(400, {"error": "body is not JSON"})
         try:
+            if parts[4] == "message":
+                return self.send(*self.factory.message(parts[2], int(parts[3]), str(body.get("text", ""))))
             if parts[4] == "unblock":
                 return self.send(*self.factory.unblock(parts[2], int(parts[3])))
             self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),
