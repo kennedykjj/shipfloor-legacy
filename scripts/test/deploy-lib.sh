@@ -65,3 +65,7 @@ on_branch() {  # on_branch <file> <content>: a commit on the card's branch (then
 }
 run() { (cd "$repo" && bash "$DEP" "$@" > "$T/out" 2>&1); echo $?; }
 
+fix() {  # fix <file> <lines>: what the agent of a fix round commits in the card's worktree
+  local w="$FACTORY_WT_ROOT/7"; mkdir -p "$w/$(dirname "$1")"; seq 1 "$2" > "$w/$1"
+  git -C "$w" add -A; git -C "$w" -c user.email=t@t -c user.name=t commit -qm "fix: $1"
+}

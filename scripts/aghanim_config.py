@@ -622,12 +622,13 @@ def main(argv):
         for old, new in migration_renumber(mig["version"], sys.stdin.read().splitlines()) if mig else []:
             print(f"{old}\t{new}")
         return 0
-    if cmd == "migration-layers" and not rest:  # main branch, then <layer>	<ERE>	<comment> per layer with migrations
-        print(cfg.data["project"]["main"])
-        for l in cfg.layers:
-            if l["migrations"]:
-                print(f"{l['name']}	{l['_migrations_re']}	{l['migrations']['comment']}")
-        return 0
+    # main branch, then <layer>	<ERE>	<comment> per layer with migrations
+    plan = "\n".join([cfg.data["project"]["main"]] + [f"{l['name']}	{l['_migrations_re']}	{l['migrations']['comment']}"
+                                                      for l in cfg.layers if l["migrations"]])
+    if cmd == "migration-layers" and not rest:
+        print(plan); return 0
+    if cmd == "gate-fast" and not rest:  # what `gate.sh fast` asks its three gates, NUL-terminated, in one start
+        sys.stdout.write(f"{cfg.forbidden()}\0{plan}\0{cfg.data['acceptance_assertions']}\0"); return 0
     if cmd == "regex" and rest == ["tests-only"]:  # areas only QA writes, even inside an implementer's path
         print(any_of([t for l in cfg.layers if l["tests_only"] for t in l["tests"]])); return 0
     if cmd == "regex" and rest == ["test-config"]:
