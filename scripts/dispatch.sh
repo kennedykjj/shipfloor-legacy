@@ -7,7 +7,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib/project.sh"
 source "$HERE/lib/stack.sh"
 aghanim_resolve . || exit 2
-aghanim_validate || { echo "dispatch: invalid config $FACTORY_CONFIG" >&2; exit 2; }
+aghanim_validate || { echo "dispatch: invalid config $FACTORY_CONFIG" | aghanim_say "${MLANG:-en}" >&2; exit 2; }
 HOME_DIR="${FACTORY_HOME:?FACTORY_HOME unset}"
 REPO="${FACTORY_REPO:-}"
 CONTROL="$HOME_DIR/control"
@@ -20,11 +20,12 @@ export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" AGHANIM_HOME
 mkdir -p "$HOME_DIR/locks" "$HOME_DIR/logs" "$HOME_DIR/tmp" "$HOME_DIR/reviews" "$WT_ROOT"
 [ -e "$HOME_DIR/PAUSE" ] && exit 0
 mapfile -d '' -t LIM < <(aghanim_cfg values limits.refine.wip limits.develop.wip)
-[ "${#LIM[@]}" -eq 2 ] || { echo "dispatch: cannot read limits" >&2; exit 2; }
+[ "${#LIM[@]}" -eq 2 ] || { echo "dispatch: cannot read limits" | aghanim_say "${MLANG:-en}" >&2; exit 2; }
 # The machine pool (~/.aghanim/config.yml): runs at once on this machine, and per stage, across projects.
-aghanim_machine validate || { echo "dispatch: invalid $AGHANIM_HOME/config.yml" >&2; exit 2; }
+aghanim_machine validate || { echo "dispatch: invalid $AGHANIM_HOME/config.yml" | aghanim_say "${MLANG:-en}" >&2; exit 2; }
+MLANG="$(aghanim_machine values language 2>/dev/null | tr -d '\0')"
 mapfile -d '' -t POOL < <(aghanim_machine values pool stages.refine stages.develop stages.validate stages.deploy)
-[ "${#POOL[@]}" -eq 5 ] || { echo "dispatch: cannot read the machine pool" >&2; exit 2; }
+[ "${#POOL[@]}" -eq 5 ] || { echo "dispatch: cannot read the machine pool" | aghanim_say "${MLANG:-en}" >&2; exit 2; }
 declare -A STAGE_SLOTS=([refine]="${POOL[1]}" [develop]="${POOL[2]}" [validate]="${POOL[3]}" [deploy]="${POOL[4]}")
 
 refresh_control() {  # control checkout = exactly origin/main
@@ -134,7 +135,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = t
   [ "$free" -le 0 ] && return 0
   start_run() {
     if [ "$refreshed" = 0 ]; then
-      refresh_control || { echo "dispatch: could not refresh $CONTROL from origin/main" >&2; return 1; }
+      refresh_control || { echo "dispatch: could not refresh $CONTROL from origin/main" | aghanim_say "${MLANG:-en}" >&2; return 1; }
       refreshed=1
     fi
     launch "$p" "$1"; running="$running"$'\n'"$1"; free=$((free - 1)); GLOBAL=$((GLOBAL - 1))
@@ -184,11 +185,11 @@ usage_limited() {  # a run that ended on the Claude usage limit in the last 30 m
 # One board read per run, shared by every check below (the GraphQL quota is shared with the pipelines).
 SNAP="$HOME_DIR/board.tsv"
 # A temp file per process: two dispatches at once must not write, or move away, each other's.
-"$BOARD" snapshot > "$SNAP.$$.tmp" || { rm -f "$SNAP.$$.tmp"; echo "dispatch: board read failed" >&2; exit 1; }
+"$BOARD" snapshot > "$SNAP.$$.tmp" || { rm -f "$SNAP.$$.tmp"; echo "dispatch: board read failed" | aghanim_say "${MLANG:-en}" >&2; exit 1; }
 mv "$SNAP.$$.tmp" "$SNAP"
 export FACTORY_BOARD_SNAPSHOT="$SNAP"
 
-usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting"; exit 0; }
+usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting" | aghanim_say "${MLANG:-en}"; exit 0; }
 
 refresh_staged() {  # keep approved-to-be PRs on top of main: deploy.sh --refresh, a script, no agent slot
   local n dir log cards

@@ -15,11 +15,12 @@ case "$mode" in deploy|--refresh|--continue) ;; *) n="" ;; esac
 [[ "$n" =~ ^[0-9]+$ ]] || { echo "usage: deploy.sh <n> [--refresh | --continue]" >&2; exit 2; }
 aghanim_resolve . || exit 2
 mapfile -d '' -t V < <(aghanim_cfg values project.repo project.main deploy.ci_workflow deploy.environment \
-  deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks   deploy.healthcheck deploy.required_checks deploy.fix_max_files deploy.fix_max_lines)
-[ "${#V[@]}" -eq 13 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
+  deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks   deploy.healthcheck deploy.required_checks deploy.fix_max_files deploy.fix_max_lines language)
+[ "${#V[@]}" -eq 14 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
 REPO="${V[0]}" MAIN="${V[1]}" CI_WORKFLOW="${V[2]}" ENVIRONMENT="${V[3]}"
 TIMEOUT_MIN="${V[4]:-30}" MAX_FILES="${V[5]:-5}" MAX_HUNKS="${V[6]:-20}" SPECS="${V[7]}" ALLOW_NO_CHECKS="${V[8]:-false}"
 HEALTH="${V[9]}" REQUIRED="${V[10]}"  # lists, one item per line
+DLANG="${V[13]:-en}"  # what this script says, in the log and on the card
 FIX_FILES="${V[11]:-3}" FIX_LINES="${V[12]:-40}"  # a fix within both, outside the acceptance tests, ships without a new approval
 GH="${FACTORY_GH:-gh}"; BOARD="${FACTORY_BOARD:-$HERE/board.sh}"; GATE="$HERE/gate.sh"
 CURL="${FACTORY_CURL:-curl}"; POLL="${FACTORY_POLL:-30}"
@@ -33,9 +34,9 @@ TAB=$'\t'
 # the PR's branch as one whole tab-separated field; inside a bracket expression "\t" is a backslash
 # and a "t", not a tab, so the tab is spliced in
 PR_FIELD="${TAB}(feat/$n-[^${TAB}]*|revert/$n)${TAB}"
-say() { echo "deploy #$n: $*"; }
+say() { echo "deploy #$n: $*" | aghanim_say "$DLANG"; }
 g() { git -C "$WT" "$@"; }
-comment() { "$GH" issue comment "$n" --repo "$REPO" --body "$1" >/dev/null || { say "could not comment on #$n"; return 1; }; }
+comment() { "$GH" issue comment "$n" --repo "$REPO" --body "$(printf '%s\n' "$1" | aghanim_say "$DLANG")" >/dev/null || { say "could not comment on #$n"; return 1; }; }
 reset_worktree() {  # drop any merge in progress or local commit: back to the approved head
   [ -n "$BRANCH" ] && [ -e "$WT/.git" ] || return 0
   g merge --abort >/dev/null 2>&1; g reset -q --hard "${HEAD_SHA:-origin/$BRANCH}" 2>/dev/null; g -c core.longpaths=true clean -qfd 2>/dev/null; return 0

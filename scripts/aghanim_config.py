@@ -18,7 +18,10 @@ except ImportError:
 RESERVED = {"po", "ux", "techlead", "qa"}
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+# what people read: the agents' specs, comments and reports, and what the scripts say (lang/<code>.sed, dashboard.<code>.json)
+LANGS = {"en": "English", "pt-BR": "Brazilian Portuguese"}
 DEFAULTS = {
+    "language": "en",
     "project": {"main": "main"},
     "paths": {"specs": "docs/superpowers/specs/", "plans": "docs/superpowers/plans/"},
     # cards in the WIP columns; runs at once are the machine's (pool and stage slots), and deploy is serial per project
@@ -113,6 +116,8 @@ def problems(cfg):
             errs.append(f"{key} must be a list of strings")
     if not isinstance(cfg.get("review_criteria", ""), str):
         errs.append("review_criteria must be a path")
+    if cfg.get("language", "en") not in LANGS:
+        errs.append(f"language must be one of {', '.join(LANGS)}")
     keep = cfg.get("acceptance_assertions", "")
     if not isinstance(keep, str) or (keep and not compiles(keep)):
         errs.append("acceptance_assertions must be a valid extended regex (grep -E)")
@@ -314,6 +319,7 @@ def describe(cfg, home, worktrees):
              f"specs: {d['paths']['specs']}  plans: {d['paths']['plans']}",
              f"context: {', '.join(d['context']) or '(none)'}",
              f"review criteria: {d['review_criteria'] or '~/.aghanim/factory/templates/review-criteria.md'}",
+             f"language: {LANGS[d['language']]} ({d['language']})",
              f"stack: {('yes, ' + str(d['stack'].get('url', ''))) if d.get('stack') else 'none'}"]
     dep = d.get("deploy") or {}
     lines.append("deploy: " + (", ".join(f"{k}={v}" for k, v in dep.items()) if dep else "none (Done after merge)"))
@@ -402,7 +408,7 @@ def migration_check(pattern, lines):
 
 DEFAULT_VERSION = r"^[A-Za-z]*([0-9]+(?:[._][0-9]+)*)"  # V27__x.sql, 000027_x.up.sql
 STAGES = ("refine", "develop", "validate", "deploy")
-MACHINE_DEFAULTS = {"pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
+MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
                     "stacks": 3, "ports": {"base": 20000, "span": 20},
                     "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700}
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
@@ -412,6 +418,8 @@ def machine_problems(raw):
     if not isinstance(raw, dict):
         return ["the file is not a YAML mapping"]
     errs = []
+    if raw.get("language", "en") not in LANGS:
+        errs.append(f"language must be one of {', '.join(LANGS)}")
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
     if not isinstance(pool, int) or isinstance(pool, bool) or pool < 1:
         errs.append("pool must be an integer >= 1")
