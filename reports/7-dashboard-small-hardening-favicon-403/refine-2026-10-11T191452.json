@@ -1,0 +1,13 @@
+{
+  "issue": 7,
+  "slug": "dashboard-small-hardening-favicon-403",
+  "pipeline": "refine",
+  "started_at": "2026-10-11T19:12:20-03:00",
+  "finished_at": "2026-10-11T19:14:41-03:00",
+  "outcome": "ok",
+  "agents": [{"role": "product-owner", "tokens": 16902, "duration_s": 30}],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "manual_edit": null
+}
