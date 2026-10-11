@@ -89,7 +89,7 @@ main { min-height: 0; display: grid; }
 @keyframes sweep { from { --sweep: 0deg; } to { --sweep: 360deg; } }
 
 /* the line: every column a cell, every card a dot */
-.band { padding: 12px 18px 8px; overflow-x: auto; }
+.band { padding: 12px 44px 8px 18px; overflow-x: auto; }
 .cells { display: flex; min-width: 1040px; }
 .cell { min-width: 0; border-left: 1px solid #ffffff26; } .cell:first-child { border-left: 0; }
 .lab { height: 62px; padding: 3px 8px 0 12px; } .cell:first-child .lab { padding-left: 0; }
@@ -113,6 +113,31 @@ main { min-height: 0; display: grid; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 22px; padding-top: 6px; border-top: 1px solid var(--hair); font-size: 12px; color: var(--muted); }
 .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; background: var(--k, var(--text)); } .legend .o i { background: none; border: 2px solid var(--muted); }
 
+/* any panel, and the card drawer, grows to 90% of the screen over the blurred page; the button sits in the same corner of each */
+.panel { position: relative; }
+.max { position: absolute; top: 10px; right: 10px; z-index: 1; width: 28px; height: 28px; padding: 0; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: 6px; color: var(--faint); cursor: pointer; }
+.max svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.max .in, .maxed > .max .out, .drawer.full .max .out { display: none; } .maxed > .max .in, .drawer.full .max .in { display: block; }
+.panel:hover > .max, .tile:hover > .max, .max:hover, .max:focus-visible, .maxed > .max, .drawer .max { color: var(--text); border-color: var(--edge-hi); background: var(--panel-hi); }
+.panel.maxed { position: fixed; inset: 5vh 5vw; z-index: 4; max-height: none; background: var(--panel); border-color: var(--edge-hi); box-shadow: var(--shadow); padding: 22px clamp(16px, 3vw, 36px) 20px; }
+#dim { position: fixed; inset: 0; z-index: 3; background: rgba(6, 7, 9, .8); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); animation: fade .2s ease; }
+@keyframes fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #dim { animation: none; } }
+/* the line maximized: every card by name, in two lanes of five columns */
+.lanes, .band > h1 { display: none; } .band > h1 { font-size: 26px; }
+.band.maxed { display: flex; flex-direction: column; overflow: hidden; } .band.maxed > h1 { display: block; }
+.band.maxed .cells, .band.maxed .legend { display: none; }
+.band.maxed .lanes { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr); }
+.lane { margin: 12px 0 0; padding-bottom: 6px; border-bottom: 1px solid var(--edge-hi); font-size: 16px; letter-spacing: .1em; color: var(--sand); }
+.lane small { font: 400 12.5px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 10px; }
+.lcols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: 0; }
+.lcol { min-width: 0; overflow-y: auto; padding: 8px 12px 10px; border-left: 1px solid #ffffff26; display: flex; flex-direction: column; gap: 6px; } .lcol:first-child { border-left: 0; padding-left: 0; }
+.lcol .lab { height: auto; padding: 0 0 4px; }
+.chip { flex: none; text-align: left; border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; font-size: 12.5px; line-height: 1.35; color: var(--soft); background: #00000040; cursor: pointer; }
+.chip b { font-size: 15px; margin-right: 6px; color: var(--text); letter-spacing: .02em; } .chip small { display: block; color: var(--muted); font-size: 11.5px; }
+.chip.run { border-color: var(--text); } .chip.you { border-color: var(--sand); } .chip.stop { border-color: var(--bad); } .chip.infra { border-color: var(--warn); } .chip.wait { border-style: dashed; color: var(--muted); }
+.chip.hot, .chip:hover { background: var(--panel-hi); }
+
 /* below the line: what waits for the owner, and what the factory is doing */
 .cols { display: grid; grid-template-columns: minmax(320px, 410px) minmax(0, 1fr); gap: 20px; min-height: 0; }
 .side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
@@ -120,6 +145,7 @@ main { min-height: 0; display: grid; }
 .side h1 { font-size: 26px; }
 h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-weight: 500; }
 #list { list-style: none; margin: 12px -6px 0; overflow-y: auto; min-height: 0; padding: 0 6px; }
+.yours.maxed #list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 0 28px; align-content: start; -webkit-mask-image: none; mask-image: none; }
 #list.cut { -webkit-mask-image: linear-gradient(#000 calc(100% - 44px), transparent); mask-image: linear-gradient(#000 calc(100% - 44px), transparent); }
 .pass { border-top: 1px solid var(--hair); padding: 10px 2px 12px; } .pass.hot { background: #ffffff09; }
 .ptitle { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
@@ -140,6 +166,14 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; overflow-y: auto; min-height: 0; margin-top: 14px; align-content: start; }
 .tile { border: 1px solid var(--hair); border-radius: 12px; background: #00000040; padding: 12px 14px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .tile.hot { border-color: #ffffff55; } .tile.ch { border-color: var(--sand); }
+.tile { position: relative; } .tile .max { top: 6px; right: 6px; } .tile .max + .thead { padding-right: 30px; }
+/* in the factory's hands but not running: the same tile, visibly idle, with the reason in words */
+.grp { grid-column: 1 / -1; margin: 0; display: flex; gap: 10px; align-items: center; } .grp::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+.tile.wait { border-style: dashed; border-color: var(--edge-hi); background: none; gap: 6px; } .tile.wait .tnum, .tile.wait .ttitle { color: var(--muted); }
+.ring { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--sand); align-self: center; flex: none; }
+.why { margin: 0; font-size: 12.5px; color: var(--sand); }
+#hw small { font: 400 13px var(--sans); color: var(--muted); text-transform: none; letter-spacing: 0; margin-left: 12px; }
+.ended td:nth-child(2) { white-space: normal; } .ended th { background: none; position: static; }
 .thead { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; } .tnum { font-size: 22px; line-height: 1; } .thead .clock { margin-left: auto; font-size: 14px; color: var(--text); } .tcost { font-size: 13px; color: var(--sand); }
 .ttitle { margin: 0; font-size: 14.5px; font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .steps { display: flex; gap: 3px; list-style: none; margin: 0; padding: 0; } .steps li { flex: 1; height: 4px; border-radius: 2px; background: #ffffff26; }
@@ -190,8 +224,10 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .drawer.open { width: min(660px, 52vw); }
 /* cards that wait for the owner keep the review's width on every tab, so tabs never reflow the drawer */
 .drawer.wide { width: min(1180px, 72vw); }
+.drawer.open.full { top: 5vh; bottom: 5vh; right: 5vw; width: 90vw; z-index: 4; border: 1px solid var(--edge-hi); border-radius: 14px; }
+#d-max { top: 14px; right: 88px; } .drawer:not(.open) #d-max { display: none; }
 .tip-head { padding: 16px 20px 14px; border-top: 1px solid var(--edge-hi); border-bottom: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); flex: none; }
-.tip-head .row1 { padding-right: 76px; }
+.tip-head .row1 { padding-right: 116px; }
 .tip-head h3 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; text-wrap: balance; }
 .tip-head h3:focus { outline: none; }
 .tip-head h3 .num { color: var(--muted); font-weight: 500; margin-right: 8px; }
@@ -324,15 +360,15 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
 <main>
   <section class="board" id="board" aria-label="Factory">
     <p class="placeholder" id="msg">Reading the factory…</p>
-    <nav class="band panel" id="band" aria-label="Where every card is in the pipeline" hidden><div class="cells" id="cells"></div>
+    <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
       <div class="legend"><span><i></i>running, on the step it reported (1 to N)</span><span class="o"><i></i>queued</span><span style="--k:var(--sand)"><i></i>waits for you</span><span style="--k:var(--bad)"><i></i>blocked</span><span>+N: more cards than fit</span></div></nav>
     <div class="cols" id="cols" hidden>
       <div class="side">
-        <section class="yours panel" aria-labelledby="hy"><h1 class="g" id="hy"></h1><ul id="list"></ul>
+        <section class="yours panel" data-maxable="what waits for you" aria-labelledby="hy"><h1 class="g" id="hy"></h1><ul id="list"></ul>
           <p class="foot cap"><span><kbd>N</kbd>next</span><span><kbd>A</kbd>approve</span><span><kbd>R</kbd>review</span><span><kbd>L</kbd>log</span></p></section>
-        <section class="telem panel" aria-labelledby="ht"><h1 class="g" id="ht">Today</h1><div id="telem"></div></section>
+        <section class="telem panel" data-maxable="today" aria-labelledby="ht"><h1 class="g" id="ht">Today</h1><div id="telem"></div></section>
       </div>
-      <section class="work panel" aria-labelledby="hw"><h1 class="g" id="hw"></h1><div class="tiles" id="tiles"></div>
+      <section class="work panel" data-maxable="what is in progress" aria-labelledby="hw"><h1 class="g" id="hw"></h1><div class="tiles" id="tiles"></div>
         <p class="cap" id="wfoot" style="padding-top:12px;margin:auto 0 0" title="The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card."></p></section>
     </div>
   </section>
@@ -342,8 +378,10 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
     <div id="d-decide"></div>
     <nav class="tabs" id="d-tabs" role="tablist" aria-label="Card sections"></nav>
     <div class="pane" id="pane" role="tabpanel"></div>
+    <button class="max" id="d-max" data-dmax aria-label="Maximize or restore the card" title="Maximize"></button>
     <button class="close" id="d-close" data-close>Close</button>
   </aside>
+  <div id="dim" hidden></div>
 </main>
 <script>
 "use strict";
@@ -351,6 +389,9 @@ const STALE_S = 300;  // a board snapshot older than this is called out
 const COLUMNS = ["Inbox", "Ready for Refinement", "Technical Refinement", "Spec Review", "Ready for Dev", "Coding", "Validation", "Staged", "Ready for Prod", "Done"];
 const COLS = [["Inbox", "q", 70], ["Ready for Refinement", "q", 110], ["Technical Refinement", "w", 190, "refine"], ["Spec Review", "y", 100], ["Ready for Dev", "q", 100], ["Coding", "w", 220, "develop"],
   ["Validation", "w", 160, "validate"], ["Staged", "y", 110], ["Ready for Prod", "w", 150, "deploy"], ["Done", "q", 58]].map(([name, kind, flex, stage]) => ({ name, kind, flex, stage }));
+const MAX = '<svg class="out" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2H14v4.5M14 2 9 7M6.5 14H2V9.5M2 14l5-5"/></svg><svg class="in" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 6.5H9.5V2.5M9.5 6.5 14 2M2.5 9.5h4v4M6.5 9.5 2 14"/></svg>';
+const LANES = [["Upstream", "from the idea to a spec you approved", 0, 5], ["Downstream", "from the code to production", 5, 10]];
+const STAGE_OF = { "Ready for Refinement": "refine", "Technical Refinement": "refine", "Ready for Dev": "develop", "Coding": "develop", "Validation": "validate", "Ready for Prod": "deploy" };  // the stage that takes a card of each factory column
 const STAGE_NAME = { refine: "Refine", develop: "Develop", validate: "Validate", deploy: "Deploy" };
 const STEP_COUNT = { refine: 7, develop: 7, validate: 5 };  // the steps a run announces, as dashboard.py names them
 const EXT = '<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg>';
@@ -455,6 +496,23 @@ function renderFlags() {
   setHTML($("alerts"), f.join(""));
 }
 
+// A panel, or the card drawer, grows out of the place it had (or out of `from`) and shrinks back into it.
+const still = matchMedia("(prefers-reduced-motion: reduce)");
+const maxed = () => document.querySelector(".panel.maxed");
+const syncDim = () => { $("dim").hidden = !maxed() && !(S.open && S.full); };
+function grow(el, change, from) {
+  const a = (from || el).getBoundingClientRect(); change(); const z = el.getBoundingClientRect();
+  syncDim();
+  if (still.matches || !a.width || !z.width) return;
+  el.style.zIndex = 5;
+  el.animate([{ transformOrigin: "top left", transform: `translate(${a.left - z.left}px, ${a.top - z.top}px) scale(${a.width / z.width}, ${a.height / z.height})`, opacity: .7 },
+    { transformOrigin: "top left", transform: "none", opacity: 1 }], { duration: 280, easing: "cubic-bezier(.2, .8, .2, 1)" }).onfinish = () => { el.style.zIndex = ""; };
+}
+function maximize(panel, on) {
+  if (panel.classList.contains("maxed") === on) return;
+  grow(panel, () => { panel.classList.toggle("maxed", on); renderBoard(); });
+  const b = panel.querySelector(":scope > .max"); b.title = on ? "Restore (Esc)" : "Maximize"; b.setAttribute("aria-label", `${on ? "Restore" : "Maximize"} ${panel.dataset.maxable}`);
+}
 const stale = (p) => p?.board_age_s != null && p.board_age_s > STALE_S;
 const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" ? "stop" : c.blocked === "infra" ? "infra" : c.running ? "run" : c.awaiting ? "you" : "wait";
 function renderBoard() {
@@ -481,6 +539,7 @@ function renderBand(p, by, key) {
   const dot = (c, x) => { const k = key(c), kind = kindOf(k, c);
     return `<button class="dot ${kind}${S.open === k ? " open" : ""}" data-key="${esc(k)}" data-open="${esc(k)}" style="left:${x.toFixed(1)}%" title="#${c.issue} ${esc(c.title)} · ${KIND[kind]}" aria-label="#${c.issue} ${esc(c.title)}, ${KIND[kind]}"><i></i><em>${c.issue}</em></button>`; };
   const plus = (cs, x) => `<span class="plus" style="left:${x.toFixed(1)}%" title="${cs.map((c) => "#" + c.issue).join(", ")}">+${cs.length}</span>`;
+  const labels = {};
   const html = COLS.map((col) => {
     const cs = by[col.name]; let d, dots = "";
     if (col.name === "Inbox") d = plural(cs.length, "card"); else if (col.name === "Done") d = cs.length;
@@ -499,13 +558,23 @@ function renderBand(p, by, key) {
       const max = col.flex >= 110 ? 3 : 2, over = cs.length > max, shown = over ? cs.slice(0, max - 1) : cs, k = shown.length + (over ? 1 : 0);
       dots = shown.map((c, i) => dot(c, (i + 1) / (k + 1) * 100)).join("") + (over ? plus(cs.slice(max - 1), k / (k + 1) * 100) : "");
     }
+    labels[col.name] = d;
     return `<div class="cell ${col.kind}${col.kind === "y" && cs.length ? " on" : ""}" style="flex:${col.flex} 0 0" title="${esc(col.name)}"><div class="lab">${col.stage ? `<b class="g">${STAGE_NAME[col.stage]}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${d}</span></div><div class="track">${dots}</div></div>`;
   }).join("");
+  if ($("band").classList.contains("maxed")) renderLanes(p, by, key, labels);
   if (!setHTML($("cells"), html)) return;
   document.querySelectorAll(".dot").forEach((d) => {  // a dot slides from where it was
     const dx = was[d.dataset.key] - d.getBoundingClientRect().left; if (!dx) return;
     d.style.transform = `translateX(${dx}px)`; d.getBoundingClientRect(); d.style.transition = "transform .9s cubic-bezier(.3, 0, .2, 1)"; d.style.transform = "";
   });
+}
+// The line maximized: upstream over downstream, each column listing its cards by name.
+function renderLanes(p, by, key, labels) {
+  const chip = (c) => { const k = key(c), kind = kindOf(k, c), run = kind === "run" && runOf(p.slug, c), of = STEP_COUNT[c.running];
+    const sub = run ? `${run.step && of ? `step ${run.step.i} of ${of} · ` : ""}${clock(run.started, true)}` : kind === "wait" ? "" : KIND[kind];
+    return `<button class="chip ${c.column === "Done" ? "" : kind}" data-key="${esc(k)}" data-open="${esc(k)}"><b class="g">#${c.issue}</b>${c.title ? esc(c.title) : UNTITLED}${sub ? `<small>${sub}</small>` : ""}</button>`; };
+  setHTML($("lanes"), LANES.map(([name, what, a, b]) => `<h2 class="lane g">${name}<small>${what}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
+    `<div class="lcol"><div class="lab">${col.stage ? `<b class="g">${STAGE_NAME[col.stage]}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${labels[col.name]}</span></div>${by[col.name].map(chip).join("")}</div>`).join("")}</div>`).join(""));
 }
 const fade = () => { const l = $("list"); l.classList.toggle("cut", l.scrollHeight - l.scrollTop - l.clientHeight > 8); };
 function renderYours() {
@@ -534,11 +603,25 @@ function passHtml(c, many) {
   const edit = S.editing === c.key && moves ? `<div class="edit"><label class="cap" for="qc">What should change in #${c.issue}? It is posted on the issue.</label><textarea id="qc"></textarea><div><button class="pill" data-q="send">Request changes → ${esc(moves[1])}</button><button data-q="cancel">Cancel</button></div></div>` : "";
   return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
 }
-// One tile per session at work: its step, what it last said and the last things it did.
+// Why a card the factory holds is not running, from what the overview knows.
+function whyWaits(p, c) {
+  const o = S.overview, st = STAGE_OF[c.column], s = o.pool.stages[st] || { slots: 0, running: 0 };
+  if (c.blocked === "infra") return "Blocked by infrastructure; the factory retries it";
+  if (o.paused || p.paused) return "Paused";
+  if (o.usage_limited) return "Waiting for the usage limit to reset";
+  if (p.skipped) return "The dispatcher is skipping this project";
+  if (s.running >= s.slots) return `Waiting for a ${st} slot · ${s.running} of ${s.slots} busy`;
+  if (o.pool.used >= o.pool.size) return `Waiting for the pool · ${o.pool.used} of ${o.pool.size} busy`;
+  return `Queued for ${st}`;
+}
+// Every card in the factory's hands: one tile per session at work (its step, what it last said and the last
+// things it did), then the cards that wait for a run.
 function renderWork(p, key, fresh) {
   const order = ["deploy", "validate", "develop", "refine"], usual = p.typical_s || {};
-  const runs = p.cards.filter((c) => kindOf(key(c), c) === "run").sort((a, b) => order.indexOf(a.running) - order.indexOf(b.running));
-  $("hw").textContent = `${runs.length} running`;
+  const mine = p.cards.filter((c) => !(key(c) in S.moving));
+  const runs = mine.filter((c) => c.running).sort((a, b) => order.indexOf(a.running) - order.indexOf(b.running));
+  const waits = mine.filter((c) => !c.running && STAGE_OF[c.column] && c.blocked !== "owner").sort((a, b) => order.indexOf(STAGE_OF[a.column]) - order.indexOf(STAGE_OF[b.column]));
+  setHTML($("hw"), `${runs.length + waits.length} in progress<small>${runs.length} running · ${waits.length} waiting</small>`);
   const rel = (iso) => { const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000)); return s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`; };
   const tiles = runs.map((c) => {
     const k = esc(key(c)), run = runOf(p.slug, c), of = STEP_COUNT[c.running], step = run?.step, acts = run?.activity || [];
@@ -547,22 +630,27 @@ function renderWork(p, key, fresh) {
     const line = step ? `<b>Step ${step.i} of ${of}</b> · ${esc(step.label)} · ${mins(step.since)} min in this step${step.i === of ? " · finishing" : ""}` : of ? "No step reported yet" : "This stage reports no steps";
     const says = [...acts].reverse().find((a) => a.kind === "says");
     const did = acts.filter((a) => a.kind !== "says").slice(-3).map((a) => `<li><time>${a.ts ? rel(a.ts) : ""}</time><b>${esc(a.kind)}</b> ${esc(a.text)}</li>`).join("");
-    return `<article class="tile${fresh(c) ? " ch" : ""}" data-key="${k}" data-open="${k}">
+    return `<article class="tile${fresh(c) ? " ch" : ""}" data-key="${k}" data-open="${k}"><button class="max" data-full="${k}" aria-label="Maximize the session of #${c.issue}" title="Maximize the session">${MAX}</button>
       <div class="thead"><b class="g tnum">#${c.issue}</b><span class="cap">${esc(STAGE_NAME[c.running] || c.running)}</span>${clock(run?.started, true)}<span class="tcost">${money(c.cost)}</span></div>
       <h3 class="ttitle">${c.title ? esc(c.title) : UNTITLED}</h3>${bar}
       <p class="stepline">${line}${long ? ` · <span class="slow" title="This stage usually takes about ${Math.max(1, Math.round(usual[c.running] / 60))} min">running long</span>` : ""}</p>
       ${says ? `<p class="says">${esc(says.text)}</p>` : ""}${did ? `<ul class="did">${did}</ul>` : ""}
       <div class="tfoot cap"><button class="lnk cap" data-open="${k}" data-go="log">Log</button>${gh(p.slug, c.issue)}</div></article>`;
   });
-  setHTML($("tiles"), tiles.join("") || '<p class="empty">Nothing is running.</p>');
+  const idle = waits.map((c) => { const k = esc(key(c));
+    return `<article class="tile wait${fresh(c) ? " ch" : ""}" data-key="${k}" data-open="${k}"><div class="thead"><span class="ring" aria-hidden="true"></span><b class="g tnum">#${c.issue}</b><span class="cap">${esc(c.column)}</span>${c.cost ? `<span class="tcost">${money(c.cost)}</span>` : ""}</div>
+      <h3 class="ttitle">${c.title ? esc(c.title) : UNTITLED}</h3><p class="why">${esc(whyWaits(p, c))}</p></article>`; });
+  const group = (name, list) => list.length ? `<p class="grp cap">${name}</p>${list.join("")}` : "";
+  setHTML($("tiles"), group("Running", tiles) + group("Waiting", idle) || '<p class="empty">Nothing is in progress.</p>');
   $("wfoot").textContent = `Closest to Done first · ${ago(p.board_age_s)}${p.paused ? " · project paused" : ""}`;
 }
 // Today by the hour: runs that ended (clean or failed) and what the sessions cost, then how long a stage usually takes.
 function renderTelem(p) {
-  const hs = p.hours || [], W = 360, H = 62, top = 4, floor = 46, band = W / Math.max(hs.length, 6), bw = Math.min(18, band - 4);
-  const chart = (label, max, marks) => `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}"><defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#e58f8038"/><rect width="2" height="4" fill="var(--bad)"/></pattern></defs><line class="base" x1="0" x2="${W}" y1="${floor + .5}" y2="${floor + .5}"/>${hs.map((h, i) => {
+  const big = $("telem").parentElement.classList.contains("maxed");  // maximized: charts at full width, and the day's runs one by one
+  const hs = p.hours || [], W = big ? 1100 : 360, H = big ? 170 : 62, top = 4, floor = H - 16, band = W / Math.max(hs.length, 6), bw = Math.min(big ? 64 : 18, band - 4);
+  const chart = (label, max, marks) => `<svg class="chart" style="height:${H}px" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}"><defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#e58f8038"/><rect width="2" height="4" fill="var(--bad)"/></pattern></defs><line class="base" x1="0" x2="${W}" y1="${floor + .5}" y2="${floor + .5}"/>${hs.map((h, i) => {
     const x = i * band + (band - bw) / 2, sc = (v) => v / max * (floor - top);
-    return `<g>${marks(h, x, sc)}${i === 0 || i === hs.length - 1 || h.h % 3 === 0 ? `<text x="${x + bw / 2}" y="${H - 3}" text-anchor="middle">${h.h}h</text>` : ""}</g>`; }).join("")}</svg>`;
+    return `<g>${marks(h, x, sc)}${big || i === 0 || i === hs.length - 1 || h.h % 3 === 0 ? `<text x="${x + bw / 2}" y="${H - 3}" text-anchor="middle">${h.h}h</text>` : ""}</g>`; }).join("")}</svg>`;
   const rect = (x, y, h, fill, tip) => h > 0 ? `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${fill}"><title>${esc(tip)}</title></rect>` : "";
   const ok = hs.reduce((n, h) => n + h.ok, 0), failed = hs.reduce((n, h) => n + h.failed, 0), spent = hs.reduce((n, h) => n + h.cost, 0);
   const runs = chart(`Runs that ended today by hour: ${ok} clean, ${failed} failed`, Math.max(1, ...hs.map((h) => h.ok + h.failed)), (h, x, sc) => {
@@ -570,9 +658,11 @@ function renderTelem(p) {
     return rect(x, floor - a, a, "var(--ok)", tip) + rect(x, floor - a - gap - b, b, "url(#hatch)", tip); });  // failed runs are hatched as well as coloured
   const cost = chart(`Estimated spend today by hour, $${spent.toFixed(2)} in all`, Math.max(.01, ...hs.map((h) => h.cost)), (h, x, sc) => rect(x, floor - sc(h.cost), sc(h.cost), "var(--sand)", `${h.h}h: $${h.cost.toFixed(2)}`));
   const usual = Object.entries(STAGE_NAME).filter(([st]) => p.typical_s?.[st]), most = Math.max(1, ...usual.map(([st]) => p.typical_s[st]));
+  const ended = big && p.ended?.length ? `<h2>Runs that ended today</h2><table class="ended"><thead><tr><th class="l">ended</th><th class="l">card</th><th class="l">stage</th><th class="l">result</th><th>time</th><th>cost ${EST}</th></tr></thead><tbody>${p.ended.map((r) =>
+    `<tr><td class="l num">${when(r.end)}</td><td class="l"><button class="lnk" data-open="${esc(p.slug)}/${r.issue}" data-log="${esc(r.log)}">#${r.issue}</button> ${esc(cardOf(p.slug, r.issue)?.title || "")}</td><td class="l">${esc(r.stage)}</td><td class="l">${r.exit === 0 ? '<span class="ok">ok</span>' : `<span class="bad">exit ${r.exit}</span>`}</td><td class="num">${dur(r.start, r.end)}</td><td class="num gold">${r.cost == null ? "–" : money(r.cost)}</td></tr>`).join("")}</tbody></table>` : "";
   setHTML($("telem"), `${hs.length ? `<h2>Runs that ended, by hour <span><b>${ok}</b> clean · <b>${failed}</b> failed</span></h2>${runs}<div class="key"><span style="--k:var(--ok)"><i></i>clean</span><span><i style="background:repeating-linear-gradient(45deg, var(--bad) 0 2px, #e58f8038 2px 4px)"></i>failed</span></div>
     <h2>Spend by hour <span><b>$${spent.toFixed(2)}</b> est.</span></h2>${cost}` : '<p class="empty">No run has ended today.</p>'}
-    ${usual.length ? `<h2>A stage usually takes</h2><div class="usual">${usual.map(([st, name]) => `<span>${name}</span><i style="width:${(p.typical_s[st] / most * 100).toFixed(0)}%"></i><span>${Math.max(1, Math.round(p.typical_s[st] / 60))} min</span>`).join("")}</div>` : ""}`);
+    ${usual.length ? `<h2>A stage usually takes</h2><div class="usual">${usual.map(([st, name]) => `<span>${name}</span><i style="width:${(p.typical_s[st] / most * 100).toFixed(0)}%"></i><span>${Math.max(1, Math.round(p.typical_s[st] / 60))} min</span>`).join("")}</div>` : ""}${ended}`);
 }
 // The owner's quick actions on a pass. Approve waits five seconds so a wrong click can be undone.
 function quick(q, k) {
@@ -598,6 +688,7 @@ async function post(k, action, text) {
 async function openCard(key, tab) {
   const same = S.open === key; const [p, n] = key.split("/"); const ov = cardOf(p, +n);
   S.tab = tab || (same && S.tab) || (ov && OWNER[ov.column] ? "review" : "sessions");
+  if (maxed()) maximize(maxed(), false);  // the drawer opens over the board, not under a maximized panel
   if (!same) { S.liveHtml = ""; S.card = null; S.log = null; S.logNext = -1; S.logText = ""; S.armed = null; }
   S.open = key;
   renderBoard(); renderDrawer();
@@ -605,7 +696,7 @@ async function openCard(key, tab) {
   await loadCard();
 }
 function closeCard() {
-  const key = S.open; S.open = null; S.card = null; renderBoard(); renderDrawer();
+  const key = S.open; S.open = null; S.card = null; S.full = false; renderBoard(); renderDrawer();
   if (key) $("board").querySelector(sel(key))?.focus({ preventScroll: true });
 }
 async function loadCard() {
@@ -620,8 +711,8 @@ async function loadCard() {
 function renderDrawer() {
   const d = $("drawer");
   const [op, on] = (S.open || "/").split("/"); const col = S.card?.column || cardOf(op, +on)?.column;
-  d.className = "drawer" + (S.open ? " open" : "") + (S.open && (OWNER[col] || S.tab === "review") ? " wide" : "") + (S.busy ? " busy" : "");
-  d.inert = !S.open;
+  d.className = "drawer" + (S.open ? " open" : "") + (S.open && (OWNER[col] || S.tab === "review") ? " wide" : "") + (S.busy ? " busy" : "") + (S.open && S.full ? " full" : "");
+  d.inert = !S.open; syncDim();
   if (!S.open) { ["d-head", "d-decide", "d-tabs", "pane"].forEach((id) => setHTML($(id), "")); return; }
   const c = S.card; const [p, n] = S.open.split("/"); const ov = cardOf(p, +n);
   const column = c?.column || ov?.column || "";
@@ -635,13 +726,14 @@ function renderDrawer() {
   if (fresh && S.tab === "log" && $("log")) $("log").textContent = S.logText || "Loading…";
   if (fresh) paintLive(true);
 }
+const stepOf = (slug, c) => { const st = runOf(slug, c)?.step; return st ? `<span>step ${st.i} of ${STEP_COUNT[c.running]} · ${esc(st.label)}</span>` : ""; };
 function headHtml(c, ov, p, n, column) {
   const sessions = c?.sessions || [];
   const span = sessions.length ? dur(sessions[0].start, sessions[sessions.length - 1].end) : "–";
   const title = c?.title || ov?.title || "";
   const moving = S.moving[`${p}/${n}`];
   const state = moving ? `<span class="wait">moving to ${esc(moving)}…</span>`
-    : ov?.running ? `<span class="live"><span class="dial" aria-hidden="true"></span>${esc(ov.running)} running ${clock(liveRun(p, +n, ov.running), true)}</span>`
+    : ov?.running ? `<span class="live"><span class="dial" aria-hidden="true"></span>${esc(ov.running)} running ${clock(liveRun(p, +n, ov.running), true)}</span>${stepOf(p, ov)}`
     : OWNER[column] ? `<span class="wait">waits for you: ${column === "Staged" ? "ready to ship" : "spec to review"}</span>` : "";
   const rep = c?.reports.length ? c.reports[c.reports.length - 1] : null;
   const issue = c?.repo ? `<a href="https://github.com/${esc(c.repo)}/issues/${n}" target="_blank" rel="noopener">issue on GitHub</a>` : "";
@@ -905,9 +997,12 @@ async function followLog() {
 function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog(); if (id === "live") followLive(); }
 
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-max],[data-dmax],[data-full],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
-  if (t.dataset.q) quick(t.dataset.q, t.closest("[data-key]").dataset.key);
+  if (t.hasAttribute("data-max")) maximize(t.parentElement, !t.parentElement.classList.contains("maxed"));
+  else if (t.hasAttribute("data-dmax")) grow($("drawer"), () => { S.full = !S.full; renderDrawer(); });
+  else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, "live"); }, t.closest(".tile"));  // a session, maximized: its Live tab at 90% of the screen
+  else if (t.dataset.q) quick(t.dataset.q, t.closest("[data-key]").dataset.key);
   else if (t.dataset.open && t.dataset.log) { openCard(t.dataset.open, "log"); S.log = t.dataset.log; S.logNext = -1; S.logText = ""; }  // a feed line opens its own run's log
   else if (t.dataset.open) openCard(t.dataset.open, t.dataset.go);
   else if (t.dataset.view) setView(t.dataset.view);
@@ -929,6 +1024,7 @@ document.addEventListener("change", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   const typing = e.target.closest?.("textarea, input, select");
+  if (e.key === "Escape" && !typing && maxed()) { maximize(maxed(), false); return; }
   if (e.key === "Escape" && S.open && !typing) { closeCard(); return; }
   const tab = e.target.closest?.('[role="tab"]');
   if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
@@ -955,6 +1051,9 @@ $("list").addEventListener("scroll", fade); window.addEventListener("resize", fa
 const hot = (e, on) => { const k = e.target.closest?.("[data-key]")?.dataset.key; if (k) document.querySelectorAll(`[data-key="${CSS.escape(k)}"]`).forEach((el) => el.classList.toggle("hot", on)); };
 for (const [ev, on] of [["mouseover", true], ["focusin", true], ["mouseout", false], ["focusout", false]]) document.addEventListener(ev, (e) => hot(e, on));
 
+document.querySelectorAll("[data-maxable]").forEach((el) => el.insertAdjacentHTML("afterbegin", `<button class="max" data-max aria-label="Maximize ${el.dataset.maxable}" title="Maximize">${MAX}</button>`));
+$("d-max").innerHTML = MAX;
+$("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
 loadOverview();
 setTimeout(() => { if (!S.overview) setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); }, 6000);
 setInterval(loadOverview, 2000);
