@@ -8,13 +8,26 @@ aghanim_native() {  # path as the native Windows tools want it (C:/...), unchang
   if [ -n "$1" ] && command -v cygpath >/dev/null; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
 }
 
-aghanim_python() {  # python 3 binary, found once
-  if [ -z "${AGHANIM_PY:-}" ]; then
-    if [ -n "${FACTORY_PYTHON:-}" ]; then AGHANIM_PY="$FACTORY_PYTHON"
-    elif python3 -c '' >/dev/null 2>&1; then AGHANIM_PY=python3
-    else AGHANIM_PY=python; fi
-  fi
-  "$AGHANIM_PY" -I "$@"
+aghanim_py() {  # AGHANIM_PY = the python 3 binary, found once and handed to the scripts this one starts
+  [ -n "${AGHANIM_PY:-}" ] && return 0
+  if [ -n "${FACTORY_PYTHON:-}" ]; then AGHANIM_PY="$FACTORY_PYTHON"
+  elif python3 -c '' >/dev/null 2>&1; then AGHANIM_PY=python3
+  else AGHANIM_PY=python; fi
+  export AGHANIM_PY
+}
+aghanim_python() { aghanim_py; "$AGHANIM_PY" -I "$@"; }
+
+aghanim_cfg_ready() {  # what every config query needs (python, native paths), found once per project.
+  # A query runs in a subshell, where what it finds is lost: aghanim_resolve calls this in the script's own shell.
+  local key="$FACTORY_CONFIG|${FACTORY_HOME:-}|${FACTORY_WT_ROOT:-}" p
+  [ "$key" = "${AGHANIM_CFG_KEY:-}" ] && return 0
+  aghanim_py
+  p=("$AGHANIM_LIB/../aghanim_config.py" "$FACTORY_CONFIG" "${FACTORY_HOME:-/}" "${FACTORY_WT_ROOT:-/}")
+  # one cygpath start for the four; an unset one goes in as / and comes back empty
+  if command -v cygpath >/dev/null; then mapfile -t p < <(cygpath -m "${p[@]}"); fi
+  [ -n "${FACTORY_HOME:-}" ] || p[2]=""
+  [ -n "${FACTORY_WT_ROOT:-}" ] || p[3]=""
+  AGHANIM_CFG=("${p[0]}" --config "${p[1]}" --home "${p[2]}" --worktrees "${p[3]}"); AGHANIM_CFG_KEY="$key"
 }
 
 git_common() { git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null; }
@@ -54,13 +67,13 @@ aghanim_snapshot() {  # aghanim_snapshot: FACTORY_CONFIG = the project config as
 aghanim_resolve() {  # aghanim_resolve [dir]: 0 when the project is known (env, or the registry entry
   # whose repository is the one [dir] belongs to), else 1. The config always comes from the
   # project's control checkout (origin/main), never from the checkout being worked on.
-  [ -n "${FACTORY_CONFIG:-}" ] && return 0
+  [ -n "${FACTORY_CONFIG:-}" ] && { aghanim_cfg_ready; return 0; }
   local here slug repo wt main
   here="$(git_common "${1:-.}")"
   if [ -n "$here" ] && [ -f "$AGHANIM_HOME/registry.tsv" ]; then
     while IFS=$'\t' read -r slug repo wt main; do
       [ -z "$slug" ] && continue
-      if [ "$(git_common "$repo")" = "$here" ]; then aghanim_use "$slug" "$repo" "$wt" "$main"; return 0; fi
+      if [ "$(git_common "$repo")" = "$here" ]; then aghanim_use "$slug" "$repo" "$wt" "$main"; aghanim_cfg_ready; return 0; fi
     done < "$AGHANIM_HOME/registry.tsv"
   fi
   echo "aghanim: $(pwd) is not in a registered project (aghanim add <repo>)" >&2; return 1
@@ -128,6 +141,5 @@ aghanim_machine() {  # aghanim_machine <validate|values|show|set ...>: the machi
 }
 
 aghanim_cfg() {  # aghanim_cfg <query...>: asks aghanim_config.py about the resolved project
-  aghanim_python "$(aghanim_native "$AGHANIM_LIB/../aghanim_config.py")" --config "$(aghanim_native "$FACTORY_CONFIG")" \
-    --home "$(aghanim_native "${FACTORY_HOME:-}")" --worktrees "$(aghanim_native "${FACTORY_WT_ROOT:-}")" "$@"
+  aghanim_cfg_ready; "$AGHANIM_PY" -I "${AGHANIM_CFG[@]}" "$@"
 }

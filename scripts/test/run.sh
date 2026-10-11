@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs every *.test.sh in this folder in parallel (TEST_JOBS, default: CPU count) and prints each
+# Runs every *.test.sh in this folder in parallel (TEST_JOBS, default: half the CPUs) and prints each
 # file's output in order; exits non-zero if any fails. Every test file works in its own temp dirs.
 # usage: run.sh [file.test.sh ...] | run.sh --changed [base]
 #   --changed  only the tests tied to what changed against <base> (default origin/main), committed or
@@ -21,7 +21,8 @@ if [ "${1:-}" = --changed ]; then
     [ $# -gt 0 ] || { echo "== nothing to run: no test is tied to what changed against ${2:-origin/main}"; exit 0; }
   fi
 fi
-jobs="${TEST_JOBS:-$(nproc 2>/dev/null || echo 4)}"
+# half the CPUs: these tests are process starts, and one job per CPU made the same suite take twice as long (652s vs 313s on 16)
+jobs="${TEST_JOBS:-$(( ($(nproc 2>/dev/null || echo 8) + 1) / 2 ))}"
 out="$(mktemp -d)"; start="$(date +%s)"
 if [ $# -gt 0 ]; then files=("$@"); else
   # the slowest files first, so the run takes about as long as the slowest one
