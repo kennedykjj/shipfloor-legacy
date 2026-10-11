@@ -5,7 +5,7 @@
 #   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .aghanim/factory.yml
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
 #   pool [set <n> | stage <stage> <n> | stacks <n>]  runs at once on this machine, per stage, and stack slots
-#   clean <slug>                  remove tmp/<n>/ left by cards that are Done or off the board
+#   clean <slug>                  remove what cards left under tmp/ (the dispatcher does it every cycle)
 #   accept <slug> <n> <reason>    owner only: take card <n>'s acceptance tests as they stand (acceptance-intact)
 #   dashboard [--port N] [--no-open]  local dashboard: pool, runs, logs, cost per card, reviews
 #   migrate-home [OLD]            move the old ~/.mylos home here (one-time, after the rename; legacy mylos)
@@ -59,7 +59,7 @@ cmd_doctor() {
   local alert
   while IFS= read -r alert; do
     [ -n "$alert" ] && echo "WARN health: $alert (~/.aghanim/logs/health-*.jsonl)"
-  done < <(aghanim_python "$(aghanim_native "$HERE/aghanim_health.py")" alerts --home "$(aghanim_native "$AGHANIM_HOME")" 2>/dev/null | tr -d '')
+  done < <(aghanim_python "$(aghanim_native "$HERE/aghanim_health.py")" alerts --home "$(aghanim_native "$AGHANIM_HOME")" 2>/dev/null | tr -d '\r')
   if [ -s "$REGISTRY" ]; then
     local slug repo wt main
     while IFS=$'\t' read -r slug repo wt main; do
@@ -232,7 +232,7 @@ case "$cmd" in
   remove) cmd_remove "$@" ;;
   list) cmd_list ;;
   pool) cmd_pool "$@" ;;
-  clean) use "${1:-}"; for n in $(aghanim_stale_tmp); do aghanim_clean_tmp "$n"; echo "removed tmp/$n"; done ;;
+  clean) use "${1:-}"; aghanim_sweep_tmp | sed 's/^/removed /' ;;
   accept) cmd_accept "$@" ;;
   pause) cmd_pause "$@" ;;
   resume) cmd_resume "$@" ;;
