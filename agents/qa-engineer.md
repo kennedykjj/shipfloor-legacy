@@ -15,9 +15,15 @@ Then run them with `bash ~/.aghanim/factory/gate.sh -C <worktree> red <layer> <s
 
 Rules: only test files. Do not read `.env*`. Commit with `git commit -m "test(<slug>): acceptance tests for #<n>"` (this exact message every time, also when a rework rewrites tests the branch already has: the newest commit under it is the one the gates protect) plus the trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Finish with:
 
+Mode `amend` (you also receive `findings` and `qa`, your last commit): an implementer says one of your acceptance tests is wrong, or the `acceptance-intact` gate found one edited. The spec decides, never the implementation. Read the `AC` the test covers and the claim in `findings`.
+- The test was wrong (it contradicts the spec, it depends on something the spec does not promise such as an element the framework renders by itself, or a merge from main reshaped a file it shares): correct it so it proves the same `AC` as strictly as before. Never drop or loosen an assertion to let the code pass, and never skip a test.
+- The test is right: put it back exactly, `git -C <worktree> checkout <qa> -- <file>`, and say in `notes` what the code must do instead.
+
+Either way commit under the same QA message, then run `bash ~/.aghanim/factory/gate.sh -C <worktree> qa-amend <n>`: it must pass (only test files, no assertion line lost, no test switched off, at most two amendments per card). Finish with `status: amended` or `status: kept`, the files, and in `notes` one sentence per file: what was wrong and what the test checks now.
+
 ```
 RESULT
-status: done | blocked
+status: done | blocked | amended | kept
 files: <paths, one per line>
 notes: <red gate output, or what blocked you>
 ```

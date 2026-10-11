@@ -139,4 +139,40 @@ out="$(FACTORY_CONFIG="$PT" bash "$GATE" acceptance-intact "$qa" 2>&1)"; code=$?
 assert_contains "$out" "acceptance-intact: os testes de aceitação mudaram depois do commit do QA"
 FACTORY_CONFIG="$PT" assert_exit 0 bash "$GATE" acceptance-intact "$(git rev-parse HEAD)"
 assert_exit 1 env FACTORY_CONFIG="$(f="$(mktemp)"; { cat "$FACTORY_CONFIG"; echo "language: klingon"; } > "$f"; echo "$f")" bash "$FACTORY_DIR/aghanim-config.sh" validate
+
+# QA amends its own acceptance tests: the amendment becomes the baseline, the gate keeps it honest, and what an
+# earlier QA commit wrote stays protected
+r="$(new_repo)"; cd "$r"; mkdir -p api/src/test; git checkout -q -b feat/5-x
+printf '%s\n' 'fun a() {' '  assertEquals(1, one())' '  assertTrue(ok())' '}' > api/src/test/ATest.kt; echo 'fun b() { assertTrue(b()) }' > api/src/test/BTest.kt
+git add -A; git commit -qm "test(x): acceptance tests for #5"
+assert_exit 1 bash "$GATE" qa-amend 5   # one QA commit: nothing was amended
+echo impl > api/Impl.kt; git add -A; git commit -qm "feat(api): impl"
+assert_exit 1 bash "$GATE" qa-amend 5   # the last commit is not QA's
+sed -i 's/assertEquals(1, one())/assertEquals(1, oneTrimmed())/' api/src/test/ATest.kt; git commit -qam "test(x): acceptance tests for #5"
+out="$(bash "$GATE" qa-amend 5 2>&1)"; code=$?
+[ "$code" = 0 ] && pass "an amendment that checks differently passes" || fail "amendment: exit $code: $out"
+assert_contains "$out" "1 assertion lines replaced by 1"
+qa="$(bash "$GATE" qa-commit 5)"; [ "$qa" = "$(git rev-parse HEAD)" ] && pass "the amendment is the QA commit" || fail "qa-commit did not move to the amendment"
+assert_exit 0 bash "$GATE" acceptance-intact "$qa"
+echo 'fun b() { }' > api/src/test/BTest.kt; git commit -qam "feat(api): edits a test the amendment did not touch"
+assert_exit 1 bash "$GATE" acceptance-intact "$qa"
+git reset -q --hard "$qa"
+# ...but not one that checks less, switches a test off, or leaves the tests
+sed -i '/assertTrue(ok())/d' api/src/test/ATest.kt; git commit -qam "test(x): acceptance tests for #5"
+out="$(bash "$GATE" qa-amend 5 2>&1)"; code=$?
+[ "$code" = 1 ] && pass "an amendment that drops an assertion is refused" || fail "dropped assertion: exit $code"
+assert_contains "$out" "removes 1 assertion lines and adds 0"
+git reset -q --hard "$qa"
+sed -i 's/^fun a() {/@Disabled fun a() {/' api/src/test/ATest.kt; git commit -qam "test(x): acceptance tests for #5"
+assert_contains "$(bash "$GATE" qa-amend 5 2>&1)" "switches a test off"
+git reset -q --hard "$qa"
+echo x >> api/Impl.kt; echo '// note' >> api/src/test/ATest.kt; git commit -qam "test(x): acceptance tests for #5"
+assert_contains "$(bash "$GATE" qa-amend 5 2>&1)" "files that are not tests"
+git reset -q --hard "$qa"
+# ...and not a third time: the owner decides then
+echo '// second' >> api/src/test/ATest.kt; git commit -qam "test(x): acceptance tests for #5"
+assert_exit 0 bash "$GATE" qa-amend 5
+echo '// third' >> api/src/test/ATest.kt; git commit -qam "test(x): acceptance tests for #5"
+assert_contains "$(bash "$GATE" qa-amend 5 2>&1)" "already amended 2 times"
+assert_contains "$(FACTORY_CONFIG="$PT" bash "$GATE" qa-amend 5 2>&1)" "agora o owner decide"
 finish
