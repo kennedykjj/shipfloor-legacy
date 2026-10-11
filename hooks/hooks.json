@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      { "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/inbox-hook.sh\"" }] }
+    ]
+  }
+}

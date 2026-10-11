@@ -3,6 +3,8 @@ import json, re
 from collections import deque
 from datetime import datetime
 
+from inbox_hook import INTRO
+
 LEGACY_STAGES = {"refinar": "refine", "desenvolver": "develop", "validar": "validate", "deployar": "deploy"}  # legacy mylos
 COMMAND = re.compile(r"<command-name>/(?:aghanim|mylos):([a-z]+)</command-name>\s*<command-args>(\d+)</command-args>")  # legacy mylos
 TOKEN_KINDS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
@@ -69,6 +71,29 @@ def parse_transcript(path):
         for k, v in kinds.items():
             t[k] += v or 0
     return {"stage": stage, "issue": issue, "start": start, "end": end, "tokens": tokens, "activity": list(activity)}
+
+
+def events(path):
+    """What a session said and did, in order, and the owner's messages it was handed (inbox_hook.py)."""
+    out = []
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            try:
+                o = json.loads(line)
+            except ValueError:
+                continue
+            ts, content, att = o.get("timestamp"), (o.get("message") or {}).get("content"), o.get("attachment") or {}
+            if o.get("type") == "assistant" and isinstance(content, list):
+                for block in content:
+                    did = isinstance(block, dict) and doing(block)
+                    if did and did["kind"] == "says":
+                        did["text"] = block["text"].strip()[:4000]
+                    if did:
+                        out.append(dict(did, ts=ts))
+            elif att.get("type") == "hook_additional_context":
+                out += [{"kind": "owner", "text": c[len(INTRO):].strip(), "ts": ts}
+                        for c in att.get("content") or [] if isinstance(c, str) and c.startswith(INTRO)]
+    return out
 
 
 def cost(tokens, prices):
