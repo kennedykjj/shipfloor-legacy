@@ -187,7 +187,7 @@ renumber_migrations() {  # main took the version of a migration the card adds: t
   [ "$moved" = 0 ] || g commit -qm "chore(migration): renumber above $MAIN's newest" -m "$TRAILER"
 }
 
-qa_commit() { g log --format=%H -1 -E --grep "acceptance tests for #$n([^0-9]|\$)" "$(g merge-base HEAD "origin/$MAIN")..HEAD"; }
+qa_commit() { bash "$GATE" -C "$WT" qa-commit "$n" 2>/dev/null; }
 
 hand_fix() {  # hand_fix <what failed>: red on top of main, with the findings in <tmp>/fix.findings: an agent gets two rounds before Coding
   local round; round="$(cat "$TMP/fix.round" 2>/dev/null || echo 0)"

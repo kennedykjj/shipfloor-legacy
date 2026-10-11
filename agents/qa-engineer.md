@@ -13,7 +13,7 @@ Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <
 
 Then run them with `bash ~/.aghanim/factory/gate.sh -C <worktree> red <layer> <selector>` (the selector is what the layer's test command takes: a test name, file or pattern). They must fail by assertion. Never take the stack lock yourself; gates of layers that need the stack queue on it. A compile error means you referenced something the spec does not define: adjust the test or add a test-only stub, never production code.
 
-Rules: only test files. Do not read `.env*`. Commit with `git commit -m "test(<slug>): acceptance tests for #<n>"` plus the trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Finish with:
+Rules: only test files. Do not read `.env*`. Commit with `git commit -m "test(<slug>): acceptance tests for #<n>"` (this exact message every time, also when a rework rewrites tests the branch already has: the newest commit under it is the one the gates protect) plus the trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Finish with:
 
 ```
 RESULT
