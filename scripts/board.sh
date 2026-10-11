@@ -52,7 +52,8 @@ eligible() {  # cards in a column without the blocked label, board order; fails 
   local all n labels out=""; all="$(raw_items)" || return 1
   for n in $(printf '%s\n' "$all" | awk -F'\t' -v s="$1" '$2==s{print $1}'); do
     labels="$("$GH" api "repos/$REPO/issues/$n" --jq '.labels[].name')" || return 1  # REST: separate quota
-    printf '%s\n' "$labels" | tr -d '\r' | grep -qxE 'blocked|blocked:infra' || out="$out$n"$'\n'
+    # no pipe into grep -q: it leaves at the first match, the writer dies of SIGPIPE, and pipefail then reads "no match"
+    grep -qxE 'blocked|blocked:infra' <<< "${labels//$'\r'/}" || out="$out$n"$'\n'
   done
   printf '%s' "$out"
 }

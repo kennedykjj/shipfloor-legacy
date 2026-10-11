@@ -1,0 +1,28 @@
+name: CI
+
+# The whole test suite, on every pull request and on main. The factory's deploy waits for this
+# workflow by name (deploy.ci_workflow in .shipfloor/factory.yml).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: PyYAML
+        run: python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml
+      - name: Test suite
+        env:
+          TEST_JOBS: 4   # the default is half the CPUs, and the tests mostly wait on git and subprocesses
+        run: bash scripts/test/run.sh
