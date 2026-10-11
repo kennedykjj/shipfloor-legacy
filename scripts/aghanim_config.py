@@ -21,9 +21,8 @@ REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 DEFAULTS = {
     "project": {"main": "main"},
     "paths": {"specs": "docs/superpowers/specs/", "plans": "docs/superpowers/plans/"},
-    # parallel 0 = no cap of the project's own: the machine's stage slots decide. Deploy stays 1: merges are serial.
-    "limits": {"refine": {"parallel": 0, "wip": 2}, "develop": {"parallel": 0, "wip": 4},
-               "validate": {"parallel": 0, "wip": 0}, "deploy": {"parallel": 1, "wip": 0}},
+    # cards in the WIP columns; runs at once are the machine's (pool and stage slots), and deploy is serial per project
+    "limits": {"refine": {"wip": 2}, "develop": {"wip": 4}, "validate": {"wip": 0}, "deploy": {"wip": 0}},
     "context": [], "forbidden": [], "review_criteria": "",
     # acceptance-intact lets through an edit to an acceptance test that adds or removes no line matching this. "" = every edit blocks.
     "acceptance_assertions": "",
@@ -122,12 +121,14 @@ def problems(cfg):
             errs.append(f"paths.{k} must be a directory like docs/specs/")
     for p, lim in mapping(cfg, "limits").items():
         if not isinstance(lim, dict):
-            errs.append(f"limits.{p} must be a mapping like {{parallel: 2, wip: 4}}"); continue
+            errs.append(f"limits.{p} must be a mapping like {{wip: 4}}"); continue
         for k, v in lim.items():
-            if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+            if k != "wip":
+                errs.append(f"limits.{p}.{k} is not a limit (only wip; runs at once are set by `aghanim pool`)")
+            elif not isinstance(v, int) or isinstance(v, bool) or v < 0:
                 errs.append(f"limits.{p}.{k} must be a non-negative integer")
     for k, v in mapping(cfg, "deploy").items():
-        if k in ("timeout_min", "conflict_max_files", "conflict_max_hunks"):
+        if k in ("timeout_min", "conflict_max_files", "conflict_max_hunks", "fix_max_files", "fix_max_lines"):
             if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
                 errs.append(f"deploy.{k} must be a positive integer")
         elif k == "required_checks":
@@ -328,6 +329,34 @@ def describe(cfg, home, worktrees):
         if l["migrations"]:
             lines.append(f"      migrations: {l['migrations']['glob']}")
     return "\n".join(lines)
+
+
+def migration_renumber(pattern, lines):
+    """lines as in migration_check. The renames (old path, new path) that put the card's migrations (N)
+    above the newest existing one (E) when their version is taken or older. Plain integer versions only:
+    any other scheme is left to the migration gate."""
+    version_re = re.compile(pattern)
+    top, mine = -1, {}
+    for line in lines:
+        kind, _, path = line.partition("\t")
+        m = version_re.search(path.rsplit("/", 1)[-1])
+        if not m or not m.group(1).isdigit():
+            continue
+        if kind == "E":
+            top = max(top, int(m.group(1)))
+        else:
+            mine.setdefault(m.group(1), []).append((path, m))
+    out = []
+    for old in sorted(mine, key=int):  # a migration's files (up, down, undo) share a version and move together
+        if int(old) > top:
+            top = int(old)
+            continue
+        top += 1
+        for path, m in mine[old]:
+            head, _, name = path.rpartition("/")
+            new = name[:m.start(1)] + str(top).zfill(len(old)) + name[m.end(1):]
+            out.append((path, f"{head}/{new}" if head else new))
+    return out
 
 
 def migration_check(pattern, lines):
@@ -541,6 +570,11 @@ def main(argv):
         if not mig:
             return 0
         return migration_check(mig["version"], sys.stdin.read().splitlines())
+    if cmd == "migration-renumber" and len(rest) == 1:
+        mig = cfg.layer(rest[0])["migrations"]
+        for old, new in migration_renumber(mig["version"], sys.stdin.read().splitlines()) if mig else []:
+            print(f"{old}\t{new}")
+        return 0
     if cmd == "migration-layers" and not rest:  # main branch, then <layer>	<ERE>	<comment> per layer with migrations
         print(cfg.data["project"]["main"])
         for l in cfg.layers:

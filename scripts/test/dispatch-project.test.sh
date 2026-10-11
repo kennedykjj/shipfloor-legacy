@@ -23,12 +23,6 @@ EOB
 launched() { cat "$tmp/launched"; }
 live_lock() { mkdir -p "$1"; echo "$$ $(date +%s) 1" > "$1/info"; }
 
-# limits come from the config
-setup; cfg="$(mktemp)"; cat "$FACTORY_CONFIG" > "$cfg"; printf 'limits:\n  develop: {parallel: 1}\n' >> "$cfg"; export FACTORY_CONFIG="$cfg"
-Q_DEV="26 27" run_dispatch; out="$(launched)"
-assert_contains "$out" "/aghanim:develop 26"
-case "$out" in *"develop 27"*) fail "ignored limits.develop.parallel: $out" ;; *) pass "parallel limit from config" ;; esac
-
 # a machine-wide limit counts live runs of every project
 setup; export AGHANIM_MAX_PARALLEL=1; live_lock "$AGHANIM_HOME/projects/other/locks/develop-9.lock"
 Q_DEV="26" run_dispatch; [ -z "$(launched)" ] && pass "global limit across projects" || fail "launched past the global limit: $(launched)"

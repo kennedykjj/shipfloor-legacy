@@ -53,7 +53,7 @@ Q_REF="25" Q_DEV="26" Q_VAL="27" run_dispatch; out="$(launched)"
 setup; machine $'pool: 4\nstages: {deploy: 0}'; Q_PROD="47" run_dispatch
 [ -z "$(launched)" ] && pass "stage with 0 slots" || fail "deployed with 0 slots: $(launched)"
 
-# a project sets no cap of its own by default: the stage's machine slots decide
+# a project sets no cap of its own: the stage's machine slots decide
 setup; machine $'pool: 6
 stages: {develop: 3}'; Q_DEV="26 27 28" run_dispatch; out="$(launched)"
 [ "$(printf '%s' "$out" | grep -o '/aghanim:develop' | wc -l)" -eq 3 ] && pass "no project cap by default" || fail "project default capped the stage: $out"

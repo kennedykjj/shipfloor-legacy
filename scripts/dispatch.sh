@@ -19,9 +19,8 @@ TTL="${FACTORY_LOCK_TTL:-10800}"
 export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" AGHANIM_HOME
 mkdir -p "$HOME_DIR/locks" "$HOME_DIR/logs" "$HOME_DIR/tmp" "$HOME_DIR/reviews" "$WT_ROOT"
 [ -e "$HOME_DIR/PAUSE" ] && exit 0
-mapfile -d '' -t LIM < <(aghanim_cfg values limits.refine.parallel limits.refine.wip \
-  limits.develop.parallel limits.develop.wip limits.validate.parallel limits.deploy.parallel)
-[ "${#LIM[@]}" -eq 6 ] || { echo "dispatch: cannot read limits" >&2; exit 2; }
+mapfile -d '' -t LIM < <(aghanim_cfg values limits.refine.wip limits.develop.wip)
+[ "${#LIM[@]}" -eq 2 ] || { echo "dispatch: cannot read limits" >&2; exit 2; }
 # The machine pool (~/.aghanim/config.yml): runs at once on this machine, and per stage, across projects.
 aghanim_machine validate || { echo "dispatch: invalid $AGHANIM_HOME/config.yml" >&2; exit 2; }
 mapfile -d '' -t POOL < <(aghanim_machine values pool stages.refine stages.develop stages.validate stages.deploy)
@@ -104,10 +103,11 @@ launch() {  # launch <pipeline> <issue>
     cd "$CONTROL" || exit 1
     if [ "$p" = deploy ]; then
       # The deploy is a script, not an agent: it can wait for CI and production as long as needed.
-      # An agent is called only to resolve the merge conflicts the script hands over (exit 3).
+      # An agent is called only for what the script hands over (exit 3): merge conflicts with main, then up to
+      # two rounds on a gate or CI that went red on top of main.
       local dep="${FACTORY_DEPLOY:-$HERE/deploy.sh}" rc round
       env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" bash "$dep" "$n" >>"$log" 2>&1; rc=$?
-      for round in 1 2; do
+      for round in 1 2 3; do
         [ "$rc" = 3 ] || break
         agent; env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" bash "$dep" "$n" --continue >>"$log" 2>&1; rc=$?
       done
@@ -124,13 +124,13 @@ launch() {  # launch <pipeline> <issue>
   ) &
 }
 
-run_pipeline() {  # run_pipeline <name> <queue> <max runs, 0 = no project cap> <wip-limit> <orphan columns, comma-separated> <wip column>...
+run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = the stage slots decide> <wip-limit> <orphan columns, comma-separated> <wip column>...
   local p="$1" queue="$2" maxpar="$3" limit="$4" orphan_cols="$5"; shift 5
   local running n st inflight=0 free col cards refreshed=0 resumed=""
   running="$(running_issues "$p")"
   free=$(( maxpar - $(printf '%s' "$running" | grep -c .) ))
   local stage_free=$(( ${STAGE_SLOTS[$p]:-0} - $(live_runs "$p") ))
-  { [ "$maxpar" -eq 0 ] || [ "$stage_free" -lt "$free" ]; } && free="$stage_free"  # 0 = no project cap
+  { [ "$maxpar" -eq 0 ] || [ "$stage_free" -lt "$free" ]; } && free="$stage_free"  # 0 = the stage slots decide
   [ "$free" -le 0 ] && return 0
   start_run() {
     if [ "$refreshed" = 0 ]; then
@@ -225,10 +225,11 @@ retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a s
 GLOBAL=$(( ${AGHANIM_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
 retry_infra || status=1
-run_pipeline refine     "Ready for Refinement" "${LIM[0]}" "${LIM[1]}" "Technical Refinement" "Spec Review"        || status=1
-run_pipeline develop "Ready for Dev"        "${LIM[2]}" "${LIM[3]}" "Coding"               "Coding" "Validation" || status=1
-run_pipeline validate     "Validation"           "${LIM[4]}" 0           ""                                         || status=1
-run_pipeline deploy    "Ready for Prod"       "${LIM[5]}" 0           ""                                         || status=1
+run_pipeline refine     "Ready for Refinement" 0           "${LIM[0]}" "Technical Refinement" "Spec Review"        || status=1
+run_pipeline develop "Ready for Dev"        0           "${LIM[1]}" "Coding"               "Coding" "Validation" || status=1
+run_pipeline validate     "Validation"           0           0          ""                                         || status=1
+# one deploy at a time in a project: merges into its main are serial
+run_pipeline deploy    "Ready for Prod"       1           0          ""                                         || status=1
 # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
 [ "$(aghanim_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
 # What finished cards and stray files left under tmp/ goes with every cycle (the same as `aghanim clean`).

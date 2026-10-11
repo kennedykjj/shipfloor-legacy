@@ -1,6 +1,6 @@
 ---
 name: develop
-description: Factory pipeline 2, implementation (Tech Lead). Takes the next card from Ready for Dev (or the issue given), plans, has QA write failing acceptance tests, has each layer's engineer implement, brings the branch up to date with main and hands the card to Validation. Started by the dispatcher or by "/aghanim:develop [n]".
+description: Factory pipeline 2, implementation (Tech Lead). Takes the next card from Ready for Dev (or the issue given), plans, has QA write failing acceptance tests, has each layer's engineer implement and hands the card to Validation. Started by the dispatcher or by "/aghanim:develop [n]".
 ---
 
 # /develop — Tech Lead, implementation
@@ -42,10 +42,10 @@ Call `qa-engineer` with `issue spec plan worktree tmp` and the layers block of d
 - When all tasks are done: `gate.sh -C <wt> green <layer> <selector>` for every acceptance test selector from the QA commit; the acceptance tests must run and pass.
 - Failure → same agent again with the gate output as `findings` (max 2 rounds per task), then the failure rule.
 
-## 5. Up to date with main
-Other cards merge while this one is built; the branch must work on top of them.
-- `git -C <wt> fetch origin` and `git -C <wt> merge --no-edit -m "Merge origin/<main> into feat/<n>-<slug>" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" origin/<main>`. Conflicts → each file to its owner agent with the conflict hunks as `findings` (never drop main's changes); commit the merge.
-- `mb=$(git -C <wt> merge-base HEAD origin/<main>)`; then `gate.sh -C <wt> forbidden <mb>`, `gate.sh -C <wt> migration <mb> <spec>` (a migration version main took meanwhile fails here: the owner agent renumbers the card's migration above main's newest), `gate.sh -C <wt> acceptance-intact <qa>`, `gate.sh -C <wt> build <mb>` and every `green` gate. Failures follow the step 4 rule.
+## 5. Last gates
+The branch is not merged with main here: the deploy does that, once, on the approved head.
+- `git -C <wt> fetch origin` (the migration gate reads main's versions from `origin/<main>`).
+- `mb=$(git -C <wt> merge-base HEAD origin/<main>)`; then `gate.sh -C <wt> forbidden <mb>` and `gate.sh -C <wt> migration <mb> <spec>` (a migration version main took meanwhile fails here: the owner agent renumbers the card's migration above main's newest). Failures follow the step 4 rule.
 
 ## 6. Hand over to validation
 `git -C <wt> push -u origin feat/<n>-<slug>`; write the report (step 8); then `board.sh move <n> Validation` as the last action (another pipeline may start on the card right after). The validate pipeline reviews it, opens the PR and stages it.
