@@ -46,12 +46,12 @@ assert_contains "$got" "Seven owner **Validate blocked (infrastructure)**: stack
 [ "$(code "$base/api/card/shop/7")" = 403 ] && pass "no token, no data" || fail "served without the token"
 [ "$(code -H "$H_TOK" "$base/api/log/shop/..%2F..%2Fregistry.tsv")" = 404 ] && pass "no path outside logs" || fail "served a file outside logs"
 
-# the feed is one timeline: dispatcher lines and run starts/ends by time, an untimed line after the timed one above it
+# the feed is one timeline: dispatcher lines and one line per run by time, an untimed line after the timed one above it
 D="$(date +%F)"; mkdir -p "$H/logs"
 printf '%sT10:00:00-03:00 aghanim: shop: first\nmv: stderr\n%sT10:10:00-03:00 aghanim: shop: last\n' "$D" "$D" > "$H/logs/dispatcher.log"
 printf '== start /aghanim:develop 7 %sT10:05:00-03:00 pid=1\n== end /aghanim:develop 7 exit=4 %sT10:06:00-03:00\n' "$D" "$D" > "$P/logs/$D-7-develop.log"
-got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print(" | ".join(e["text"] for e in json.load(sys.stdin)["events"]))')"
-assert_contains "$got" "aghanim: shop: first | mv: stderr | develop #7 started | develop #7 failed, exit 4 | aghanim: shop: last"
+got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print(" | ".join(e["text"] + (" exit=%s" % e["exit"] if e.get("issue") else "") for e in json.load(sys.stdin)["events"]))')"
+assert_contains "$got" "aghanim: shop: first | mv: stderr | develop #7 exit=4 | aghanim: shop: last"
 [ "$(code "$base/api/feed")" = 403 ] && pass "no token, no feed" || fail "served the feed without the token"
 rm "$P/logs/$D-7-develop.log"
 # the overview says how long a stage usually takes (clean runs only) and when a card's last run ended

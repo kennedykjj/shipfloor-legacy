@@ -248,6 +248,16 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .feed { overflow: auto; min-width: 0; min-height: 0; }
 .ev { display: grid; grid-template-columns: 12ch 11ch 1fr; gap: 0 12px; }
 .ev button { all: unset; cursor: pointer; text-decoration: underline; }
+.ev.run b { color: var(--text); } .ev b { font-weight: 500; }
+.ev-more { margin: 4px 0 10px calc(23ch + 24px); padding: 2px 0 2px 12px; border-left: 2px solid var(--edge-hi); display: flex; flex-direction: column; gap: 8px; }
+.ev-more pre { margin: 0; font: inherit; color: var(--soft); white-space: pre-wrap; word-break: break-word; }
+.ev-more .acts, .peek .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-family: var(--sans); }
+/* the peek: a card's summary, anchored to its dot on the line */
+.peek { position: fixed; z-index: 2; width: min(340px, calc(100vw - 24px)); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 8px; box-shadow: var(--shadow); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.peek[hidden] { display: none; }
+.peek::before { content: ""; position: absolute; top: -6px; left: var(--tip, 40px); width: 10px; height: 10px; background: var(--panel-hi); border-left: 1px solid var(--edge-hi); border-top: 1px solid var(--edge-hi); transform: rotate(45deg); }
+.peek h3 { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.3; text-wrap: balance; } .peek h3 .num { color: var(--muted); font-weight: 500; margin-right: 7px; }
+.peek .meta { margin: 0; font-size: 12.5px; color: var(--muted); } .peek .acts a { font-size: 13px; color: var(--soft); margin-left: 2px; }
 .ev button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 10px 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
@@ -373,6 +383,7 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
     </div>
   </section>
   <section class="feed log panel" id="feed" aria-label="Feed" tabindex="0" hidden></section>
+  <div class="peek" id="peek" role="dialog" aria-label="Card summary" hidden></div>
   <aside class="drawer" id="drawer" role="dialog" aria-modal="false" aria-labelledby="tip-title" inert>
     <div id="d-head"></div>
     <div id="d-decide"></div>
@@ -525,7 +536,7 @@ function renderBoard() {
     const sig = `${c.column}|${c.running || ""}`, k = key(c);  // a card that changed column or stage since the last read is fresh for a while
     if (!S.seen[k]) S.seen[k] = { sig, at: 0 }; else if (S.seen[k].sig !== sig) S.seen[k] = { sig, at: now };
   }
-  renderBand(p, by, key); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p);
+  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p);
 }
 // A running card sits on the step it reported; with no step yet, further right the longer it runs against the usual.
 function progress(p, c) {
@@ -534,10 +545,35 @@ function progress(p, c) {
   const usual = p.typical_s?.[c.running], since = run?.started;
   return usual && since ? Math.min(92, Math.max(30, 30 + 31 * (Date.now() - new Date(since)) / 1000 / usual)) : 55;
 }
+// The peek: a click on a dot shows the card's summary under it, and the line stays whole. Its buttons open the card.
+function renderPeek() {
+  const el = $("peek"), dot = S.peek && document.querySelector(`#cells .dot[data-key="${CSS.escape(S.peek)}"]`);
+  const [slug, n] = (S.peek || "/").split("/"), c = dot && cardOf(slug, +n);
+  if (!c || !dot.offsetParent) { S.peek = null; el.hidden = true; return; }  // its dot is gone, or the board is not on screen
+  const k = esc(S.peek), run = c.running && runOf(slug, c), of = STEP_COUNT[c.running], step = run?.step;
+  const meta = [esc(c.column), c.running ? `${STAGE_NAME[c.running] || esc(c.running)} running${run?.started ? ` ${mins(run.started)} min` : ""}` : KIND[kindOf(S.peek, c)],
+    step ? `step ${step.i} of ${of} · ${esc(step.label)}` : "", c.cost ? `<span class="gold">${money(c.cost)}</span>` : ""].filter(Boolean).join(" · ");
+  const bar = of ? `<ol class="steps" aria-hidden="true">${Array.from({ length: of }, (_, i) => `<li class="${step ? (i + 1 < step.i ? "done" : i + 1 === step.i ? "now" : "") : ""}"></li>`).join("")}</ol>` : "";
+  const open = OWNER[c.column] ? `<button class="btn" data-open="${k}" data-go="review">Review</button>`  // the owner's cards keep the wide drawer and its decision
+    : `<button class="btn" data-full="${k}"${c.running ? ' data-go="live"' : ""}>${c.running ? "Open session" : "Open card"}</button>`;
+  const at = el.contains(document.activeElement) ? [...el.querySelectorAll("button, a")].indexOf(document.activeElement) : -1;
+  if (setHTML(el, `<h3><span class="num">#${c.issue}</span>${c.title ? esc(c.title) : UNTITLED}</h3><p class="meta">${meta}</p>${bar}
+    <div class="acts">${open}<button class="btn ghost" data-full="${k}" data-go="log">Log</button>${gh(slug, c.issue)}</div>`) && at >= 0) el.querySelectorAll("button, a")[at]?.focus({ preventScroll: true });
+  el.hidden = false;
+  const d = dot.getBoundingClientRect(), x = d.left + d.width / 2, left = Math.max(12, Math.min(x - 44, innerWidth - el.offsetWidth - 12));
+  el.style.left = `${left}px`; el.style.top = `${d.bottom + 20}px`; el.style.setProperty("--tip", `${x - left - 6}px`);
+}
+function peek(k) {
+  const dot = (key) => document.querySelector(`#cells .dot[data-key="${CSS.escape(key)}"]`), was = S.peek;
+  S.peek = was === k ? null : k;
+  for (const key of [was, k]) if (key) { const d = dot(key); d?.classList.toggle("open", S.peek === key || S.open === key); d?.setAttribute("aria-expanded", S.peek === key); }
+  renderPeek();
+  if (S.peek) $("peek").querySelector("button")?.focus({ preventScroll: true }); else dot(k)?.focus({ preventScroll: true });
+}
 function renderBand(p, by, key) {
   const was = Object.fromEntries([...document.querySelectorAll(".dot")].map((d) => [d.dataset.key, d.getBoundingClientRect().left]));
   const dot = (c, x) => { const k = key(c), kind = kindOf(k, c);
-    return `<button class="dot ${kind}${S.open === k ? " open" : ""}" data-key="${esc(k)}" data-open="${esc(k)}" style="left:${x.toFixed(1)}%" title="#${c.issue} ${esc(c.title)} · ${KIND[kind]}" aria-label="#${c.issue} ${esc(c.title)}, ${KIND[kind]}"><i></i><em>${c.issue}</em></button>`; };
+    return `<button class="dot ${kind}${S.open === k || S.peek === k ? " open" : ""}" data-key="${esc(k)}" data-open="${esc(k)}" data-peek="${esc(k)}" aria-expanded="${S.peek === k}" style="left:${x.toFixed(1)}%" title="#${c.issue} ${esc(c.title)} · ${KIND[kind]}" aria-label="#${c.issue} ${esc(c.title)}, ${KIND[kind]}"><i></i><em>${c.issue}</em></button>`; };
   const plus = (cs, x) => `<span class="plus" style="left:${x.toFixed(1)}%" title="${cs.map((c) => "#" + c.issue).join(", ")}">+${cs.length}</span>`;
   const labels = {};
   const html = COLS.map((col) => {
@@ -952,19 +988,39 @@ function setView(v) {
   S.view = v;
   $("board").hidden = v !== "board"; $("feed").hidden = v !== "feed";
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === v));
+  renderPeek();
   loadFeed();
 }
 async function loadFeed() {
   if (S.view !== "feed") return;
   const { status, body } = await api("/api/feed");
   if (status !== 200) return;
-  const el = $("feed"); const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-  const html = body.events.map((e) => {
-    const text = e.issue ? `<button data-open="${esc(e.source)}/${e.issue}" data-log="${esc(e.log)}">${esc(e.text)}</button>` : `<span>${esc(e.text)}</span>`;
-    return `<div class="ev ${e.exit == null ? "" : e.exit === 0 ? "ok" : "bad"}"><span class="muted" title="${esc(e.ts)}">${e.ts ? when(e.ts) : ""}</span><span class="muted">${esc(e.source)}</span>${text}</div>`;
-  }).join("");
-  if (setHTML(el, html || '<p class="placeholder">Nothing logged yet.</p>') && atEnd) el.scrollTop = el.scrollHeight;
+  S.feed = body.events; renderFeed(); feedTail();
 }
+const evId = (e) => `${e.source}/${e.log}/${e.start}`;
+function renderFeed() {
+  const el = $("feed"); const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40, had = document.activeElement?.dataset?.ev;
+  const html = (S.feed || []).map((e) => {
+    const head = `<span class="muted" title="${esc(e.ts)}">${e.ts ? when(e.ts) : ""}</span><span class="muted">${esc(e.source)}</span>`;
+    if (!e.issue) return `<div class="ev">${head}<span>${esc(e.text)}</span></div>`;
+    const id = esc(evId(e)), open = S.feedOpen === evId(e), k = `${esc(e.source)}/${e.issue}`;
+    const more = open ? `<div class="ev-more"><pre>${esc(S.feedTail ?? "Reading the log…")}</pre>
+      <div class="acts"><button class="btn" data-full="${k}" data-go="log" data-log="${esc(e.log)}">Whole log</button><button class="btn ghost" data-full="${k}">Open card</button></div></div>` : "";
+    return `<div class="ev ${e.end ? (e.exit === 0 ? "ok" : "bad") : "run"}">${head}<span><button data-ev="${id}" aria-expanded="${open}">${esc(e.text)}</button> <span class="muted">· ${e.end ? dur(e.start, e.end) : `${mins(e.start)}m`} ·</span> <b>${e.end ? (e.exit === 0 ? "ok" : `exit ${e.exit}`) : "running"}</b></span></div>${more}`;
+  }).join("");
+  if (!setHTML(el, html || '<p class="placeholder">Nothing logged yet.</p>')) return;
+  if (had) el.querySelector(`[data-ev="${CSS.escape(had)}"]`)?.focus({ preventScroll: true });
+  if (atEnd && !S.feedOpen) el.scrollTop = el.scrollHeight;
+}
+async function feedTail() {  // the last lines of the open run's log; read again on every feed refresh, so a running one moves
+  const id = S.feedOpen, e = id && (S.feed || []).find((x) => x.issue && evId(x) === id);
+  if (!e) return;
+  const { status, body } = await api(`/api/log/${encodeURIComponent(e.source)}/${encodeURIComponent(e.log)}?from=-1`);
+  if (S.feedOpen !== id) return;
+  S.feedTail = status === 200 ? body.text.split("\n").filter((l) => l.trim()).slice(-12).join("\n") || "(empty)" : "The log could not be read.";
+  renderFeed();
+}
+function toggleEv(id) { S.feedOpen = S.feedOpen === id ? null : id; S.feedTail = null; renderFeed(); feedTail(); }
 
 let tailing = false;
 async function unblock() {
@@ -997,11 +1053,14 @@ async function followLog() {
 function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog(); if (id === "live") followLive(); }
 
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-max],[data-dmax],[data-full],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
+  const t = e.target.closest("[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.hasAttribute("data-max")) maximize(t.parentElement, !t.parentElement.classList.contains("maxed"));
   else if (t.hasAttribute("data-dmax")) grow($("drawer"), () => { S.full = !S.full; renderDrawer(); });
-  else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, t.dataset.go); }, t.closest(".tile"));  // a card in progress opens maximized, 90% of the screen: the side drawer would cover its own tile
+  else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, t.dataset.go); if (t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; } }, t.closest(".tile"));  // a card in progress opens maximized, 90% of the screen: the side drawer would cover its own tile
+  else if (t.dataset.ev) toggleEv(t.dataset.ev);
+  else if (t.dataset.peek) peek(t.dataset.peek);
   else if (t.dataset.q) quick(t.dataset.q, t.closest("[data-key]").dataset.key);
   else if (t.dataset.open && t.dataset.log) { openCard(t.dataset.open, "log"); S.log = t.dataset.log; S.logNext = -1; S.logText = ""; }  // a feed line opens its own run's log
   else if (t.dataset.open) openCard(t.dataset.open, t.dataset.go);
@@ -1024,6 +1083,7 @@ document.addEventListener("change", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   const typing = e.target.closest?.("textarea, input, select");
+  if (e.key === "Escape" && S.peek && !S.open) { peek(S.peek); return; }
   if (e.key === "Escape" && !typing && maxed()) { maximize(maxed(), false); return; }
   if (e.key === "Escape" && S.open && !typing) { closeCard(); return; }
   const tab = e.target.closest?.('[role="tab"]');
@@ -1047,6 +1107,7 @@ window.addEventListener("message", (e) => {
   syncDecide();
 });
 $("list").addEventListener("scroll", fade); window.addEventListener("resize", fade);
+window.addEventListener("resize", renderPeek); document.addEventListener("scroll", () => { if (S.peek) renderPeek(); }, true);
 // a card's pass, its row and its dot light up together
 const hot = (e, on) => { const k = e.target.closest?.("[data-key]")?.dataset.key; if (k) document.querySelectorAll(`[data-key="${CSS.escape(k)}"]`).forEach((el) => el.classList.toggle("hot", on)); };
 for (const [ev, on] of [["mouseover", true], ["focusin", true], ["mouseout", false], ["focusout", false]]) document.addEventListener(ev, (e) => hot(e, on));
