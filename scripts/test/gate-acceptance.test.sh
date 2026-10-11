@@ -69,4 +69,23 @@ shared '  fun a() {' '    val s = Service(repo, clock)' '    assertEquals(0, s.c
 FACTORY_CONFIG="$CFG" assert_exit 1 bash "$GATE" acceptance-intact "$qa"
 shared '  fun a() {' '    val s = Service(repo, clock)' '  }'; git commit -qam "drop the assertion"
 FACTORY_CONFIG="$CFG" assert_exit 1 bash "$GATE" acceptance-intact "$qa"
+
+# the owner accepts the card's own edit, not the whole file: a later merge from main elsewhere in the file keeps it
+r="$(new_repo)"; cd "$r"; mkdir -p api/src/test
+shared '  fun a() { one() }' '' '  fun m() {}' '' '  fun z() {}'; git add -A; git commit -qm shared
+git checkout -q -b feat/11-x; shared '  fun a() { qa() }' '' '  fun m() {}' '' '  fun z() {}'; git commit -qam qa; qa="$(git rev-parse HEAD)"
+shared '  fun a() { adapted() }' '' '  fun m() {}' '' '  fun z() {}'; git commit -qam "the card adapts its own test"
+assert_exit 1 bash "$GATE" acceptance-intact "$qa"
+own="$(bash "$GATE" acceptance-own "$qa" "$T")"
+assert_contains "$own" "own:"
+printf '%s\t%s\t#11\t2026-10-10\tadapted to the new setup\n' "$T" "$own" > "$FACTORY_HOME/accepted.tsv"
+assert_exit 0 bash "$GATE" acceptance-intact "$qa"
+git checkout -q main; shared '  fun a() { one() }' '' '  fun m() {}' '' '  fun z() {}' '' '  fun fromMain() {}'; git commit -qam "main adds a test"
+git checkout -q feat/11-x; git merge -q --no-edit main
+assert_contains "$(cat "$T")" "fromMain"
+assert_exit 0 bash "$GATE" acceptance-intact "$qa"
+# ...and a further edit by the card blocks again
+sed -i 's/adapted()/weakened()/' "$T"; git commit -qam "edit after the owner accepted"
+assert_exit 1 bash "$GATE" acceptance-intact "$qa"
+rm -f "$FACTORY_HOME/accepted.tsv"
 finish
