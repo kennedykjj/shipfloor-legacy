@@ -147,12 +147,11 @@ merge_main() {  # 0 up to date · 1 merged cleanly · 3 conflicts to resolve · 
   local files hunks=0 f c layer re
   files="$(printf '%s\n' "$CONFLICTS" | grep -c .)"
   while IFS= read -r f; do c="$(grep -c '^<<<<<<<' "$WT/$f" 2>/dev/null)"; hunks=$(( hunks + ${c:-0} )); done <<< "$CONFLICTS"
-  for layer in $(aghanim_cfg layers); do
-    re="$(aghanim_cfg regex migrations "$layer")"
+  while IFS=$'\t' read -r layer re _; do
     if [ -n "$re" ] && printf '%s\n' "$CONFLICTS" | grep -Eq -- "$re"; then
       REASON="a migration conflicts with main: $(printf '%s\n' "$CONFLICTS" | grep -E -- "$re" | tr '\n' ' ')"; return 4
     fi
-  done
+  done < <(aghanim_cfg migration-layers | tail -n +2)
   [ "$files" -gt "$MAX_FILES" ] && { REASON="$files files conflict with main (limit $MAX_FILES)"; return 4; }
   [ "$hunks" -gt "$MAX_HUNKS" ] && { REASON="$hunks hunks conflict with main (limit $MAX_HUNKS)"; return 4; }
   printf '%s\n' "$HEAD_SHA" "$main_sha" > "$TMP/resolve.parents"; printf '%s\n' "$CONFLICTS" > "$TMP/resolve.files"
@@ -177,14 +176,13 @@ check_resolution() {  # --continue: HEAD must be the merge of the approved head 
 
 renumber_migrations() {  # main took the version of a migration the card adds: the card's file moves above main's newest
   local layer re old new moved=0
-  for layer in $(aghanim_cfg layers); do
-    re="$(aghanim_cfg regex migrations "$layer")"; [ -n "$re" ] || continue
+  while IFS=$'\t' read -r layer re _; do
     while IFS=$'\t' read -r old new; do
       [ -n "$new" ] && g mv "$old" "$new" || continue
       moved=1; say "migration $old renumbered to $new: $MAIN took its version"
     done < <({ g ls-tree -r --name-only "origin/$MAIN" | grep -E -- "$re" | sed 's/^/E\t/'
                g diff --name-only --diff-filter=A "origin/$MAIN" HEAD | grep -E -- "$re" | sed 's/^/N\t/'; } | aghanim_cfg migration-renumber "$layer")
-  done
+  done < <(aghanim_cfg migration-layers | tail -n +2)
   [ "$moved" = 0 ] || g commit -qm "chore(migration): renumber above $MAIN's newest" -m "$TRAILER"
 }
 

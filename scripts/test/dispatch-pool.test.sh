@@ -36,7 +36,7 @@ machine() { printf '%s\n' "$1" > "$AGHANIM_HOME/config.yml"; }
 # validate takes its cards from Validation
 setup; Q_VAL="36" run_dispatch; assert_contains "$(launched)" "/aghanim:validate 36"
 # a card in Validation is not a develop orphan any more
-setup; Q_VAL="36" run_dispatch; case "$(launched)" in *"develop 36"*) fail "develop resumed a Validation card" ;; *) pass "Validation is validate's queue" ;; esac
+case "$(launched)" in *"develop 36"*) fail "develop resumed a Validation card" ;; *) pass "Validation is validate's queue" ;; esac
 
 # a stage's slots count live runs of that stage in every project
 setup; machine $'pool: 6\nstages: {develop: 1}'; live_lock other develop-9

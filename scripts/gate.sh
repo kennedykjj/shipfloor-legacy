@@ -54,7 +54,7 @@ changed_files() {  # one name per line (gate_forbidden refuses names with contro
 
 gate_forbidden() {
   require_rev "${1:-}"
-  local forbidden bad; forbidden="$(q regex forbidden)" || exit 2
+  local forbidden bad; forbidden="${FAST[0]-$(q regex forbidden)}" || exit 2
   if odd_names "$1"; then echo "forbidden: a changed file name has a control character (newline, tab...)" >&2; return 1; fi
   bad="$(changed_files "$1" | grep -E -- "$forbidden" || true)"
   [ -z "$bad" ] && return 0
@@ -159,7 +159,7 @@ owner_accepted() {  # owner_accepted <file> [qa]: the owner reviewed the card's 
 gate_acceptance_intact() {
   require_rev "${1:-}"
   local qa="$1" files changed keep
-  keep="$(aghanim_cfg get acceptance_assertions 2>/dev/null)"
+  keep="${FAST[2]-$(aghanim_cfg get acceptance_assertions 2>/dev/null)}"
   files="$(g show --name-only --format= --diff-filter=d "$qa")"  # files the QA commit deleted are not acceptance tests
   [ -z "$files" ] && { echo "acceptance-intact: QA commit $qa has no files" >&2; return 1; }
   changed="$(printf '%s\n' "$files" | while IFS= read -r f; do
@@ -217,7 +217,7 @@ gate_migration() {  # every layer's migrations: applied ones are immutable, dest
   local base="$1" spec="${2:-}" destructive="" f layer re comment files plan
   # the order check trusts the base: it must be on this branch's history
   git merge-base --is-ancestor "$base" HEAD 2>/dev/null || { echo "migration: base $base is not an ancestor of HEAD" >&2; exit 2; }
-  plan="$(q migration-layers)" || exit 2  # first line: main branch; then <layer> <ERE> <comment prefix>
+  plan="${FAST[1]-$(q migration-layers)}" || exit 2  # first line: main branch; then <layer> <ERE> <comment prefix>
   MAIN="$(printf '%s\n' "$plan" | head -1)"
   files="$(changed_files "$base")"
   while IFS=$'\t' read -r layer re comment; do
@@ -242,6 +242,9 @@ gate_migration() {  # every layer's migrations: applied ones are immutable, dest
 }
 
 gate_fast() {  # gate_fast <base> <spec> [qa]: forbidden + migration + acceptance-intact in one process
+  # one config start for the three (FAST: forbidden ERE, migration plan, acceptance_assertions); alone, each gate asks for its own
+  mapfile -d '' -t FAST < <(aghanim_cfg gate-fast)
+  [ "${#FAST[@]}" -eq 3 ] || { echo "gate: config query failed: gate-fast" >&2; exit 2; }
   gate_forbidden "${1:-}" || return $?
   gate_migration "${1:-}" "${2:-}" || return $?
   [ -z "${3:-}" ] || gate_acceptance_intact "$3"

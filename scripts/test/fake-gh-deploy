@@ -2,7 +2,7 @@
 # gh stand-in for deploy.sh tests. State in $FG: remote (bare repo), pr, branch, comments ("author<TAB>line"),
 # ci ("name=STATE,..."), prhead (overrides the PR head), merged (merge sha), no-pr, calls, labels.
 d="$FG"; args="$*"; echo "$args" >> "$d/calls"
-remote="$(cat "$d/remote")"; pr="$(cat "$d/pr")"; branch="$(cat "$d/branch")"
+remote="$(<"$d/remote")"; pr="$(<"$d/pr")"; branch="$(<"$d/branch")"
 head() { if [ -e "$d/prhead" ]; then cat "$d/prhead"; else git --git-dir="$remote" rev-parse "refs/heads/$branch" 2>/dev/null; fi; }
 case "$args" in
   "api user"*) echo factory ;;
