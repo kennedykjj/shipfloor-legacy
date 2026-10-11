@@ -1,0 +1,1 @@
+{"issue": 2, "slug": "a-project-without-stack-up-shrinks-the", "pipeline": "refine", "started_at": "2026-10-11T19:00:51-03:00", "finished_at": "2026-10-11T19:04:17-03:00", "outcome": "ok", "agents": [{"role": "product-owner", "tokens": 25742, "duration_s": 49}], "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "manual_edit": null}
