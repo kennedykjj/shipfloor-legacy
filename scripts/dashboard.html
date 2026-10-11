@@ -95,6 +95,7 @@ select { font-size: 13px; background: color-mix(in srgb, var(--ov) 5.1%, transpa
 .proj::after { content: ""; width: 5px; height: 5px; margin: -3px 0 0 -11px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); pointer-events: none; }
 .proj:hover select { border-bottom-color: var(--edge-hi); } .proj:hover::after { border-color: var(--text); }
 .stats .sep { width: 1px; height: 16px; background: var(--hair); }
+.stats > span { display: contents; }
 /* its list is drawn by the page where the browser allows it (Chromium); elsewhere it stays the system's */
 @supports (appearance: base-select) {
   .proj select, .proj select::picker(select) { appearance: base-select; }
@@ -489,7 +490,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <header>
   <span class="g brand">Shipfloor</span>
   <nav class="views" aria-label="View"><button data-view="board" aria-pressed="true">Factory</button><button data-view="feed" aria-pressed="false">Feed</button><button data-view="settings" aria-pressed="false">Settings</button></nav>
-  <div class="stats" id="stats"></div>
+  <div class="stats"><span id="scope"></span><span id="stats"></span></div>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
 <main>
@@ -656,9 +657,10 @@ function renderStrip() {
   const o = S.overview; if (!o) return;
   const slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
   const held = slots.map((x) => `slot ${x.slot}: ${x.state}${x.owner !== "-" ? ` ${x.owner}` : ""}${x.state !== "free" ? ` ${elapsed(new Date(Date.now() - x.held_s * 1000))}` : ""}${x.reason ? ` (${x.reason})` : ""}`).join("\n");
-  setHTML($("stats"), `${o.projects.length > 1 ? `<label class="proj cap">Project<select id="proj">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select></label>` : ""}
-    ${project()?.board_url ? `<a class="cap" href="${esc(project().board_url)}" target="_blank" rel="noopener">Board on GitHub${EXT}</a>` : ""}${o.projects.length > 1 ? `<i class="sep"></i>` : ""}
-    <span class="cap" title="Sessions running now, out of the pool size">Pool<b>${o.pool.used} / ${o.pool.size}</b></span>
+  // The project switch is its own region: the numbers beside it change at every read, and rewriting it would close its open list.
+  setHTML($("scope"), `${o.projects.length > 1 ? `<label class="proj cap">Project<select id="proj">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select></label>` : ""}
+    ${project()?.board_url ? `<a class="cap" href="${esc(project().board_url)}" target="_blank" rel="noopener">Board on GitHub${EXT}</a>` : ""}${o.projects.length > 1 ? `<i class="sep"></i>` : ""}`);
+  setHTML($("stats"), `<span class="cap" title="Sessions running now, out of the pool size">Pool<b>${o.pool.used} / ${o.pool.size}</b></span>
     <span class="cap${stuck ? " stuck" : ""}" title="Run environments in use${held ? "\n" + esc(held) : ""}">Stacks<b>${busy} / ${slots.length}</b>${o.queue ? ` · +${o.queue} waiting` : ""}</span>
     <span class="cap">Runs today<b>${o.today.runs}</b>${o.today.failed ? ` · ${o.today.failed} failed` : ""}</span>
     <span class="cap" title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml">Spent est.<b>$${o.today.cost.toFixed(2)}</b></span>`);
