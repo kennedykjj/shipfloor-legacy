@@ -630,15 +630,15 @@ function renderWork(p, key, fresh) {
     const line = step ? `<b>Step ${step.i} of ${of}</b> · ${esc(step.label)} · ${mins(step.since)} min in this step${step.i === of ? " · finishing" : ""}` : of ? "No step reported yet" : "This stage reports no steps";
     const says = [...acts].reverse().find((a) => a.kind === "says");
     const did = acts.filter((a) => a.kind !== "says").slice(-3).map((a) => `<li><time>${a.ts ? rel(a.ts) : ""}</time><b>${esc(a.kind)}</b> ${esc(a.text)}</li>`).join("");
-    return `<article class="tile${fresh(c) ? " ch" : ""}" data-key="${k}" data-open="${k}"><button class="max" data-full="${k}" aria-label="Maximize the session of #${c.issue}" title="Maximize the session">${MAX}</button>
+    return `<article class="tile${fresh(c) ? " ch" : ""}" data-key="${k}" data-open="${k}" data-full="${k}" data-go="live"><button class="max" data-full="${k}" data-go="live" aria-label="Maximize the session of #${c.issue}" title="Maximize the session">${MAX}</button>
       <div class="thead"><b class="g tnum">#${c.issue}</b><span class="cap">${esc(STAGE_NAME[c.running] || c.running)}</span>${clock(run?.started, true)}<span class="tcost">${money(c.cost)}</span></div>
       <h3 class="ttitle">${c.title ? esc(c.title) : UNTITLED}</h3>${bar}
       <p class="stepline">${line}${long ? ` · <span class="slow" title="This stage usually takes about ${Math.max(1, Math.round(usual[c.running] / 60))} min">running long</span>` : ""}</p>
       ${says ? `<p class="says">${esc(says.text)}</p>` : ""}${did ? `<ul class="did">${did}</ul>` : ""}
-      <div class="tfoot cap"><button class="lnk cap" data-open="${k}" data-go="log">Log</button>${gh(p.slug, c.issue)}</div></article>`;
+      <div class="tfoot cap"><button class="lnk cap" data-open="${k}" data-full="${k}" data-go="log">Log</button>${gh(p.slug, c.issue)}</div></article>`;
   });
   const idle = waits.map((c) => { const k = esc(key(c));
-    return `<article class="tile wait${fresh(c) ? " ch" : ""}" data-key="${k}" data-open="${k}"><div class="thead"><span class="ring" aria-hidden="true"></span><b class="g tnum">#${c.issue}</b><span class="cap">${esc(c.column)}</span>${c.cost ? `<span class="tcost">${money(c.cost)}</span>` : ""}</div>
+    return `<article class="tile wait${fresh(c) ? " ch" : ""}" data-key="${k}" data-open="${k}" data-full="${k}"><div class="thead"><span class="ring" aria-hidden="true"></span><b class="g tnum">#${c.issue}</b><span class="cap">${esc(c.column)}</span>${c.cost ? `<span class="tcost">${money(c.cost)}</span>` : ""}</div>
       <h3 class="ttitle">${c.title ? esc(c.title) : UNTITLED}</h3><p class="why">${esc(whyWaits(p, c))}</p></article>`; });
   const group = (name, list) => list.length ? `<p class="grp cap">${name}</p>${list.join("")}` : "";
   setHTML($("tiles"), group("Running", tiles) + group("Waiting", idle) || '<p class="empty">Nothing is in progress.</p>');
@@ -1001,7 +1001,7 @@ document.addEventListener("click", (e) => {
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.hasAttribute("data-max")) maximize(t.parentElement, !t.parentElement.classList.contains("maxed"));
   else if (t.hasAttribute("data-dmax")) grow($("drawer"), () => { S.full = !S.full; renderDrawer(); });
-  else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, "live"); }, t.closest(".tile"));  // a session, maximized: its Live tab at 90% of the screen
+  else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, t.dataset.go); }, t.closest(".tile"));  // a card in progress opens maximized, 90% of the screen: the side drawer would cover its own tile
   else if (t.dataset.q) quick(t.dataset.q, t.closest("[data-key]").dataset.key);
   else if (t.dataset.open && t.dataset.log) { openCard(t.dataset.open, "log"); S.log = t.dataset.log; S.logNext = -1; S.logText = ""; }  // a feed line opens its own run's log
   else if (t.dataset.open) openCard(t.dataset.open, t.dataset.go);
