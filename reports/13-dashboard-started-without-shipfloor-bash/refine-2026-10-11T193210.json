@@ -1,0 +1,1 @@
+{"issue": 13, "slug": "dashboard-started-without-shipfloor-bash", "pipeline": "refine", "started_at": "2026-10-11T22:28:11Z", "finished_at": "2026-10-11T22:31:52Z", "outcome": "ok", "agents": [{"role": "product-owner", "tokens": 16958, "duration_s": 61}], "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "manual_edit": null}
