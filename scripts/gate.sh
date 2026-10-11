@@ -317,12 +317,16 @@ gate_build() {  # each implementer layer with changes runs its build from its ow
   require_rev "${1:-}"
   local files layer; files="$(changed_files "$1")"
   for layer in $IMPLEMENTERS; do
-    layer_fields "$layer" _path_re path build install || exit 2
+    layer_fields "$layer" _path_re path build install retry || exit 2
     [ -z "${LF[2]}" ] && continue
     printf '%s
 ' "$files" | grep -Eq -- "${LF[0]}" || continue
     ensure_deps "${LF[1]}" "${LF[3]}" || exit 3
-    (cd "$(root)/${LF[1]}" && bash -c "${LF[2]}") || { echo "build: $layer build failed" >&2; return 1; }
+    (cd "$(root)/${LF[1]}" && bash -c "${LF[2]}") && continue
+    # a layer with retry: 1 builds once more, as green does: a build that passes the second time broke on the machine
+    # (a database that was slow to start, a worker that did not come up), not on the code
+    if [ "${LF[4]:-0}" -ge 1 ] && (cd "$(root)/${LF[1]}" && bash -c "${LF[2]}"); then echo "flaky: $layer build"; continue; fi
+    echo "build: $layer build failed" >&2; return 1
   done
 }
 
