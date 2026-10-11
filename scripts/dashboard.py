@@ -1,6 +1,6 @@
 """Local dashboard: one page and a JSON API over ~/.aghanim and the Claude Code transcripts of the
 factory's runs. Read-only, except the owner's approve and request-changes."""
-import argparse, json, os, re, secrets, subprocess, sys, time, webbrowser
+import argparse, json, os, re, secrets, statistics, subprocess, sys, threading, time, webbrowser
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,6 +14,12 @@ import aghanim_health
 from dashboard_cost import LEGACY_STAGES, cost, parse_transcript, parse_ts, rounded
 import yaml
 
+# The steps a run announces with `aghanim-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
+STEPS = {"refine": {1: "Pick the card", 2: "Worktree", 3: "Product Owner", 4: "UX/UI and architecture", 5: "Cybersec", 6: "Publish for review", 8: "Report"},
+         "develop": {1: "Pick the card", 2: "Plan", 3: "Acceptance tests", 4: "Implementation", 5: "Up to date with main", 6: "Hand over to validation", 8: "Report"},
+         "validate": {1: "Pick the card", 2: "Up to date with main", 3: "Review", 4: "Pull request", 6: "Report"}}
+STACKS_TTL_S = 15
+BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy mylos
 # The review page inside the dashboard's drawer: the drawer already carries the title and the one
@@ -79,7 +85,10 @@ def gh_json(*args):
 class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
-        self._transcripts, self._titles, self._blocked, self._reasons = {}, {}, {}, {}
+        self._transcripts, self._titles, self._blocked, self._reasons, self._boards = {}, {}, {}, {}, {}
+        self._stacks = (0.0, [], 0)
+        self._configs = {}
+        self._snap, self._reading, self._retry = {}, set(), {}
 
     def projects(self):
         try:
@@ -92,7 +101,17 @@ class Factory:
         return self.home / "projects" / p
 
     def config(self, p):
-        return read_yaml(self.pdir(p) / "factory.yml")
+        """factory.yml, read again only when it changed: the dispatcher replaces the file on every cycle, and on
+        Windows a rename over a file someone has open fails."""
+        f = self.pdir(p) / "factory.yml"
+        try:
+            st = f.stat()
+        except OSError:
+            return {}
+        key, hit = (st.st_size, st.st_mtime), self._configs.get(p)
+        if not hit or hit[0] != key:
+            hit = self._configs[p] = (key, read_yaml(f))
+        return hit[1]
 
     def prices(self):
         # the installed copy keeps templates/ next to the scripts; the plugin checkout, one level up
@@ -149,12 +168,53 @@ class Factory:
         return out
 
     def board(self, p):
+        """Card columns from the newer of the dispatcher's snapshot and the dashboard's own read of the board."""
         f = self.pdir(p) / "board.tsv"
         try:
-            lines, age = f.read_text(encoding="utf-8").splitlines(), round(time.time() - f.stat().st_mtime)
+            lines, at = f.read_text(encoding="utf-8").splitlines(), f.stat().st_mtime
         except OSError:
+            lines, at = [], None
+        own = self._snap.get(p)
+        if own and (at is None or own[0] > at):
+            at, lines = own
+        self.read_board(p, at)
+        if at is None:
             return {}, None
-        return {int(c[0]): c[1] for c in (l.split("\t") for l in lines) if len(c) > 1 and c[0].isdigit()}, age
+        return {int(c[0]): c[1] for c in (l.split("\t") for l in lines) if len(c) > 1 and c[0].isdigit()}, round(time.time() - at)
+
+    def read_board(self, p, at):
+        """The dispatcher's snapshot is as old as its last cycle, and a card the owner moves on GitHub shows only then.
+        So an overview that finds the board older than BOARD_TTL_S asks GitHub again, in the background: nobody
+        watching, no reads. The answer stays in memory; board.tsv is the dispatcher's to write."""
+        now = time.time()
+        if (at and now - at < BOARD_TTL_S) or p in self._reading or now < self._retry.get(p, 0):
+            return
+        self._reading.add(p)
+
+        def read():
+            try:
+                env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)),
+                           AGHANIM_HOME=str(self.home))
+                env.pop("FACTORY_BOARD_SNAPSHOT", None)
+                r = subprocess.run([bash(), (HERE / "board.sh").as_posix(), "snapshot"], env=env, cwd=str(self.pdir(p)),
+                                   capture_output=True, text=True, encoding="utf-8", timeout=30)
+                if r.returncode == 0 and r.stdout.strip():
+                    self._snap[p] = (time.time(), r.stdout.splitlines())
+                else:
+                    self._retry[p] = time.time() + 60  # gh down or out of quota: the dispatcher's snapshot serves meanwhile
+            except (OSError, subprocess.SubprocessError):
+                self._retry[p] = time.time() + 60
+            finally:
+                self._reading.discard(p)
+        threading.Thread(target=read, daemon=True).start()
+
+    def board_url(self, p):
+        """The project board's page on GitHub, asked once; None when gh cannot tell."""
+        if p not in self._boards:
+            b = self.config(p).get("board") or {}
+            data, _ = gh_json("project", "view", str(b.get("number")), "--owner", str(b.get("owner")), "--format", "json") if b else (None, None)
+            self._boards[p] = (data or {}).get("url")
+        return self._boards[p]
 
     def titles(self, p):
         at, known = self._titles.get(p, (0, {}))
@@ -178,7 +238,12 @@ class Factory:
         return known
 
     def stacks(self):
-        """Stack slots as lib/stack.sh computes them (gate.sh stack status)."""
+        """Stack slots as lib/stack.sh computes them (gate.sh stack status). Asking spawns bash, by far the
+        slowest part of an overview, so one answer serves the polls of the next few seconds."""
+        at, slots, queue = self._stacks
+        if time.time() - at < STACKS_TTL_S:
+            age = round(time.time() - at)
+            return [dict(s, held_s=s["held_s"] + age) if s["state"] != "free" else s for s in slots], queue
         projects = self.projects()
         if not projects:
             return [], 0
@@ -195,6 +260,7 @@ class Factory:
             elif len(f) >= 4 and f[0].isdigit():
                 slots.append({"slot": int(f[0]), "state": f[1], "owner": f[2], "held_s": int(f[3] or 0),
                               "reason": f[4] if len(f) > 4 else ""})
+        self._stacks = (time.time(), slots, queue)
         return slots, queue
 
     def skipped(self, p):
@@ -279,7 +345,15 @@ class Factory:
             except (OSError, ValueError, IndexError):
                 started = None
             last = [r for r in self.runs(p, issue=n) if r["stage"] == stage][-1:]
-            out.append({"project": p, "issue": n, "stage": stage, "started": started,
+            names, step = STEPS.get(stage, {}), None
+            try:  # the step the run last announced, as its place among the stage's steps
+                k, at = (d / "step").read_text().split()[:2]
+                if int(k) in names:
+                    step = {"i": sorted(names).index(int(k)) + 1, "label": names[int(k)],
+                            "since": datetime.fromtimestamp(int(at), timezone.utc).isoformat()}
+            except (OSError, ValueError):
+                pass
+            out.append({"project": p, "issue": n, "stage": stage, "started": started, "step": step, "steps": len(names),
                         "orphan": bool(last and last[0]["end"])})  # the run ended and left its lock
         return out
 
@@ -298,19 +372,37 @@ class Factory:
         for p in self.projects():
             runs = self.live(p)
             live += runs
-            per_card = {}
+            per_card, doing, hours = {}, {}, {}
+            hour = lambda ts: parse_ts(ts).astimezone().hour
             for s in self.sessions(p):
+                doing[(s["issue"], s["stage"])] = s["activity"]  # sessions come oldest first: the latest wins
                 c = self.session_cost(s, prices)
                 prev = per_card.get(s["issue"], 0.0)
                 per_card[s["issue"]] = None if c is None or prev is None else prev + c
                 if c and parse_ts(s["start"]).astimezone().date().isoformat() == today:
                     today_cost += c
+                    hours.setdefault(hour(s["start"]), {"ok": 0, "failed": 0, "cost": 0.0})["cost"] += c
+            for r in runs:
+                r["activity"] = doing.get((r["issue"], r["stage"]), [])
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
             titles, blocked = self.titles(p), self.blocked(p)
+            # how long a stage usually takes (its clean runs) and when each card's last run ended
+            took, since = {}, {}
+            for r in self.runs(p):
+                if r["end"]:
+                    since[r["issue"]] = r["end"]
+                    if r["log"].startswith(today):
+                        hours.setdefault(hour(r["end"]), {"ok": 0, "failed": 0, "cost": 0.0})["ok" if r["exit"] == 0 else "failed"] += 1
+                    if r["exit"] == 0:
+                        took.setdefault(r["stage"], []).append((parse_ts(r["end"]) - parse_ts(r["start"])).total_seconds())
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "board_age_s": age,
                              "skipped": self.skipped(p),
-                             "cards": [{"issue": n, "title": titles.get(n, ""), "column": col,
+                             "typical_s": {st: round(statistics.median(v)) for st, v in took.items()},
+                             "hours": [dict(hours.get(h, {"ok": 0, "failed": 0, "cost": 0.0}), h=h)
+                                       for h in range(min(hours, default=0), datetime.now().hour + 1)] if hours else [],
+                             "repo": (self.config(p).get("project") or {}).get("repo"), "board_url": self.board_url(p),
+                             "cards": [{"issue": n, "title": titles.get(n, ""), "column": col, "since": since.get(n),
                                         "cost": rounded(per_card.get(n, 0.0)),
                                         "running": running.get(n), "awaiting": col in OWNER_MOVES,
                                         "blocked": blocked.get(n)}

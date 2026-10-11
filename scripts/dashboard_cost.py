@@ -1,5 +1,6 @@
 """Cost of the factory's runs, read from the Claude Code transcripts (one .jsonl per session)."""
 import json, re
+from collections import deque
 from datetime import datetime
 
 LEGACY_STAGES = {"refinar": "refine", "desenvolver": "develop", "validar": "validate", "deployar": "deploy"}  # legacy mylos
@@ -17,11 +18,23 @@ def text_of(content):
     return "".join(p.get("text", "") for p in content or [] if isinstance(p, dict))
 
 
+def doing(block):
+    """One line for what an assistant block does: its own words, or the tool it calls and on what."""
+    if block.get("type") == "text":
+        line = next((x.strip() for x in block.get("text", "").splitlines() if x.strip()), "")
+        return {"kind": "says", "text": line[:200]} if line else None
+    if block.get("type") == "tool_use":
+        i = block.get("input") or {}
+        what = i.get("description") or i.get("file_path") or i.get("pattern") or i.get("command") or i.get("prompt") or ""
+        return {"kind": block.get("name") or "tool", "text": " ".join(str(what).split())[:160]}
+    return None
+
+
 def parse_transcript(path):
-    """The card a session ran for (its first user message is the dispatcher's /aghanim:<stage> <n>)
-    and its tokens per model."""
+    """The card a session ran for (its first user message is the dispatcher's /aghanim:<stage> <n>),
+    its tokens per model and the last few things it did."""
     stage = issue = start = end = None
-    first_user, usage = True, {}
+    first_user, usage, activity = True, {}, deque(maxlen=4)
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             try:
@@ -38,6 +51,11 @@ def parse_transcript(path):
             elif o.get("type") == "assistant" and msg.get("usage"):
                 # Claude Code logs one API message once per content block, repeating its usage
                 usage[msg.get("id") or len(usage)] = (msg.get("model"), msg["usage"])
+            if o.get("type") == "assistant" and isinstance(msg.get("content"), list):
+                for block in msg["content"]:
+                    did = isinstance(block, dict) and doing(block)
+                    if did:
+                        activity.append(dict(did, ts=o.get("timestamp")))
     tokens = {}
     for model, u in usage.values():
         cw = u.get("cache_creation") or {}
@@ -50,7 +68,7 @@ def parse_transcript(path):
         t = tokens.setdefault(model, dict.fromkeys(TOKEN_KINDS, 0))
         for k, v in kinds.items():
             t[k] += v or 0
-    return {"stage": stage, "issue": issue, "start": start, "end": end, "tokens": tokens}
+    return {"stage": stage, "issue": issue, "start": start, "end": end, "tokens": tokens, "activity": list(activity)}
 
 
 def cost(tokens, prices):
