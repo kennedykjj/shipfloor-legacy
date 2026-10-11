@@ -86,6 +86,7 @@ cleanup_processes() {  # stop processes (dev servers, test runners) left running
 launch() {  # launch <pipeline> <issue>
   local p="$1" n="$2" dir="$HOME_DIR/locks/$1-$2.lock"
   mkdir "$dir" 2>/dev/null || return 0
+  mkdir -p "$HOME_DIR/tmp/$n"  # the run's own scratch folder exists before it looks for one
   local log="$HOME_DIR/logs/$(date +%F)-$n-$p.log"
   # print mode stops background subagents 10 min after the last turn and ends the run half done; 0 waits
   # only the project's settings and this plugin: the owner's personal plugins, MCP servers and
@@ -230,4 +231,6 @@ run_pipeline validate     "Validation"           "${LIM[4]}" 0           ""     
 run_pipeline deploy    "Ready for Prod"       "${LIM[5]}" 0           ""                                         || status=1
 # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
 [ "$(aghanim_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
+# What finished cards and stray files left under tmp/ goes with every cycle (the same as `aghanim clean`).
+aghanim_sweep_tmp | sed "s|^|$(date -Is) dispatch: removed |"
 exit $status

@@ -89,11 +89,31 @@ aghanim_clean_tmp() {  # aghanim_clean_tmp <n>: the worktrees a run left under t
 
 aghanim_stale_tmp() {  # aghanim_stale_tmp: card numbers whose tmp/<n>/ outlived them (Done or off the board)
   local d n st
+  grep -q '^[0-9]' "$FACTORY_HOME/board.tsv" 2>/dev/null || return 0  # no board read: every card would look gone
   for d in "$FACTORY_HOME"/tmp/*/; do
     n="$(basename "$d")"; [[ "$n" =~ ^[0-9]+$ ]] || continue
     [ -d "$FACTORY_HOME/locks" ] && compgen -G "$FACTORY_HOME/locks/*-$n.lock" >/dev/null && continue
     st="$(awk -F'\t' -v n="$n" '$1==n{print $2}' "$FACTORY_HOME/board.tsv" 2>/dev/null)"
     { [ -z "$st" ] || [ "$st" = Done ]; } && echo "$n"
+  done
+}
+
+aghanim_sweep_tmp() {  # removes what outlived its card under the project's tmp/ and prints each as tmp/<name>
+  local e name n st
+  grep -q '^[0-9]' "$FACTORY_HOME/board.tsv" 2>/dev/null || return 0  # no board read: every card would look gone
+  for n in $(aghanim_stale_tmp); do aghanim_clean_tmp "$n"; echo "tmp/$n"; done
+  # strays beside the card folders (a run that wrote outside its tmp/<n>/): gone once untouched for 3 days,
+  # unless the name carries the number of a card still in progress
+  for e in "$FACTORY_HOME"/tmp/*; do
+    [ -e "$e" ] || continue
+    name="$(basename "$e")"
+    [ -d "$e" ] && [[ "$name" =~ ^[0-9]+$ ]] && continue
+    [ -n "$(find "$e" -mtime -3 -print -quit 2>/dev/null)" ] && continue
+    if [[ "$name" =~ ([0-9]+) ]]; then
+      st="$(awk -F'\t' -v n="${BASH_REMATCH[1]}" '$1==n{print $2}' "$FACTORY_HOME/board.tsv")"
+      [ -n "$st" ] && [ "$st" != Done ] && continue
+    fi
+    rm -rf "$e" && echo "tmp/$name"
   done
 }
 

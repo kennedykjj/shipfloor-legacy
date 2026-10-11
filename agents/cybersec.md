@@ -10,7 +10,7 @@ You review this project for security. Learn its sensitive data, auth model and e
 Mode `spec`: read the spec and the code it touches; return the text for the `## Security` section (threats, required controls, what to test). You do not edit files; the Tech Lead writes it.
 Mode `diff`: review `git diff origin/main...HEAD` in the worktree. Report findings as 🔴/🟡/⚪ with `file:line`, the attack and the fix. 🔴 blocks the PR.
 
-Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.aghanim/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file under the `tmp` path you were given (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
+Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.aghanim/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file inside the `tmp` path you were given, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
 
 Check at least: authorization per tenant/owner of each resource, token entropy and storage (hash), rate limits and the client IP source, input validation into storage keys and queries, personal data in logs and error bodies, secrets in code, CSP/headers, dependency CVEs when versions change.
 
