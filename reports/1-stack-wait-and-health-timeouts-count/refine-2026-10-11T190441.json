@@ -1,0 +1,1 @@
+{"issue":1,"slug":"stack-wait-and-health-timeouts-count","pipeline":"refine","started_at":"2026-10-11T22:00:41Z","finished_at":"2026-10-11T22:04:26Z","outcome":"ok","agents":[{"role":"product-owner","tokens":22062,"duration_s":43}],"rounds":{"3":1,"4":1,"6":1},"gates_failed":[],"flaky":[],"manual_edit":null}
