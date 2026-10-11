@@ -1,6 +1,8 @@
 """Local dashboard: one page and a JSON API over ~/.aghanim and the Claude Code transcripts of the
-factory's runs. Read-only, except the owner's decisions on a card that waits and messages to a running card."""
+factory's runs. Read-only, except the owner's decisions on a card that waits, messages to a running card and this machine's
+settings (the pool and the pauses)."""
 import argparse, json, os, re, secrets, statistics, subprocess, sys, threading, time, webbrowser
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -413,6 +415,66 @@ class Factory:
         m = aghanim_config.merged(read_yaml(self.home / "config.yml"), aghanim_config.MACHINE_DEFAULTS)
         return m["pool"], m["stages"]
 
+    def settings(self):
+        """What the Settings view shows: this machine's limits (config.yml), the pauses, the dispatcher's last
+        cycle, and each project's factory.yml as the dispatcher last read it from the project's repository."""
+        m = aghanim_config.merged(read_yaml(self.home / "config.yml"), aghanim_config.MACHINE_DEFAULTS)
+        cycle = None
+        try:  # the health history has one line per dispatcher cycle
+            with open(sorted((self.home / "logs").glob("health-*.jsonl"))[-1], encoding="utf-8") as f:
+                last = json.loads(deque(f, maxlen=1)[0])
+            cycle = {"at": last.get("ts"), "took_s": (last.get("cycle") or {}).get("s"), "exit": (last.get("cycle") or {}).get("exit")}
+        except (OSError, ValueError, IndexError):
+            pass
+        registry = {c[0]: c for c in (l.split("\t") for l in self.registry()) if c[0]}
+        projects = []
+        for p in self.projects():
+            cfg, row = self.config(p), registry.get(p, [])
+            projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "main": row[3] if len(row) > 3 else "main",
+                             "repo": aghanim_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
+                             "limits": cfg.get("limits") or {}, "context": cfg.get("context") or [],
+                             "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
+                             "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
+                                        for l in cfg.get("layers") or [] if isinstance(l, dict)]})
+        return {"machine": {k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, "paused": (self.home / "PAUSE").exists(),
+                "cycle": cycle, "projects": projects, "prices": self.prices()}
+
+    def registry(self):
+        try:
+            return (self.home / "registry.tsv").read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+
+    def set_machine(self, changes):
+        """The owner's new limits for this machine, all at once so a pool and its stages are checked together.
+        Whatever else config.yml holds stays as it is. The dispatcher reads the file on its next cycle."""
+        path, new = self.home / "config.yml", json.loads(json.dumps(read_yaml(self.home / "config.yml")))
+        if not isinstance(new, dict) or not isinstance(changes, dict):
+            return 400, {"error": "config.yml is not a YAML mapping; fix it by hand"}
+        for k in ("pool", "stacks", "stack_wait"):
+            if k in changes:
+                new[k] = changes[k]
+        if isinstance(changes.get("stages"), dict):
+            new["stages"] = dict(new["stages"] if isinstance(new.get("stages"), dict) else {}, **changes["stages"])
+        errs = aghanim_config.machine_problems(new)
+        if errs:
+            return 400, {"error": "; ".join(errs)}
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write("# aghanim machine config: runs at once on this machine (pool) and per stage\n")
+            yaml.safe_dump(new, f, sort_keys=False)
+        return 200, self.settings()
+
+    def set_pause(self, project, paused):
+        """Pause or resume the whole factory (no project) or one project: the PAUSE file `aghanim pause` writes."""
+        if project is not None and project not in self.projects():
+            return 404, {"error": f"no project {project}"}
+        f = (self.pdir(project) if project else self.home) / "PAUSE"
+        if paused:
+            f.touch()
+        else:
+            f.unlink(missing_ok=True)
+        return 200, self.settings()
+
     def live(self, p):
         out = []
         for d in (self.pdir(p) / "locks").glob("*-*.lock"):
@@ -720,6 +782,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, f.overview())
             if parts == ["api", "lang"]:
                 return self.send(200, f.lang())
+            if parts == ["api", "settings"]:
+                return self.send(200, f.settings())
             if parts == ["api", "feed"]:
                 return self.send(200, f.feed())
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and parts[3].isdigit():
@@ -751,6 +815,16 @@ class Handler(BaseHTTPRequestHandler):
         parts = url.path.strip("/").split("/")
         if not self.allowed():
             return self.send(403, {"error": "missing or wrong token"})
+        if parts in (["api", "settings", "machine"], ["api", "settings", "pause"]):
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+                if parts[2] == "machine":
+                    return self.send(*self.factory.set_machine(body))
+                return self.send(*self.factory.set_pause(body.get("project"), bool(body.get("paused"))))
+            except ValueError:
+                return self.send(400, {"error": "body is not JSON"})
+            except Exception as e:
+                return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
                 and parts[3].isdigit() and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
             return self.send(404, {"error": "not found"})

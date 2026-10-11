@@ -151,6 +151,25 @@ assert_contains "$(cat "$FAKE_GH_DIR/calls")" "api -X DELETE repos/acme/shop/iss
 [ "$(post -d '{"column":"Staged","text":"yes, keep it"}' "$base/api/card/shop/9/approve" -H "$H_TOK")" = 200 ] && pass "approved with a note" || fail "approve with a note failed"
 assert_contains "$(cat "$FAKE_GH_DIR/comments")" "yes, keep it"
 rm "$FAKE_GH_DIR/issue-comments"
+# settings: this machine's limits are read with their defaults and written all at once, checked together;
+# what else config.yml holds stays; a pause is the PAUSE file `aghanim pause` writes
+printf 'pool: 6\nlanguage: pt\nstages:\n  develop: 3\n' > "$H/config.yml"
+sget() { curl -s -H "$H_TOK" "$base/api/settings" | $PY -c 'import json,sys; s=json.load(sys.stdin); m=s["machine"]; p=s["projects"][0]; print(m["pool"], m["stages"]["develop"], m["stages"]["refine"], m["stacks"], s["paused"], p["slug"], p["paused"], p["repo"], [l["name"] for l in p["layers"]])'; }
+assert_contains "$(sget)" "6 3 2 3 False shop False acme/shop ["
+[ "$(code "$base/api/settings")" = 403 ] && pass "no token, no settings" || fail "served the settings without the token"
+[ "$(post -d '{"pool":2,"stages":{"develop":3}}' "$base/api/settings/machine" -H "$H_TOK")" = 400 ] && pass "a stage above the pool is refused" || fail "took a stage above the pool"
+assert_contains "$(cat "$H/config.yml")" "pool: 6"
+[ "$(post -d '{"pool":4}' "$base/api/settings/machine")" = 403 ] && pass "no token, no change" || fail "changed the settings without the token"
+[ "$(post -d '{"pool":8,"stages":{"develop":4,"validate":1},"stacks":2}' "$base/api/settings/machine" -H "$H_TOK")" = 200 ] && pass "limits saved" || fail "saving the limits failed"
+assert_contains "$(sget)" "8 4 2 2 False shop"
+assert_contains "$(tr '\n' ' ' < "$H/config.yml")" "language: pt"
+[ "$(post -d '{"paused":true}' "$base/api/settings/pause" -H "$H_TOK")" = 200 ] && [ -e "$H/PAUSE" ] && pass "factory paused" || fail "pause failed"
+[ "$(post -d '{"project":"shop","paused":true}' "$base/api/settings/pause" -H "$H_TOK")" = 200 ] && [ -e "$P/PAUSE" ] && pass "project paused" || fail "project pause failed"
+assert_contains "$(sget)" "8 4 2 2 True shop True"
+[ "$(post -d '{"project":"nope","paused":true}' "$base/api/settings/pause" -H "$H_TOK")" = 404 ] && pass "no such project to pause" || fail "paused an unknown project"
+post -d '{"paused":false}' "$base/api/settings/pause" -H "$H_TOK" >/dev/null; post -d '{"project":"shop","paused":false}' "$base/api/settings/pause" -H "$H_TOK" >/dev/null
+[ ! -e "$H/PAUSE" ] && [ ! -e "$P/PAUSE" ] && pass "resumed" || fail "resume failed"
+rm "$H/config.yml"
 # the overview lists the runs that ended today, newest first (the Today panel), and the deploy script's own
 # lock inside a deploy run is not a second run
 printf '== start /aghanim:refine 12 %sT08:00:00-03:00 pid=1
