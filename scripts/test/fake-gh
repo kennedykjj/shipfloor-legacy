@@ -6,6 +6,19 @@ args="$*"
 echo "$args" >> "$d/calls"
 # FAKE_GH_NO_JQ: the dashboard's calls must not use --jq (gh crashes on it when Python starts it on
 # Windows); they get JSON instead. board.sh's own graphql read keeps --jq.
+# The dashboard's title read (GraphQL, by number): titles come from $d/titles.tsv ("number<TAB>title",
+# default 7/Seven). A number not in it is a GraphQL error (exit 1) with the others still printed.
+case "$args" in *issueOrPullRequest*)
+  [ -f "$d/titles.tsv" ] || printf '7\tSeven\n' > "$d/titles.tsv"
+  nums="$(echo "$args" | grep -o 'issueOrPullRequest(number: [0-9]*' | grep -o '[0-9]*$')"
+  out=""; miss=0; sep=""
+  for n in $nums; do
+    t="$(tr -d '\r' < "$d/titles.tsv" | awk -F'\t' -v n="$n" '$1 == n {print $2; f=1} END {exit !f}')" || { miss=1; out="$out$sep\"n$n\":null"; sep=","; continue; }
+    out="$out$sep\"n$n\":{\"title\":\"$t\"}"; sep=","
+  done
+  if [ "$miss" = 1 ]; then echo "{\"data\":{\"repository\":{$out}},\"errors\":[{\"message\":\"Could not resolve\"}]}"; exit 1; fi
+  echo "{\"data\":{\"repository\":{$out}}}"; exit 0 ;;
+esac
 if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
   case "$args" in *--jq*) echo "fake-gh: --jq not allowed here: $args" >&2; exit 99 ;; esac
   case "$args" in
@@ -15,7 +28,6 @@ if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
       i=0; sep=""; for s in "👤 Inbox" "👤 Ready for Refinement" "🤖 Technical Refinement" "👤 Spec Review" "👤 Ready for Dev" "🤖 Coding" "🤖 Validation" "👤 Staged" "👤 Ready for Prod" "🤖 Done"; do
         i=$((i+1)); printf '%s{"name":"%s","id":"opt%s"}' "$sep" "$s" "$i"; sep=","; done
       printf ']}]}\n'; exit 0 ;;
-    "issue list"*) echo '[{"number":7,"title":"Seven"}]'; exit 0 ;;
     "api repos/acme/shop/issues?labels="*) echo '[{"number":7}]'; exit 0 ;;
     "api repos/acme/shop/issues/"*"/comments"*) [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
   esac
