@@ -4,7 +4,7 @@
 # 3 = infrastructure (the run's stack did not come up, or no stack slot in time).
 set -uo pipefail
 
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
 source "$HERE/lib/stack.sh"
 
@@ -17,7 +17,7 @@ fi
 # Paths, layers and commands come from the project's config (its control checkout), never from
 # the worktree under test. No project or a broken config is exit 2, never a pass.
 aghanim_resolve . || exit 2
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+root() { git rev-parse --show-toplevel 2>/dev/null || pwd; }  # asked only by the gates that run a layer's command
 g() { git -c core.quotePath=false "$@"; }
 q() {  # q <query...>: one config answer; a failing query stops the gate with exit 2
   local out; out="$(aghanim_cfg "$@")" || { echo "gate: config query failed: $*" >&2; exit 2; }
@@ -298,7 +298,7 @@ ensure_deps() {  # ensure_deps <layer dir> <install command>: the layer's depend
   mark="$(git rev-parse --absolute-git-dir)/aghanim-install-$(printf '%s' "$1" | tr -c 'A-Za-z0-9' _)"
   key="$(git rev-parse -q --verify "HEAD:${1%/}" 2>/dev/null) $2"
   [ "$(cat "$mark" 2>/dev/null)" = "$key" ] && return 0
-  (cd "$ROOT/$1" && bash -c "$2") >&2 || { echo "gate: install failed in $1: $2" >&2; return 3; }
+  (cd "$(root)/$1" && bash -c "$2") >&2 || { echo "gate: install failed in $1: $2" >&2; return 3; }
   printf '%s' "$key" > "$mark"
 }
 
@@ -312,7 +312,7 @@ gate_build() {  # each implementer layer with changes runs its build from its ow
     printf '%s
 ' "$files" | grep -Eq -- "${LF[0]}" || continue
     ensure_deps "${LF[1]}" "${LF[3]}" || exit 3
-    (cd "$ROOT/${LF[1]}" && bash -c "${LF[2]}") || { echo "build: $layer build failed" >&2; return 1; }
+    (cd "$(root)/${LF[1]}" && bash -c "${LF[2]}") || { echo "build: $layer build failed" >&2; return 1; }
   done
 }
 
@@ -371,7 +371,7 @@ run_selector() {  # run_selector <layer> <selector>: runner output; returns the 
   # The selector reaches the runner as "$1" of `bash -c`, never as shell code.
   export NO_COLOR=1 FORCE_COLOR=0  # runners print plain text so the patterns below match
   local cmd="${L_TEST//\{selector\}/\"\$1\"}"
-  (cd "$ROOT/$L_PATH" 2>/dev/null || { echo "gate: layer directory $L_PATH not found"; exit 1; }; bash -c "$cmd" _ "$2" 2>&1)
+  (cd "$(root)/$L_PATH" 2>/dev/null || { echo "gate: layer directory $L_PATH not found"; exit 1; }; bash -c "$cmd" _ "$2" 2>&1)
 }
 
 load_layer() {  # load_layer <layer>: L_PATH L_TEST L_RAN L_ASSERT L_SETUP L_STACK L_RETRY, dependencies installed; 2 = unknown layer
@@ -451,6 +451,7 @@ run() {
 # what a gate says on stderr goes out in the project's language; stdout is read by callers and stays as it is
 # shortcut: the key is read straight from the YAML (a top-level scalar the config check already validated), not through
 # aghanim_cfg: one more python start per gate call is what every pipeline step would pay
-GLANG="$(sed -n "s/^language:[[:space:]]*[\"']\{0,1\}\([A-Za-z-]*\).*/\1/p" "$FACTORY_CONFIG" 2>/dev/null | head -1)"
+GLANG=""; LANG_RE='^language:[[:space:]]*["'"'"']?([A-Za-z-]*)'
+while IFS= read -r GLINE; do [[ "$GLINE" =~ $LANG_RE ]] && { GLANG="${BASH_REMATCH[1]}"; break; }; done 2>/dev/null < "$FACTORY_CONFIG"
 if [ "${GLANG:-en}" = en ]; then run "$@"; exit; fi
 { run "$@" 2>&1 1>&3 | aghanim_say "$GLANG" >&2; exit "${PIPESTATUS[0]}"; } 3>&1

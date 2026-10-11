@@ -6,7 +6,8 @@ if [ "${1:-}" = step ]; then
 ' "$2" "$(date +%s)" > "$AGHANIM_RUN_LOCK/step"; fi
   exit 0
 fi
-source "$(dirname "$0")/lib/project.sh"
+HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.  # no dirname: one process less per start
+source "$HERE/lib/project.sh"
 aghanim_resolve || exit 2
 if [ "${1:-}" = validate ]; then aghanim_validate; exit $?; fi
 aghanim_cfg "$@"

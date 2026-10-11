@@ -10,7 +10,7 @@
 #   dashboard [--port N] [--no-open]  local dashboard: pool, runs, logs, cost per card, reviews
 #   migrate-home [OLD]            move the old ~/.mylos home here (one-time, after the rename; legacy mylos)
 set -uo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
 REGISTRY="$AGHANIM_HOME/registry.tsv"
 INSTALLED="$AGHANIM_HOME/factory"
@@ -152,12 +152,12 @@ cmd_resume() {
 cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide agent pool
   case "${1:-}" in
     "")
-      local out line stage n
+      local out line stage n lock
       out="$(aghanim_machine show)" || return $?
       while IFS= read -r line; do
-        stage="$(printf '%s' "$line" | sed -n 's/^  \([a-z]*\): .*/\1/p')"
-        if [ -n "$stage" ]; then
-          n="$(find "$AGHANIM_HOME/projects" -maxdepth 3 -type d -path "*/locks/$stage-*.lock" 2>/dev/null | wc -l | tr -d ' ')"
+        if [[ "$line" =~ ^\ \ ([a-z]+):\  ]]; then
+          stage="${BASH_REMATCH[1]}"; n=0
+          for lock in "$AGHANIM_HOME"/projects/*/locks/"$stage"-*.lock; do [ -d "$lock" ] && n=$(( n + 1 )); done
           [ "$n" -gt 0 ] && line="$line ($n running)"
         fi
         echo "$line"
