@@ -7,8 +7,19 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib/project.sh"
 DISPATCH="${AGHANIM_DISPATCH:-$HERE/dispatch.sh}"
 REGISTRY="$AGHANIM_HOME/registry.tsv"
-[ -e "$AGHANIM_HOME/PAUSE" ] && exit 0
 [ -s "$REGISTRY" ] || exit 0
+
+# One line of history per cycle, however it ends (logs/health-<month>.jsonl); it never fails the cycle.
+START="$(date +%s)"; CYCLE="$AGHANIM_HOME/dispatch.pid"; OVERLAP=
+# shortcut: a pid reused after a cycle died reads as a second cycle, once; use a lock dir if overlaps must also be prevented
+if kill -0 "$(cat "$CYCLE" 2>/dev/null)" 2>/dev/null; then OVERLAP=--overlap; else echo $$ > "$CYCLE"; fi
+health() {
+  local rc=$?
+  [ -n "$OVERLAP" ] || rm -f "$CYCLE"
+  AGHANIM_BASH="$(aghanim_native "$BASH")" aghanim_python "$(aghanim_native "$HERE/aghanim_health.py")" record     --home "$(aghanim_native "$AGHANIM_HOME")" --seconds $(( $(date +%s) - START )) --exit "$rc" $OVERLAP >/dev/null 2>&1 || true
+}
+trap health EXIT
+[ -e "$AGHANIM_HOME/PAUSE" ] && exit 0
 
 usage_limited() {  # the Claude usage limit is per account: a recent hit in any project pauses all
   local f

@@ -10,6 +10,7 @@ HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
 import aghanim_config  # exits with a clear message when PyYAML is missing
+import aghanim_health
 from dashboard_cost import LEGACY_STAGES, cost, parse_transcript, parse_ts, rounded
 import yaml
 
@@ -412,6 +413,7 @@ class Factory:
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(),
+                "alerts": aghanim_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
                           "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)}}

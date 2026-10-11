@@ -56,6 +56,10 @@ cmd_doctor() {
   elif diff -rq -x test -x .source "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
   else echo "WARN installed copy differs from $src (aghanim install)"; fi
+  local alert
+  while IFS= read -r alert; do
+    [ -n "$alert" ] && echo "WARN health: $alert (~/.aghanim/logs/health-*.jsonl)"
+  done < <(aghanim_python "$(aghanim_native "$HERE/aghanim_health.py")" alerts --home "$(aghanim_native "$AGHANIM_HOME")" 2>/dev/null | tr -d '')
   if [ -s "$REGISTRY" ]; then
     local slug repo wt main
     while IFS=$'\t' read -r slug repo wt main; do
@@ -197,10 +201,10 @@ cmd_migrate_home() {  # migrate-home [OLD]: move the legacy mylos home to $AGHAN
 }
 
 cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>'s acceptance files changed after the QA commit
-  # (a merge from main resolved by hand, a setup line main forced) and takes them as they stand. The gate
+  # (a merge from main resolved by hand, a setup line main forced, a stub deleted) and takes them as they stand. The gate
   # then passes those exact contents; any later edit blocks again. Recorded in the project's home.
   local slug="${1:-}" n="${2:-}"; shift 2 2>/dev/null || true
-  local reason="$*" wt qa f blob took=0
+  local reason="$*" wt qa f blob key took=0
   [ -n "$slug" ] && [[ "$n" =~ ^[0-9]+$ ]] && [ -n "$reason" ] || die "usage: aghanim accept <project> <n> <reason>" 2
   use "$slug"; wt="$FACTORY_WT_ROOT/$n"
   [ -e "$wt/.git" ] || die "no worktree for card $n at $wt"
@@ -209,11 +213,13 @@ cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     git -C "$wt" diff --quiet "$qa" HEAD -- "$f" && continue  # untouched since QA
-    blob="$(git -C "$wt" rev-parse -q --verify "HEAD:$f")" || die "$f was deleted after the QA commit; nothing to accept"
-    grep -qF "$f"$'	'"$blob"$'	' "$FACTORY_HOME/accepted.tsv" 2>/dev/null && continue  # already accepted as it stands
+    blob="$(git -C "$wt" rev-parse -q --verify "HEAD:$f")" || blob=deleted  # a stub the real code replaced
+    key="$blob"  # the card's own edit when the gate can isolate it: a later merge from main elsewhere in the file keeps the record
+    [ "$blob" = deleted ] || key="$(bash "$HERE/gate.sh" -C "$wt" acceptance-own "$qa" "$f" 2>/dev/null)" || key="$blob"
+    grep -qF -e "$f"$'	'"$key"$'	' -e "$f"$'	'"$blob"$'	' "$FACTORY_HOME/accepted.tsv" 2>/dev/null && continue  # already accepted as it stands
     [ -z "$(git -C "$wt" status --porcelain -- "$f")" ] || die "$f has uncommitted changes in $wt"
-    printf '%s\t%s\t#%s\t%s\t%s\n' "$f" "$blob" "$n" "$(date -Is)" "$(printf '%s' "$reason" | tr '\t\r\n' '   ')" >> "$FACTORY_HOME/accepted.tsv"
-    echo "accepted $f at ${blob:0:12}"; took=1
+    printf '%s\t%s\t#%s\t%s\t%s\n' "$f" "$key" "$n" "$(date -Is)" "$(printf '%s' "$reason" | tr '\t\r\n' '   ')" >> "$FACTORY_HOME/accepted.tsv"
+    if [ "$blob" = deleted ]; then echo "accepted the deletion of $f"; else echo "accepted $f at ${blob:0:12}"; fi; took=1
   done < <(git -C "$wt" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
   [ "$took" = 1 ] || echo "nothing to accept: acceptance-intact already passes for card $n"
 }

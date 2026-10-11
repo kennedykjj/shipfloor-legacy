@@ -53,6 +53,15 @@ Q_REF="25" Q_DEV="26" Q_VAL="27" run_dispatch; out="$(launched)"
 setup; machine $'pool: 4\nstages: {deploy: 0}'; Q_PROD="47" run_dispatch
 [ -z "$(launched)" ] && pass "stage with 0 slots" || fail "deployed with 0 slots: $(launched)"
 
+# a project sets no cap of its own by default: the stage's machine slots decide
+setup; machine $'pool: 6
+stages: {develop: 3}'; Q_DEV="26 27 28" run_dispatch; out="$(launched)"
+[ "$(printf '%s' "$out" | grep -o '/aghanim:develop' | wc -l)" -eq 3 ] && pass "no project cap by default" || fail "project default capped the stage: $out"
+# deploy keeps one at a time by default (merges into main are serial), whatever the machine allows
+setup; machine $'pool: 6
+stages: {deploy: 3}'; Q_PROD="47 48" run_dispatch; out="$(cat "$tmp/refreshed")"  # the deploy is a script: the fake logs each call
+[ "$(printf '%s' "$out" | grep -c .)" -eq 1 ] && pass "deploy stays serial by default" || fail "parallel deploys by default: $out"
+
 # a card with a live run of any pipeline gets no second run (they would share its worktree)
 setup; mkdir -p "$FACTORY_HOME/locks/develop-36.lock"; echo "$$ $(date +%s) 36" > "$FACTORY_HOME/locks/develop-36.lock/info"
 Q_VAL="36" run_dispatch; [ -z "$(launched)" ] && pass "busy card skipped" || fail "second run on a busy card: $(launched)"

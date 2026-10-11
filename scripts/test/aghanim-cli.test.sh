@@ -102,6 +102,14 @@ out="$(bash "$M" accept shop 9 main reworded the setup 2>&1)"; assert_contains "
 assert_contains "$(cat "$H2/accepted.tsv")" "main reworded the setup"
 assert_exit 0 bash "$FACTORY_DIR/gate.sh" -C "$W" acceptance-intact "$qa9"
 assert_contains "$(bash "$M" accept shop 9 again 2>&1)" "nothing to accept"
+# accept also records a file the card deleted after the QA commit (a stub the real code replaced)
+echo stub > "$W/api/src/test/RedStubs.kt"; git -C "$W" add -A; git -C "$W" commit -qm "test(x): acceptance tests for #9"
+qa9="$(git -C "$W" rev-parse HEAD)"
+git -C "$W" rm -q api/src/test/RedStubs.kt; git -C "$W" commit -qm "the real class replaces the stub"
+assert_exit 1 bash "$FACTORY_DIR/gate.sh" -C "$W" acceptance-intact "$qa9"
+assert_contains "$(bash "$M" accept shop 9 stub replaced 2>&1)" "accepted the deletion of api/src/test/RedStubs.kt"
+assert_exit 0 bash "$FACTORY_DIR/gate.sh" -C "$W" acceptance-intact "$qa9"
+assert_contains "$(bash "$M" accept shop 9 again 2>&1)" "nothing to accept"
 # pool shows the stack slots
 out="$(bash "$M" pool)"; assert_contains "$out" "stacks: 3"; assert_contains "$out" "slot 0: free"
 finish
