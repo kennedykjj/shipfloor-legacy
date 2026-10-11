@@ -123,4 +123,14 @@ assert_contains "$(hook '{}')" "nothing"
 assert_contains "$(hook '{"agent_id":"a1"}')" 'keep the "footer"'
 assert_contains "$(live)" "pending []"
 assert_contains "$(echo '{}' | AGHANIM_RUN_LOCK="$(nat "$P/locks/none.lock")" bash "$FACTORY_DIR/inbox-hook.sh"; echo "rc=$?")" "rc=0"
+# the overview lists the runs that ended today, newest first (the Today panel), and the deploy script's own
+# lock inside a deploy run is not a second run
+printf '== start /aghanim:refine 12 %sT08:00:00-03:00 pid=1
+== end /aghanim:refine 12 exit=0 %sT08:09:00-03:00
+== start /aghanim:refine 12 %sT09:00:00-03:00 pid=2
+== end /aghanim:refine 12 exit=3 %sT09:01:00-03:00
+' "$D" "$D" "$D" "$D" > "$P/logs/$D-12-refine.log"
+mkdir -p "$P/locks/deploysh-11.lock"; echo "1 $(date +%s) 11" > "$P/locks/deploysh-11.lock/info"
+got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; o=json.load(sys.stdin); print([(r["issue"], r["stage"], r["exit"], r["cost"]) for r in o["projects"][0]["ended"]], sorted({r["stage"] for r in o["runs"]}))')"
+assert_contains "$got" "[(12, 'refine', 3, None), (12, 'refine', 0, None)] ['develop']"
 finish
