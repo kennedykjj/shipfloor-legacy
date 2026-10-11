@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(git -C:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh issue edit:*)",
+      "Bash(gh issue reopen:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr update-branch:*)",
+      "Bash(bash ~/.shipfloor/factory/gate.sh:*)",
+      "Bash(bash ~/.shipfloor/factory/board.sh:*)",
+      "Bash(bash ~/.shipfloor/factory/shipfloor-config.sh:*)",
+      "Bash(bash ~/.shipfloor/factory/report.sh:*)",
+      "Bash(bash ~/.shipfloor/factory/review-page.sh:*)",
+      "Bash(bash */.shipfloor/factory/*)",
+      "Bash(bash scripts/test/*)",
+      "Bash(bash */scripts/test/*)",
+      "Bash(bash -n:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(date:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)"
+    ]
+  }
+}

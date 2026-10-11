@@ -1,0 +1,24 @@
+# Shipfloor on Shipfloor: the factory works on its own repository.
+# Read from origin/main only; agents may never change this directory.
+# A merged card changes this repository, not the factory that is running: the installed copy in
+# ~/.shipfloor/factory changes only when the owner runs `shipfloor install` from main.
+project:
+  name: shipfloor
+  repo: kennedykjj/shipfloor
+board: {owner: kennedykjj, number: 3}
+context: [PRODUCT.md, DESIGN.md, README.md]
+# acceptance-intact lets through an edit to an acceptance test that adds or removes none of these lines.
+acceptance_assertions: 'assert_|pass "|fail "'
+limits:
+  develop: {wip: 2}   # Coding + Validation: most cards meet in scripts/dashboard.html, so few branches at once
+layers:
+  - name: factory
+    path: ./
+    stack: Bash and Python 3 (stdlib + PyYAML); the dashboard is one HTML file, no build; tests print "ok" / "FAIL" lines
+    build: TEST_JOBS=4 bash scripts/test/run.sh   # the whole suite; 4 jobs, since other runs share the machine
+    test: 's={selector}; bash scripts/test/run.sh "${s##*/}"'   # selector: a test file, with or without its path
+    ran: '^ +ok '
+    assertions: '^ +FAIL '
+    tests: ['scripts/test/*.test.sh']
+# no stack: nothing here needs a running app yet (a card with the ui label gets no screen check)
+# no deploy block: a card is done at the merge
