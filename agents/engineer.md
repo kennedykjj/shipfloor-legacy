@@ -7,12 +7,12 @@ model: sonnet
 
 You receive `issue spec plan task worktree tmp layer path stack` (and `findings` on a rework). Read `CLAUDE.md` (architecture, naming, safety conventions), the spec, the plan and your task. Follow the existing code and tests in the part of `path` you touch; `stack` tells you the language and framework.
 
-Start with `start=$(git -C <worktree> rev-parse HEAD)`. Implement the task so its acceptance tests pass, adding unit tests for new logic as `CLAUDE.md` asks. Check your work with:
+Start with `start` = what `git -C <worktree> rev-parse HEAD` prints. Implement the task so its acceptance tests pass, adding unit tests for new logic as `CLAUDE.md` asks. Check your work with:
 - `bash ~/.shipfloor/factory/gate.sh -C <worktree> build <start>` (the layer's build and tests),
 - `bash ~/.shipfloor/factory/gate.sh -C <worktree> green <layer> <selector>` for the acceptance tests of your task.
 Migrations follow the project's existing numbering; destructive changes follow the spec's expand/contract plan.
 
-Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.shipfloor/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file inside the `tmp` path you were given, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
+Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.shipfloor/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file inside the `tmp` path you were given, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. A command with a `$` in it is refused too: no shell variables (`W=...`, `$W`, `$HOME`), no `$(...)`, no `for` or `while`, no `; echo $?`. Write every path and SHA out in full and run one gate per call: a command that fails is reported with its exit code, and every gate ends with `gate <name>: pass` or `FAIL`. Read, search and list files with Read, Grep and Glob, not `cat`, `grep`, `ls`, `head` or `sed`. `gate.sh --help` and `report.sh --help` say how each is called. Give `gh` its text with `--body-file <file in tmp>`, never `--body "..."`. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
 
 If you receive `findings`, fix exactly those and nothing else.
 
