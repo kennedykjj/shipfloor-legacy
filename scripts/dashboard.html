@@ -442,6 +442,8 @@ function renderFlags() {
   else if (S.error) f.push(`<span class="flag bad" title="${esc(S.error)}">not updating</span>`);
   if (o?.paused) f.push('<span class="flag warn">paused</span>');
   if (o?.usage_limited) f.push('<span class="flag warn">usage limit hit</span>');
+  if (o?.alerts?.length) f.push(`<span class="flag warn" title="${esc(o.alerts.join("
+"))}&#10;History: ~/.aghanim/logs/health-*.jsonl">${plural(o.alerts.length, "health alert")}</span>`);
   const orphans = (o?.runs || []).filter((r) => r.orphan);
   if (orphans.length) f.push(`<span class="flag warn" title="${orphans.map((r) => `${r.stage}-${r.issue}.lock`).join(", ")}">${plural(orphans.length, "orphaned lock")}</span>`);
   if (o && o.projects.length > 1) f.push(`<select id="proj" aria-label="Project">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select>`);
