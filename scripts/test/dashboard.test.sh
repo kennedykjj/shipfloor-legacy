@@ -153,7 +153,7 @@ assert_contains "$(cat "$FAKE_GH_DIR/comments")" "yes, keep it"
 rm "$FAKE_GH_DIR/issue-comments"
 # settings: this machine's limits are read with their defaults and written all at once, checked together;
 # what else config.yml holds stays; a pause is the PAUSE file `aghanim pause` writes
-printf 'pool: 6\nlanguage: pt\nstages:\n  develop: 3\n' > "$H/config.yml"
+printf 'pool: 6\nlanguage: pt-BR\nstages:\n  develop: 3\n' > "$H/config.yml"
 sget() { curl -s -H "$H_TOK" "$base/api/settings" | $PY -c 'import json,sys; s=json.load(sys.stdin); m=s["machine"]; p=s["projects"][0]; print(m["pool"], m["stages"]["develop"], m["stages"]["refine"], m["stacks"], s["paused"], p["slug"], p["paused"], p["repo"], [l["name"] for l in p["layers"]])'; }
 assert_contains "$(sget)" "6 3 2 3 False shop False acme/shop ["
 [ "$(code "$base/api/settings")" = 403 ] && pass "no token, no settings" || fail "served the settings without the token"
@@ -162,7 +162,7 @@ assert_contains "$(cat "$H/config.yml")" "pool: 6"
 [ "$(post -d '{"pool":4}' "$base/api/settings/machine")" = 403 ] && pass "no token, no change" || fail "changed the settings without the token"
 [ "$(post -d '{"pool":8,"stages":{"develop":4,"validate":1},"stacks":2}' "$base/api/settings/machine" -H "$H_TOK")" = 200 ] && pass "limits saved" || fail "saving the limits failed"
 assert_contains "$(sget)" "8 4 2 2 False shop"
-assert_contains "$(tr '\n' ' ' < "$H/config.yml")" "language: pt"
+assert_contains "$(tr '\n' ' ' < "$H/config.yml")" "language: pt-BR"
 [ "$(post -d '{"paused":true}' "$base/api/settings/pause" -H "$H_TOK")" = 200 ] && [ -e "$H/PAUSE" ] && pass "factory paused" || fail "pause failed"
 [ "$(post -d '{"project":"shop","paused":true}' "$base/api/settings/pause" -H "$H_TOK")" = 200 ] && [ -e "$P/PAUSE" ] && pass "project paused" || fail "project pause failed"
 assert_contains "$(sget)" "8 4 2 2 True shop True"
