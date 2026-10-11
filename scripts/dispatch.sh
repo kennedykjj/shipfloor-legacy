@@ -3,7 +3,7 @@
 # 3 min by aghanim-dispatch.sh, once per registered project. Pipelines run from the project's
 # control checkout of origin/main, never from a worktree an agent can edit.
 set -uo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
 source "$HERE/lib/stack.sh"
 aghanim_resolve . || exit 2

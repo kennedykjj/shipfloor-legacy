@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Shared by the factory scripts: finds the project they act on and reads its config.
 # Sourced, never run. Exports FACTORY_CONFIG FACTORY_HOME FACTORY_REPO FACTORY_PROJECT FACTORY_WT_ROOT.
-AGHANIM_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AGHANIM_LIB="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"  # always sourced by a path ending in lib/project.sh
 AGHANIM_HOME="${AGHANIM_HOME:-$HOME/.aghanim}"
 
 aghanim_native() {  # path as the native Windows tools want it (C:/...), unchanged elsewhere
@@ -137,7 +137,12 @@ aghanim_say() {  # aghanim_say <language>: stdin, written in English, comes out 
 }
 
 aghanim_machine() {  # aghanim_machine <validate|values|show|set ...>: the machine-wide agent pool (~/.aghanim/config.yml)
-  AGHANIM_MACHINE_CONFIG="$(aghanim_native "$AGHANIM_HOME/config.yml")"     aghanim_python "$(aghanim_native "$AGHANIM_LIB/../aghanim_config.py")" machine "$@"
+  if [ "${AGHANIM_MACHINE_HOME:-}" != "$AGHANIM_HOME" ]; then  # one cygpath start for the two paths, kept while the home is the same
+    AGHANIM_MACHINE=("$AGHANIM_HOME/config.yml" "$AGHANIM_LIB/../aghanim_config.py")
+    if command -v cygpath >/dev/null; then mapfile -t AGHANIM_MACHINE < <(cygpath -m "${AGHANIM_MACHINE[@]}"); fi
+    AGHANIM_MACHINE_HOME="$AGHANIM_HOME"
+  fi
+  AGHANIM_MACHINE_CONFIG="${AGHANIM_MACHINE[0]}" aghanim_python "${AGHANIM_MACHINE[1]}" machine "$@"
 }
 
 aghanim_cfg() {  # aghanim_cfg <query...>: asks aghanim_config.py about the resolved project

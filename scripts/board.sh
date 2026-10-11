@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Reads and moves cards on the project's board (a GitHub Project v2, from .aghanim/factory.yml).
 set -uo pipefail
-source "$(dirname "$0")/lib/project.sh"
+HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.  # no dirname: one process less per start
+source "$HERE/lib/project.sh"
 GH="${FACTORY_GH:-gh}"
 aghanim_resolve . || exit 2
 mapfile -d '' -t V < <(aghanim_cfg values board.owner board.number project.repo 2>/dev/null)
