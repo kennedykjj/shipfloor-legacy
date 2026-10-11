@@ -459,7 +459,7 @@ def dispatcher_every(raw):
     return every if type(every) is int and every in DISPATCHER_EVERY else MACHINE_DEFAULTS["dispatcher"]["every_min"]
 
 
-MACHINE_INTS = ("pool","stacks", "stack_wait", "stack_stale", "stack_hold_max")
+MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
 
 
 def machine_problems(raw):
@@ -512,8 +512,6 @@ def machine_problems(raw):
 def machine(rest):
     """machine <validate | values <key>... | show | set <key> <int>> on $SHIPFLOOR_MACHINE_CONFIG."""
     path = os.environ.get("SHIPFLOOR_MACHINE_CONFIG", "")
-    if not path and os.environ.get("SHIPFLOOR_HOME"):  # asked through shipfloor-config.sh (the installer does): the home's file
-        path = os.path.join(os.environ["SHIPFLOOR_HOME"], "config.yml")
     raw = {}
     if path and os.path.isfile(path):
         with open(path, encoding="utf-8") as f:
