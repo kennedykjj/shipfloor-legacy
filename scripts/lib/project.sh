@@ -41,9 +41,14 @@ aghanim_config_path() {  # aghanim_config_path <git-dir> <rev>: the config path 
 }
 
 aghanim_snapshot() {  # aghanim_snapshot: FACTORY_CONFIG = the project config as committed at control's HEAD
-  local tmp="$FACTORY_CONFIG.tmp" d p; d="$(aghanim_native "$FACTORY_HOME/control")"
+  # A temp file per process: two snapshots at once must not move each other's away. And when the rename
+  # fails because a reader has the config open (Windows), a config that did not change is still the config.
+  local tmp="$FACTORY_CONFIG.$$.tmp" d p rc=1; d="$(aghanim_native "$FACTORY_HOME/control")"
   p="$(aghanim_config_path "$d" HEAD)" || return 1
-  MSYS2_ARG_CONV_EXCL="*" git -C "$d" show "HEAD:$p" > "$tmp" 2>/dev/null     && mv "$tmp" "$FACTORY_CONFIG" || { rm -f "$tmp"; return 1; }
+  if MSYS2_ARG_CONV_EXCL="*" git -C "$d" show "HEAD:$p" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$FACTORY_CONFIG" 2>/dev/null || cmp -s "$tmp" "$FACTORY_CONFIG"; rc=$?
+  fi
+  rm -f "$tmp"; return $rc
 }
 
 aghanim_resolve() {  # aghanim_resolve [dir]: 0 when the project is known (env, or the registry entry
