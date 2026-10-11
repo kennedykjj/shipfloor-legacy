@@ -20,7 +20,7 @@ Owner of a file: `aghanim-config.sh layer-of <repo-relative path>` names its lay
 ## 1. Pick the card
 - Issue given → use it, but only if `board.sh status <n>` is `Validation`; else stop.
 - Else `n=$(board.sh first Validation)`; empty → stop.
-- Worktree `<worktrees>/<n>` on `feat/<n>-<slug>` (reuse it; else create it from `origin/feat/<n>-<slug>`). Spec = the `<specs>*-<slug>-design.md` on the branch. `qa` = the QA commit: `git -C <wt> log --format=%H -1 --grep "acceptance tests for #<n>"`; the acceptance selectors come from the files it added.
+- Worktree `<worktrees>/<n>` on `feat/<n>-<slug>` (reuse it; else create it from `origin/feat/<n>-<slug>`). Spec = the `<specs>*-<slug>-design.md` on the branch. `qa` = the QA commit: `gate.sh -C <wt> qa-commit <n>`; the acceptance selectors come from the files it added.
 
 ## 2. Gates
 The branch is not merged with main here: the deploy does that, once, on the approved head.

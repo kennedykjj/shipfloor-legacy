@@ -174,6 +174,16 @@ gate_acceptance_intact() {
   echo "acceptance-intact: the owner can review these files and record them as they stand: aghanim accept <project> <n> <reason>" >&2; return 1
 }
 
+gate_qa_commit() {  # qa-commit <n> [--head]: prints card <n>'s QA commit, the newest "acceptance tests for #<n>" on the branch
+  # Every stage asks here, so a rework's QA commit replaces the first one for all of them. --head: it must be the last commit.
+  [[ "${1:-}" =~ ^[0-9]+$ ]] || { echo "usage: gate.sh qa-commit <n> [--head]" >&2; exit 2; }
+  local qa; qa="$(g log --format=%H -1 -E --grep "acceptance tests for #$1([^0-9]|\$)")"
+  if [ -z "$qa" ] || { [ "${2:-}" = --head ] && [ "$qa" != "$(g rev-parse HEAD)" ]; }; then
+    echo "qa-commit: ${2:+the last commit is not the QA commit: }no commit message with \"acceptance tests for #$1\"${2:+ at HEAD}" >&2; return 1
+  fi
+  echo "$qa"
+}
+
 rollback_section() {  # body of '## Rollback', without HTML comments and blank lines
   awk '/^## /{on=($0 ~ /^## Rollback/); next} on' "$1" | sed 's/<!--.*-->//g' | sed '/^[[:space:]]*$/d'
 }
@@ -382,6 +392,7 @@ case "$cmd" in
   forbidden)         gate_forbidden "$@" ;;
   acceptance-intact) gate_acceptance_intact "$@" ;;
   acceptance-own)    require_rev "${1:-}"; own_key "$1" "${2:-}" ;;  # for aghanim accept
+  qa-commit)         gate_qa_commit "$@" ;;
   migration)         gate_migration "$@" ;;
   fast)              gate_fast "$@" ;;
   build)             gate_build "$@" ;;
@@ -389,5 +400,5 @@ case "$cmd" in
   green)             gate_green "$@" ;;
   test-plan)         gate_test_plan "$@" ;;
   stack)             gate_stack "$@" ;;
-  *) echo "usage: gate.sh scope|forbidden|acceptance-intact|migration|build|red|green|test-plan|stack ..." >&2; exit 2 ;;
+  *) echo "usage: gate.sh scope|forbidden|acceptance-intact|qa-commit|migration|build|red|green|test-plan|stack ..." >&2; exit 2 ;;
 esac

@@ -208,7 +208,7 @@ cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>
   [ -n "$slug" ] && [[ "$n" =~ ^[0-9]+$ ]] && [ -n "$reason" ] || die "usage: aghanim accept <project> <n> <reason>" 2
   use "$slug"; wt="$FACTORY_WT_ROOT/$n"
   [ -e "$wt/.git" ] || die "no worktree for card $n at $wt"
-  qa="$(git -C "$wt" log --format=%H -1 --grep "acceptance tests for #$n")"
+  qa="$(bash "$HERE/gate.sh" -C "$wt" qa-commit "$n" 2>/dev/null)"
   [ -n "$qa" ] || die "no QA commit (\"acceptance tests for #$n\") on $(git -C "$wt" rev-parse --abbrev-ref HEAD)"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
