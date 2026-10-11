@@ -1,5 +1,5 @@
 """Local dashboard: one page and a JSON API over ~/.aghanim and the Claude Code transcripts of the
-factory's runs. Read-only, except the owner's approve, request-changes and messages to a running card."""
+factory's runs. Read-only, except the owner's decisions on a card that waits and messages to a running card."""
 import argparse, json, os, re, secrets, statistics, subprocess, sys, threading, time, webbrowser
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,6 +20,13 @@ STEPS = {"refine": {1: "Pick the card", 2: "Worktree", 3: "Product Owner", 4: "U
          "validate": {1: "Pick the card", 2: "Up to date with main", 3: "Review", 4: "Pull request", 6: "Report"}}
 STACKS_TTL_S = 15
 PIPELINES = set(LEGACY_STAGES.values())
+#  how the skills open a block note: "Factory validate, step 2 (gates): blocked." or "Validate, step 2 (gates): ..."
+BLOCK_LINE = re.compile(r"(?:Factory )?\b(refine|develop|validate|deploy),? step (\d+)(?:\s*\([^)\n]*\))?:?\s*(?:blocked\.?\s*)?", re.I)
+# The acceptance test files of a card as they changed since its QA commit: what the acceptance-intact gate looks at.
+ACCEPTANCE_DIFF = """qa="$(bash "$1" -C "$2" qa-commit "$3" 2>/dev/null)"; [ -n "$qa" ] || exit 0
+mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
+[ "${#files[@]}" -gt 0 ] && git -C "$2" -c core.quotePath=false diff --no-color -U1 "$qa" HEAD -- "${files[@]}"
+"""
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy mylos
@@ -87,6 +94,7 @@ class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
         self._transcripts, self._titles, self._blocked, self._reasons, self._boards = {}, {}, {}, {}, {}
+        self._diffs, self._prs = {}, {}
         self._stacks = (0.0, [], 0)
         self._configs = {}
         self._snap, self._reading, self._retry = {}, set(), {}
@@ -273,16 +281,88 @@ class Factory:
         return {"since": since, "reason": why} if since else None
 
     def block_reason(self, p, n):
-        """The last issue comment about the block (the skills write the step, the output and what was tried
-        there), read at most once a minute per card."""
+        """The factory's note about the block (the skills write the step, the output and what was tried there):
+        among the issue's last comments, the newest that tells of a block or a failure, a stage's own note before
+        its report. Read at most once a minute per card."""
         at, reason = self._reasons.get((p, n), (0, ""))
         if time.time() - at > 60:
             repo = aghanim_config.dotted(self.config(p), "project.repo")
-            comments, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100&sort=created&direction=desc")
-            reason = next((c["body"][:4000] for c in comments or []
-                           if isinstance(c, dict) and "blocked" in (c.get("body") or "").lower()), "")
+            pages, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100", "--paginate", "--slurp")
+            bodies = [c.get("body") or "" for page in pages or [] for c in (page if isinstance(page, list) else [page])
+                      if isinstance(c, dict)]  # GitHub lists an issue's comments oldest first
+            told = [b for b in reversed(bodies[-4:]) if re.search(r"\b(blocked|failed)\b", b, re.I)]
+            reason = next((b for b in told if "Factory report" not in b[:40]), told[0] if told else "")[:4000]
             self._reasons[(p, n)] = (time.time(), reason)
         return reason
+
+    def spec(self, p, n):
+        """The card's spec as its review page holds it: the problem, the acceptance criteria, the open questions."""
+        try:
+            html = (self.pdir(p) / "reviews" / f"{n}.html").read_text(encoding="utf-8")
+            sections, _ = json.JSONDecoder().raw_decode(html, re.search(r"\bconst S ?= ?(?=\[)", html).end())
+        except (OSError, ValueError, AttributeError):
+            return None
+        items = lambda *names: [i for s in sections if s.get("t", "").strip().lower() in names for i in s.get("items", [])]
+        criteria = [m.groups() for m in (re.match(r"((?:AC|CA)-\d+)[:.]?\s+(.*)", i, re.S) for i in items("product")) if m]
+        problem = next((re.sub(r"^Problem[:.]\s*", "", i) for i in items("product") if i.startswith("Problem")), "")
+        return {"problem": problem, "criteria": [{"id": k, "text": t} for k, t in criteria],
+                "questions": items("open questions", "dúvidas")}
+
+    def block(self, p, n):
+        """A block told in parts: the stage and step it stopped at, why, what was tried, how many times, and for
+        acceptance-intact the test files as they changed."""
+        reason = self.block_reason(p, n)
+        blocked = [r for r in self.reports(p, n) if r["outcome"] == "blocked"]
+        m = BLOCK_LINE.search(reason)
+        stage, step = (m.group(1).lower(), int(m.group(2))) if m else (None, None)
+        if not stage:  # a report tells the block: it names its stage, not a step
+            stage = next(iter(re.findall(r"Factory report\W+(\w+)", reason)), "").lower() or None
+        text = "\n".join(l for l in (reason[m.end():] if m else reason).splitlines() if not l.lstrip().startswith("|"))
+        why, _, tried = text.partition("Tried:")
+        intact = re.search(r"acceptance-intact\W{0,4}(?:gate\W+)?fail|fail\w*[^.\n]{0,60}acceptance-intact", reason, re.I)
+        gate = "acceptance-intact" if intact or any("acceptance-intact" in str(r["failed_gates"]) for r in blocked[-1:]) else ""
+        return {"stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
+                "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": gate,
+                "diff": self.acceptance_diff(p, n) if gate else ""}
+
+    def acceptance_diff(self, p, n):
+        at, diff = self._diffs.get((p, n), (0, ""))
+        if time.time() - at > 60:
+            wt = next((c[2] for c in (l.split("\t") for l in (self.home / "registry.tsv").read_text(encoding="utf-8").splitlines())
+                       if c[0] == p and len(c) > 2), "")
+            env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
+            try:
+                r = subprocess.run([bash(), "-c", ACCEPTANCE_DIFF, "diff", (HERE / "gate.sh").as_posix(), f"{wt}/{n}", str(n)],
+                                   env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+                diff = r.stdout[:8000] if r.returncode == 0 else ""
+            except (OSError, subprocess.TimeoutExpired):
+                diff = ""
+            self._diffs[(p, n)] = (time.time(), diff)
+        return diff
+
+    def pull(self, p, number):
+        """The card's pull request as GitHub has it now: its size and whether its checks passed."""
+        at, pr = self._prs.get((p, number), (0, None))
+        if time.time() - at > 60:
+            repo = aghanim_config.dotted(self.config(p), "project.repo")
+            d, _ = gh_json("pr", "view", str(number), "--repo", str(repo), "--json", "number,url,additions,deletions,changedFiles,statusCheckRollup")
+            if isinstance(d, dict):
+                checks = [(c.get("conclusion") or c.get("state") or c.get("status") or "").upper() for c in d.get("statusCheckRollup") or []]
+                ci = ("none" if not checks else "failed" if any(c in ("FAILURE", "ERROR", "TIMED_OUT", "CANCELLED") for c in checks)
+                      else "green" if all(c in ("SUCCESS", "NEUTRAL", "SKIPPED") for c in checks) else "running")
+                pr = {"number": d.get("number"), "url": d.get("url"), "files": d.get("changedFiles"),
+                      "additions": d.get("additions"), "deletions": d.get("deletions"), "ci": ci}
+            self._prs[(p, number)] = (time.time(), pr)
+        return pr
+
+    def decide(self, p, n):
+        """What the owner reads to decide a card that waits: its spec, why it is blocked, its pull request and
+        what the last validation said."""
+        reports = self.reports(p, n)
+        number = next((r["pr"] for r in reversed(reports) if isinstance(r.get("pr"), int)), None)
+        return {"spec": self.spec(p, n), "block": self.block(p, n) if self.blocked(p).get(n) else None,
+                "pr": self.pull(p, number) if number else None,
+                "report": next((r for r in reversed(reports) if r["pipeline"] == "validate"), None)}
 
     def unblock(self, p, n):
         repo = aghanim_config.dotted(self.config(p), "project.repo")
@@ -301,7 +381,7 @@ class Factory:
                 r = json.loads(f.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            out.append({"file": f.name, "pipeline": r.get("pipeline"), "outcome": r.get("outcome"),
+            out.append({"file": f.name, "pipeline": r.get("pipeline") or r.get("phase"), "outcome": r.get("outcome"), "pr": r.get("pr"),
                         "gates": r.get("gates") or {}, "failed_gates": r.get("failed_gates") or r.get("gates_failed") or [],
                         "rounds": r.get("rounds"),
                         "notes": "\n".join(r["notes"]) if isinstance(r.get("notes"), list) else r.get("notes") or ""})
@@ -457,22 +537,62 @@ class Factory:
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
                           "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)}}
 
+    def board_row(self, p, n):
+        """(the card's row on the live board: number, column, item id; or None), or (None, error)."""
+        env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
+        snap = subprocess.run([bash(), (HERE / "board.sh").as_posix(), "snapshot"], env=env,
+                              capture_output=True, text=True, encoding="utf-8")
+        if snap.returncode != 0:
+            return None, "cannot read the board: " + snap.stderr.strip()
+        return next((c for c in (l.split("\t") for l in snap.stdout.splitlines()) if c[0] == str(n)), None), None
+
+    def accept(self, p, n, text):
+        """The owner takes the card's acceptance test edits as they stand (aghanim accept), and the block comes off."""
+        if not text.strip():
+            return 400, {"error": "write why the edits are right: it is recorded with the acceptance"}
+        r = subprocess.run([bash(), (HERE / "aghanim").as_posix(), "accept", p, str(n), text.strip()],
+                           env=dict(os.environ, AGHANIM_HOME=str(self.home)), capture_output=True, text=True, encoding="utf-8")
+        if r.returncode != 0:
+            return 502, {"error": "nothing accepted, the card is still blocked: " + (r.stderr.strip() or r.stdout.strip())}
+        self._diffs.pop((p, n), None)
+        code, body = self.unblock(p, n)
+        return code, dict(body, accepted=r.stdout.strip())
+
+    def send_back(self, p, n, text):
+        """A blocked card goes back to Coding with the owner's note: the comment first, then the move, then the block
+        comes off."""
+        if not text.strip():
+            return 400, {"error": "write what should be done"}
+        if not self.blocked(p).get(n):
+            return 409, {"error": f"#{n} is not blocked now"}
+        cfg = self.config(p)
+        owner, num, repo = (aghanim_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
+        row, err = self.board_row(p, n)
+        if err or not row:
+            return (502, {"error": err}) if err else (409, {"error": f"#{n} is not on the board"})
+        r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
+        if r.returncode != 0:
+            return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip()}
+        err = None if row[1] == "Coding" else self.move(p, owner, num, row[2], "Coding")
+        if err:
+            return 502, {"error": err, "commented": True}
+        code, body = self.unblock(p, n)
+        return code, dict(body, moved_to="Coding")
+
     def act(self, p, n, action, seen, text, move_only):
         """The owner's approve / request-changes. Moves with gh directly: board.sh move refuses
         owner-only columns on purpose (the agents' guardrail), and an owner path there would be open to agents."""
         cfg = self.config(p)
         owner, num, repo = (aghanim_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
-        env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
-        snap = subprocess.run([bash(), (HERE / "board.sh").as_posix(), "snapshot"], env=env,
-                              capture_output=True, text=True, encoding="utf-8")
-        if snap.returncode != 0:
-            return 502, {"error": "cannot read the board: " + snap.stderr.strip()}
-        row = next((c for c in (l.split("\t") for l in snap.stdout.splitlines()) if c[0] == str(n)), None)
+        row, err = self.board_row(p, n)
+        if err:
+            return 502, {"error": err}
         column = row[1] if row else None
         if column not in OWNER_MOVES or column != seen:
             return 409, {"error": f"#{n} is in {column or 'no column'} now", "column": column}
         target = OWNER_MOVES[column][action]
-        commented = action == "request-changes" and not move_only
+        # request-changes always says why; an approval may carry a note too (an answer to the spec's open question)
+        commented = not move_only and (action == "request-changes" or bool(text.strip()))
         if commented:
             if not text.strip():
                 return 400, {"error": "write what should change"}
@@ -592,6 +712,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, f.feed())
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and parts[3].isdigit():
                 return self.send(200, f.card(parts[2], int(parts[3])))
+            if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and parts[3].isdigit():
+                return self.send(200, f.decide(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "live"] and parts[3].isdigit():
                 return self.send(200, f.session(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "log"]:
@@ -618,7 +740,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.allowed():
             return self.send(403, {"error": "missing or wrong token"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and parts[3].isdigit() and parts[4] in ("approve", "request-changes", "unblock", "message")):
+                and parts[3].isdigit() and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -627,6 +749,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parts[4] == "message":
                 return self.send(*self.factory.message(parts[2], int(parts[3]), str(body.get("text", ""))))
+            if parts[4] in ("accept", "send-back"):
+                fn = self.factory.accept if parts[4] == "accept" else self.factory.send_back
+                return self.send(*fn(parts[2], int(parts[3]), str(body.get("text", ""))))
             if parts[4] == "unblock":
                 return self.send(*self.factory.unblock(parts[2], int(parts[3])))
             self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),
