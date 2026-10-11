@@ -40,6 +40,8 @@ slot_env() {  # slot_env <k>: export the slot's environment for up, down, tests 
   export SHIPFLOOR_SLOT="$1" SHIPFLOOR_STACK="shipfloor-$NAME-$1"
   for name in $PORTS; do export "SHIPFLOOR_PORT_${name^^}=$(( BASE + $1 * SPAN + i ))"; i=$(( i + 1 )); done
   export SHIPFLOOR_STACK_URL; SHIPFLOOR_STACK_URL="$(fill_ports "$1" "$URL")"
+  # legacy aghanim: card branches cut before the rename still read the old names; drop once they are Done
+  for name in $(compgen -v SHIPFLOOR_STACK; compgen -v SHIPFLOOR_PORT_); do export "AGHANIM_${name#SHIPFLOOR_}=${!name}"; done  # legacy aghanim
 }
 
 free_range() {  # free_range <k>: stop what still listens on the slot's ports; Docker's own processes are left to `down`
