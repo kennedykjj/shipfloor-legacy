@@ -8,5 +8,6 @@ code="$(run 7)"; [ "$code" = 5 ] && pass "missing PR → blocked" || fail "exit 
 
 # checks still pending keep waiting; a required check that never reports is not green
 setup; printf 'deploy: {required_checks: [api, web]}\n' >> "$FACTORY_CONFIG"; sed -i '/healthcheck/d' "$FACTORY_CONFIG"
-code="$(run 7)"; [ "$code" = 5 ] && pass "missing required check → not merged" || fail "exit $code: $(cat "$T/out")"
+# (3 polls, not the 60 a test gets by default: the wait ends the same way)
+code="$(FACTORY_POLLS=3 run 7)"; [ "$code" = 5 ] && pass "missing required check → not merged" || fail "exit $code: $(cat "$T/out")"
 finish
