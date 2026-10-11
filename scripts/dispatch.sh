@@ -123,13 +123,13 @@ launch() {  # launch <pipeline> <issue>
   ) &
 }
 
-run_pipeline() {  # run_pipeline <name> <queue> <max runs> <wip-limit> <orphan columns, comma-separated> <wip column>...
+run_pipeline() {  # run_pipeline <name> <queue> <max runs, 0 = no project cap> <wip-limit> <orphan columns, comma-separated> <wip column>...
   local p="$1" queue="$2" maxpar="$3" limit="$4" orphan_cols="$5"; shift 5
   local running n st inflight=0 free col cards refreshed=0 resumed=""
   running="$(running_issues "$p")"
   free=$(( maxpar - $(printf '%s' "$running" | grep -c .) ))
   local stage_free=$(( ${STAGE_SLOTS[$p]:-0} - $(live_runs "$p") ))
-  [ "$stage_free" -lt "$free" ] && free="$stage_free"
+  { [ "$maxpar" -eq 0 ] || [ "$stage_free" -lt "$free" ]; } && free="$stage_free"  # 0 = no project cap
   [ "$free" -le 0 ] && return 0
   start_run() {
     if [ "$refreshed" = 0 ]; then

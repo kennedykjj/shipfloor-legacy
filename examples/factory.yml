@@ -12,11 +12,12 @@ board: {owner: acme, number: 3}   # GitHub Project v2 (user or organization); `a
 context: [PRODUCT.md, CLAUDE.md]  # what PO, UX, Cybersec and the Tech Lead read about the product
 # review_criteria: .aghanim/review-criteria.md   # default: the plugin's generic criteria
 # forbidden: [docs/engineering/]               # extra paths agents may never change
+# acceptance_assertions: 'assert|expect\('   # let through edits to acceptance tests that touch no assertion line (default: every edit blocks)
 # paths: {specs: docs/superpowers/specs/, plans: docs/superpowers/plans/}
 # limits:                                      # runs at once (parallel) and cards in the WIP columns (wip)
-#   refine: {parallel: 2, wip: 2}
-#   develop: {parallel: 2, wip: 4}
-#   validate: {parallel: 2}
+#   refine: {parallel: 0, wip: 2}              # parallel 0 (the default) = no cap of the project's own:
+#   develop: {parallel: 0, wip: 4}             # the machine's stage slots decide. deploy defaults to 1.
+#   validate: {parallel: 0}
 #   deploy: {parallel: 1}
 # (the machine pool in ~/.aghanim/config.yml caps every project together: `aghanim pool`)
 

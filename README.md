@@ -28,7 +28,7 @@ pool: 4
 stages: {refine: 2, develop: 2, validate: 2, deploy: 1}
 ```
 
-`aghanim pool` shows it and the runs in progress; `aghanim pool set 6` and `aghanim pool stage validate 3` change it. A project's `limits` in `factory.yml` can ask for less.
+`aghanim pool` shows it and the runs in progress; `aghanim pool set 6` and `aghanim pool stage validate 3` change it. A project's `limits` in `factory.yml` can ask for less: `limits.<stage>.parallel` defaults to 0, no cap of the project's own, except deploy, which defaults to 1 (merges into main are serial).
 
 ## Parallel work
 
@@ -79,6 +79,8 @@ The factory was called mylos before 0.6.0. To move a machine and its repositorie
 `aghanim dashboard` · `aghanim list` · `aghanim pool` · `aghanim pause [project]` · `aghanim resume [project]` · `aghanim remove <project>` · `aghanim metrics <project>` · `aghanim clean <project>` · `aghanim accept <project> <n> <reason>` (owner only: after reviewing how a card's acceptance test files changed since the QA commit, for example a merge from main resolved by hand, take them as they stand; `acceptance-intact` then passes those exact contents, recorded in `~/.aghanim/projects/<project>/accepted.tsv`, and blocks again on any later edit).
 `aghanim dashboard` (or `/aghanim:dashboard` inside Claude Code) opens a local page with the pool, live runs, logs (per card, and a Feed view with the dispatcher's log and every run's start and end in one timeline), the estimated cost of each card and the review pages, where Spec Review and Staged cards are approved or sent back.
 Logs in `~/.aghanim/logs/dispatcher.log` and `~/.aghanim/projects/<project>/logs/`. A layer may set `install` (for example `pnpm install --frozen-lockfile`): the gates run it in the layer's directory before its build or tests, once per content of that directory, so no agent has to install a worktree's dependencies; a failing install is exit 3 (infrastructure). A project the dispatcher cannot use in a cycle (its control checkout does not reach `origin/<main>`, or the config there is missing or invalid) is skipped: the reason and the time of the first failed cycle go to `~/.aghanim/projects/<project>/SKIPPED`, the dashboard shows a "skipped since" flag and `aghanim doctor` warns; the first good cycle clears it. An `index.lock` older than 10 minutes in the control checkout (`AGHANIM_STALE_LOCK_MIN`) is treated as left by a dead git and removed. Reports on each repository's orphan `factory-reports` branch.
+
+Every dispatcher cycle appends one line to `~/.aghanim/logs/health-<YYYY-MM>.jsonl`: each project's cards per column and blocked cards, runs against the pool, the stage slots and the project's limits, busy stacks, the machine's CPU, free memory and free disk, and how the cycle went (seconds, exit code, whether another cycle was still running). The dashboard and `aghanim doctor` raise what the last three cycles show: a stage with a free slot and cards waiting through all three, more runs than a limit, two cycles at once.
 
 ## Security
 

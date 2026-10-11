@@ -87,11 +87,10 @@ gate_scope() {  # gate_scope <po|ux|techlead|qa|implementer layer> <base>
   gate_forbidden "$base"
 }
 
-only_main_changed() {  # only_main_changed <qa> <file>: HEAD's file is the QA version plus what merges from main brought, nothing else
+merged_with_main() {  # merged_with_main <qa> <file> <out>: the file a clean merge gives, written to <out>; 1 = main brought nothing or the merge needs a hand
   # Acceptance tests often live in files main also edits. Rebuild the file a clean merge gives
-  # (QA's version + main's version over their common ancestor) and compare: an edit by the card,
-  # or a merge that needed a hand resolution, differs from it.
-  local qa="$1" f="$2" main="" m b tmp rc=1
+  # (QA's version + main's version over their common ancestor).
+  local qa="$1" f="$2" out="$3" main="" m b tmp rc=1
   for m in "origin/${FACTORY_MAIN:-main}" "${FACTORY_MAIN:-main}"; do
     git rev-parse -q --verify "$m^{commit}" >/dev/null && { main="$m"; break; }
   done
@@ -101,25 +100,56 @@ only_main_changed() {  # only_main_changed <qa> <file>: HEAD's file is the QA ve
   [ "$m" != "$b" ] && git cat-file -e "$m:$f" 2>/dev/null || return 1
   tmp="$(mktemp -d)"
   g show "$qa:$f" > "$tmp/qa" 2>/dev/null && g show "$m:$f" > "$tmp/main" && { g show "$b:$f" > "$tmp/base" 2>/dev/null || : > "$tmp/base"; } \
-    && git merge-file -q "$tmp/qa" "$tmp/base" "$tmp/main" 2>/dev/null \
-    && g show "HEAD:$f" > "$tmp/head" 2>/dev/null && cmp -s "$tmp/qa" "$tmp/head" && rc=0
+    && git merge-file -q "$tmp/qa" "$tmp/base" "$tmp/main" 2>/dev/null && cp "$tmp/qa" "$out" && rc=0
   rm -rf "$tmp"
   return $rc
 }
 
-owner_accepted() {  # owner_accepted <file>: the owner reviewed this exact content and recorded it (aghanim accept)
-  local blob; blob="$(git rev-parse -q --verify "HEAD:$1" 2>/dev/null)" || return 1
-  [ -f "${FACTORY_HOME:-}/accepted.tsv" ] && awk -F'\t' -v f="$1" -v b="$blob" '$1 == f && $2 == b { ok = 1 } END { exit !ok }' "$FACTORY_HOME/accepted.tsv"
+only_main_changed() {  # only_main_changed <qa> <file>: HEAD's file is the QA version plus what merges from main brought, nothing else
+  # An edit by the card, or a merge that needed a hand resolution, differs from the clean merge.
+  local tmp rc=1; tmp="$(mktemp)"
+  merged_with_main "$1" "$2" "$tmp" && g show "HEAD:$2" 2>/dev/null | cmp -s - "$tmp" && rc=0
+  rm -f "$tmp"; return $rc
+}
+
+own_edit() {  # own_edit <qa> <file>: the lines the card itself removed (<) or added (>), without what merges from main brought
+  # Against the clean merge when there is one, else against QA's version: that diff is larger, so it only blocks more.
+  local tmp; tmp="$(mktemp)"
+  merged_with_main "$1" "$2" "$tmp" || g show "$1:$2" > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
+  g show "HEAD:$2" 2>/dev/null | diff "$tmp" - | grep '^[<>]'  # diff exits 1 on a difference: the status says nothing
+  rm -f "$tmp"; return 0
+}
+
+own_key() {  # own_key <qa> <file>: what aghanim accept records for the card's own edit; a merge from main elsewhere in the file keeps it
+  local own; own="$(own_edit "$1" "$2")" && [ -n "$own" ] || return 1
+  echo "own:$(git hash-object --stdin <<< "$own")"
+}
+
+assertions_kept() {  # assertions_kept <qa> <file> <regex>: the card's own edits add or remove no line matching <regex> (acceptance_assertions)
+  local own; [ -n "$3" ] || return 1
+  own="$(own_edit "$1" "$2")" || return 1
+  ! grep -Eq -- "$3" <<< "$own"
+}
+
+owner_accepted() {  # owner_accepted <file> [qa]: the owner reviewed the card's own edit, this exact content or its deletion, and recorded it (aghanim accept)
+  local blob own=""; [ -f "${FACTORY_HOME:-}/accepted.tsv" ] || return 1
+  blob="$(git rev-parse -q --verify "HEAD:$1" 2>/dev/null)" || blob=deleted
+  [ "$blob" = deleted ] || [ -z "${2:-}" ] || own="$(own_key "$2" "$1")"
+  awk -F'\t' -v f="$1" -v b="$blob" -v o="$own" '$1 == f && ($2 == b || (o != "" && $2 == o)) { ok = 1 } END { exit !ok }' "$FACTORY_HOME/accepted.tsv"
 }
 
 gate_acceptance_intact() {
   require_rev "${1:-}"
-  local qa="$1" files changed
+  local qa="$1" files changed keep
+  keep="$(aghanim_cfg get acceptance_assertions 2>/dev/null)"
   files="$(g show --name-only --format= --diff-filter=d "$qa")"  # files the QA commit deleted are not acceptance tests
   [ -z "$files" ] && { echo "acceptance-intact: QA commit $qa has no files" >&2; return 1; }
   changed="$(printf '%s\n' "$files" | while IFS= read -r f; do
-    if [ ! -e "$f" ] || ! git diff --quiet HEAD -- "$f"; then echo "$f"
-    elif ! git diff --quiet "$qa" HEAD -- "$f" && ! only_main_changed "$qa" "$f" && ! owner_accepted "$f"; then echo "$f"; fi
+    if [ ! -e "$f" ] && ! git cat-file -e "HEAD:$f" 2>/dev/null; then owner_accepted "$f" || echo "$f"  # deleted and committed
+    elif [ ! -e "$f" ] || ! git diff --quiet HEAD -- "$f"; then echo "$f"
+    elif git diff --quiet "$qa" HEAD -- "$f" || only_main_changed "$qa" "$f" || owner_accepted "$f" "$qa"; then :
+    elif assertions_kept "$qa" "$f" "$keep"; then echo "acceptance-intact: $f changed, but no assertion line did (acceptance_assertions); passed" >&2
+    else echo "$f"; fi
   done)"
   [ -z "$changed" ] && return 0
   echo "acceptance-intact: acceptance tests changed after the QA commit (beyond what merges from main brought):" >&2; echo "$changed" >&2
@@ -333,6 +363,7 @@ case "$cmd" in
   scope)             gate_scope "$@" ;;
   forbidden)         gate_forbidden "$@" ;;
   acceptance-intact) gate_acceptance_intact "$@" ;;
+  acceptance-own)    require_rev "${1:-}"; own_key "$1" "${2:-}" ;;  # for aghanim accept
   migration)         gate_migration "$@" ;;
   fast)              gate_fast "$@" ;;
   build)             gate_build "$@" ;;

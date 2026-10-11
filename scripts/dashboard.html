@@ -431,6 +431,7 @@ function renderFlags() {
   if (p?.paused) add("warn", `${esc(p.slug)} paused`, `<code>aghanim resume ${esc(p.slug)}</code> continues.`);
   if (o?.usage_limited) add("bad", "Usage limit hit", "Agents wait for the limit to reset.");
   for (const x of o?.projects || []) if (x.skipped) add("bad", `${esc(x.slug)} skipped since ${when(x.skipped.since)}`, `${esc(x.skipped.reason)}. Nothing moves there until this is fixed; the Feed has the dispatcher's log.`);
+  for (const a of o?.alerts || []) add("warn", "Health", `${esc(a)}. History in <code>~/.aghanim/logs/health-*.jsonl</code>.`);
   const orphans = (o?.runs || []).filter((r) => r.orphan);
   if (orphans.length) add("warn", plural(orphans.length, "orphaned lock"), esc(orphans.map((r) => `${r.stage}-${r.issue}.lock`).join(", ")));
   if ((o?.stacks || []).some((x) => x.state === "stuck")) add("warn", "Stack stuck", "A run environment did not come back; hover Stacks for the slot.");
