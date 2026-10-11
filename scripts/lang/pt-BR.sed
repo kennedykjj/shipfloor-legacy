@@ -10,6 +10,13 @@ s~acceptance tests changed after the QA commit~os testes de aceitação mudaram 
 s~the owner can review these files and record them as they stand: aghanim accept~o owner pode revisar estes arquivos e registrá-los como estão: aghanim accept~
 s~(acceptance-intact: .*) changed, but no assertion line did \(acceptance_assertions\); passed~\1 mudou, mas nenhuma linha de asserção mudou (acceptance_assertions); passou~
 s~QA commit (.*) has no files~o commit do QA \1 não tem arquivos~
+s~the last commit is not a QA commit~o último commit não é um commit do QA~
+s~has one QA commit, so nothing was amended~tem um só commit do QA, então nada foi corrigido~
+s~the acceptance tests of (#[0-9]+) were already amended ([0-9]+) times; the owner decides now~os testes de aceitação de \1 já foram corrigidos \2 vezes; agora o owner decide~
+s~the amendment touches files that are not tests:~a correção toca em arquivos que não são testes:~
+s~the amendment switches a test off:~a correção desliga um teste:~
+s~the amendment removes ([0-9]+) assertion lines and adds ([0-9]+); an amended test may check differently, not less~a correção remove \1 linhas de asserção e adiciona \2; um teste corrigido pode verificar de outro jeito, não menos~
+s~(qa-amend: )ok, ([0-9]+) assertion lines replaced by ([0-9]+)~\1ok, \2 linhas de asserção trocadas por \3~
 s~the last commit is not the QA commit: ~o último commit não é o commit do QA: ~
 s~build: (.*) build failed~build: o build de \1 falhou~
 s~a changed file name has a control character \(newline, tab\.\.\.\)~um nome de arquivo alterado tem caractere de controle (quebra de linha, tab...)~

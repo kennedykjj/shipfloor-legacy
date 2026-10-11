@@ -156,11 +156,20 @@ owner_accepted() {  # owner_accepted <file> [qa]: the owner reviewed the card's 
   awk -F'\t' -v f="$1" -v b="$blob" -v o="$own" '$1 == f && ($2 == b || (o != "" && $2 == o)) { ok = 1 } END { exit !ok }' "$FACTORY_HOME/accepted.tsv"
 }
 
+qa_commits() {  # qa_commits <n> [rev]: card <n>'s QA commits up to rev, newest first (every "acceptance tests for #<n>")
+  g log --format=%H -E --grep "acceptance tests for #$1([^0-9]|\$)" "${2:-HEAD}"
+}
+
 gate_acceptance_intact() {
   require_rev "${1:-}"
-  local qa="$1" files changed keep
+  local qa="$1" files changed keep n c
   keep="${FAST[2]-$(aghanim_cfg get acceptance_assertions 2>/dev/null)}"
-  files="$(g show --name-only --format= --diff-filter=d "$qa")"  # files the QA commit deleted are not acceptance tests
+  # The newest QA commit is the baseline, but an amendment that touched one file must not leave the rest of the
+  # card's acceptance tests unprotected: the files of every QA commit of the card count, as they are at the baseline.
+  n="$(g log -1 --format=%s "$qa" | grep -oE 'acceptance tests for #[0-9]+' | grep -oE '[0-9]+$')"
+  files="$({ g show --name-only --format= --diff-filter=d "$qa"  # files the QA commit deleted are not acceptance tests
+             [ -z "$n" ] || for c in $(qa_commits "$n" "$qa"); do g show --name-only --format= --diff-filter=d "$c"; done; } |
+           sort -u | while IFS= read -r f; do [ -z "$f" ] || ! git cat-file -e "$qa:$f" 2>/dev/null || echo "$f"; done)"
   [ -z "$files" ] && { echo "acceptance-intact: QA commit $qa has no files" >&2; return 1; }
   changed="$(printf '%s\n' "$files" | while IFS= read -r f; do
     if [ ! -e "$f" ] && ! git cat-file -e "HEAD:$f" 2>/dev/null; then owner_accepted "$f" || echo "$f"  # deleted and committed
@@ -172,6 +181,33 @@ gate_acceptance_intact() {
   [ -z "$changed" ] && return 0
   echo "acceptance-intact: acceptance tests changed after the QA commit (beyond what merges from main brought):" >&2; echo "$changed" >&2
   echo "acceptance-intact: the owner can review these files and record them as they stand: aghanim accept <project> <n> <reason>" >&2; return 1
+}
+
+# QA may correct its own acceptance tests when the implementation shows one was wrong, or when a merge from main
+# reshaped a file they share: it commits again under the QA message and that commit becomes what acceptance-intact
+# protects. Nobody reviews the amendment before the run goes on, so this gate keeps it honest: it is the last commit,
+# it touches only tests, it loses no assertion line, it switches no test off, and a card is amended at most twice.
+SKIP_MARKS='\.(skip|only|fixme|todo)\(|@Disabled|@Ignore|\b(xit|xdescribe|xtest)\(|\bt\.Skip\(|pytest\.mark\.skip'
+gate_qa_amend() {  # qa-amend <n>
+  [[ "${1:-}" =~ ^[0-9]+$ ]] || { echo "usage: gate.sh qa-amend <n>" >&2; exit 2; }
+  local n="$1" all new prev allowed bad keep d lost gained off max="${FACTORY_QA_AMEND_MAX:-2}" fs
+  all="$(qa_commits "$n")"; new="$(sed -n 1p <<< "$all")"; prev="$(sed -n 2p <<< "$all")"
+  if [ -z "$new" ] || [ "$new" != "$(g rev-parse HEAD)" ]; then echo "qa-amend: the last commit is not a QA commit (\"acceptance tests for #$n\")" >&2; return 1; fi
+  [ -n "$prev" ] || { echo "qa-amend: #$n has one QA commit, so nothing was amended" >&2; return 1; }
+  if [ "$(grep -c . <<< "$all")" -gt $((max + 1)) ]; then
+    echo "qa-amend: the acceptance tests of #$n were already amended $max times; the owner decides now" >&2; return 1; fi
+  allowed="$(q regex scope qa)" || exit 2
+  bad="$(g show --name-only --format= "$new" | sed '/^$/d' | grep -Ev -- "$allowed" || true)"
+  if [ -n "$bad" ]; then echo "qa-amend: the amendment touches files that are not tests:" >&2; echo "$bad" >&2; return 1; fi
+  keep="$(aghanim_cfg get acceptance_assertions 2>/dev/null)"; keep="${keep:-assert|expect\(|verify\(|should}"
+  mapfile -t fs < <(for c in $all; do g show --name-only --format= "$c"; done | sed '/^$/d' | sort -u)
+  d="$(g diff -U0 "$prev" "$new" -- "${fs[@]}" | grep -E '^[+-]' | grep -Ev '^(\+\+\+|---) ' || true)"
+  off="$(grep -E '^\+' <<< "$d" | grep -E -- "$SKIP_MARKS" || true)"
+  if [ -n "$off" ]; then echo "qa-amend: the amendment switches a test off:" >&2; echo "$off" >&2; return 1; fi
+  lost="$(grep -E '^-' <<< "$d" | grep -Ec -- "$keep" || true)"; gained="$(grep -E '^\+' <<< "$d" | grep -Ec -- "$keep" || true)"
+  if [ "$gained" -lt "$lost" ]; then
+    echo "qa-amend: the amendment removes $lost assertion lines and adds $gained; an amended test may check differently, not less" >&2; return 1; fi
+  echo "qa-amend: ok, $lost assertion lines replaced by $gained" >&2
 }
 
 gate_qa_commit() {  # qa-commit <n> [--head]: prints card <n>'s QA commit, the newest "acceptance tests for #<n>" on the branch
@@ -397,6 +433,7 @@ run() {
     acceptance-intact) gate_acceptance_intact "$@" ;;
     acceptance-own)    require_rev "${1:-}"; own_key "$1" "${2:-}" ;;  # for aghanim accept
     qa-commit)         gate_qa_commit "$@" ;;
+    qa-amend)          gate_qa_amend "$@" ;;
     migration)         gate_migration "$@" ;;
     fast)              gate_fast "$@" ;;
     build)             gate_build "$@" ;;
@@ -404,7 +441,7 @@ run() {
     green)             gate_green "$@" ;;
     test-plan)         gate_test_plan "$@" ;;
     stack)             gate_stack "$@" ;;
-    *) echo "usage: gate.sh scope|forbidden|acceptance-intact|qa-commit|migration|build|red|green|test-plan|stack ..." >&2; exit 2 ;;
+    *) echo "usage: gate.sh scope|forbidden|acceptance-intact|qa-commit|qa-amend|migration|build|red|green|test-plan|stack ..." >&2; exit 2 ;;
   esac
 }
 # what a gate says on stderr goes out in the project's language; stdout is read by callers and stays as it is
