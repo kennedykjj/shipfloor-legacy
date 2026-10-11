@@ -432,7 +432,7 @@ class Factory:
             cfg, row = self.config(p), registry.get(p, [])
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "main": row[3] if len(row) > 3 else "main",
                              "repo": aghanim_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
-                             "limits": cfg.get("limits") or {}, "context": cfg.get("context") or [],
+                             "limits": aghanim_config.merged(cfg.get("limits") or {}, aghanim_config.DEFAULTS["limits"]), "context": cfg.get("context") or [],
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})

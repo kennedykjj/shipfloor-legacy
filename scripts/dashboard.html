@@ -284,6 +284,36 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .tip-stats .report dd { font: 500 13px var(--sans); padding-top: 3px; }
 .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--edge); flex: none; }
 .feed { overflow: auto; min-width: 0; min-height: 0; }
+/* settings: the dispatcher on top of every section, the sections on the left, and a bar while something is unsaved */
+.settings { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; } .settings[hidden], .set-save[hidden] { display: none; }
+.disp { padding: 14px 20px; display: flex; gap: 12px 26px; flex-wrap: wrap; align-items: center; border-color: var(--edge-hi); background: var(--panel); }
+.disp.off { border-color: var(--bad); } .disp .who { margin-right: auto; } .disp h1 { font-size: 24px; display: flex; gap: 10px; align-items: center; }
+.disp .who p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.sdot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); } .disp.off .sdot { background: var(--bad); }
+.sfl { display: flex; gap: 10px; align-items: center; font-size: 14px; color: var(--soft); }
+.set-cols { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; margin-top: 16px; padding-top: 6px; overflow-y: auto; min-height: 0; align-content: start; }
+.set-nav { display: flex; flex-direction: column; gap: 2px; align-self: start; position: sticky; top: 0; }
+.set-nav button { text-align: left; background: none; border: 0; border-left: 2px solid transparent; padding: 8px 12px; cursor: pointer; color: var(--muted); font-size: 14.5px; }
+.set-nav button[aria-current="true"] { color: var(--text); border-left-color: var(--sand); background: #ffffff08; } .set-nav small { display: block; font-size: 12px; color: var(--faint); }
+.set-body > h1 { font-size: 30px; } .set-body > .lead { margin: 6px 0 0; color: var(--muted); font-size: 14px; max-width: 74ch; }
+.sgroup { margin-top: 20px; } .sgroup > h2 { margin: 0; padding: 14px 20px 0; font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.sgroup > h2 code, .sgroup .from code { font: 11.5px var(--mono); color: var(--faint); text-transform: none; letter-spacing: 0; }
+.sgroup > h2.ptitle2 { padding: 16px 20px 2px; font: 600 20px var(--cond); letter-spacing: .04em; color: var(--text); justify-content: space-between; } .ptitle2 span { font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--edge); } .sgroup > h2 + .srow { border-top: 0; }
+.srow .st { margin: 0; font-weight: 500; } .srow .sd { margin: 0; font-size: 13px; color: var(--muted); max-width: 66ch; } .srow .sv { font-size: 13.5px; color: var(--soft); text-align: right; max-width: 46ch; overflow-wrap: anywhere; }
+.stp { display: inline-flex; align-items: center; border: 1px solid var(--edge-hi); border-radius: 8px; overflow: hidden; }
+.stp button { width: 34px; height: 34px; background: var(--panel-hi); border: 0; cursor: pointer; font-size: 17px; } .stp button:hover { background: var(--edge); }
+.stp output { min-width: 46px; text-align: center; font: 600 17px var(--cond); } .stp.dirty output { color: var(--sand); }
+.sw { position: relative; width: 44px; height: 24px; flex: none; display: inline-block; } .sw input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+.sw i { position: absolute; inset: 0; border-radius: 12px; background: var(--edge-hi); pointer-events: none; } .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--text); transition: transform .15s; }
+.sw input:checked + i { background: var(--bad); } .sw input:checked + i::after { transform: translateX(20px); } .sw input:focus-visible + i { outline: 2px solid var(--sand); outline-offset: 2px; }
+.spool { padding: 4px 20px 16px; } .sbar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--edge); margin-top: 6px; } .sbar i { display: block; height: 100%; background: var(--k); }
+.spool .key { gap: 6px 18px; flex-wrap: wrap; margin-top: 8px; font-size: 12.5px; } .spool .note { margin: 8px 0 0; font-size: 13px; color: var(--soft); } .spool .note.warn { color: var(--warn); }
+.swrap { overflow-x: auto; padding: 4px 20px 14px; } .swrap table { min-width: 640px; } .swrap th { position: static; background: none; text-align: left; } .swrap td { text-align: left; white-space: normal; vertical-align: top; } .swrap td:first-child, .swrap th:first-child { padding-left: 0; } .swrap code { font: 12px var(--mono); color: var(--soft); }
+.from { margin: 0; padding: 12px 20px 14px; border-top: 1px solid var(--edge); font-size: 13px; color: var(--muted); }
+.set-save { position: sticky; bottom: 0; margin-top: 18px; background: var(--panel-hi); border: 1px solid var(--sand); border-radius: 12px; padding: 10px 14px 10px 18px; display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; }
+.set-save p { margin: 0 auto 0 0; font-size: 14px; } .set-save p span { color: var(--muted); } .set-save p .bad { color: var(--bad); }
+@media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow .sv { text-align: left; } }
 .ev { display: grid; grid-template-columns: 12ch 11ch 1fr; gap: 0 12px; }
 .ev button { all: unset; cursor: pointer; text-decoration: underline; }
 .ev.run b { color: var(--text); } .ev b { font-weight: 500; }
@@ -401,7 +431,7 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
 <body>
 <header>
   <span class="g brand">Aghanim's Anvil</span>
-  <nav class="views" aria-label="View"><button data-view="board" aria-pressed="true">Factory</button><button data-view="feed" aria-pressed="false">Feed</button></nav>
+  <nav class="views" aria-label="View"><button data-view="board" aria-pressed="true">Factory</button><button data-view="feed" aria-pressed="false">Feed</button><button data-view="settings" aria-pressed="false">Settings</button></nav>
   <div class="stats" id="stats"></div>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
@@ -426,6 +456,12 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
   </section>
   <section class="feed log panel" id="feed" aria-label="Feed" tabindex="0" hidden></section>
   <div class="peek" id="peek" role="dialog" aria-label="Card summary" hidden></div>
+  <section class="settings" id="settings" aria-label="Settings" hidden>
+    <div class="disp panel" id="disp"></div>
+    <div class="set-cols"><nav class="set-nav" id="set-nav" aria-label="Settings sections"></nav>
+      <div><div class="set-body" id="set-body"></div>
+        <div class="set-save" id="set-save" role="status" hidden><p id="set-count"></p><button class="btn" data-set="discard">Discard</button><button class="btn approve" data-set="save">Save</button></div></div></div>
+  </section>
   <aside class="drawer" id="drawer" role="dialog" aria-modal="false" aria-labelledby="tip-title" inert>
     <div id="d-head"></div>
     <div id="d-decide"></div>
@@ -1158,9 +1194,86 @@ async function act(action, moveOnly) {
 }
 
 /* feed: every project's runs and the dispatcher's own log, oldest first */
+// Settings: this machine's limits and the pauses are the owner's to change here. A project's own settings live in
+// its repository; they are shown as the dispatcher last read them, with where to change them.
+const SET = { data: null, sec: "sessions", draft: {}, err: "" };
+const STAGE_HELP = { refine: "Writing specs.", develop: "Building a card.", validate: "Reviewing and opening the pull request.", deploy: "Merging and deploying. Always one card at a time per project." };
+const STAGE_HUE = { refine: "#8fa8c7", develop: "var(--text)", validate: "var(--sand)", deploy: "var(--ok)" };
+const setWas = (k) => k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : SET.data.machine[k];
+const setVal = (k) => k in SET.draft ? SET.draft[k] : setWas(k);
+async function loadSettings() { const { status, body } = await api("/api/settings"); if (status === 200) { SET.data = body; renderSettings(); } }
+function renderSettings() {
+  const d = SET.data; if (!d) return;
+  const row = (t, text, ctl) => `<div class="srow"><div><p class="st">${t}</p><p class="sd">${text}</p></div>${ctl}</div>`;
+  const stepper = (k, min, max, by = 1) => `<span class="stp${k in SET.draft ? " dirty" : ""}"><button data-step="${k}" data-by="${-by}" data-min="${min}" data-max="${max}" aria-label="Less">−</button><output>${setVal(k)}</output><button data-step="${k}" data-by="${by}" data-min="${min}" data-max="${max}" aria-label="More">+</button></span>`;
+  const sw = (target, on, label) => `<span class="sw"><input type="checkbox" data-pause="${esc(target)}" ${on ? "checked" : ""} aria-label="${esc(label)}"><i></i></span>`;
+  $("disp").classList.toggle("off", d.paused);
+  setHTML($("disp"), `<div class="who"><h1 class="g"><i class="sdot"></i>Dispatcher</h1><p>${d.paused ? "Paused: no new run starts on any project. Sessions already running finish."
+    : d.cycle?.at ? `Running · last cycle ${dur(d.cycle.at, new Date())} ago${d.cycle.took_s != null ? `, it took ${d.cycle.took_s}s` : ""}${d.cycle.exit ? ` and ended with exit ${d.cycle.exit}` : ""}` : "No cycle recorded yet."}</p></div>
+    <label class="sfl">Pause the factory${sw("", d.paused, "Pause the factory")}</label>`);
+  const secs = [["sessions", "Sessions", "how much runs at once"], ["projects", "Projects", d.projects.map((p) => p.slug).join(", ") || "none yet"], ["costs", "Costs", "the prices behind the estimate"]];
+  setHTML($("set-nav"), secs.map(([id, name, sub]) => `<button data-setsec="${id}" aria-current="${SET.sec === id}">${name}<small>${esc(sub)}</small></button>`).join(""));
+  let body = "";
+  if (SET.sec === "sessions") {
+    const usual = project()?.typical_s || {}, now = S.overview?.pool, stages = Object.keys(STAGE_NAME), pool = setVal("pool");
+    const sum = stages.reduce((n, st) => n + setVal("stages." + st), 0), w = Math.max(pool, sum);
+    body = `<h1 class="g">Sessions</h1><p class="lead">How many agent sessions this machine runs at once, in all and per stage. A change takes effect on the dispatcher's next cycle; sessions already running are never cut.</p>
+      <div class="sgroup panel"><h2>The pool <code>~/.aghanim/config.yml</code></h2>
+        ${row("Sessions at once", `The ceiling for every project together.${now ? ` Now: ${now.used} running.` : ""}`, stepper("pool", 1, 64))}
+        ${stages.map((st) => row(STAGE_NAME[st], `${STAGE_HELP[st]}${usual[st] ? ` Usually takes ${Math.max(1, Math.round(usual[st] / 60))} minutes.` : ""}${now?.stages[st] ? ` Now: ${now.stages[st].running} running.` : ""}`, stepper("stages." + st, 0, 64))).join("")}
+        <div class="spool"><div class="sbar" aria-hidden="true">${stages.map((st) => `<i style="--k:${STAGE_HUE[st]};width:${setVal("stages." + st) / w * 100}%"></i>`).join("")}</div>
+          <div class="key">${stages.map((st) => `<span style="--k:${STAGE_HUE[st]}"><i></i>${st}</span>`).join("")}<span style="--k:var(--edge)"><i></i>never used</span></div>
+          <p class="note${sum > pool ? " warn" : ""}">${sum > pool ? `The stages ask for ${sum} sessions and the pool allows ${pool}: stages will wait for each other.` : sum < pool ? `The stages can use ${sum} sessions at most, so ${pool - sum} of the pool's ${pool} are never used. Raise a stage, or lower the pool.` : `The stages add up to the pool: ${pool} sessions.`}</p></div></div>
+      <div class="sgroup panel"><h2>Run environments <code>config.yml · stacks</code></h2>
+        ${row("Local stacks at once", `Each e2e test run takes one, on its own ports.${S.overview?.stacks ? ` Now: ${S.overview.stacks.filter((x) => x.state !== "free").length} of ${S.overview.stacks.length} in use.` : ""}`, stepper("stacks", 1, 16))}
+        ${row("Minutes to wait for a free stack", "A run that cannot get one in time is blocked as infrastructure and retried once.", stepper("stack_wait", 5, 240, 5))}</div>`;
+  } else if (SET.sec === "projects") {
+    const list = (v) => Array.isArray(v) ? v.join(", ") : v || "";
+    body = `<h1 class="g">Projects</h1><p class="lead">The repositories this factory works on. A project's settings are part of its repository, so they are reviewed and versioned with the code; pausing is the one thing decided here.</p>
+      ${d.projects.map((p) => { const dep = p.deploy || {}, wip = (st) => p.limits?.[st]?.wip ? `${p.limits[st].wip} cards` : "no limit";
+        return `<div class="sgroup panel"><h2 class="ptitle2 g">${esc(p.slug)}<span>${esc(p.repo || "")}${p.board?.number ? ` · board #${p.board.number}` : ""} · ${esc(p.main)}${p.board_url ? ` · <a href="${esc(p.board_url)}" target="_blank" rel="noopener">board on GitHub${EXT}</a>` : ""}</span></h2>
+        ${row("Paused", "The dispatcher skips this project. Other projects keep running, and sessions already running finish.", sw(p.slug, p.paused, `Pause ${p.slug}`))}
+        ${row("Cards in progress at once", "Coding and Validation count together, so pull requests do not pile up against main.", `<span class="sv">${wip("develop")}</span>`)}
+        ${row("Specs in refinement at once", "Cards being refined, before they wait for your approval.", `<span class="sv">${wip("refine")}</span>`)}
+        ${row("What the agents read about the product", "The product owner, UX and the tech lead start from these files.", `<span class="sv">${esc(list(p.context)) || "nothing set"}</span>`)}
+        ${row("Local stack for e2e and UX checks", "Where a run's own copy of the app answers.", `<span class="sv">${esc(p.stack?.url || "none")}</span>`)}
+        ${row("Deploy", "How long the deploy waits for CI and production, and how large a merge conflict an agent may resolve.", `<span class="sv">${dep.timeout_min ? `waits up to ${dep.timeout_min} min` : "default wait"}${dep.conflict_max_files ? ` · conflicts up to ${plural(dep.conflict_max_files, "file")}` : ""}${dep.ci_workflow ? ` · CI: ${esc(dep.ci_workflow)}` : ""}</span>`)}
+        <h2>Layers</h2><div class="swrap"><table><thead><tr><th>layer</th><th>path</th><th>stack</th><th>build</th><th>tests live in</th></tr></thead><tbody>${p.layers.map((l) =>
+          `<tr><td>${esc(l.name)}${l.tests_only ? ' <span class="cap">tests only</span>' : ""}</td><td><code>${esc(l.path || "")}</code></td><td>${esc(l.stack || "")}</td><td><code>${esc(l.build || l.test || "")}</code></td><td><code>${esc(list(l.tests))}</code></td></tr>`).join("")}</tbody></table></div>
+        <p class="from">To change any of these, edit <code>.aghanim/factory.yml</code> in ${esc(p.repo || "the repository")} on ${esc(p.main)}. The dispatcher reads it again on every cycle.</p></div>`; }).join("") || '<p class="empty">No project registered. Run <code>aghanim add &lt;repo&gt;</code>.</p>'}`;
+  } else {
+    const models = Object.entries(d.prices || {});
+    body = `<h1 class="g">Costs</h1><p class="lead">The dashboard estimates what a card cost from the tokens of its runs and these prices, in US$ per million tokens.</p>
+      <div class="sgroup panel"><h2>Prices <code>~/.aghanim/prices.yml</code></h2><div class="swrap"><table><thead><tr><th>model</th><th>input</th><th>output</th><th>cache write, 1h</th><th>cache read</th></tr></thead><tbody>${models.map(([m, x]) =>
+        `<tr><td>${esc(model(m))}</td><td class="num">${x.input ?? "–"}</td><td class="num">${x.output ?? "–"}</td><td class="num">${x.cache_write_1h ?? "–"}</td><td class="num">${x.cache_read ?? "–"}</td></tr>`).join("")}</tbody></table></div>
+        <p class="from">To change a price or add a model, edit <code>~/.aghanim/prices.yml</code> (copy it from the plugin's <code>templates/prices.yml</code> if it is not there yet).</p></div>`;
+  }
+  setHTML($("set-body"), body);
+  const n = Object.keys(SET.draft).length;
+  $("set-save").hidden = !n && !SET.err;
+  setHTML($("set-count"), SET.err ? `<span class="bad">${esc(SET.err)}</span>` : `<b>${plural(n, "change")} not saved.</b> <span>Applied on the dispatcher's next cycle. Running sessions are not touched.</span>`);
+}
+function setStep(t) {
+  const k = t.dataset.step, n = Math.min(+t.dataset.max, Math.max(+t.dataset.min, setVal(k) + +t.dataset.by));
+  if (n === setWas(k)) delete SET.draft[k]; else SET.draft[k] = n;
+  SET.err = ""; renderSettings();
+}
+async function setSave() {
+  const body = { stages: {} };
+  for (const [k, v] of Object.entries(SET.draft)) { if (k.startsWith("stages.")) body.stages[k.slice(7)] = v; else body[k] = k === "stack_wait" ? v * 60 : v; }
+  const r = await api("/api/settings/machine", { method: "POST", body: JSON.stringify(body) });
+  if (r.status === 200) { SET.data = r.body; SET.draft = {}; SET.err = ""; loadOverview(); } else SET.err = r.body.error || "The settings were not saved.";
+  renderSettings();
+}
+async function setPause(input) {  // a pause is urgent: it applies at once, not with Save
+  const r = await api("/api/settings/pause", { method: "POST", body: JSON.stringify({ project: input.dataset.pause || null, paused: input.checked }) });
+  if (r.status === 200) { SET.data = r.body; loadOverview(); } else SET.err = r.body.error || "The pause did not go through.";
+  renderSettings();
+}
 function setView(v) {
   S.view = v;
-  $("board").hidden = v !== "board"; $("feed").hidden = v !== "feed";
+  $("board").hidden = v !== "board"; $("feed").hidden = v !== "feed"; $("settings").hidden = v !== "settings";
+  if (v === "settings") loadSettings();
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === v));
   renderPeek();
   loadFeed();
@@ -1228,9 +1341,13 @@ function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog
 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
-  const t = e.target.closest("[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-step],[data-setsec],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
-  if (t.dataset.iq) { INB.cur = t.dataset.iq; INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox(); }
+  if (t.dataset.step) setStep(t);
+  else if (t.dataset.setsec) { SET.sec = t.dataset.setsec; renderSettings(); }
+  else if (t.dataset.set === "save") setSave();
+  else if (t.dataset.set === "discard") { SET.draft = {}; SET.err = ""; renderSettings(); }
+  else if (t.dataset.iq) { INB.cur = t.dataset.iq; INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox(); }
   else if (t.dataset.io) { INB.pick = +t.dataset.io; renderInbox(); if (!$("inote").hidden) $("inote").focus(); }
   else if (t.id === "igo") inboxConfirm();
   else if (t.id === "iundo") inboxUndo();
@@ -1256,6 +1373,7 @@ document.addEventListener("submit", (e) => { if (e.target.id === "compose") { e.
 document.addEventListener("keydown", (e) => { if (e.target.id === "say" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); say(); } });
 document.addEventListener("input", (e) => { if (e.target.id === "changes") syncDecide(); if (e.target.id === "inote") renderInbox(); });
 document.addEventListener("change", (e) => {
+  if (e.target.matches?.("[data-pause]")) setPause(e.target);
   if (e.target.id === "logsel") { S.log = e.target.value; S.logNext = -1; S.logText = ""; renderDrawer(); followLog(); }
   if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
 });
@@ -1298,6 +1416,7 @@ loadLang().finally(loadOverview);
 setTimeout(() => { if (!S.overview) setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); }, 6000);
 setInterval(loadOverview, 2000);
 setInterval(loadFeed, 5000);
+setInterval(() => { if (S.view === "settings") loadSettings(); }, 10000);
 setInterval(() => { if (S.open && S.tab !== "log") loadCard(); }, 5000);
 setInterval(followLog, 2000);
 setInterval(followLive, 2000);
