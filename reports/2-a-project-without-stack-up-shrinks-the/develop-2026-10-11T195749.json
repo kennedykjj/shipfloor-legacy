@@ -1,0 +1,17 @@
+{
+  "issue": 2,
+  "slug": "a-project-without-stack-up-shrinks-the",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T19:32:00-03:00",
+  "finished_at": "2026-10-11T19:58:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 59855, "duration_s": 512},
+    {"role": "engineer", "tokens": 37158, "duration_s": 370}
+  ],
+  "rounds": {"acceptance-tests": 1, "T1": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
