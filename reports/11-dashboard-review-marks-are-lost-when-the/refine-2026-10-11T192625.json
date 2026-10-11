@@ -1,0 +1,3 @@
+{"issue": 11, "slug": "dashboard-review-marks-are-lost-when-the", "pipeline": "refine", "started_at": "2026-10-11T22:18:00Z", "finished_at": "2026-10-11T22:26:06Z", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 21332, "duration_s": 74}],
+ "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "manual_edit": null}
