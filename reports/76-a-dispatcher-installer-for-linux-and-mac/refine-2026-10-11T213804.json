@@ -1,0 +1,15 @@
+{
+  "issue": 76,
+  "slug": "a-dispatcher-installer-for-linux-and-mac",
+  "pipeline": "refine",
+  "started_at": "2026-10-11T21:33:00-03:00",
+  "finished_at": "2026-10-11T21:39:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 19785, "duration_s": 41}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "manual_edit": null
+}
