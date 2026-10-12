@@ -196,4 +196,54 @@ printf '== start /sf:refine 12 %sT08:00:00-03:00 pid=1
 mkdir -p "$P/locks/deploysh-11.lock"; echo "1 $(date +%s) 11" > "$P/locks/deploysh-11.lock/info"
 got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; o=json.load(sys.stdin); print([(r["issue"], r["stage"], r["exit"], r["cost"]) for r in o["projects"][0]["ended"]], sorted({r["stage"] for r in o["runs"]}))')"
 assert_contains "$got" "[(12, 'refine', 3, None), (12, 'refine', 0, None)] ['develop']"
+
+# the review iframe holds the panel color until its page has the theme (#12): no white, no other theme's palette
+printf '<!doctype html><html><head><title>spec</title></head><body><p>spec</p></body></html>\n' > "$P/reviews/21.html"
+printf '<p>a hand-written page, no head</p>\n' > "$P/reviews/22.html"
+shell="$(curl -s "$base/?t=$tok" | tr -d '\r' | tr '\n' ' ')"
+rule() { printf '%s' "$shell" | grep -o "$1" | head -n 1; }   # rule SELECTOR-REGEX: the first rule block, one line
+base_rule="$(rule '[ }]iframe *{[^}]*}')"
+themed_rule="$(rule 'iframe\.themed[^{]*{[^}]*}')"
+plain_rule="$(rule 'iframe\.plain[^{]*{[^}]*}')"
+embed="$(curl -s "$base/review/shop/21?embed=1&t=$tok" | tr -d '\r')"
+pos() { local s="${1%%"$2"*}"; [ "$s" = "$1" ] && echo -1 || echo "${#s}"; }  # pos TEXT NEEDLE: offset of the first NEEDLE, -1 if absent
+# AC-1: from the click until the page is shown, the review area is the panel color and never white
+case "$base_rule" in *"background: var(--panel)"*) pass "AC-1 the iframe holds the panel color before the page is shown" ;; *) fail "AC-1 the base iframe rule must be 'background: var(--panel)', got: $base_rule" ;; esac
+case "$base_rule" in *"visibility: hidden"*) pass "AC-1 the iframe paints nothing of the page until it is themed" ;; *) fail "AC-1 the base iframe rule must hide the page ('visibility: hidden') until it is themed, got: $base_rule" ;; esac
+case "$base_rule" in *"#fff"*|*"#ffffff"*|*"white"*) fail "AC-1 the base iframe rule must not hold white, got: $base_rule" ;; *) [ -n "$base_rule" ] && pass "AC-1 no white in the base iframe rule" || fail "AC-1 the iframe rule is missing from GET /" ;; esac
+case "$base_rule" in *"display: none"*|*"display:none"*) fail "AC-1 the iframe keeps its box while held (no display: none), got: $base_rule" ;; *) pass "AC-1 the held iframe keeps its box" ;; esac
+case "$themed_rule" in *"visibility: visible"*|*"visibility:visible"*) pass "AC-1 .themed shows the page" ;; *) fail "AC-1 an 'iframe.themed' rule with 'visibility: visible' must show the themed page, got: $themed_rule" ;; esac
+# AC-2: the theme reaches the page before it paints, and the dashboard reveals on the acknowledgement, not on "ready"
+r="$(pos "$embed" 'shipfloor:"ready"')"; l="$(pos "$embed" 'addEventListener("load"')"; m="$(pos "$embed" 'addEventListener("message"')"
+[ "$r" -ge 0 ] && [ "$l" -ge 0 ] && [ "$r" -lt "$l" ] && pass "AC-2 'ready' is posted before the load handler" || fail "AC-2 the embed script must post shipfloor:\"ready\" (at $r) before addEventListener(\"load\" (at $l), when it is parsed in <head>"
+[ "$m" -ge 0 ] && [ "$m" -lt "$r" ] && pass "AC-2 the theme listener is registered before 'ready'" || fail "AC-2 the embed script must register its 'message' listener (at $m) before it posts 'ready' (at $r)"
+case "$embed" in *'shipfloor:"themed"'*) pass "AC-2 the embed script posts 'themed'" ;; *) fail "AC-2 the embed script must post shipfloor:\"themed\" after applying each theme message" ;; esac
+case "$embed" in *'shipfloor:"review-progress"'*) [ "$(pos "$embed" 'shipfloor:"review-progress"')" -gt "$l" ] && pass "AC-2 review-progress stays in the load handler" || fail "AC-2 review-progress must stay inside the load handler" ;; *) fail "AC-2 the embed script lost its review-progress message" ;; esac
+printf '%s' "$shell" | grep -Eq 'shipfloor *=== *"themed"' && pass "AC-2 the dashboard listens for 'themed'" || fail "AC-2 the dashboard must reveal the page on the 'themed' message (m.shipfloor === \"themed\")"
+printf '%s' "$shell" | grep -Eq 'shipfloor *=== *"ready"[^;]*classList' && fail "AC-2 the dashboard must not reveal the page on 'ready'" || pass "AC-2 'ready' does not reveal the page"
+# AC-3: a page that does not take the embed theme is shown on white once its load ends, as today
+case "$plain_rule" in *"#fff"*) pass "AC-3 .plain carries #fff" ;; *) fail "AC-3 an 'iframe.plain' rule with 'background: #fff' must show a plain page, got: $plain_rule" ;; esac
+printf '%s' "$shell" | grep -Eq 'addEventListener\( *"load"' && printf '%s' "$shell" | grep -Eq 'classList\.(add|toggle)\( *"plain"' && pass "AC-3 .plain is set from the load path" || fail "AC-3 the dashboard must set .plain from a load listener on #pane when no 'ready' came"
+[ "$(curl -s "$base/review/shop/22?embed=1&t=$tok" | tr -d '\r')" = "$(tr -d '\r' < "$P/reviews/22.html")" ] && pass "AC-3 a page without </head> is returned unchanged" || fail "AC-3 a page without </head> must come back byte for byte on ?embed=1"
+[ "$(curl -s "$base/review/shop/21?t=$tok" | tr -d '\r')" = "$(tr -d '\r' < "$P/reviews/21.html")" ] && pass "AC-3 without embed=1 the bytes are the file's" || fail "AC-3 a page requested without embed=1 must be the file's bytes"
+# AC-4: every opening is a new iframe element in the held state, whatever card or how often
+case "$shell" in *'src="/review/${encodeURIComponent(p)}/${n}?embed=1&t='*) pass "AC-4 reviewPane builds the iframe afresh" ;; *) fail "AC-4 reviewPane must build the iframe element" ;; esac
+case "$shell" in *'<iframe class='*|*'<iframe title="Review page for #${esc(n)}" class='*) fail "AC-4 the state classes live in the DOM only, never in reviewPane's HTML" ;; *) pass "AC-4 reviewPane's HTML carries no state class" ;; esac
+case "$base_rule" in *"visibility: hidden"*"background: var(--panel)"*|*"background: var(--panel)"*"visibility: hidden"*) pass "AC-4 a new iframe starts held on the panel color" ;; *) fail "AC-4 a new iframe must start held (hidden, on var(--panel)) at every opening, got: $base_rule" ;; esac
+# AC-5: a themed page looks as today: the embed <style> block is byte for byte what it was
+want_css="$(printf '%s\n' '<style>' 'header.top{display:none}' \
+  'html:root:not([data-x]){--page:#0d1014;--sheet:#151a21;--surface:#1b212a;--ink:#ebe5d5;--muted:#8f8b80;--rule:#262e39;' \
+  '--linen:#262e39;--linen-ink:#ebe5d5;--display:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;--body:var(--display)}' \
+  '@media (prefers-color-scheme:light){html:root:not([data-x]){--page:#e7e7e4;--sheet:#f4f4f2;--surface:#ececea;--ink:#23262b;' \
+  '--muted:#6b6a66;--rule:#d9d9d4;--linen:#d9d9d4;--linen-ink:#23262b}}' \
+  'h1,section h2{font-weight:600}' 'section h2{font-size:17px;line-height:1.3}' '.count{display:none}' \
+  'button{background:transparent;color:var(--ink);border-color:var(--rule)}' '</style>')"
+assert_contains "$embed" "$want_css"
+assert_contains "$embed" '<p>spec</p></body>'
+case "$embed" in *'--page:#0d1014'*'</style>'*'<script>'*'</script></head>'*) pass "AC-5 the style block, then the script, then </head>" ;; *) fail "AC-5 the embed response must be <style>, <script>, then </head>" ;; esac
+# AC-5 (red now): the page still gets every color the theme sends, and acknowledges them once applied
+case "$embed" in *'r.style.setProperty("--"+k,m.vars[k])'*'shipfloor:"themed"'*) pass "AC-5 the theme is applied to the root, then 'themed' is posted" ;; *) fail "AC-5 the embed script must apply the theme vars to the root and only then post shipfloor:\"themed\"" ;; esac
+# AC-6: no review page, or none that arrives: the empty area is the panel color, not white
+printf '%s' "$shell" | grep -Fq "c.review ? \`<iframe" && printf '%s' "$shell" | grep -Fq "</iframe>\` : '<p class=\"placeholder\">No review page for this card. Refine builds it when the spec is ready.</p>'" && pass "AC-6 no review page renders the placeholder paragraph and no iframe" || fail "AC-6 reviewPane must render the .placeholder paragraph, and no iframe, when the card has no review page"
+case "$base_rule" in *"background: var(--panel)"*) pass "AC-6 an iframe whose document never arrives stays on the panel color" ;; *) fail "AC-6 the iframe must stay on var(--panel) while no document arrives, got: $base_rule" ;; esac
 finish
