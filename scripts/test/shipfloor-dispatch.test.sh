@@ -102,6 +102,34 @@ out="$(SHIPFLOOR_LOCK_RETRY_S=0 bash "$MD" 2>&1)"
 [ ! -e "$C/node_modules" ] && [ ! -e "$SHIPFLOOR_HOME/projects/shop/SKIPPED" ] && pass "long paths cleaned from the control checkout" || fail "long paths left in control: $out"
 assert_contains "$(cat "$C/.shipfloor/factory.yml")" "number: 12"
 
+# AC-5: a cycle that finds another one running exits 0 without dispatching, and leaves its marker alone
+setup; project shop
+echo $$ > "$SHIPFLOOR_HOME/dispatch.pid"  # this test's own shell stands for a cycle still running
+bash "$MD"; code=$?
+[ ! -s "$tmp/ran" ] && pass "AC-5 an overlapping cycle dispatches nothing" || fail "AC-5 a cycle dispatched while another one was running: $(cat "$tmp/ran")"
+[ "$code" -eq 0 ] && pass "AC-5 an overlapping cycle exits 0" || fail "AC-5 an overlapping cycle exited $code (want 0)"
+[ "$(cat "$SHIPFLOOR_HOME/dispatch.pid" 2>/dev/null)" = $$ ] && pass "AC-5 the running cycle keeps its marker" || fail "AC-5 the overlapping cycle took or removed dispatch.pid"
+assert_contains "$(cat "$SHIPFLOOR_HOME"/logs/health-*.jsonl 2>/dev/null)" '"overlap": true'
+
+# AC-5: a dispatch.pid older than SHIPFLOOR_CYCLE_STALE_MIN (default 30) was left behind: the cycle takes over and runs
+setup; project shop
+echo $$ > "$SHIPFLOOR_HOME/dispatch.pid"; touch -d '40 minutes ago' "$SHIPFLOOR_HOME/dispatch.pid"
+bash "$MD"; code=$?
+assert_contains "$(cat "$tmp/ran")" "shop "
+[ "$code" -eq 0 ] && pass "AC-5 a stale dispatch.pid is taken over" || fail "AC-5 stale dispatch.pid: exit $code"
+assert_contains "$(cat "$SHIPFLOOR_HOME"/logs/health-*.jsonl 2>/dev/null)" '"overlap": false'
+case "$(cat "$SHIPFLOOR_HOME"/logs/health-*.jsonl 2>/dev/null)" in *'"overlap": true'*) fail "AC-5 a stale dispatch.pid was recorded as an overlap" ;; *) pass "AC-5 a stale dispatch.pid is not an overlap" ;; esac
+[ ! -e "$SHIPFLOOR_HOME/dispatch.pid" ] && pass "AC-5 the cycle that took over removes the marker when it ends" || fail "AC-5 dispatch.pid left behind after the takeover"
+
+# AC-5: the age limit is SHIPFLOOR_CYCLE_STALE_MIN
+setup; project shop
+echo $$ > "$SHIPFLOOR_HOME/dispatch.pid"; touch -d '10 minutes ago' "$SHIPFLOOR_HOME/dispatch.pid"
+SHIPFLOOR_CYCLE_STALE_MIN=5 bash "$MD"
+assert_contains "$(cat "$tmp/ran")" "shop "
+: > "$tmp/ran"; echo $$ > "$SHIPFLOOR_HOME/dispatch.pid"; touch -d '10 minutes ago' "$SHIPFLOOR_HOME/dispatch.pid"
+bash "$MD"
+[ ! -s "$tmp/ran" ] && pass "AC-5 10 minutes old is still a running cycle under the default of 30" || fail "AC-5 a 10 minute old dispatch.pid was taken over by default"
+
 # no registry → nothing to do, no error
 setup; assert_exit 0 bash "$MD"
 finish

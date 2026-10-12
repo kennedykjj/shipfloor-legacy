@@ -35,6 +35,92 @@ assert_contains "$(m values stacks ports.base ports.span stack_wait stack_stale 
 bad 'stacks: 0'
 bad 'ports: {base: 70000, span: 20}'
 bad 'stack_wait: x'
+# the notify block: defaults without it, and every value checked
+rm -f "$SHIPFLOOR_HOME/config.yml"
+assert_contains "$(m values notify.reminder_min notify.events.done notify.channels.toast | tr '\0' ' ')" "60 false true"
+bad 'notify: {reminder_min: 14}'
+bad 'notify: {quiet: "08:00-08:00"}'
+bad 'notify: {ntfy_topic: "has space"}'
+bad 'notify: {channels: {ntfy: true}}'
+bad 'notify: {events: {launch: true}}'
+bad 'notify: {colour: red}'
+printf 'notify: {quiet: "23:00-08:00", ntfy_topic: abc_1-2, channels: {ntfy: true}}\n' > "$SHIPFLOOR_HOME/config.yml"
+assert_exit 0 m validate
+
+# costs: optional limits in US$, no defaults; each a number > 0, card_warn <= card_block, no other key
+cv() { m values costs.card_warn costs.card_block costs.day_stop | tr '\0' '|'; }
+good() { printf '%s\n' "$1" > "$SHIPFLOOR_HOME/config.yml"; assert_exit 0 m validate; }
+rm -f "$SHIPFLOOR_HOME/config.yml"
+[ "$(cv)" = "|||" ] && pass "AC-7 no costs: every limit reads empty" || fail "AC-7 costs without a file: $(cv)"
+good $'costs:\n  card_warn: 20\n  card_block: 40\n  day_stop: 80'
+[ "$(cv)" = "20|40|80|" ] && pass "AC-8 the three limits read back" || fail "AC-8 costs values: $(cv)"
+good $'costs:\n  card_warn: 12.5\n  card_block: 40.25\n  day_stop: 80.5'
+[ "$(cv)" = "12.5|40.25|80.5|" ] && pass "AC-8 amounts may have decimals" || fail "AC-8 decimal costs: $(cv)"
+good $'costs:\n  day_stop: 80'
+[ "$(cv)" = "||80|" ] && pass "AC-7 only some keys: the others read empty" || fail "AC-7 partial costs: $(cv)"
+good $'costs:\n  card_warn: 20'
+good $'costs:\n  card_block: 40'
+good $'costs:\n  card_warn: 40\n  card_block: 40'   # equal is allowed: warn <= block
+good $'pool: 4\ncosts: {}'
+bad $'costs:\n  card_warn: 0'
+bad $'costs:\n  card_block: -5'
+bad $'costs:\n  day_stop: 0'
+bad $'costs:\n  day_stop: lots'
+bad $'costs:\n  card_block: true'
+bad $'costs:\n  card_warn: [20]'
+bad $'costs:\n  card_warn: 50\n  card_block: 40'   # the warning above the block
+bad $'costs:\n  card_stop: 10'                      # unknown key
+bad $'costs:\n  day_stop: 80\n  daily: 5'
+bad 'costs: 5'
+bad $'costs:\n  - 10'
+printf 'costs:\n  card_warn: 50\n  card_block: 40\n' > "$SHIPFLOOR_HOME/config.yml"
+assert_contains "$(m validate 2>&1)" "costs"
+assert_exit 2 m values costs.card_block   # an invalid costs section is never read as a limit
+printf 'costs:\n  card_warn: 0\n' > "$SHIPFLOOR_HOME/config.yml"
+assert_contains "$(m validate 2>&1)" "costs"
+# working hours: `machine hours` says open, or closed and when the next window starts; the clock is SHIPFLOOR_NOW
+hoursat() { SHIPFLOOR_NOW="$1" m hours 2>&1 | tr -d '\r'; }
+expect() {  # expect <test name> <HH:MM> <want>
+  local got; got="$(hoursat "$2")"
+  [ "$got" = "$3" ] && pass "$1" || fail "$1: at $2 'machine hours' printed '$got', want '$3'"
+}
+printf 'hours: ["08:00-23:00"]\n' > "$SHIPFLOOR_HOME/config.yml"
+expect "AC-1 closed after the window, next start 08:00" 23:30 "closed 08:00"
+expect "AC-2 the window includes its start" 08:00 "open"
+expect "AC-2 the window excludes its end" 23:00 "closed 08:00"
+expect "AC-2 one minute before the start is closed" 07:59 "closed 08:00"
+expect "AC-2 inside the window is open" 12:00 "open"
+export SHIPFLOOR_NOW=23:30; assert_exit 0 m hours; unset SHIPFLOOR_NOW  # closed or open, it exits 0
+printf 'hours: ["20:00-04:00"]\n' > "$SHIPFLOOR_HOME/config.yml"
+expect "AC-3 a window across midnight is open at 02:00" 02:00 "open"
+expect "AC-3 across midnight, open at 23:59" 23:59 "open"
+expect "AC-3 across midnight, closed at its end 04:00" 04:00 "closed 20:00"
+expect "AC-3 across midnight, closed at noon" 12:00 "closed 20:00"
+printf 'hours: ["06:00-08:00", "20:00-23:00"]\n' > "$SHIPFLOOR_HOME/config.yml"
+expect "two windows: the next start between them is the second" 12:00 "closed 20:00"
+expect "two windows: after the last, the next start is the first, tomorrow" 23:30 "closed 06:00"
+expect "two windows: inside the first" 07:00 "open"
+printf 'hours: ["00:00-23:59"]\n' > "$SHIPFLOOR_HOME/config.yml"
+expect "00:00-23:59 are valid bounds" 12:00 "open"
+printf 'hours: []\n' > "$SHIPFLOOR_HOME/config.yml"
+expect "AC-8 an empty list is always open" 03:00 "open"
+rm -f "$SHIPFLOOR_HOME/config.yml"
+expect "AC-8 without hours it is always open" 03:00 "open"
+
+# AC-5 a malformed hours is reported by name and ignored: validate still exits 0, the machine is open at all hours
+for badh in 'hours: "08:00-23:00"' 'hours: ["8-23"]' 'hours: ["08:00-08:00"]' 'hours: ["24:00-25:00"]' 'hours: ["08:00-23:60"]' 'hours: ["08:00-23:00", 5]' 'hours: 8'; do
+  printf '%s\n' "$badh" > "$SHIPFLOOR_HOME/config.yml"
+  out="$(m validate 2>&1)"; rc=$?
+  [ "$rc" = 0 ] && pass "AC-5 validate exits 0 when hours is the only problem ($badh)" || fail "AC-5 validate exited $rc for '$badh': $out"
+  case "$out" in *"hours"*"ignored, runs start at all hours"*) pass "AC-5 the report names hours ($badh)" ;; *) fail "AC-5 validate does not name hours for '$badh': '$out'" ;; esac
+  expect "AC-5 malformed ($badh) reads as open" 23:30 "open"
+  assert_exit 0 m hours
+done
+printf 'pool: 6\nhours: ["8-23"]\n' > "$SHIPFLOOR_HOME/config.yml"
+[ "$(vals)" = "6 2 2 2 1 " ] && pass "AC-5 a malformed hours does not make the other values unusable" || fail "AC-5 values with a malformed hours: '$(vals)'"
+printf 'pool: 0\nhours: ["8-23"]\n' > "$SHIPFLOOR_HOME/config.yml"
+out="$(m validate 2>&1)"; rc=$?
+[ "$rc" = 1 ] && pass "AC-5 another problem next to a bad hours still exits 1" || fail "AC-5 validate exited $rc with pool: 0 and a bad hours: $out"
 # the dispatcher's pace: 1, 3, 5 or 10 minutes, 3 when missing; anything else is a machine problem naming the key and the values
 rm -f "$SHIPFLOOR_HOME/config.yml"
 [ "$(m values dispatcher.every_min | tr '\0' ' ')" = "3 " ] && pass "AC-5 dispatcher.every_min defaults to 3" || fail "AC-5 default every_min: $(m values dispatcher.every_min | tr '\0' ' ')"

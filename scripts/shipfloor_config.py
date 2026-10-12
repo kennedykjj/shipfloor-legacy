@@ -3,7 +3,7 @@
 Exit codes: 0 ok, 1 negative answer (invalid config on validate, missing key, no owner layer),
 2 unusable (missing or invalid config, unknown layer or role, bad usage). Read-only.
 """
-import json, os, re, sys, warnings
+import json, math, os, re, sys, time, warnings
 
 warnings.simplefilter("ignore")  # ERE classes like [[:space:]] make Python's re warn
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
@@ -359,6 +359,14 @@ def describe(cfg, home, worktrees):
              f"review criteria: {d['review_criteria'] or '~/.shipfloor/factory/templates/review-criteria.md'}",
              f"language: {LANGS[d['language']]} ({d['language']})",
              f"stack: {('yes, ' + str(d['stack'].get('url', ''))) if d.get('stack') else 'none'}"]
+    machine_cfg = os.path.join(os.path.dirname(os.path.dirname(os.path.normpath(home))), "config.yml") if home else ""
+    try:
+        with open(machine_cfg, encoding="utf-8") as f:
+            agents = models_of(yaml.safe_load(f), [l["agent"] for l in cfg.layers if "agent" in l])["agents"]
+    except (OSError, yaml.YAMLError):
+        agents = {}
+    if agents:
+        lines.insert(10, "agent models: " + ", ".join(f"{k}={v}" for k, v in agents.items()))
     dep = d.get("deploy") or {}
     lines.append("deploy: " + (", ".join(f"{k}={v}" for k, v in dep.items()) if dep else "none (Done after merge)"))
     lines.append("layers:")
@@ -448,7 +456,9 @@ DEFAULT_VERSION = r"^[A-Za-z]*([0-9]+(?:[._][0-9]+)*)"  # V27__x.sql, 000027_x.u
 STAGES = ("refine", "develop", "validate", "deploy")
 MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
                     "stacks": 3, "ports": {"base": 20000, "span": 20},
-                    "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3}}
+                    "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3},
+                    "notify": {"events": {"waiting": True, "blocked": True, "reminder": True, "stuck": True, "done": False},
+                               "channels": {"toast": True, "ntfy": False}, "ntfy_topic": "", "reminder_min": 60, "quiet": ""}}
 DISPATCHER_EVERY = (1, 3, 5, 10)  # minutes between dispatcher cycles; the installer's trigger reads it
 
 
@@ -460,6 +470,104 @@ def dispatcher_every(raw):
 
 
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
+QUIET = re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]-(?:[01][0-9]|2[0-3]):[0-5][0-9]")
+NTFY_TOPIC = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+def notify_problems(raw):
+    """Sentences for the dashboard's Settings where the page shows one; the rest are for the file's owner."""
+    if not isinstance(raw, dict):
+        return ["notify must be a mapping"]
+    defaults, errs = MACHINE_DEFAULTS["notify"], []
+    for k, v in raw.items():
+        if k not in defaults:
+            errs.append(f"notify.{k}: unknown setting")
+        elif k in ("events", "channels") and not isinstance(v, dict):
+            errs.append(f"notify.{k} must be a mapping")
+        elif k in ("events", "channels"):
+            for name, on in v.items():
+                if name not in defaults[k]:
+                    errs.append(f"notify.{k}.{name}: unknown setting")
+                elif not isinstance(on, bool):
+                    errs.append(f"notify.{k}.{name} must be true or false")
+    minutes, quiet, topic = raw.get("reminder_min", 60), raw.get("quiet", ""), raw.get("ntfy_topic", "")
+    if not isinstance(minutes, int) or isinstance(minutes, bool) or not 15 <= minutes <= 720:
+        errs.append("The reminder takes 15 to 720 minutes.")
+    if not isinstance(quiet, str) or (quiet and not (QUIET.fullmatch(quiet) and quiet[:5] != quiet[6:])):
+        errs.append("Quiet hours need both times, and they cannot be the same.")
+    if not isinstance(topic, str) or (topic and not NTFY_TOPIC.fullmatch(topic)):
+        errs.append("The topic takes letters, digits, - and _, up to 64.")
+    elif not topic and (raw.get("channels") or {}).get("ntfy") is True:
+        errs.append("The phone push needs a topic.")
+    return errs
+
+
+MODELS = ("opus", "sonnet", "haiku", "fable")  # what `claude --model` and the Agent tool's model take
+STAGE_MODELS = {"refine": None, "develop": None, "validate": "sonnet", "deploy": "sonnet"}  # None = no --model flag
+PLUGIN_AGENTS = {"product-owner": "opus", "ux-designer": "opus", "qa-engineer": "sonnet", "engineer": "sonnet", "cybersec": "opus"}
+
+
+def model_problems(raw, project_agents=()):
+    """The `models` entries of the machine config that the factory cannot use, as {key, value, why}
+    (why: model, name or shape). Not part of machine_problems: a bad model must not make config.yml invalid."""
+    models = raw.get("models") if isinstance(raw, dict) else None
+    if models is None:
+        return []
+    if not isinstance(models, dict):
+        return [{"key": "models", "value": models, "why": "shape"}]
+    out = []
+    known = {"stages": STAGES, "agents": (*PLUGIN_AGENTS, *project_agents)}
+    for group, entries in models.items():  # in the file's order
+        names = known.get(group)
+        if names is None or entries is None:
+            continue
+        if not isinstance(entries, dict):
+            out.append({"key": f"models.{group}", "value": entries, "why": "shape"}); continue
+        for name, model in entries.items():
+            if name not in names:
+                out.append({"key": f"models.{group}.{name}", "value": model, "why": "name"})
+            elif model not in MODELS:
+                out.append({"key": f"models.{group}.{name}", "value": model, "why": "model"})
+    return out
+
+
+def models_of(raw, project_agents=()):
+    """The models the factory runs with: STAGE_MODELS with the valid `models.stages` on top, and the valid
+    `models.agents`. A problem entry is dropped, so its key keeps today's model."""
+    bad = {p["key"] for p in model_problems(raw, project_agents)}
+    out = {"stages": dict(STAGE_MODELS), "agents": {}}
+    models = raw.get("models") if isinstance(raw, dict) and isinstance(raw.get("models"), dict) else {}
+    for group in out:
+        entries = models.get(group) if isinstance(models.get(group), dict) else {}
+        out[group].update({n: m for n, m in entries.items() if f"models.{group}.{n}" not in bad})
+    return out
+
+
+def model_problem_line(p):
+    if p["why"] == "name":
+        return f"{p['key']}: not a stage or an agent here"
+    if p["why"] == "shape":
+        return f"{p['key']}: must be a mapping"
+    return f"{p['key']}: \"{p['value']}\" is not a model the factory knows ({', '.join(MODELS)})"
+
+
+COST_KEYS = ("card_warn", "card_block", "day_stop")
+
+
+def cost_problems(costs):
+    """The machine's costs: optional limits in US$, each a number > 0, card_warn <= card_block, no other key."""
+    if costs is None:
+        return []
+    if not isinstance(costs, dict):
+        return ["costs must be a mapping of limit: US$"]
+    errs = [f"costs.{k}: unknown limit (use {', '.join(COST_KEYS)})" for k in costs if k not in COST_KEYS]
+    for k in COST_KEYS:
+        v = costs.get(k)
+        if k in costs and (isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0):
+            errs.append(f"costs.{k} must be a number above 0")
+    if not errs and "card_warn" in costs and "card_block" in costs and costs["card_warn"] > costs["card_block"]:
+        errs.append(f"costs.card_warn ({costs['card_warn']}) is above costs.card_block ({costs['card_block']})")
+    return errs
 
 
 def machine_problems(raw):
@@ -468,6 +576,8 @@ def machine_problems(raw):
     errs = []
     if raw.get("language", "en") not in LANGS:
         errs.append(f"language must be one of {', '.join(LANGS)}")
+    errs += cost_problems(raw.get("costs"))
+    errs += notify_problems(raw["notify"]) if "notify" in raw else []
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
     if not isinstance(pool, int) or isinstance(pool, bool) or pool < 1:
         errs.append("pool must be an integer >= 1")
@@ -509,8 +619,55 @@ def machine_problems(raw):
     return errs
 
 
+WINDOW = re.compile(r"([01][0-9]|2[0-3]):([0-5][0-9])-([01][0-9]|2[0-3]):([0-5][0-9])")
+
+
+def now():
+    """The clock for working hours: local HH:MM, or SHIPFLOOR_NOW when set."""
+    return os.environ.get("SHIPFLOOR_NOW") or time.strftime("%H:%M")
+
+
+def hours_problems(raw):
+    """Why `hours` is unusable, as lines that start with 'hours'. Missing or [] is fine."""
+    value = raw.get("hours") if isinstance(raw, dict) else None
+    if value is None or value == []:
+        return []
+    if not isinstance(value, list):
+        return ["hours must be a list of HH:MM-HH:MM windows"]
+    errs = []
+    for w in value:
+        m = WINDOW.fullmatch(w) if isinstance(w, str) else None
+        if not m:
+            errs.append(f"hours: {w!r} is not a window HH:MM-HH:MM (24-hour, 00:00 to 23:59)")
+        elif m.group(1, 2) == m.group(3, 4):
+            errs.append(f"hours: {w!r} starts and ends at the same time")
+    return errs
+
+
+def minutes(hhmm):
+    return int(hhmm[:2]) * 60 + int(hhmm[3:5])
+
+
+def hours_state(raw, now):
+    """{windows, open, next, error}: a window includes its start and excludes its end; an end before its
+    start crosses midnight. Unset or malformed is open; closed, next is the nearest coming start."""
+    value = raw.get("hours") if isinstance(raw, dict) else None
+    errs = hours_problems(raw)
+    if errs:
+        return {"windows": json.dumps(value, ensure_ascii=False), "open": True, "next": None, "error": errs[0]}
+    windows = value or []
+    at, starts = minutes(now), []
+    for w in windows:
+        start, end = minutes(w[:5]), minutes(w[6:])
+        if start <= at < end or (end < start and (at >= start or at < end)):
+            return {"windows": windows, "open": True, "next": None, "error": None}
+        starts.append(w[:5])
+    return {"windows": windows, "open": not windows,
+            "next": min(starts, key=lambda s: (minutes(s) - at) % 1440) if starts else None, "error": None}
+
+
 def machine(rest):
-    """machine <validate | values <key>... | show | set <key> <int>> on $SHIPFLOOR_MACHINE_CONFIG."""
+    """machine <validate | values <key>... | show | hours | set <key> <int> | stage-models | models-check [<agent>...]> on $SHIPFLOOR_MACHINE_CONFIG."""
     path = os.environ.get("SHIPFLOOR_MACHINE_CONFIG", "")
     raw = {}
     if path and os.path.isfile(path):
@@ -523,9 +680,14 @@ def machine(rest):
             raw = {}
     errs = [f"not valid YAML: {raw}"] if isinstance(raw, yaml.YAMLError) else machine_problems(raw)
     cmd, args = (rest[0], rest[1:]) if rest else ("", [])
+    if cmd == "hours" and not args:
+        state = hours_state(raw, now())
+        print("open" if state["open"] else f"closed {state['next']}"); return 0
     if cmd == "validate" and not args:
         for e in errs:
             print(f"shipfloor-config: {path}: {e}", file=sys.stderr)
+        for e in hours_problems(raw):
+            print(f"shipfloor-config: {path}: {e}; ignored, runs start at all hours", file=sys.stderr)
         return 1 if errs else 0
     if cmd == "set" and len(args) == 2:
         if isinstance(raw, yaml.YAMLError):
@@ -555,6 +717,13 @@ def machine(rest):
         return 0
     if errs:
         raise Unusable(f"{path} is invalid: " + "; ".join(errs))
+    if cmd == "stage-models" and not args:
+        sys.stdout.write("".join(f"{models_of(raw)['stages'][s] or ''}\0" for s in STAGES)); return 0
+    if cmd == "models-check":
+        found = model_problems(raw, args)
+        for p in found:
+            print(model_problem_line(p), file=sys.stderr)
+        return 1 if found else 0
     data = merged(raw, MACHINE_DEFAULTS)
     if cmd == "values" and args:
         sys.stdout.write(nul_values(data, args)); return 0
@@ -564,7 +733,7 @@ def machine(rest):
             print(f"  {k}: {data['stages'][k]}")
         print(f"stacks: {data['stacks']}")
         return 0
-    raise Unusable("usage: machine validate | values <key>... | show | set <key> <int>")
+    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | models-check [<agent>...]")
 
 
 def main(argv):

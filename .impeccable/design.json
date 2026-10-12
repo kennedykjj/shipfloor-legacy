@@ -1,102 +1,110 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-09T00:00:00Z",
+  "generatedAt": "2026-10-11T00:00:00Z",
   "title": "Design System: Shipfloor Dashboard",
   "extensions": {
     "colorMeta": {
-      "ground": { "role": "neutral", "displayName": "Deep Slate Ground", "canonical": "#0d1014", "tonalRamp": ["#0d1014", "#151a21", "#1b212a", "#262e39", "#36404e", "#5f6068", "#8f8b80", "#ebe5d5"] },
-      "panel": { "role": "neutral", "displayName": "Slate Panel", "canonical": "#151a21" },
-      "panel-hi": { "role": "neutral", "displayName": "Raised Panel", "canonical": "#1b212a" },
-      "edge": { "role": "neutral", "displayName": "Hairline", "canonical": "#262e39" },
-      "edge-hi": { "role": "neutral", "displayName": "Lit Edge", "canonical": "#36404e" },
-      "parchment": { "role": "neutral", "displayName": "Parchment", "canonical": "#ebe5d5" },
-      "muted": { "role": "neutral", "displayName": "Muted", "canonical": "#8f8b80" },
-      "faint": { "role": "neutral", "displayName": "Faint", "canonical": "#5f6068" },
-      "gold": { "role": "secondary", "displayName": "Coin Gold", "canonical": "#e2b356", "light": "#855a0c", "tonalRamp": ["#3d2d0e", "#5f4713", "#855a0c", "#a87b1c", "#c99a35", "#e2b356", "#edc97e", "#f6e1b4"] },
-      "azure": { "role": "primary", "displayName": "Owner Azure", "canonical": "#63b2ff", "light": "#1f6fd1", "tonalRamp": ["#0b2440", "#123a6a", "#1f6fd1", "#3b8ae6", "#63b2ff", "#8ac6ff", "#b4daff", "#dcedff"] },
-      "azure-ink": { "role": "neutral", "displayName": "Azure Ink", "canonical": "#0b2440", "light": "#ffffff" },
-      "ok": { "role": "outcome", "displayName": "Outcome Green", "canonical": "#7cc58a", "light": "#2f7d43" },
-      "warn": { "role": "outcome", "displayName": "Outcome Amber", "canonical": "#d9a45b", "light": "#9a5b12" },
-      "bad": { "role": "outcome", "displayName": "Outcome Red", "canonical": "#f06a5f", "light": "#c23b31" }
+      "ground": { "role": "neutral", "displayName": "Ground", "canonical": "#0a0a0a" },
+      "panel": { "role": "neutral", "displayName": "Panel", "canonical": "#14171b" },
+      "panel-hi": { "role": "neutral", "displayName": "Raised Panel", "canonical": "#1c2026" },
+      "edge": { "role": "neutral", "displayName": "Hairline", "canonical": "#2a2f39" },
+      "edge-hi": { "role": "neutral", "displayName": "Lit Edge", "canonical": "#3d444f" },
+      "text": { "role": "neutral", "displayName": "Text", "canonical": "#f2f1ee" },
+      "soft": { "role": "neutral", "displayName": "Soft Text", "canonical": "#d6d8da" },
+      "muted": { "role": "neutral", "displayName": "Muted Text", "canonical": "#a3abb6" },
+      "faint": { "role": "neutral", "displayName": "Faint Text", "canonical": "#8f98a3" },
+      "sand": { "role": "primary", "displayName": "Accent Sand", "canonical": "#c7b9a6" },
+      "glow1a": { "role": "neutral", "displayName": "Glow One, Light", "canonical": "#3b4a5e" },
+      "glow1b": { "role": "neutral", "displayName": "Glow One, Dark", "canonical": "#1c232d" },
+      "glow2": { "role": "neutral", "displayName": "Glow Two", "canonical": "#2a2622" },
+      "track": { "role": "neutral", "displayName": "Lifecycle Track", "canonical": "#5a6472" },
+      "track-on": { "role": "neutral", "displayName": "Lifecycle Track, Working", "canonical": "#c9ced4" },
+      "refine": { "role": "secondary", "displayName": "Refine Stage", "canonical": "#8fa8c7" },
+      "ok": { "role": "outcome", "displayName": "Outcome Green", "canonical": "#9fcbaa" },
+      "warn": { "role": "outcome", "displayName": "Outcome Amber", "canonical": "#dcb872" },
+      "bad": { "role": "outcome", "displayName": "Outcome Red", "canonical": "#e58f80" }
     },
     "typographyMeta": {
-      "stat": { "displayName": "Stat", "purpose": "Header strip figures and every cost or count, mono with tabular figures." },
-      "headline": { "displayName": "Headline", "purpose": "Drawer card title." },
-      "title": { "displayName": "Title", "purpose": "Card title, clamped to two lines." },
-      "body": { "displayName": "Body", "purpose": "Page base text, tables at 12.5px." },
-      "label": { "displayName": "Label", "purpose": "Column headings, table heads, section keys; sentence case." },
+      "brand": { "displayName": "Brand", "purpose": "The product name in the header; Barlow Condensed, uppercase." },
+      "display": { "displayName": "Display", "purpose": "The heading of a panel; Barlow Condensed, uppercase." },
+      "heading": { "displayName": "Heading", "purpose": "Lifecycle column labels, the tooltip total and Settings group titles." },
+      "headline": { "displayName": "Headline", "purpose": "The drawer's card title." },
+      "title": { "displayName": "Title", "purpose": "A card title in a tile, a pass and the peek; clamped to two lines." },
+      "body": { "displayName": "Body", "purpose": "Descriptions, alerts and the inbox reader." },
+      "label": { "displayName": "Label", "purpose": "Buttons, table cells, meta lines and notices at 12.5px." },
+      "caption": { "displayName": "Caption", "purpose": "Uppercase tracked captions: the views, the header stats, the legend." },
       "log": { "displayName": "Log", "purpose": "Pre-wrapped mono log pane." }
     },
     "shadows": [
-      { "name": "hover-lift", "value": "0 10px 30px rgba(0, 0, 0, .45)", "purpose": "Card hover with 1px lift; light theme uses rgba(40, 36, 28, .14)." },
-      { "name": "drawer-cast", "value": "-14px 0 32px -8px rgba(0, 0, 0, .45)", "purpose": "Open drawer over the board; none when closed." },
+      { "name": "raise", "value": "0 10px 30px rgba(0, 0, 0, .45)", "purpose": "The peek, a maximized panel and the select's list; each light theme sets a softer one." },
+      { "name": "drawer-cast", "value": "-14px 0 32px -8px rgba(0, 0, 0, .45)", "purpose": "Open drawer over the page; none when closed." },
       { "name": "dial-ring", "value": "0 0 0 2px var(--panel), 0 0 0 3px var(--edge)", "purpose": "Ring around the cooldown dial." }
     ],
     "motion": [
-      { "name": "card-transition", "value": ".16s ease on border-color, transform, box-shadow", "purpose": "Card hover; disabled under reduced motion." },
       { "name": "cooldown-sweep", "value": "6s linear infinite on registered --sweep angle, 0deg to 360deg", "purpose": "Signature dial on running cards; static 90deg quarter under prefers-reduced-motion." },
+      { "name": "dot-pulse", "value": "2.6s cubic-bezier(.2, .7, .2, 1) infinite", "purpose": "A running dot on the lifecycle band; stopped under reduced motion." },
       { "name": "shimmer", "value": "1.2s ease infinite", "purpose": "Drawer loading skeleton only." }
     ],
     "breakpoints": [
-      { "name": "narrow", "value": "860px" }
+      { "name": "narrow", "value": "1180px" }
     ]
   },
   "components": [
     {
-      "name": "Item Card",
+      "name": "Panel",
       "kind": "card",
-      "refersTo": "card",
-      "description": "A board card: number, gold cost, title.",
-      "html": "<button class=\"ds-card\"><div class=\"ds-top\"><span class=\"ds-no\">#42</span><span class=\"ds-cost\"><span class=\"ds-coin\"></span>1.84</span></div><div class=\"ds-title\">Add retry to the dispatcher</div></button>",
-      "css": ".ds-card{display:block;width:260px;text-align:left;cursor:pointer;color:var(--text);font:13px/1.35 var(--sans);background:linear-gradient(180deg,var(--panel-hi),var(--panel));border:1px solid var(--edge);border-top-color:var(--edge-hi);border-radius:6px;padding:9px 10px;transition:border-color .16s ease,transform .16s ease,box-shadow .16s ease}.ds-card:hover{border-color:var(--edge-hi);transform:translateY(-1px);box-shadow:var(--shadow)}.ds-card:focus-visible{outline:2px solid var(--azure);outline-offset:2px}.ds-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.ds-no{font:12.5px var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}.ds-cost{font:12.5px var(--mono);font-variant-numeric:tabular-nums;color:var(--gold)}.ds-coin::before{content:\"\";display:inline-block;width:.5em;height:.5em;margin-right:.32em;border-radius:50%;background:var(--gold);box-shadow:0 0 0 1px var(--gold-soft);vertical-align:.08em}.ds-title{margin-top:3px}"
+      "refersTo": "panel",
+      "description": "The container of every region: a faint wash of the ink over the ground, a hairline and a 16px radius.",
+      "html": "<section class=\"ds-panel\"><h1>Today</h1><p>12 runs</p></section>",
+      "css": ".ds-panel{padding:18px 20px 14px;border:1px solid color-mix(in srgb,var(--ov) 9%,transparent);border-radius:16px;background:color-mix(in srgb,var(--ov) 2%,transparent);color:var(--text);font:15px/1.45 var(--sans)}.ds-panel h1{margin:0;font:500 34px/1 var(--cond);letter-spacing:.02em;text-transform:uppercase}.ds-panel p{margin:8px 0 0;color:var(--muted)}"
     },
     {
-      "name": "Awaiting Card",
+      "name": "Tile",
       "kind": "card",
-      "refersTo": "card-awaiting",
-      "description": "A card waiting for the owner: azure border, ring, tint and waits line.",
-      "html": "<button class=\"ds-card ds-await\"><div class=\"ds-top\"><span class=\"ds-no\">#43</span><span class=\"ds-cost\"><span class=\"ds-coin\"></span>0.62</span></div><div class=\"ds-title\">Spec for the usage-limit banner</div><div class=\"ds-waits\">spec to review</div></button>",
-      "css": ".ds-card{display:block;width:260px;text-align:left;cursor:pointer;color:var(--text);font:13px/1.35 var(--sans);background:linear-gradient(180deg,var(--panel-hi),var(--panel));border:1px solid var(--edge);border-top-color:var(--edge-hi);border-radius:6px;padding:9px 10px}.ds-await{border-color:var(--azure);box-shadow:0 0 0 1px var(--azure) inset;background:linear-gradient(180deg,var(--azure-soft),var(--panel))}.ds-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.ds-no{font:12.5px var(--mono);color:var(--muted)}.ds-cost{font:12.5px var(--mono);color:var(--gold)}.ds-coin::before{content:\"\";display:inline-block;width:.5em;height:.5em;margin-right:.32em;border-radius:50%;background:var(--gold);vertical-align:.08em}.ds-title{margin-top:3px}.ds-waits{margin-top:6px;font-size:11.5px;color:var(--azure)}"
+      "refersTo": "tile",
+      "description": "A card in progress: number, cost in the accent, title, step bar.",
+      "html": "<div class=\"ds-tile\"><div class=\"ds-thead\"><span class=\"ds-tnum\">#42</span><span class=\"ds-tcost\">$1.84</span></div><p class=\"ds-ttitle\">Add retry to the dispatcher</p><ul class=\"ds-steps\"><li class=\"done\"></li><li class=\"done\"></li><li class=\"now\"></li><li></li></ul></div>",
+      "css": ".ds-tile{width:320px;border:1px solid color-mix(in srgb,var(--ov) 11%,transparent);border-radius:12px;background:var(--well);padding:12px 14px 10px;display:flex;flex-direction:column;gap:8px;color:var(--text);font:15px/1.45 var(--sans)}.ds-thead{display:flex;align-items:baseline;gap:10px}.ds-tnum{font:500 22px/1 var(--cond);text-transform:uppercase}.ds-tcost{margin-left:auto;font-size:13px;color:var(--sand)}.ds-ttitle{margin:0;font-size:14.5px;font-weight:500;line-height:1.3}.ds-steps{display:flex;gap:3px;list-style:none;margin:0;padding:0}.ds-steps li{flex:1;height:4px;border-radius:2px;background:color-mix(in srgb,var(--ov) 15%,transparent)}.ds-steps .done{background:var(--muted)}.ds-steps .now{background:var(--text)}"
     },
     {
-      "name": "Running Card with Cooldown Dial",
+      "name": "Running Dial",
       "kind": "custom",
-      "refersTo": "card",
+      "refersTo": "tile",
       "description": "The signature: a slow conic sweep on running cards, a static quarter under reduced motion.",
-      "html": "<button class=\"ds-card\"><div class=\"ds-top\"><span class=\"ds-no\">#44</span></div><div class=\"ds-title\">Validate the staging gate</div><div class=\"ds-run\"><span class=\"ds-dial\" aria-hidden=\"true\"></span>validate running</div></button>",
-      "css": "@property --sweep{syntax:\"<angle>\";inherits:false;initial-value:0deg}@keyframes ds-sweep{from{--sweep:0deg}to{--sweep:360deg}}.ds-card{display:block;width:260px;text-align:left;color:var(--text);font:13px/1.35 var(--sans);background:linear-gradient(180deg,var(--panel-hi),var(--panel));border:1px solid var(--edge-hi);border-radius:6px;padding:9px 10px}.ds-no{font:12.5px var(--mono);color:var(--muted)}.ds-title{margin-top:3px}.ds-run{margin-top:6px;font-size:11.5px;display:flex;align-items:center;gap:6px}.ds-dial{width:13px;height:13px;border-radius:50%;flex:none;background:conic-gradient(var(--text) var(--sweep,90deg),var(--edge-hi) 0);box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--edge);animation:ds-sweep 6s linear infinite}@media (prefers-reduced-motion:reduce){.ds-dial{animation:none;--sweep:90deg}}"
+      "html": "<div class=\"ds-run\"><span class=\"ds-dial\" aria-hidden=\"true\"></span>Develop running 4 min</div>",
+      "css": "@property --sweep{syntax:\"<angle>\";inherits:false;initial-value:0deg}@keyframes ds-sweep{from{--sweep:0deg}to{--sweep:360deg}}.ds-run{display:flex;align-items:center;gap:8px;color:var(--text);font:13px var(--sans)}.ds-dial{width:13px;height:13px;border-radius:50%;flex:none;display:inline-block;background:conic-gradient(var(--text) var(--sweep,90deg),var(--edge-hi) 0);box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--edge);animation:ds-sweep 6s linear infinite}@media (prefers-reduced-motion:reduce){.ds-dial{animation:none;--sweep:90deg}}"
     },
     {
-      "name": "Approve Button",
+      "name": "Approve Pill",
       "kind": "button",
       "refersTo": "button-approve",
-      "description": "The owner's primary action; azure fill.",
-      "html": "<button class=\"ds-approve\">Approve → Ready for Dev</button>",
-      "css": ".ds-approve{font:600 14px var(--sans);border-radius:5px;padding:7px 12px;cursor:pointer;white-space:nowrap;background:var(--azure);border:1px solid var(--azure);color:var(--azure-ink)}.ds-approve:hover{filter:brightness(1.08)}.ds-approve:focus-visible{outline:2px solid var(--azure);outline-offset:2px}.ds-approve:disabled{opacity:.5;cursor:progress}"
+      "description": "The owner's action in a list: ink fill, ground text.",
+      "html": "<button class=\"ds-pill\">Approve</button>",
+      "css": ".ds-pill{background:var(--text);color:var(--ground);padding:6px 16px;border:0;border-radius:40px;font:600 13.5px var(--sans);cursor:pointer}.ds-pill:focus-visible{outline:2px solid var(--sand);outline-offset:2px}"
     },
     {
-      "name": "Secondary Button",
+      "name": "Button",
       "kind": "button",
-      "refersTo": "button-secondary",
-      "description": "Request changes, Retry.",
-      "html": "<button class=\"ds-btn\">Request changes → Ready for Refinement</button>",
-      "css": ".ds-btn{font:14px var(--sans);color:var(--text);border-radius:5px;padding:7px 12px;cursor:pointer;white-space:nowrap;border:1px solid var(--edge-hi);background:var(--panel-hi)}.ds-btn:hover{border-color:var(--text)}.ds-btn:focus-visible{outline:2px solid var(--azure);outline-offset:2px}"
+      "refersTo": "button",
+      "description": "Request changes, Retry, Open card.",
+      "html": "<button class=\"ds-btn\">Request changes</button>",
+      "css": ".ds-btn{font:15px var(--sans);color:var(--text);border-radius:5px;padding:7px 12px;cursor:pointer;white-space:nowrap;border:1px solid var(--edge-hi);background:var(--panel-hi)}.ds-btn:hover{border-color:var(--text)}.ds-btn:focus-visible{outline:2px solid var(--sand);outline-offset:2px}"
     },
     {
       "name": "Header Stat",
       "kind": "custom",
-      "refersTo": "stat",
-      "description": "A strip stat: mono value over a muted key; gold variant for spent today.",
-      "html": "<div class=\"ds-stat\"><div class=\"ds-v\"><span class=\"ds-coin\"></span>12.40</div><div class=\"ds-k\">spent today <span class=\"ds-est\">est.</span></div></div>",
-      "css": ".ds-stat{padding:11px 18px;display:flex;flex-direction:column;background:var(--panel);font:14px/1.45 var(--sans);color:var(--text)}.ds-v{font:600 19px/1.15 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em;color:var(--gold);white-space:nowrap}.ds-coin::before{content:\"\";display:inline-block;width:.5em;height:.5em;margin-right:.32em;border-radius:50%;background:var(--gold);box-shadow:0 0 0 1px var(--gold-soft);vertical-align:.08em}.ds-k{font-size:11px;color:var(--muted);margin-top:2px}.ds-est{color:var(--faint);font-size:11px;margin-left:4px}"
+      "refersTo": "panel",
+      "description": "A header stat: an uppercase caption and its bold value.",
+      "html": "<span class=\"ds-cap\">Runs today<b>12</b> · 1 failed</span>",
+      "css": ".ds-cap{font:500 11px/1.45 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}.ds-cap b{color:var(--text);font-weight:600;margin-left:7px;letter-spacing:.05em}"
     },
     {
-      "name": "Tooltip Header",
-      "kind": "custom",
-      "refersTo": "drawer",
-      "description": "The drawer's item-tooltip head: title, gold total, gold hairline beneath.",
-      "html": "<div class=\"ds-tip\"><div class=\"ds-row\"><h3><span class=\"ds-num\">#42</span>Add retry to the dispatcher</h3><span class=\"ds-total\"><span class=\"ds-coin\"></span>1.84</span></div><div class=\"ds-meta\">Coding · 3 sessions · first to last run 1h12</div></div>",
-      "css": ".ds-tip{width:420px;padding:16px 20px 12px;font:14px/1.45 var(--sans);color:var(--text);border-top:1px solid var(--edge-hi);border-bottom:1px solid color-mix(in srgb,var(--gold) 60%,transparent);background:linear-gradient(180deg,var(--panel-hi),var(--panel))}.ds-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.ds-tip h3{margin:0;font-size:17px;font-weight:600;line-height:1.3}.ds-num{font:500 17px var(--mono);color:var(--muted);margin-right:6px}.ds-total{font:600 20px var(--mono);font-variant-numeric:tabular-nums;color:var(--gold);white-space:nowrap}.ds-coin::before{content:\"\";display:inline-block;width:.5em;height:.5em;margin-right:.32em;border-radius:50%;background:var(--gold);vertical-align:.08em}.ds-meta{margin-top:6px;font-size:12.5px;color:var(--muted)}"
+      "name": "Tag",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "A fact about a card; outcome tags take their color.",
+      "html": "<span class=\"ds-tag\">stopped 2 times</span> <span class=\"ds-tag ds-bad\">gate: build</span>",
+      "css": ".ds-tag{font:11.5px var(--sans);border:1px solid var(--edge-hi);border-radius:4px;padding:1px 7px;color:var(--muted);white-space:nowrap}.ds-bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 50%,transparent)}"
     },
     {
       "name": "Gate Chip",
@@ -110,42 +118,41 @@
       "name": "Drawer Tabs",
       "kind": "nav",
       "refersTo": "drawer",
-      "description": "Underlined text tabs with mono counts.",
+      "description": "Underlined text tabs with counts.",
       "html": "<nav class=\"ds-tabs\"><button aria-selected=\"true\">Sessions<span class=\"ds-b\">3</span></button><button aria-selected=\"false\">Log</button><button aria-selected=\"false\">Gates<span class=\"ds-b\">2</span></button><button aria-selected=\"false\">Review</button></nav>",
-      "css": ".ds-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--edge);background:var(--panel)}.ds-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 10px 8px;color:var(--muted);cursor:pointer;font:13px var(--sans)}.ds-tabs button[aria-selected=\"true\"]{color:var(--text);border-bottom-color:var(--text)}.ds-tabs button:focus-visible{outline:2px solid var(--azure);outline-offset:2px}.ds-b{margin-left:5px;font:11px var(--mono);color:var(--faint)}"
+      "css": ".ds-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--edge);background:var(--panel)}.ds-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 10px 8px;color:var(--muted);cursor:pointer;font:13px var(--sans)}.ds-tabs button[aria-selected=\"true\"]{color:var(--text);border-bottom-color:var(--text)}.ds-tabs button:focus-visible{outline:2px solid var(--sand);outline-offset:2px}.ds-b{margin-left:5px;font-size:11px;color:var(--faint)}"
     }
   ],
   "narrative": {
-    "northStar": "The Item Tooltip",
-    "overview": "The dashboard is an item shop for a software factory. Every card on the board is an item; opening one slides in its tooltip, the drawer: name, gold cost, tabbed sections for sessions, log, gates and review, and one decision. Surfaces are deep slate with a top-lit edge in dark mode and neutral pale stone in light mode, both following prefers-color-scheme. The mood is a quiet, dense, glanceable instrument for one owner doing quick checks: open, approve what waits, glance at cost and runs, close.\n\nTwo colors carry meaning and nothing else does. Gold means money: the cost numerals and the coin mark. Azure means the owner: what waits for them and the actions they take. Everything else is slate, parchment (or ink on stone) and hairlines. The system rejects the generic grey kanban with colored tags: column identity comes from position and name, never from tag color.",
+    "northStar": "The Floor Plan",
+    "overview": "The dashboard is the floor plan of a software factory, read by one owner doing quick checks: look at the lifecycle band to see where every card stands, answer what waits for you, glance at what is running and what it cost, close. It has three views: Factory, Feed and Settings. A card opens in a drawer; a dot on the lifecycle band opens a small peek first.\n\nThe surface is a dark page under a faint grain and two soft glows, with translucent panels and hairline borders. Barlow carries words and Barlow Condensed in uppercase carries headings; every number keeps tabular figures. The accent marks money and whatever waits for the owner, and the outcome trio marks results. Color is chosen by the owner: twelve themes change the same tokens and nothing else.",
     "keyCharacteristics": [
-      "Item cards with a top-lit border and a faint vertical gradient; the drawer is the same material at tooltip scale.",
-      "Two meaningful hues (gold for cost, azure for the owner), plus ok/warn/bad for outcomes only.",
-      "Monospace tabular figures for every number; system sans for everything else.",
-      "Hairline borders instead of shadows at rest; depth appears on hover and for the drawer.",
-      "One signature motion: the cooldown dial on running cards."
+      "One lifecycle band: every column a cell on a dotted track, every card a dot.",
+      "Panels are translucent washes of the theme's ink over the ground, with a hairline border and a 16px radius.",
+      "Uppercase condensed headings and uppercase tracked captions; sentence case for prose.",
+      "Hairlines instead of shadows at rest; depth appears for the drawer, the peek and the maximized panel.",
+      "Two continuous motions only: the cooldown dial and the pulse of a running dot, both stopped under reduced motion."
     ],
     "rules": [
-      { "name": "The Coin Rule", "body": "Gold appears only on money: cost numerals, the coin mark, the unpriced marker, and the tooltip header's cost rule. Never on buttons, headings, borders of cards or status.", "section": "colors" },
-      { "name": "The Owner Rule", "body": "Azure appears only on what waits for the owner or what the owner does. If a thing does not need a human, it is not azure.", "section": "colors" },
-      { "name": "The Estimate Rule", "body": "Every cost is labelled \"est.\" in faint small type next to the figure; a missing price shows the gold $ ? marker with an explanatory title, never a zero.", "section": "colors" },
-      { "name": "The Figures Rule", "body": "Any number is mono with tabular-nums (.num). Prose stays sans.", "section": "typography" },
-      { "name": "The Flat-At-Rest Rule", "body": "Cards and panels carry no shadow until hovered or, for the drawer, open.", "section": "elevation" }
+      { "name": "The Accent Rule", "body": "The accent appears on money and on what waits for the owner or what the owner is doing. Outcomes use their own trio.", "section": "colors" },
+      { "name": "The Estimate Rule", "body": "Every cost is an estimate and says so: \"est.\" next to the figure, or \"Spent est.\" in the header; a missing price shows $ ? with an explanation, never a zero.", "section": "colors" },
+      { "name": "The Figures Rule", "body": "Any number keeps tabular figures. Prose stays proportional.", "section": "typography" },
+      { "name": "The Flat-At-Rest Rule", "body": "Panels and tiles carry no shadow until something opens over them.", "section": "elevation" }
     ],
     "dos": [
-      "Do use gold only for cost and the coin mark, and azure only for the owner's waiting items and actions.",
-      "Do set every number in mono with tabular figures and label every cost \"est.\".",
-      "Do keep surfaces flat at rest and express hierarchy with the panel steps and hairlines.",
-      "Do provide the light-theme value for every new color token in the prefers-color-scheme: light block, darkening gold and azure for contrast.",
-      "Do keep the cooldown dial as the single continuous animation and give any new motion a reduced-motion fallback.",
+      "Do take every color from a token, and give every new token a value in every theme.",
+      "Do keep captions uppercase and tracked, headings condensed and uppercase, and prose in sentence case.",
+      "Do keep numbers in tabular figures and label every cost as an estimate.",
+      "Do keep surfaces flat at rest and let only what opens cast a shadow.",
+      "Do keep the dial and the dot's pulse as the only continuous motion, and give any new motion a reduced-motion fallback.",
       "Do keep factory stage and column names verbatim."
     ],
     "donts": [
-      "Don't color-code columns or cards with tags or per-stage hues; position and name identify a stage.",
-      "Don't use gold or azure as decoration (borders, headings, icons, dividers) or use red/green for anything but outcomes.",
-      "Don't add emoji, icon fonts or glyph icons; text labels carry actions.",
-      "Don't add webfonts, CDN assets or a build step; the dashboard is one self-contained file.",
-      "Don't add resting shadows, gradients beyond the panel step, or a second continuous animation."
+      "Don't color-code columns or cards; position and name identify a stage.",
+      "Don't use the accent as decoration, or the outcome colors for anything but results.",
+      "Don't add emoji or icon fonts; text labels carry actions.",
+      "Don't link a font or an asset from the network, or add a build step; the dashboard is one self-contained file.",
+      "Don't add resting shadows or a third continuous animation."
     ]
   }
 }
