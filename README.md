@@ -2,7 +2,7 @@
 
 **A software factory for Claude Code.** Write a GitHub issue, approve twice, and it ships.
 
-![The Shipfloor dashboard: four cards wait for the owner and four are in progress, each with its stage, time and cost](docs/img/dashboard.png)
+![The Shipfloor dashboard: the lifecycle line with every card on its stage, four cards that wait for the owner, four in progress with their step and cost, and today's runs and spend](docs/img/dashboard.png)
 
 Shipfloor turns the issues on a GitHub board into merged pull requests. Agents write the spec, the failing tests, the code and the review. You make two decisions per card: is this the spec you want built, and does this pull request ship.
 
