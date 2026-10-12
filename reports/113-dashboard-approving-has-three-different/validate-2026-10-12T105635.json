@@ -1,0 +1,14 @@
+{
+  "issue": 113,
+  "slug": "dashboard-approving-has-three-different",
+  "pipeline": "validate",
+  "outcome": "infra",
+  "agents": [],
+  "rounds": 0,
+  "failed_gates": [],
+  "gates_reused": ["green factory scripts/test/dashboard-names.test.sh"],
+  "flaky": [],
+  "amendments": [],
+  "pr": "https://github.com/kennedykjj/shipfloor/pull/126",
+  "notes": "CI guard and test failed after 2s on PR #126; logs unreadable in this run; labeled blocked:infra"
+}
