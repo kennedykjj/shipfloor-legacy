@@ -1,0 +1,18 @@
+{
+  "issue": 115,
+  "slug": "dashboard-the-accent-marks-a-queue-and-a",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T10:30:00-0300",
+  "finished_at": "2026-10-12T10:36:49-0300",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 31513, "duration_s": 25},
+    {"role": "ux-designer", "tokens": 69421, "duration_s": 237},
+    {"role": "product-owner", "tokens": 15126, "duration_s": 10}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
