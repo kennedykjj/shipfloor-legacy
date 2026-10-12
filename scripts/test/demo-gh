@@ -83,6 +83,16 @@ elif args[:2] == ["project", "field-list"]:
     out({"fields": state["fields"]})
 elif args[:2] == ["api", "graphql"]:
     m = re.search(r"projectV2\(number: (\d+)\)", call)
+    if not m and "repository(owner" in call:
+        fields = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in args if re.match(r"(owner|name)=", a)}
+        r = repo_of(state, fields.get("owner", "") + "/" + fields.get("name", ""))
+        titles = {int(i["number"]): i.get("title", "") for i in r["prs"].values() if "number" in i}
+        titles.update({int(i["number"]): i.get("title", "") for i in r["issues"] if "number" in i})
+        repo = {}
+        for n in re.findall(r"\b(i\d+): issueOrPullRequest\(number: (\d+)\)", call):
+            repo[n[0]] = {"title": titles[int(n[1])]} if int(n[1]) in titles else None
+        out({"data": {"repository": repo}})
+        sys.exit(0)
     p = project_of(state, m.group(1) if m else "")
     if p.get("refuse"):
         die(1, "gh: HTTP 502: the board cannot be read now")
