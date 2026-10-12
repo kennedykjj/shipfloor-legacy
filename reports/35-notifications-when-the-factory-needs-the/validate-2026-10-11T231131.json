@@ -1,0 +1,5 @@
+{"issue": 35, "slug": "notifications-when-the-factory-needs-the", "pipeline": "validate", "started_at": "2026-10-11T22:10:00-03:00", "finished_at": "2026-10-11T23:20:00-03:00", "outcome": "ok",
+ "agents": [{"role": "engineer", "tokens": 36544, "duration_s": 37}, {"role": "engineer", "tokens": 17440, "duration_s": 44}, {"role": "engineer", "tokens": 39902, "duration_s": 50}],
+ "rounds": {"2": 2, "4": 1}, "gates_failed": ["build (after merging main: fake-gh lacked issue list)", "build (gate-stack, load flake)"],
+ "flaky": ["factory scripts/test/gate-stack.test.sh"], "manual_edit": false,
+ "amendments": ["scripts/test/notify-quiet.test.sh: amended by QA in develop (stuck event off in the decided-card scenario); no assertion line changed"]}
