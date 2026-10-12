@@ -1,0 +1,18 @@
+{
+  "issue": 6,
+  "slug": "dashboard-titles-an-empty-cache-for-5",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T23:44:00Z",
+  "finished_at": "2026-10-12T00:08:00Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 45355, "duration_s": 78},
+    {"role": "engineer", "tokens": 29619, "duration_s": 307},
+    {"role": "engineer", "tokens": 25594, "duration_s": 319}
+  ],
+  "rounds": {"acceptance_tests": 1, "implementation": 2},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
