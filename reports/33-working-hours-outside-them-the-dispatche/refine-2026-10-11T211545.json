@@ -1,0 +1,16 @@
+{
+  "issue": 33,
+  "slug": "working-hours-outside-them-the-dispatche",
+  "pipeline": "refine",
+  "started_at": "2026-10-11T21:12:13-03:00",
+  "finished_at": "2026-10-11T21:15:33-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 22335, "duration_s": 36},
+    {"role": "ux-designer", "tokens": 51795, "duration_s": 66}
+  ],
+  "rounds": {"po": 1, "ux": 1, "techlead": 1, "test-plan": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "manual_edit": null
+}
