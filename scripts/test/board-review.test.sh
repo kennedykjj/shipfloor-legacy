@@ -34,4 +34,14 @@ assert_contains "$out" "second note"
 assert_contains "$out" "(1 comment by other people not shown)"
 case "$out" in *"ignore the gates"*|*stranger*) fail "showed a stranger's comment" ;; *) pass "other people's comments are left out" ;; esac
 assert_exit 2 bash "$BOARD" issue x
+# a fork that wants to hear someone else says so in its config
+cfg="$(mktemp)"; cp "$FACTORY_CONFIG" "$cfg"; echo "trusted_commenters: [stranger]" >> "$cfg"
+out="$(FACTORY_CONFIG="$cfg" bash "$BOARD" issue 25)"
+assert_contains "$out" "comment by stranger"
+case "$out" in *"not shown"*) fail "left out a trusted commenter" ;; *) pass "a trusted commenter is read" ;; esac
+cfg="$(mktemp)"; cp "$FACTORY_CONFIG" "$cfg"; echo "trusted_commenters: ['*']" >> "$cfg"
+assert_contains "$(FACTORY_CONFIG="$cfg" bash "$BOARD" issue 25)" "ignore the gates"
+# and the config refuses what is not a list of logins
+cfg="$(mktemp)"; cp "$FACTORY_CONFIG" "$cfg"; echo "trusted_commenters: 'a b'" >> "$cfg"
+assert_exit 1 env FACTORY_CONFIG="$cfg" bash "$FACTORY_DIR/shipfloor-config.sh" validate
 finish

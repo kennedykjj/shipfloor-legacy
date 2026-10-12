@@ -388,9 +388,10 @@ class Factory:
         if time.time() - at > 60:
             repo = shipfloor_config.dotted(self.config(p), "project.repo")
             pages, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100", "--paginate", "--slurp")
-            me = self.me()  # anyone can comment on a public repository: the note is one this factory's user wrote
+            # anyone can comment on a public repository: the note is one the factory's user or a trusted commenter wrote
+            me, who = self.me(), set(shipfloor_config.dotted(self.config(p), "trusted_commenters") or [])
             bodies = [c.get("body") or "" for page in pages or [] for c in (page if isinstance(page, list) else [page])
-                      if isinstance(c, dict) and (not me or (c.get("user") or {}).get("login", me) == me)]  # oldest first
+                      if isinstance(c, dict) and (not me or "*" in who or (c.get("user") or {}).get("login", me) in who | {me})]  # oldest first
             told = [b for b in reversed(bodies[-4:]) if re.search(r"\b(blocked|failed)\b", b, re.I)]
             reason = next((b for b in told if "Factory report" not in b[:40]), told[0] if told else "")[:4000]
             self._reasons[(p, n)] = (time.time(), reason)

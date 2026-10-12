@@ -158,6 +158,7 @@ What other code reads stays in English whatever the language: commit messages, t
 - Scripts run from the installed copy in `~/.shipfloor/factory`, outside every worktree.
 - The gates read a snapshot of the committed config (`origin/main`), outside the pipelines' reach; `.shipfloor/` is forbidden to agents, so a factory PR cannot change the gates that judge it.
 - `templates/factory-guard.yml` repeats the forbidden-path check in GitHub Actions.
+- The agents read an issue's title and body, and only the comments written by the factory's own GitHub user: on a public repository anyone can comment, and a comment would be an instruction. To listen to more people, name them in `.shipfloor/factory.yml`: `trusted_commenters: [alice, bob]` (`['*']` is anyone; only for a private repository). The setting is read from `origin/main`, where no agent can change it.
 
 ## Development
 
