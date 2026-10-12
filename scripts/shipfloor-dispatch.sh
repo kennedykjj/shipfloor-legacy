@@ -11,8 +11,8 @@ REGISTRY="$SHIPFLOOR_HOME/registry.tsv"
 
 # One line of history per cycle, however it ends (logs/health-<month>.jsonl); it never fails the cycle.
 START="$(date +%s)"; CYCLE="$SHIPFLOOR_HOME/dispatch.pid"; OVERLAP=
-# shortcut: a pid reused after a cycle died reads as a second cycle, once; use a lock dir if overlaps must also be prevented
-if kill -0 "$(cat "$CYCLE" 2>/dev/null)" 2>/dev/null; then OVERLAP=--overlap; else echo $$ > "$CYCLE"; fi
+# a live pid in a dispatch.pid younger than SHIPFLOOR_CYCLE_STALE_MIN is another cycle: this one records the overlap and stops; an older file was left behind and is taken over
+if kill -0 "$(cat "$CYCLE" 2>/dev/null)" 2>/dev/null && [ -z "$(find "$CYCLE" -mmin +"${SHIPFLOOR_CYCLE_STALE_MIN:-30}" 2>/dev/null)" ]; then OVERLAP=--overlap; else echo $$ > "$CYCLE"; fi
 health() {
   local rc=$?
   [ -n "$OVERLAP" ] || rm -f "$CYCLE"
@@ -23,6 +23,7 @@ health() {
   SHIPFLOOR_BASH="${p[0]}" shipfloor_python "${p[3]}" cycle --home "${p[2]}" >/dev/null || true
 }
 trap health EXIT
+[ -z "$OVERLAP" ] || exit 0
 [ -e "$SHIPFLOOR_HOME/PAUSE" ] && exit 0
 
 usage_limited() {  # the Claude usage limit is per account: a recent hit in any project pauses all
