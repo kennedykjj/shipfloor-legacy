@@ -27,6 +27,9 @@ MLANG="$(shipfloor_machine values language 2>/dev/null | tr -d '\0')"
 mapfile -d '' -t POOL < <(shipfloor_machine values pool stages.refine stages.develop stages.validate stages.deploy)
 [ "${#POOL[@]}" -eq 5 ] || { echo "dispatch: cannot read the machine pool" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
 declare -A STAGE_SLOTS=([refine]="${POOL[1]}" [develop]="${POOL[2]}" [validate]="${POOL[3]}" [deploy]="${POOL[4]}")
+mapfile -d '' -t MODELS < <(shipfloor_machine stage-models)  # refine develop validate deploy; empty = no --model flag
+[ "${#MODELS[@]}" -eq 4 ] || { echo "dispatch: cannot read the stage models" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
+declare -A STAGE_MODEL=([refine]="${MODELS[0]}" [develop]="${MODELS[1]}" [validate]="${MODELS[2]}" [deploy]="${MODELS[3]}")
 
 refresh_control() {  # control checkout = exactly origin/main
   [ "${FACTORY_CONTROL_REFRESH:-1}" = "0" ] && return 0
@@ -105,7 +108,7 @@ launch() {  # launch <pipeline> <issue>
   # The owner's personal CLAUDE.md is loaded whatever the setting sources are: its memory and notes are not for a run.
   envs+=(CLAUDE_CODE_DISABLE_AUTO_MEMORY=1)
   extra+=(--append-system-prompt "This is an unattended factory run. A personal CLAUDE.md is for its owner's interactive sessions: what it says to read or write under ~/.claude (memory, journals, notes, a vault) does not apply here.")
-  case "$p" in validate|deploy) extra+=(--model sonnet) ;; esac  # orchestration and conflict fixes: half the price
+  [ -z "${STAGE_MODEL[$p]:-}" ] || extra+=(--model "${STAGE_MODEL[$p]}")  # validate and deploy default to sonnet: half the price
   local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(SHIPFLOOR_INFRA_RETRY=1); }
   (
     trap '' HUP
@@ -239,11 +242,17 @@ retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a s
 GLOBAL=$(( ${SHIPFLOOR_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
 retry_infra || status=1
-run_pipeline refine     "Ready for Refinement" 0           "${LIM[0]}" "Technical Refinement" "Spec Review"        || status=1
-run_pipeline develop "Ready for Dev"        0           "${LIM[1]}" "Coding"               "Coding" "Validation" || status=1
-run_pipeline validate     "Validation"           0           0          ""                                         || status=1
-# one deploy at a time in a project: merges into its main are serial
-run_pipeline deploy    "Ready for Prod"       1           0          ""                                         || status=1
+# Outside the working hours (config.yml, hours) only the starts are skipped; the rest of the cycle runs as always.
+read -r hours_state hours_next < <(shipfloor_machine hours 2>/dev/null)
+if [ "${hours_state:-open}" = closed ]; then
+  echo "dispatch: outside working hours; runs start again at $hours_next" | shipfloor_say "${MLANG:-en}"
+else
+  run_pipeline refine     "Ready for Refinement" 0           "${LIM[0]}" "Technical Refinement" "Spec Review"        || status=1
+  run_pipeline develop "Ready for Dev"        0           "${LIM[1]}" "Coding"               "Coding" "Validation" || status=1
+  run_pipeline validate     "Validation"           0           0          ""                                         || status=1
+  # one deploy at a time in a project: merges into its main are serial
+  run_pipeline deploy    "Ready for Prod"       1           0          ""                                         || status=1
+fi
 # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
 [ "$(shipfloor_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
 # What finished cards and stray files left under tmp/ goes with every cycle (the same as `shipfloor clean`).

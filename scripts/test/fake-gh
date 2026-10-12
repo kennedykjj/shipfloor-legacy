@@ -51,6 +51,8 @@ case "$args" in
   "api repos/acme/shop/issues/"*)
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
+  "issue list"*)
+    echo '[{"number":7,"title":"Seven"},{"number":9,"title":"Nine"}]' ;;
   "issue view"*)
     case "$args" in *"--repo acme/shop"*) ;; *) echo "failed to run git: fatal: not a git repository" >&2; exit 1 ;; esac
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
