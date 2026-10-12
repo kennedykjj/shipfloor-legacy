@@ -1,0 +1,1 @@
+{"issue": 76, "slug": "a-dispatcher-installer-for-linux-and-mac", "pipeline": "validate", "outcome": "staged", "pr": 94, "rounds": 0, "failed_gates": ["build (gate-stack.test.sh timing under 4 jobs, twice; passes alone and in CI)"], "flaky": ["factory scripts/test/gate-stack.test.sh"], "amendments": [], "agents": [], "head": "6266a4f8836bc74097c4732a7b85254718e50860"}
