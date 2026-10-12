@@ -44,6 +44,16 @@ costs: {card_warn: 20, card_block: 40, day_stop: 80}
 
 The figures are an estimate, from the tokens of the runs and `~/.shipfloor/prices.yml`, not a bill. A card that ran on a model with no price has an unknown estimate: no card limit flags or blocks it, its runs add nothing to the day, and the dashboard says the price is missing. The dashboard's Settings, Costs section sets the three values (an empty field removes one; `card_warn` cannot be above `card_block`), and a change applies from the next dispatcher cycle.
 
+The same file picks the model each stage's session and each agent runs on, in two optional maps:
+
+```yaml
+models:
+  stages: {develop: sonnet}   # refine, develop, validate, deploy
+  agents: {engineer: haiku}   # a plugin agent, or the agent a project's layer names
+```
+
+A model is `opus`, `sonnet`, `haiku` or `fable`. A stage or agent left out keeps the model the plugin ships with (validate and deploy on Sonnet, refine and develop on Claude Code's default, each agent on its frontmatter model). A bad model or name does not stop the factory: `shipfloor doctor` warns about it, the run uses the shipped model, and the dashboard's Settings section "Agents and models" edits it, with the average cost per card of the last 7 days next to each stage.
+
 ## Working hours
 
 `hours` in `~/.shipfloor/config.yml` lists the windows (local time, 24-hour `HH:MM-HH:MM`, start included, end excluded) in which the dispatcher starts runs. Outside them it does everything else (board snapshot, reaping, retries) but starts nothing; runs in progress finish. A window whose end is before its start crosses midnight. Unset or `[]` means all hours; a malformed value is reported by `machine validate` and ignored.

@@ -359,6 +359,14 @@ def describe(cfg, home, worktrees):
              f"review criteria: {d['review_criteria'] or '~/.shipfloor/factory/templates/review-criteria.md'}",
              f"language: {LANGS[d['language']]} ({d['language']})",
              f"stack: {('yes, ' + str(d['stack'].get('url', ''))) if d.get('stack') else 'none'}"]
+    machine_cfg = os.path.join(os.path.dirname(os.path.dirname(os.path.normpath(home))), "config.yml") if home else ""
+    try:
+        with open(machine_cfg, encoding="utf-8") as f:
+            agents = models_of(yaml.safe_load(f), [l["agent"] for l in cfg.layers if "agent" in l])["agents"]
+    except (OSError, yaml.YAMLError):
+        agents = {}
+    if agents:
+        lines.insert(10, "agent models: " + ", ".join(f"{k}={v}" for k, v in agents.items()))
     dep = d.get("deploy") or {}
     lines.append("deploy: " + (", ".join(f"{k}={v}" for k, v in dep.items()) if dep else "none (Done after merge)"))
     lines.append("layers:")
@@ -460,6 +468,53 @@ def dispatcher_every(raw):
 
 
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
+MODELS = ("opus", "sonnet", "haiku", "fable")  # what `claude --model` and the Agent tool's model take
+STAGE_MODELS = {"refine": None, "develop": None, "validate": "sonnet", "deploy": "sonnet"}  # None = no --model flag
+PLUGIN_AGENTS = {"product-owner": "opus", "ux-designer": "opus", "qa-engineer": "sonnet", "engineer": "sonnet", "cybersec": "opus"}
+
+
+def model_problems(raw, project_agents=()):
+    """The `models` entries of the machine config that the factory cannot use, as {key, value, why}
+    (why: model, name or shape). Not part of machine_problems: a bad model must not make config.yml invalid."""
+    models = raw.get("models") if isinstance(raw, dict) else None
+    if models is None:
+        return []
+    if not isinstance(models, dict):
+        return [{"key": "models", "value": models, "why": "shape"}]
+    out = []
+    known = {"stages": STAGES, "agents": (*PLUGIN_AGENTS, *project_agents)}
+    for group, entries in models.items():  # in the file's order
+        names = known.get(group)
+        if names is None or entries is None:
+            continue
+        if not isinstance(entries, dict):
+            out.append({"key": f"models.{group}", "value": entries, "why": "shape"}); continue
+        for name, model in entries.items():
+            if name not in names:
+                out.append({"key": f"models.{group}.{name}", "value": model, "why": "name"})
+            elif model not in MODELS:
+                out.append({"key": f"models.{group}.{name}", "value": model, "why": "model"})
+    return out
+
+
+def models_of(raw, project_agents=()):
+    """The models the factory runs with: STAGE_MODELS with the valid `models.stages` on top, and the valid
+    `models.agents`. A problem entry is dropped, so its key keeps today's model."""
+    bad = {p["key"] for p in model_problems(raw, project_agents)}
+    out = {"stages": dict(STAGE_MODELS), "agents": {}}
+    models = raw.get("models") if isinstance(raw, dict) and isinstance(raw.get("models"), dict) else {}
+    for group in out:
+        entries = models.get(group) if isinstance(models.get(group), dict) else {}
+        out[group].update({n: m for n, m in entries.items() if f"models.{group}.{n}" not in bad})
+    return out
+
+
+def model_problem_line(p):
+    if p["why"] == "name":
+        return f"{p['key']}: not a stage or an agent here"
+    if p["why"] == "shape":
+        return f"{p['key']}: must be a mapping"
+    return f"{p['key']}: \"{p['value']}\" is not a model the factory knows ({', '.join(MODELS)})"
 
 
 COST_KEYS = ("card_warn", "card_block", "day_stop")
@@ -577,7 +632,7 @@ def hours_state(raw, now):
 
 
 def machine(rest):
-    """machine <validate | values <key>... | show | hours | set <key> <int>> on $SHIPFLOOR_MACHINE_CONFIG."""
+    """machine <validate | values <key>... | show | hours | set <key> <int> | stage-models | models-check [<agent>...]> on $SHIPFLOOR_MACHINE_CONFIG."""
     path = os.environ.get("SHIPFLOOR_MACHINE_CONFIG", "")
     raw = {}
     if path and os.path.isfile(path):
@@ -627,6 +682,13 @@ def machine(rest):
         return 0
     if errs:
         raise Unusable(f"{path} is invalid: " + "; ".join(errs))
+    if cmd == "stage-models" and not args:
+        sys.stdout.write("".join(f"{models_of(raw)['stages'][s] or ''}\0" for s in STAGES)); return 0
+    if cmd == "models-check":
+        found = model_problems(raw, args)
+        for p in found:
+            print(model_problem_line(p), file=sys.stderr)
+        return 1 if found else 0
     data = merged(raw, MACHINE_DEFAULTS)
     if cmd == "values" and args:
         sys.stdout.write(nul_values(data, args)); return 0
@@ -636,7 +698,7 @@ def machine(rest):
             print(f"  {k}: {data['stages'][k]}")
         print(f"stacks: {data['stacks']}")
         return 0
-    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int>")
+    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | models-check [<agent>...]")
 
 
 def main(argv):
