@@ -128,7 +128,7 @@ t "AC-2 a failed label fails the cycle" test "$RC" != 0
 t "AC-2 a failed label still does not launch the card" not launched_has "/sf:develop 77"
 
 # the limit acts at >= : a card that spent exactly card_block starts nothing more; one cent under does
-setup; machine $'costs:\n  card_block: 40'; tx s1 77 develop 40 today; tx s2 78 develop 39 today; tx s3 5 develop 90 today other
+setup; machine $'costs:\n  card_block: 40'; tx s1 77 develop 40 today; tx s2 78 develop 39 today; tx s3 5 develop 90 today "" other
 t "AC-2 the limits CLI lists a card at exactly card_block" lim_has $'block\t77'
 t "AC-2 the limits CLI does not list a card under it" not lim_has $'block\t78'
 t "AC-2 the limits CLI lists only the project's own cards" not lim_has $'block\t5'
@@ -153,7 +153,7 @@ t "AC-3 the new marker's stages are the spend of the counted span (41)" near "$(
 
 # ---- AC-4: the day stop
 setup; machine $'costs:\n  day_stop: 80'
-tx s1 11 develop 50 today; tx s2 12 develop 31 today other
+tx s1 11 develop 50 today; tx s2 12 develop 31 today "" other
 live_lock develop-5 5
 Q_DEV="90"; Q_REF="92"; Q_VAL="91"; Q_PROD="93"; cycle
 t "AC-4 the cycle exits 0" test "$RC" = 0
@@ -171,18 +171,18 @@ t "AC-4 ... with today's estimate across all projects" near "$(day_field 2)" 81
 t "AC-4 ... and the limit" near "$(day_field 3)" 80
 t "AC-4 no card is blocked by the day stop" test "$(n_events 'label [0-9]* add blocked')" = 0
 # the limit acts at >= too
-setup; machine $'costs:\n  day_stop: 80'; tx s1 11 develop 50 today; tx s2 12 develop 30 today other; Q_DEV="90"; cycle
+setup; machine $'costs:\n  day_stop: 80'; tx s1 11 develop 50 today; tx s2 12 develop 30 today "" other; Q_DEV="90"; cycle
 t "AC-4 today's estimate exactly at day_stop stops the day" not launched_has "/sf:develop 90"
 # under the limit: the day runs
-setup; machine $'costs:\n  day_stop: 80'; tx s1 11 develop 50 today; tx s2 12 develop 29 today other; Q_DEV="90"; cycle
+setup; machine $'costs:\n  day_stop: 80'; tx s1 11 develop 50 today; tx s2 12 develop 29 today "" other; Q_DEV="90"; cycle
 t "AC-4 79 is under day_stop: runs start" launched_has "/sf:develop 90"
 t "AC-4 ... and the limits CLI prints no day_stop" test -z "$(day_field 1)"
 
 # ---- AC-5: the local day changes and runs start again, with nothing for the owner to do
-setup; machine $'costs:\n  day_stop: 80'; tx s1 11 develop 50 today; tx s2 12 develop 31 today other; Q_DEV="90"; cycle
+setup; machine $'costs:\n  day_stop: 80'; tx s1 11 develop 50 today; tx s2 12 develop 31 today "" other; Q_DEV="90"; cycle
 t "AC-5 stopped while the estimate is today's" not launched_has "/sf:develop 90"
 # the same sessions, one day later: they now belong to yesterday
-tx s1 11 develop 50 yesterday; tx s2 12 develop 31 yesterday other
+tx s1 11 develop 50 yesterday; tx s2 12 develop 31 yesterday "" other
 touch -d '2 minutes ago' "$CLAUDE_CONFIG_DIR"/projects/*/s1.jsonl "$CLAUDE_CONFIG_DIR"/projects/*/s2.jsonl
 reset; cycle
 t "AC-5 the next cycle starts the run again" launched_has "/sf:develop 90"
@@ -207,7 +207,7 @@ t "AC-6 the limits CLI lists no card" test -z "$(lim)"
 # ---- AC-7: no costs, or only some of the three keys: each absent limit does nothing
 # base [nobig]: cards 78-80 spent 30 today each (90, and 120 with another project's 30); card 77 spent 500 days ago
 base() {
-  setup; tx b 78 develop 30 today; tx c 79 develop 30 today; tx d 80 develop 30 today; tx e 5 develop 30 today other; Q_DEV="78 79 80"
+  setup; tx b 78 develop 30 today; tx c 79 develop 30 today; tx d 80 develop 30 today; tx e 5 develop 30 today "" other; Q_DEV="78 79 80"
   [ "${1:-}" = nobig ] || { tx a 77 develop 500 yesterday; Q_DEV="77 78 79 80"; }
 }
 all_started() { local n; for n in $Q_DEV; do launched_has "/sf:develop $n" || return 1; done; }
