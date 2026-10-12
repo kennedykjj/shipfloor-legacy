@@ -1,7 +1,7 @@
 """Local dashboard: one page and a JSON API over ~/.shipfloor and the Claude Code transcripts of the
 factory's runs. Read-only, except the owner's decisions on a card that waits, messages to a running card and this machine's
 settings (the pool and the pauses)."""
-import argparse, json, os, re, secrets, shlex, shutil, statistics, subprocess, sys, threading, time, webbrowser
+import argparse, hashlib, json, os, re, secrets, shlex, shutil, statistics, subprocess, sys, threading, time, webbrowser
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -70,7 +70,13 @@ addEventListener("load",function(){
   var chg=[].map.call(document.querySelectorAll(".item.chg"),function(it){
    var s=it.closest("section"),h=s&&s.querySelector("h2"),p=it.querySelector("p"),t=it.querySelector("textarea");
    return "- ["+(h?h.textContent:"")+"] "+(p?p.textContent:"")+"\\n  -> "+((t&&t.value.trim())||"(no note)")});
-  parent.postMessage({shipfloor:"review-progress",done:m?+m[1]:0,total:m?+m[2]:0,changes:chg},"*")}
+  parent.postMessage({shipfloor:"review-progress",done:m?+m[1]:0,total:m?+m[2]:0,changes:chg},"*");
+  /* the marks go to the drawer too, which saves them on the server (st is the page's own top-level let) */
+  try{var j=JSON.stringify(st);if(j!==last){last=j;parent.postMessage({shipfloor:"review-marks",rev:sv&&sv.rev,marks:st},"*")}}catch(e){}}
+ /* the server's marks replace the browser's own before the first send, so a reopened review shows them */
+ var last="",sv=window.__shipfloorMarks;
+ try{if(sv&&sv.marks&&Object.keys(sv.marks).length&&typeof st!=="undefined"&&typeof render==="function"){st=sv.marks;render()}
+  if(typeof st!=="undefined")last=JSON.stringify(st)}catch(e){}
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
@@ -182,6 +188,48 @@ class Factory:
 
     def pdir(self, p):
         return self.home / "projects" / p
+
+    def page_rev(self, p, n):
+        """First 16 hex of the page's SHA-256: a rebuilt page has another rev, so old marks stop applying. None without a page."""
+        try:
+            return hashlib.sha256((self.pdir(p) / "reviews" / f"{n}.html").read_bytes()).hexdigest()[:16]
+        except OSError:
+            return None
+
+    def marks_block(self, p, n):
+        """The <script> that hands the stored marks to the embedded page. < > & are escaped so a note cannot close the script."""
+        rev, marks = self.page_rev(p, n), {}
+        try:
+            d = json.loads((self.pdir(p) / "reviews" / f"{n}.marks.json").read_text(encoding="utf-8"))
+            if rev and d.get("rev") == rev and isinstance(d.get("marks"), dict):
+                marks = d["marks"]
+        except (OSError, ValueError, AttributeError):
+            pass
+        j = json.dumps({"rev": rev, "marks": marks}).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+        return f"<script>window.__shipfloorMarks={j}</script>"
+
+    def save_marks(self, p, n, body):
+        """Keeps the Keep/Change marks of a review page (reviews/<n>.marks.json). Nothing is stored on a refusal."""
+        rev = self.page_rev(p, n)
+        if rev is None:
+            return 404, {"error": "no review page"}
+        m = body.get("marks") if isinstance(body, dict) else None
+        if not isinstance(m, dict) or len(m) > 500 or not isinstance(body.get("rev"), str):
+            return 400, {"error": "marks are not in the expected shape"}
+        for k, v in m.items():
+            if not (re.fullmatch(r"[a-z0-9-]{1,80}", k) and isinstance(v, dict) and v.get("s") in ("ok", "chg")
+                    and isinstance(v.get("n"), str) and len(v["n"]) <= 2000):
+                return 400, {"error": f"mark '{k[:80]}' is not valid"}
+        if body["rev"] != rev:
+            return 409, {"error": "the page changed since these marks were made"}
+        f = self.pdir(p) / "reviews" / f"{n}.marks.json"
+        if not m:
+            f.unlink(missing_ok=True)
+            return 200, {"ok": True}
+        tmp = f.with_name(f"{n}.marks.json.tmp")
+        tmp.write_text(json.dumps({"rev": rev, "marks": {k: {"s": v["s"], "n": v["n"]} for k, v in m.items()}}), encoding="utf-8")
+        os.replace(tmp, f)
+        return 200, {"ok": True}
 
     def config(self, p):
         """factory.yml, read again only when it changed: the dispatcher replaces the file on every cycle, and on
@@ -1138,7 +1186,7 @@ class Handler(BaseHTTPRequestHandler):
                 if page.is_file():
                     html = page.read_bytes()
                     if q.get("embed") == ["1"]:
-                        html = html.replace(b"</head>", EMBED_CSS.encode() + b"</head>", 1)
+                        html = html.replace(b"</head>", f.marks_block(parts[1], int(parts[2])).encode() + EMBED_CSS.encode() + b"</head>", 1)
                     # agents write these pages: sandboxed, they get an opaque origin and cannot call the API
                     return self.send(200, html, "text/html; charset=utf-8",
                                      [("Content-Security-Policy", "sandbox allow-scripts")])
@@ -1161,6 +1209,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(*self.factory.set_pause(body.get("project"), bool(body.get("paused"))))
             except ValueError:
                 return self.send(400, {"error": "body is not JSON"})
+            except Exception as e:
+                return self.send(500, {"error": f"{type(e).__name__}: {e}"})
+        if len(parts) == 5 and parts[:2] == ["api", "card"] and parts[4] == "marks" and parts[3].isdigit() and parts[2] in self.factory.projects():
+            size = int(self.headers.get("Content-Length") or 0)
+            if size > 256 * 1024:  # decided before reading anything
+                self.close_connection = True
+                return self.send(400, {"error": "body is over 256 KB"})
+            try:
+                body = json.loads(self.rfile.read(size) or b"{}")
+            except ValueError:
+                return self.send(400, {"error": "body is not JSON"})
+            try:
+                return self.send(*self.factory.save_marks(parts[2], int(parts[3]), body))
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()

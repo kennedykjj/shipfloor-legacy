@@ -629,7 +629,13 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
 
 // Every region is rewritten only when its markup changed, so polling keeps focus, scroll and typed text.
-function setHTML(el, html) { if (el._html === html) return false; el._html = html; el.innerHTML = html; tick(el); return true; }
+// review marks wait here (one per dashboard, for the card they were made on) until the debounce fires or the iframe goes away
+const MARKS = { wait: null, timer: 0 };
+function flushMarks() {  // silent on purpose: a lost save changes nothing on screen; keepalive lets it outlive a hidden page
+  clearTimeout(MARKS.timer); MARKS.timer = 0; const w = MARKS.wait; MARKS.wait = null; if (!w) return;
+  api(`/api/card/${encodeURIComponent(w.p)}/${w.n}/marks`, { method: "POST", keepalive: true, body: JSON.stringify({ rev: w.rev, marks: w.marks }) });  // through api(), as every request: a refused link stops this one too
+}
+function setHTML(el, html) { if (el._html === html) return false; if (el.id === "pane") flushMarks(); el._html = html; el.innerHTML = html; tick(el); return true; }
 // Language: the page is written in English. In another language (the machine's, ~/.shipfloor/config.yml) every piece of
 // text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
 // 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
@@ -1823,11 +1829,16 @@ window.addEventListener("message", (e) => {
   const f = document.querySelector("#pane iframe"); const m = e.data;
   if (f && e.source === f.contentWindow && m && m.shipfloor === "ready") { themeReview(); f.heard = true; f.classList.remove("plain"); }
   if (f && e.source === f.contentWindow && m && m.shipfloor === "themed") f.classList.add("themed");
+  if (f && e.source === f.contentWindow && S.open && m && m.shipfloor === "review-marks" && typeof m.rev === "string" && m.marks && typeof m.marks === "object" && !Array.isArray(m.marks)) {
+    const [p, n] = S.open.split("/"); MARKS.wait = { p, n, rev: m.rev, marks: m.marks };
+    clearTimeout(MARKS.timer); MARKS.timer = setTimeout(flushMarks, 500);
+  }
   if (!f || e.source !== f.contentWindow || !S.open || !m || m.shipfloor !== "review-progress") return;
   if (S.unseen === S.open) S.unseen = null;
   S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
   syncDecide();
 });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushMarks(); });
 // a page that never says "ready" does not take the theme: show it plain; one that did is never left hidden
 $("pane").addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
 $("list").addEventListener("scroll", fade); window.addEventListener("resize", fade);
@@ -1841,6 +1852,7 @@ $("d-max").innerHTML = MAX;
 $("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
 // leaving the page sends what still waits its five seconds; switching tabs does not
 window.addEventListener("pagehide", () => { Object.keys(S.pending).forEach((k) => sendPending(k, true)); if (INB.hold) inboxFlush(true); });  // true: fetch keepalive, which outlives the page
+window.addEventListener("pagehide", flushMarks);  // the review marks too; flushMarks sends with keepalive
 window.addEventListener("pageshow", (e) => { if (e.persisted) loadOverview(); });
 loadLang().finally(loadOverview);
 setTimeout(() => { if (!S.overview && !S.refused) { $("msg").removeAttribute("role"); setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); } }, 6000);
