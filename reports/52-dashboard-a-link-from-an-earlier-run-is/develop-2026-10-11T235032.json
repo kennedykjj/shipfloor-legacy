@@ -1,0 +1,19 @@
+{
+  "issue": 52,
+  "slug": "dashboard-a-link-from-an-earlier-run-is",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T02:36:00Z",
+  "finished_at": "2026-10-12T02:51:00Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 45270, "duration_s": 118},
+    {"role": "engineer", "tokens": 27896, "duration_s": 88},
+    {"role": "engineer", "tokens": 42072, "duration_s": 151},
+    {"role": "engineer", "tokens": 20616, "duration_s": 85}
+  ],
+  "rounds": {"3": 0, "4": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
