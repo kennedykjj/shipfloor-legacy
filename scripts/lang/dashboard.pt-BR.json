@@ -142,9 +142,18 @@
     "No gates for this stage.": "Sem gates neste estágio.",
     "No log for this card yet.": "Ainda não há log para este card.",
     "No report yet. Each stage writes one when it ends.": "Ainda não há relatório. Cada estágio escreve um ao terminar.",
-    "No review page for this card. Refine builds it when the spec is ready.": "Não há página de revisão para este card. O refine a monta quando a spec fica pronta.",
+    "No review page for this card.": "Não há página de revisão para este card.",
+    "No review page yet. Refine has not built it for this spec.": "Ainda não há página de revisão. O refine ainda não a montou para esta spec.",
+    "No review page for this pull request. The": "Não há página de revisão para este pull request. A",
+    "Gates tab": "aba Gates",
+    "has what validation checked; the changes are in the": "tem o que a validação verificou; as mudanças estão no",
+    "has what validation checked; the changes are in the pull request.": "tem o que a validação verificou; as mudanças estão no pull request.",
+    "Nothing to show yet. The": "Ainda não há nada para mostrar. A",
+    "Log tab": "aba Log",
+    "has what the run wrote.": "tem o que a execução escreveu.",
     "This card has no review page yet.": "Este card ainda não tem página de revisão.",
-    "No validation report for this card yet.": "Ainda não há relatório de validação para este card.",
+    "Nothing is recorded for this card yet.": "Ainda não há nada registrado para este card.",
+    "Open the log": "Abrir o log",
     "No run is working on this card now. A message reaches only a run in progress.": "Nenhuma execução trabalha neste card agora. Uma mensagem só chega a uma execução em andamento.",
     "Enter sends, Shift+Enter starts a new line.": "Enter envia, Shift+Enter começa uma linha nova.",
     "What the session says and does": "O que a sessão diz e faz",
@@ -517,6 +526,10 @@
       "$$$1,$2 est. desde o Inbox."
     ],
     [
+      "\\$(\\d+)\\.(\\d+) est. so far",
+      "$$$1,$2 est. até agora"
+    ],
+    [
       "Unblocking lets it spend up to \\$(\\d+)\\.(\\d+) more, counted from now\\.",
       "Desbloquear deixa o card gastar até mais $$$1,$2, contados a partir de agora."
     ],
@@ -807,6 +820,22 @@
     [
       "^Maximize today$",
       "Maximizar hoje"
+    ],
+    [
+      "^Minimize the lifecycle$",
+      "Minimizar o ciclo de vida"
+    ],
+    [
+      "^Minimize today$",
+      "Minimizar hoje"
+    ],
+    [
+      "^Expand the lifecycle$",
+      "Expandir o ciclo de vida"
+    ],
+    [
+      "^Expand today$",
+      "Expandir hoje"
     ],
     [
       "^Restore what waits for you$",
