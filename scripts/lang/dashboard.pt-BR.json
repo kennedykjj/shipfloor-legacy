@@ -261,6 +261,7 @@
     "Follow the system": "Seguir o sistema",
     "Auto": "Automático",
     "Floor tape in dark, Kraft in light": "Fita de piso no escuro, Kraft no claro",
+    "More themes": "Mais temas",
     "Dark": "Escuros",
     "Light": "Claros",
     "Floor tape": "Fita de piso",
@@ -394,6 +395,22 @@
     "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora."
   },
   "rx": [
+    [
+      "^In use: ",
+      "Em uso: "
+    ],
+    [
+      "\\bin use\\b",
+      "em uso"
+    ],
+    [
+      "est\\. spent today",
+      "est. gastos hoje"
+    ],
+    [
+      "(\\d+) runs? today",
+      "$1 execuções hoje"
+    ],
     [
       "^Default \\((.+)\\)$",
       "Padrão ($1)"
@@ -605,6 +622,14 @@
     [
       "^Resume (\\S+)$",
       "Retomar $1"
+    ],
+    [
+      "^Minimize more themes$",
+      "Minimizar mais temas"
+    ],
+    [
+      "^Expand more themes$",
+      "Expandir mais temas"
     ],
     [
       "^Minimize (\\S+)$",
