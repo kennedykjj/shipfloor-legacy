@@ -263,14 +263,31 @@ class Factory:
             self._boards[p] = (data or {}).get("url")
         return self._boards[p]
 
-    def titles(self, p):
+    def titles(self, p, wanted):
+        """{n: title} for the wanted card numbers, asked of GitHub by number (100 to a call). Everything is
+        re-read after 5 minutes, a number never read at the next poll; a failed read keeps what was known."""
         at, known = self._titles.get(p, (0, {}))
-        if time.time() - at > 300:
-            repo = shipfloor_config.dotted(self.config(p), "project.repo")
-            issues, _ = gh_json("issue", "list", "--repo", str(repo), "--state", "all", "--limit", "300", "--json", "number,title")
-            if isinstance(issues, list):
-                known = {i["number"]: i.get("title", "") for i in issues if isinstance(i, dict) and "number" in i}
-            self._titles[p] = (time.time(), known)
+        stale = time.time() - at > 300
+        wanted = sorted(set(wanted))
+        ask = wanted if stale else [n for n in wanted if n not in known]
+        owner, _, name = str(shipfloor_config.dotted(self.config(p), "project.repo")).partition("/")
+        read, ok = {}, bool(ask)
+        for i in range(0, len(ask), 100):
+            batch = ask[i:i + 100]
+            fields = " ".join(f'i{int(n)}: issueOrPullRequest(number: {int(n)}) {{ ... on Issue {{ title }} ... on PullRequest {{ title }} }}' for n in batch)
+            query = f'query($owner: String!, $name: String!) {{ repository(owner: $owner, name: $name) {{ {fields} }} }}'
+            r = gh("api", "graphql", "-f", f"query={query}", "-f", f"owner={owner}", "-f", f"name={name}")
+            try:  # a number GitHub does not know makes gh exit 1 but the others are still printed
+                repo = ((json.loads(r.stdout or "null") or {}).get("data") or {}).get("repository")
+            except (ValueError, AttributeError):
+                repo = None
+            if not isinstance(repo, dict):
+                ok = False
+                break
+            read.update({n: ((repo.get(f"i{n}") or {}).get("title") or "") for n in batch})
+        if ok:
+            known = {**known, **read}
+            self._titles[p] = (time.time() if stale else at, known)
         return known
 
     def blocked(self, p):
@@ -440,7 +457,7 @@ class Factory:
         costs = [s["cost"] for s in sessions]
         columns, _ = self.board(p)
         reports = self.reports(p, n)
-        return {"project": p, "issue": n, "title": self.titles(p).get(n, ""), "column": columns.get(n),
+        return {"project": p, "issue": n, "title": self.titles(p, [*columns, n]).get(n, ""), "column": columns.get(n),
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
                 "total": None if None in costs else round(sum(costs), 2), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
@@ -660,7 +677,7 @@ class Factory:
                 r["activity"] = doing.get((r["issue"], r["stage"]), [])
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
-            titles, blocked = self.titles(p), self.blocked(p)
+            titles, blocked = self.titles(p, columns), self.blocked(p)
             # how long a stage usually takes (its clean runs) and when each card's last run ended
             took, since = {}, {}
             for r in all_runs:
