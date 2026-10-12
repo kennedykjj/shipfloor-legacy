@@ -155,6 +155,7 @@ for s, want in (("Model for engineer", "Modelo de engineer"), ("default is Sonne
     out.append("ok" if want in tr(s) else "rx: %r comes out %r, want %r in it" % (s, tr(s), want))
 print("\n".join(out))' "$(nat "$FACTORY_DIR/lang/dashboard.pt-BR.json")" 2>&1)"
 while IFS= read -r line; do
+  line="${line%$'\r'}"
   [ "$line" = ok ] && pass "AC-6 pt-BR catalog entry" || fail "AC-6 pt-BR catalog: $line"
 done <<< "$got"
 finish
