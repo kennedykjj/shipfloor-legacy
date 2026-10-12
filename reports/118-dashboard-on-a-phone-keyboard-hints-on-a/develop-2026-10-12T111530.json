@@ -1,0 +1,18 @@
+{
+  "issue": 118,
+  "slug": "dashboard-on-a-phone-keyboard-hints-on-a",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T11:08:00-03:00",
+  "finished_at": "2026-10-12T11:16:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 36597, "duration_s": 62},
+    {"role": "engineer", "tokens": 18248, "duration_s": 96}
+  ],
+  "rounds": {"acceptance-tests": 1, "implementation": 1},
+  "gates_failed": [],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
