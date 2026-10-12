@@ -1,8 +1,83 @@
 # Shipfloor
 
-**A software factory for Claude Code.** Turns GitHub issues into shipped PRs: agents refine, build and validate; deterministic gates they can't edit decide what passes. It works in any repository that declares a `.shipfloor/factory.yml`.
+**A software factory for Claude Code.** You write a GitHub issue. Agents refine it into a spec, build it against failing acceptance tests, review it and open the pull request. You approve twice, and it ships. What passes is decided by deterministic gates the agents cannot edit, not by an agent saying it is done.
 
 > The shop floor is where a factory's work gets done. This one ships software: the agents build; the gates hold.
+
+Shipfloor is a Claude Code plugin and a set of Bash and Python scripts. It runs on your own machine, with your own Claude Code and GitHub accounts, against any repository that declares a `.shipfloor/factory.yml`. A local dashboard shows what waits for you, what is running, each run's log and what every card cost.
+
+> [!NOTE]
+> Nothing is hosted: the factory is a scheduled task on your machine that starts Claude Code sessions. It runs on Windows (Git Bash), macOS and Linux.
+
+**In this README:** [A card's way to production](#a-cards-way-to-production) · [Architecture](#architecture) · [How it works](#how-it-works) · [Install](#install) · [Agent pool](#agent-pool) · [Cost limits](#cost-limits) · [Notifications](#notifications) · [Working hours](#working-hours) · [Parallel work](#parallel-work) · [Operation](#operation) · [Language](#language) · [Security](#security) · [Development](#development)
+
+## A card's way to production
+
+The board is a GitHub Project with ten fixed columns. You own the yellow ones: you move a card into them, or the factory leaves a card there for your decision. The factory works the dark ones.
+
+```mermaid
+flowchart LR
+  inbox([Inbox]) -->|you pick it| rr([Ready for Refinement])
+  rr -->|refine| tr[Technical Refinement]
+  tr --> sr([Spec Review])
+  sr -->|you approve the spec| rd([Ready for Dev])
+  rd -->|develop| co[Coding]
+  co --> va[Validation]
+  va -->|validate| st([Staged])
+  st -->|you approve the PR| rp([Ready for Prod])
+  rp -->|deploy| done[Done]
+  sr -.->|you ask for changes| rr
+  st -.->|you ask for changes| co
+  classDef owner fill:#f2c230,stroke:#8a6d00,color:#1a1a1a
+  classDef factory fill:#22303f,stroke:#4d6177,color:#eef3f7
+  class inbox,rr,sr,rd,st,rp owner
+  class tr,co,va,done factory
+```
+
+You decide two things per card: whether the spec is what you want built, and whether the pull request ships. Everything between those two decisions runs without you.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  you(["You"])
+
+  subgraph machine["Your machine"]
+    direction TB
+    dash["Dashboard<br/>a local page"]
+    disp["Dispatcher<br/>scheduled, every 3 minutes"]
+    subgraph runs["Pipelines"]
+      direction LR
+      refine["refine<br/>spec"] --> develop["develop<br/>tests, then code"] --> validate["validate<br/>review, pull request"]
+    end
+    gates{{"Gates<br/>scripts the agents cannot edit"}}
+    deploy["Deploy script<br/>merges what you approved"]
+    disp -->|starts| runs
+    runs -->|must pass| gates
+    disp -->|starts, once you approve| deploy
+  end
+
+  subgraph github["GitHub"]
+    direction TB
+    board["Issues and the Project board"]
+    prs["Pull requests"]
+    ci["Actions: the test suite"]
+    prs --> ci
+  end
+
+  you -->|writes issues, picks cards| board
+  you -->|approves or asks for changes| dash
+  dash -->|moves your cards| board
+  disp -->|reads| board
+  validate -->|opens| prs
+  deploy -->|waits for CI, merges| prs
+```
+
+- **Dispatcher.** A scheduled task that reads the board of every registered project and starts a pipeline for each card that is ready, within the machine's pool of sessions. It keeps no state of its own: the board is the source of truth.
+- **Pipelines.** `refine`, `develop` and `validate` are Claude Code sessions started with `claude -p`. Each is a tech lead that calls role agents (product owner, UX, security, QA, engineers) and works in the card's own git worktree.
+- **Gates.** Scripts that decide what passes: who may touch which files, that the acceptance tests failed before the code existed and pass after, that nobody edited them in between, that the build is green. They run from an installed copy outside every worktree and read the project's config from `origin/main`, so an agent cannot change the rules that judge it.
+- **Deploy.** A script, not an agent. It brings the branch up to date with `main`, waits for CI on the head you approved and merges. An agent is called only to resolve a conflict or fix what broke on top of `main`, within small limits.
+- **Dashboard.** A page served on `127.0.0.1`: what waits for you, live runs and their logs, the cost of each card from the tokens of its runs, and the review pages where you approve.
 
 ## How it works
 
