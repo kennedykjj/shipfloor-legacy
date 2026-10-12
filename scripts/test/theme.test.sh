@@ -68,4 +68,44 @@ PY
 while IFS= read -r line; do
   case "$line" in "ok "*) pass "${line#ok }" ;; "no "*) fail "${line#no }" ;; *) fail "unexpected: $line" ;; esac
 done <<< "$out"
+
+# The decision column's well and the Approve pill's hover keep 4.5:1 in every theme (#120, AC-5).
+out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" <<'PY'
+import re, sys
+h = open(sys.argv[1], encoding="utf-8").read()
+blocks = {n: dict(re.findall(r"--([a-z0-9-]+):\s*([^;]+);", b)) for n, b in re.findall(r'\[data-theme="([a-z]+)"\]\s*\{([^}]*)\}', h)}
+base = blocks["charcoal"]
+def rgb(c): return [int(c[i:i + 2], 16) for i in (1, 3, 5)]
+def lum(v):
+    v = [x / 255 for x in v]
+    v = [x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4 for x in v]
+    return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]
+def ratio(a, b):
+    x, y = sorted((lum(a), lum(b)), reverse=True)
+    return (x + .05) / (y + .05)
+res = []
+def check(name, cond, why): res.append(("ok " if cond else "no ") + (name if cond else f"{name}: {why}"))
+for name, t in sorted(blocks.items()):
+    tok = lambda k: t.get(k, base.get(k, "")).strip()   # a theme that omits a token inherits the base one
+    well = tok("well")
+    if not re.fullmatch(r"#[0-9a-fA-F]{8}", well):
+        check(f"AC-5 {name}: --well is an 8-digit hex", False, f"--well is {well or 'missing'}")
+    else:
+        al = int(well[7:9], 16) / 255
+        panel = rgb(tok("panel"))
+        under = [round(c * (1 - al) + w * al) for c, w in zip(panel, rgb(well))]
+        for fg in ("text", "soft", "muted"):
+            r = ratio(rgb(tok(fg)), under)
+            check(f"AC-5 {name}: {fg} on the decision well is 4.5:1", r >= 4.5, f"{fg} on --well over panel is {r:.2f}:1")
+    text, ground = rgb(tok("text")), rgb(tok("ground"))
+    mix = [round(a * .88 + b * .12) for a, b in zip(text, ground)]
+    r = ratio(ground, mix)
+    check(f"AC-5 {name}: ground on the pill's hover fill is 4.5:1", r >= 4.5, f"ground on 88% text + 12% ground is {r:.2f}:1")
+check("AC-5 twelve themes are checked", len(blocks) == 12, f"{len(blocks)} themes")
+print("\n".join(res))
+PY
+)"
+while IFS= read -r line; do
+  case "$line" in "ok "*) pass "${line#ok }" ;; "no "*) fail "${line#no }" ;; *) fail "unexpected: $line" ;; esac
+done <<< "$out"
 finish

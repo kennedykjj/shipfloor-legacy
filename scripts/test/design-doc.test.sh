@@ -156,6 +156,57 @@ check("AC-6 every sidecar typography entry is in the front matter", not badt, "n
 gen = str(sidecar.get("generatedAt", ""))[:10]
 check("AC-6 generatedAt is on or after 2026-10-11", gen >= "2026-10-11", f"generatedAt is {gen or 'missing'}")
 
+# ---- #120: the twelve values the detector reported
+# AC-2: the six font sizes are gone from the page; 28px is a step of the ramp
+for px in ("16px", "21px", "22px", "24px", "26px", "30px"):
+    sels = uses["font-size"].get(px, [])
+    check(f"AC-2 no rule uses font-size {px}", not sels, f"{px} is still used by {', '.join(sels[:4])}")
+check("AC-2 28px is a step of the type ramp (typography.section)", "28px" in ramp,
+      f"the ramp is {sorted(ramp)}; typography.section is {typo.get('section', 'missing')}")
+check("AC-2 typography.section is 28px", norm(str((typo.get("section") or {}).get("fontSize", ""))) == "28px",
+      f"typography.section.fontSize is {(typo.get('section') or {}).get('fontSize', 'missing')}")
+
+# AC-3: the radii 1, 10, 14px are gone from the page; 40px is the named step rounded.pill
+for px in ("1px", "10px", "14px"):
+    sels = uses["border-radius"].get(px, [])
+    check(f"AC-3 no rule uses border-radius {px}", not sels, f"{px} is still used by {', '.join(sels[:4])}")
+check("AC-3 rounded.pill is 40px", str(rounded.get("pill", "")).strip() == "40px", f"rounded.pill is {rounded.get('pill', 'missing')}")
+check("AC-3 40px is a step of the radius scale", "40px" in scale, f"the scale is {sorted(scale)}")
+check("AC-3 Shapes names the pill step", re.search(r"^#+[ \t]*Shapes[ \t]*\n(?:(?!^#{1,3}[ \t]).)*\bpill\b", design, flags=re.S | re.M | re.I) is not None,
+      "the Shapes section never names the pill")
+
+# AC-4: the decision column's well and the pill's hover come from tokens
+lit = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(|\b(?:white|black|gray|grey|red|green|blue|silver|yellow|orange|purple|navy|teal|maroon|olive|lime|aqua|fuchsia)\b", re.I)
+idec = [b for s, b in rules if s == ".idec"]
+check("AC-4 the .idec rule exists", len(idec) == 1, f"found {len(idec)} rules for .idec")
+body_idec = idec[0] if idec else ""
+check("AC-4 .idec holds no color literal", not lit.search(body_idec), "the .idec rule has a literal color: " + ", ".join(m.group(0) for m in lit.finditer(body_idec)))
+check("AC-4 .idec background is var(--well)", re.search(r"(?<![\w-])background\s*:\s*var\(--well\)\s*[;}]?", body_idec) is not None,
+      "the .idec background is " + (re.search(r"(?<![\w-])background\s*:\s*([^;]+)", body_idec).group(1).strip() if re.search(r"(?<![\w-])background\s*:", body_idec) else "missing"))
+hov = [b for s, b in rules if ".pill:hover" in s]
+check("AC-4 the Approve pill has a hover rule", len(hov) >= 1, "no rule for .pill:hover")
+for i, b in enumerate(hov):
+    check("AC-4 the .pill:hover rule holds no color literal", not lit.search(b), "the .pill:hover rule has a literal color: " + ", ".join(m.group(0) for m in lit.finditer(b)))
+    bg = re.search(r"(?<![\w-])background\s*:\s*([^;]+)", b)
+    bgv = bg.group(1).strip() if bg else ""
+    check("AC-4 the .pill:hover background is a color-mix over tokens",
+          bool(re.fullmatch(r"color-mix\(\s*in srgb\s*,\s*var\(--[a-z-]+\)[^,]*,\s*var\(--[a-z-]+\)[^,]*\)", bgv)),
+          f"the .pill:hover background is {bgv or 'missing'}")
+
+# AC-6: Known deviations lists only values the page still uses, and none this issue resolved
+devtxt = dev.group(1) if dev else ""
+items = re.findall(r"`([^`]+)`\s*[—–-]+\s*`([^`]+)`", devtxt)
+check("AC-6 Known deviations lists no value this issue resolved",
+      not [v for v, _ in items if norm(v) in {"16px", "21px", "22px", "24px", "26px", "30px", "1px", "10px", "14px", "40px"}],
+      "still listed: " + ", ".join(v for v, _ in items if norm(v) in {"16px", "21px", "22px", "24px", "26px", "30px", "1px", "10px", "14px", "40px"}))
+for v, s in items:
+    n = norm(v)
+    sels = [x for p in uses for x in uses[p].get(n, [])] if n else []
+    sel = re.sub(r"\s+", " ", s).strip()
+    check(f"AC-6 Known deviations `{v}` is used by {sel} on the page", any(sel == x or sel in x or x in sel for x in sels),
+          f"{v} is listed for {sel} but the page uses it in: {', '.join(sels) or 'no rule'}")
+check("AC-6 Known deviations keeps 15.5px (.isec .plain)", any(norm(v) == "15.5px" for v, _ in items), "the 15.5px line is gone")
+
 print("\n".join(res))
 PY
 )"
