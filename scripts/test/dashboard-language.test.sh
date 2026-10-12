@@ -29,7 +29,7 @@ start_dash() {
 }
 post() { curl -s -w '\n%{http_code}' -X POST -H 'Content-Type: application/json' -H "X-Shipfloor-Token: $tok" -d "$1" "$base/api/settings/machine"; }
 get() { curl -s -H "X-Shipfloor-Token: $tok" "$base$1"; }
-jget() { printf '%s' "$1" | $PY -c "import json,sys; d=json.load(sys.stdin); print($2)" 2>&1 | tail -n 1; }
+jget() { printf '%s' "$1" | $PY -X utf8 -c "import json,sys; d=json.load(sys.stdin); print($2)" 2>&1 | tail -n 1; }
 page_has() { if curl -s "$base/" | grep -qF -- "$1"; then pass "$2: the page carries '$1'"; else fail "$2: the page does not carry '$1'"; fi; }
 cat_has() { if grep -qF -- "$1" "$FACTORY_DIR/lang/dashboard.pt-BR.json"; then pass "$2: the pt-BR catalog carries '$1'"; else fail "$2: the pt-BR catalog does not carry '$1'"; fi; }
 # cfgrest: config.yml as JSON without its language key
