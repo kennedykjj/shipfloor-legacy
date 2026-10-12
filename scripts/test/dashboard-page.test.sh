@@ -99,16 +99,17 @@ check("AC-6",
   None if (px(rule(".foot kbd")) or 12) >= 12 else ".foot kbd is smaller than 12px")
 
 # AC-7
-feed, dayf = func("renderFeed"), func("day")
-evday = rule(".ev-day")
+feed = func("renderFeed")
+fday = rule(".fday")
+rawm = re.search(r'const RAW = "[^"]*"', h)
+headm = re.search(r'head\s*=\s*d === day \? "" : `([^`]*)`', feed)
 check("AC-7",
-  None if re.search(r'<h2 class="ev-day"', feed) else 'renderFeed() emits no <h2 class="ev-day"> day row',
-  None if dayf and "Today" in dayf and "Yesterday" in dayf and "weekday" in dayf else "no day(iso) helper returning Today, Yesterday or weekday and date",
-  None if "day(" in feed else "renderFeed() does not call day() when the calendar day changes",
-  None if evday and "var(--muted)" in evday and "600" in evday and "var(--edge)" in evday else ".ev-day has no CSS (--muted, 600, --edge hairline)",
-  None if ".ev-day" not in re.search(r'const RAW = "[^"]*"', h).group(0) else "the day row is under the RAW selector",
-  None if '<div class="ev"' not in (re.search(r'<h2 class="ev-day".*', feed) or re.search("", "")).group(0) else "the day row sits inside .ev",
-  tr("Yesterday", "Ontem"))
+  None if headm and 'class="fday' in headm.group(1) else 'renderFeed() emits no day row (class "fday") when the calendar day changes',
+  None if headm and "toLocaleDateString" in headm.group(1) and "weekday" in headm.group(1) else "the day row does not name the day (weekday, day, month)",
+  None if re.search(r"\$\{head\}<li class=\"fev", feed) else "the day row is not placed before the event row (${head} ahead of <li class=\"fev\")",
+  None if headm and "fev" not in headm.group(1) else "the day row sits inside an event row",
+  None if fday and "var(--hair)" in rule(".fday::after") else ".fday has no CSS (day row with a hairline)",
+  None if not rawm or ".fday" not in rawm.group(0) else "the day row is under the RAW selector")
 
 # AC-8
 lane = rule(".lane")
