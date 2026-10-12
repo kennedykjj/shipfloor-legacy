@@ -1050,7 +1050,7 @@ function passHtml(c) {
   const note = S.note[c.key] ? `<p class="pnote" role="status">${esc(S.note[c.key])}</p>` : "";
   const review = (label, cls) => `<button${cls} data-open="${k}" data-go="review">${label}</button>`, changes = '<button data-q="changes">Request changes</button>', link = gh(slug, c.issue);
   const acts = stop ? `<button class="pill" data-q="unblock">Unblock &amp; retry</button><button data-open="${k}">Details</button><button data-open="${k}" data-go="log">Log</button>${link}`
-    : c.column === "Spec Review" ? `${review("Review",' class="pill"')}${changes}${link}`
+    : c.column === "Spec Review" ? `${review("Review", ' class="pill"')}${changes}${link}`
     : `<button class="pill" data-q="approve">Approve</button>${review("Review", "")}${changes}${link}`;
   const edit = S.editing === c.key && moves ? `<div class="edit"><label class="cap" for="qc">What should change in #${c.issue}? It is posted on the issue.</label><textarea id="qc"></textarea><div><button class="pill" aria-describedby="send-to" data-q="send">Request changes</button><span class="hint" id="send-to">→ ${esc(moves[1])}</span><button data-q="cancel">Cancel</button></div></div>` : "";
   return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
@@ -1263,7 +1263,7 @@ function renderDecide(p, n, column) {
       ${stale(project()) ? `<p class="stale">The board snapshot is ${Math.round(project().board_age_s / 60)} min old. Approve and Request changes read the live board first and stop if the card moved.</p>` : ""}
       <div class="decide-a"><button class="btn approve" id="approve" aria-describedby="approve-to approve-hint" data-act="approve" data-label="Approve">Approve</button><span class="hint" id="approve-to">→ ${esc(moves[0])}</span><span class="hint" id="approve-hint"></span></div>
       <div class="decide-b"><textarea id="changes" aria-label="What should change" placeholder="What should change (posted on the issue)"></textarea>
-        <div class="acts"><button class="btn" id="request" aria-describedby="request-to" data-act="request-changes">Request changes</button><button class="btn ghost" id="fill" hidden></button></div><span class="hint" id="request-to">→ ${esc(moves[1])}</span></div>
+        <div class="acts"><button class="btn" id="request" aria-describedby="request-to" data-act="request-changes">Request changes</button><span class="hint" id="request-to">→ ${esc(moves[1])}</span><button class="btn ghost" id="fill" hidden></button></div></div>
       ${notice}</div>`
     : note ? `<div class="decide">${notice}</div>` : "";
   const text = $("changes")?.value; const focused = document.activeElement?.id;
