@@ -30,6 +30,49 @@ stages: {refine: 2, develop: 2, validate: 2, deploy: 1}
 
 `shipfloor pool` shows it and the runs in progress; `shipfloor pool set 6` and `shipfloor pool stage validate 3` change it. A project runs one deploy at a time (merges into main are serial); its `limits.<stage>.wip` in `factory.yml` caps the cards waiting in Spec Review (refine, default 2) and in Coding + Validation (develop, default 4).
 
+The same file picks the model each stage's session and each agent runs on, in two optional maps:
+
+```yaml
+models:
+  stages: {develop: sonnet}   # refine, develop, validate, deploy
+  agents: {engineer: haiku}   # a plugin agent, or the agent a project's layer names
+```
+
+A model is `opus`, `sonnet`, `haiku` or `fable`. A stage or agent left out keeps the model the plugin ships with (validate and deploy on Sonnet, refine and develop on Claude Code's default, each agent on its frontmatter model). A bad model or name does not stop the factory: `shipfloor doctor` warns about it, the run uses the shipped model, and the dashboard's Settings section "Agents and models" edits it, with the average cost per card of the last 7 days next to each stage.
+
+## Notifications
+
+The factory tells the owner when it needs them, so the dashboard does not have to be open. At the end of each dispatcher cycle it sends, once per wait:
+
+- a card waits in Spec Review or Staged;
+- a run is blocked (the message says the stage it stopped in);
+- one reminder for a wait that lasts `reminder_min` minutes, and no more;
+- the factory is stuck: the Claude usage limit was hit, a project is skipped, or no card moved for an hour in a project with cards at work and nothing paused;
+- optionally (`done`, off by default), a card reached production.
+
+A card that leaves its state and comes back waits anew and is told again. There are two channels: a Windows toast on this machine, and a phone push through [ntfy.sh](https://ntfy.sh), which is off until a topic is set. A message that one channel delivered counts as told. Quiet hours hold what is new; when they end, one notification lists what still waits. While `config.yml` is invalid, nothing is sent.
+
+Set it in the dashboard's Settings > Notifications, or by hand in the `notify` block of `~/.shipfloor/config.yml` (these are the defaults):
+
+```yaml
+notify:
+  events: {waiting: true, blocked: true, reminder: true, stuck: true, done: false}
+  channels: {toast: true, ntfy: false}
+  ntfy_topic: ""        # letters, digits, - and _, up to 64
+  reminder_min: 60      # 15 to 720
+  quiet: ""             # "HH:MM-HH:MM", for example "22:00-07:00"; the two times differ
+```
+
+To get the push, pick a topic that is long and random: anyone who knows the topic can read its notifications. Put it in `ntfy_topic`, turn `channels.ntfy` on, and subscribe to the same topic in the ntfy app on the phone. The push carries only the project and the card's number, title and state.
+
+## Working hours
+
+`hours` in `~/.shipfloor/config.yml` lists the windows (local time, 24-hour `HH:MM-HH:MM`, start included, end excluded) in which the dispatcher starts runs. Outside them it does everything else (board snapshot, reaping, retries) but starts nothing; runs in progress finish. A window whose end is before its start crosses midnight. Unset or `[]` means all hours; a malformed value is reported by `machine validate` and ignored.
+
+```yaml
+hours: ["08:00-23:00"]
+```
+
 ## Parallel work
 
 Cards built at the same time do not break `main`:
@@ -82,7 +125,7 @@ The factory was called Aghanim's Anvil (`aghanim`) before 0.7.0. To move a machi
 ## Operation
 
 `shipfloor dashboard` · `shipfloor list` · `shipfloor pool` · `shipfloor pause [project]` · `shipfloor resume [project]` · `shipfloor remove <project>` · `shipfloor metrics <project>` · `shipfloor clean <project>` · `shipfloor accept <project> <n> <reason>` (owner only: after reviewing how a card's acceptance test files changed since the QA commit, for example a merge from main resolved by hand, take them as they stand; `acceptance-intact` then passes those exact contents, recorded in `~/.shipfloor/projects/<project>/accepted.tsv`, and blocks again on any later edit). Before it comes to that, a card's own QA gets the first word: an engineer who finds an acceptance test wrong reports it instead of editing it, and when `acceptance-intact` fails on the card's own edit the Tech Lead sends the test back to QA, who either corrects it or puts it back and says what the code must do. QA's correction is a new QA commit, which becomes what the gate protects, and `gate.sh qa-amend <n>` keeps it honest without anyone reviewing it first: it touches only test files, loses no assertion line, switches no test off, and a card is amended at most twice. The amendment is commented on the issue and listed in the report.
-`shipfloor dashboard` (or `/sf:dashboard` inside Claude Code) opens a local page with the pool, live runs, logs (per card, and a Feed view with the dispatcher's log and every run's start and end in one timeline), the estimated cost of each card and the review pages, where Spec Review and Staged cards are approved or sent back. The In progress panel lists every card in the factory's hands: the sessions at work and, marked as waiting with the reason (a busy stage slot, a pause), the cards that wait for a run. Every panel, and every running session, has a maximize button in its corner that opens it over 90% of the screen: the lifecycle line becomes a board with each card by name in two lanes (upstream, to an approved spec; downstream, to production), and Today lists the day's runs one by one. What waits for you, maximized, is a decision inbox: the queue with the oldest wait first, what to read to decide the card in focus (the spec's problem, acceptance criteria and open questions from its review page; a pull request's size and checks; a block told in order: the step it stopped at, why, how the acceptance tests changed since QA wrote them, what the factory tried) and the decision as options that each say when to choose them and where the card goes next. A blocked card can be retried, sent back to Coding with a note, or, when `acceptance-intact` stopped it, have its tests taken as they stand (`shipfloor accept`). A decision waits five seconds so it can be undone. The Settings view changes this machine's limits (the pool, each stage's slots, the stacks; saved to `~/.shipfloor/config.yml` and read on the next cycle) and pauses the factory or one project at once; For a project it also sets how the factory operates on it on this machine (cards in progress and specs in refinement at once, how long the deploy waits, the largest conflict an agent may resolve): these are kept in `~/.shipfloor/projects/<project>/overrides.yml`, which every config reader lays over the project's `factory.yml`, and nothing else can be overridden there. What a project is (its files, layers and commands) is shown as the dispatcher last read it, with the file to edit in its repository. A card's Live tab shows its latest session as it happens (what the run and its subagents say and do) and, while a run works on the card, takes a message for it: the run and each of its subagents read the message after the tool call they are in (a hook the plugin ships, `hooks/hooks.json`), and no run ever waits for one.
+`shipfloor dashboard` (or `/sf:dashboard` inside Claude Code) opens a local page with the pool, live runs, logs (per card, and a Feed view with every run, what it left behind and the dispatcher's log in one timeline), the estimated cost of each card and the review pages, where Spec Review and Staged cards are approved or sent back. The In progress panel lists every card in the factory's hands: the sessions at work and, marked as waiting with the reason (a busy stage slot, a pause), the cards that wait for a run. Every panel, and every running session, has a maximize button in its corner that opens it over 90% of the screen: the lifecycle line becomes a board with each card by name in two lanes (upstream, to an approved spec; downstream, to production), and Today lists the day's runs one by one. What waits for you, maximized, is a decision inbox: the queue with the oldest wait first, what to read to decide the card in focus (the spec's problem, acceptance criteria and open questions from its review page; a pull request's size and checks; a block told in order: the step it stopped at, why, how the acceptance tests changed since QA wrote them, what the factory tried) and the decision as options that each say when to choose them and where the card goes next. A blocked card can be retried, sent back to Coding with a note, or, when `acceptance-intact` stopped it, have its tests taken as they stand (`shipfloor accept`). A decision waits five seconds so it can be undone. The Settings view changes this machine's limits (the pool, each stage's slots, the stacks; saved to `~/.shipfloor/config.yml` and read on the next cycle) and pauses the factory or one project at once; For a project it also sets how the factory operates on it on this machine (cards in progress and specs in refinement at once, how long the deploy waits, the largest conflict an agent may resolve): these are kept in `~/.shipfloor/projects/<project>/overrides.yml`, which every config reader lays over the project's `factory.yml`, and nothing else can be overridden there. What a project is (its files, layers and commands) is shown as the dispatcher last read it, with the file to edit in its repository. A card's Live tab shows its latest session as it happens (what the run and its subagents say and do) and, while a run works on the card, takes a message for it: the run and each of its subagents read the message after the tool call they are in (a hook the plugin ships, `hooks/hooks.json`), and no run ever waits for one.
 Logs in `~/.shipfloor/logs/dispatcher.log` and `~/.shipfloor/projects/<project>/logs/`. A layer may set `install` (for example `pnpm install --frozen-lockfile`): the gates run it in the layer's directory before its build or tests, once per content of that directory, so no agent has to install a worktree's dependencies; a failing install is exit 3 (infrastructure). A project the dispatcher cannot use in a cycle (its control checkout does not reach `origin/<main>`, or the config there is missing or invalid) is skipped: the reason and the time of the first failed cycle go to `~/.shipfloor/projects/<project>/SKIPPED`, the dashboard shows a "skipped since" flag and `shipfloor doctor` warns; the first good cycle clears it. An `index.lock` older than 10 minutes in the control checkout (`SHIPFLOOR_STALE_LOCK_MIN`) is treated as left by a dead git and removed. Reports on each repository's orphan `factory-reports` branch. At the end of every cycle the dispatcher empties what cards left under the project's `tmp/`: the `tmp/<n>/` of a card that is Done or off the board, and stray files or folders beside them once nobody touched them for 3 days, unless their name carries the number of a card still in progress (`shipfloor clean <project>` does the same on demand).
 
 Every dispatcher cycle appends one line to `~/.shipfloor/logs/health-<YYYY-MM>.jsonl`: each project's cards per column and blocked cards, runs against the pool and the stage slots, busy stacks, the machine's CPU, free memory and free disk, and how the cycle went (seconds, exit code, whether another cycle was still running). The dashboard and `shipfloor doctor` raise what the last three cycles show: a stage with a free slot and cards waiting through all three, more runs than a limit, two cycles at once.
