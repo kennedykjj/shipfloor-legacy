@@ -1,0 +1,17 @@
+{
+  "issue": 130,
+  "slug": "dashboard-the-today-panel-becomes-the-fa",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T11:12:06-03:00",
+  "finished_at": "2026-10-12T11:16:57-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 32070, "duration_s": 49},
+    {"role": "ux-designer", "tokens": 61505, "duration_s": 142}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
