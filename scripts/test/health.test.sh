@@ -39,6 +39,7 @@ run develop 1; run develop 2; run validate 3; run validate 4
 health record; assert_contains "$(last 'd["idle"]')" "[]"
 setup; printf '7\tReady for Dev\tI7\n' > "$P/board.tsv"  # the fake gh says card 7 is blocked
 health record; assert_contains "$(last 'd["idle"], d["projects"]["shop"]["blocked"]')" "[] 1"
+assert_contains "$(last 'd["projects"]["shop"]["blocked_cards"]')" "[7]"
 setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"; touch "$H/PAUSE"
 health record; assert_contains "$(last 'd["idle"], d["paused"]')" "[] True"
 
@@ -67,6 +68,49 @@ assert_contains "$(last 'd["cycle"]["overlap"]')" "True"
 [ "$(cat "$H/dispatch.pid")" = $$ ] && pass "the running cycle keeps its marker" || fail "the second cycle took the marker"
 touch "$H/PAUSE"; rm "$H/dispatch.pid"; bash "$FACTORY_DIR/shipfloor-dispatch.sh"
 assert_contains "$(last 'd["paused"]')" "True"
+
+# costs.day_stop reached: the line says cost_stop and a free slot with cards waiting is no alert (nothing starts, as when paused);
+# without costs the line says false. Today's session cost US$ 100 (25M opus input tokens at noon, local time)
+CD="$(mktemp -d)"; mkdir -p "$CD/projects/C--x--shipfloor-projects-shop-control"
+TZO="$(date +%:z)"
+{ printf '{"type":"user","timestamp":"%sT12:00:00%s","message":{"role":"user","content":"<command-name>/sf:develop</command-name>\\n<command-args>26</command-args>"}}\n' "$(date +%F)" "$TZO"
+  printf '{"type":"assistant","timestamp":"%sT12:05:00%s","message":{"id":"c1","model":"claude-opus-5-5","usage":{"input_tokens":25000000,"output_tokens":0}}}\n' "$(date +%F)" "$TZO"; } > "$CD/projects/C--x--shipfloor-projects-shop-control/s.jsonl"
+export CLAUDE_CONFIG_DIR="$(nat "$CD")"
+setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"
+health record; health record; health record
+assert_contains "$(last 'd["cost_stop"]')" "False"
+assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting"
+printf 'pool: 6\nstages: {refine: 2, develop: 3}\ncosts:\n  day_stop: 80\n' > "$H/config.yml"
+health record; health record; health record
+assert_contains "$(last 'd["cost_stop"], d["idle"]')" "True []"
+[ -z "$(health alerts)" ] && pass "a day stopped by cost is no free-slot alert" || fail "alerted while the day is stopped: $(health alerts)"
+printf 'pool: 6\nstages: {refine: 2, develop: 3}\ncosts:\n  day_stop: 150\n' > "$H/config.yml"
+health record; assert_contains "$(last 'd["cost_stop"]')" "False"
+unset CLAUDE_CONFIG_DIR
+# outside the working hours nothing is expected to start: the line says so, records no idle key and raises no alert
+setup; printf 'hours: ["08:00-23:00"]\n' >> "$H/config.yml"; printf '26\tReady for Dev\tI26\n27\tReady for Dev\tI27\n' > "$P/board.tsv"
+export SHIPFLOOR_NOW=23:30
+health record
+[ "$(last 'd.get("outside_hours")')" = True ] && pass "AC-6 outside the hours the line says outside_hours" || fail "AC-6 the line has no outside_hours=true at 23:30: $(last 'd.get("outside_hours")')"
+assert_contains "$(last 'd["idle"]')" "[]"
+health record; health record
+[ -z "$(health alerts)" ] && pass "AC-6 no alert for a stretch outside the hours" || fail "AC-6 alerted outside the hours: $(health alerts)"
+export SHIPFLOOR_NOW=12:00
+health record
+[ "$(last 'd.get("outside_hours")')" = False ] && pass "AC-6 inside the hours outside_hours is false" || fail "AC-6 the line at 12:00 says outside_hours=$(last 'd.get("outside_hours")')"
+assert_contains "$(last 'd["idle"]')" "['shop/develop']"
+health record; health record
+assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting for 3 cycles in a row"
+export SHIPFLOOR_NOW=23:30
+setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"
+health record
+[ "$(last 'd.get("outside_hours")')" = False ] && pass "AC-6 without hours outside_hours is false" || fail "AC-6 without hours the line says outside_hours=$(last 'd.get("outside_hours")')"
+assert_contains "$(last 'd["idle"]')" "['shop/develop']"
+unset SHIPFLOOR_NOW
+# lines written before the field existed read as inside the hours: their idle keys still count
+setup; mkdir -p "$H/logs"
+for _ in 1 2 3; do printf '{"cycle": {"s": 1, "exit": 0, "overlap": false}, "idle": ["shop/develop"], "over": []}\n'; done > "$H/logs/health-2026-10.jsonl"
+assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting for 3 cycles in a row"
 
 # doctor repeats the alerts
 out="$(bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
