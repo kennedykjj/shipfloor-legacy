@@ -141,6 +141,7 @@ s~: up to date with main~: em dia com a main~
 
 # dispatcher
 s~Claude usage limit hit recently; waiting~limite de uso do Claude atingido há pouco; aguardando~
+s~outside working hours; runs start again at ([0-9:]+)~fora do horário de trabalho; as execuções voltam a começar às \1~
 s~removed a stale index\.lock \(older than ([0-9]+) min\): ~removido um index.lock velho (mais de \1 min): ~
 s~cannot bring the control checkout to ~não foi possível levar o control checkout até ~
 s~no \.shipfloor/factory\.yml on ~sem .shipfloor/factory.yml em ~
