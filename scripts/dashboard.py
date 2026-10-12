@@ -1219,10 +1219,11 @@ def main():
     a.add_argument("--home", required=True)
     a.add_argument("--port", type=int, default=7717)
     a.add_argument("--no-open", action="store_true")
+    a.add_argument("--token", default="")  # a fixed token for a demo on sample data; empty keeps the random one
     args = a.parse_args()
     bash()
     Handler.factory = Factory(args.home, os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    Handler.token = link_token(args.home)
+    Handler.token = args.token or link_token(args.home)
     server = None
     for port in [0] if args.port == 0 else range(args.port, args.port + 10):
         try:
