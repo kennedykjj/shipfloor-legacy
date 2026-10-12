@@ -426,6 +426,15 @@ class Factory:
         m = shipfloor_config.merged(read_yaml(self.home / "config.yml"), shipfloor_config.MACHINE_DEFAULTS)
         return m["pool"], m["stages"]
 
+    def hours(self):
+        """The working hours as hours_state reads them now. Malformed, the windows are the value as written, one text each."""
+        raw = read_yaml(self.home / "config.yml")
+        state = shipfloor_config.hours_state(raw, shipfloor_config.now())
+        if state["error"]:
+            value = raw["hours"]
+            state["windows"] = [str(w) for w in value] if isinstance(value, list) else [str(value)]
+        return state
+
     def settings(self):
         """What the Settings view shows: this machine's limits (config.yml), the pauses, the dispatcher's last
         cycle, and each project's factory.yml as the dispatcher last read it from the project's repository."""
@@ -450,7 +459,7 @@ class Factory:
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
         return {"machine": {k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, "paused": (self.home / "PAUSE").exists(),
-                "cycle": cycle, "projects": projects, "prices": self.prices()}
+                "cycle": cycle, "projects": projects, "prices": self.prices(), "hours": self.hours()}
 
     def registry(self):
         try:
@@ -469,7 +478,12 @@ class Factory:
                 new[k] = changes[k]
         if isinstance(changes.get("stages"), dict):
             new["stages"] = dict(new["stages"] if isinstance(new.get("stages"), dict) else {}, **changes["stages"])
-        errs = shipfloor_config.machine_problems(new)
+        if "hours" in changes:  # a list of windows sets it; null or [] goes back to always
+            if changes["hours"] in (None, []):
+                new.pop("hours", None)
+            else:
+                new["hours"] = changes["hours"]
+        errs = shipfloor_config.machine_problems(new) + (shipfloor_config.hours_problems(new) if "hours" in changes else [])
         if errs:
             return 400, {"error": "; ".join(errs)}
         with open(path, "w", encoding="utf-8", newline="\n") as f:
@@ -638,7 +652,7 @@ class Factory:
         stacks, queue = self.stacks()
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
-                "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(),
+                "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
                 "alerts": shipfloor_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
