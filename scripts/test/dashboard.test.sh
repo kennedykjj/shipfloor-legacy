@@ -196,4 +196,133 @@ printf '== start /sf:refine 12 %sT08:00:00-03:00 pid=1
 mkdir -p "$P/locks/deploysh-11.lock"; echo "1 $(date +%s) 11" > "$P/locks/deploysh-11.lock/info"
 got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; o=json.load(sys.stdin); print([(r["issue"], r["stage"], r["exit"], r["cost"]) for r in o["projects"][0]["ended"]], sorted({r["stage"] for r in o["runs"]}))')"
 assert_contains "$got" "[(12, 'refine', 3, None), (12, 'refine', 0, None)] ['develop']"
+
+# ---- cost limits (machine config.yml: costs.card_warn / card_block / day_stop)
+# "today" is the machine's local date: do not straddle midnight
+[ "$(date +%H%M)" -ge 2358 ] && sleep 150
+TODAY="$(date +%F)"; YDAY="$(date -d yesterday +%F)"; TZO="$(date +%:z)"
+sess() {  # sess <name> <issue> <model> <input tokens> <day>: a develop session of the card, at noon of that local day
+  { printf '{"type":"user","timestamp":"%sT12:00:00%s","message":{"role":"user","content":"<command-name>/sf:develop</command-name>\\n<command-args>%s</command-args>"}}\n' "$5" "$TZO" "$2"
+    printf '{"type":"assistant","timestamp":"%sT12:05:00%s","message":{"id":"c-%s","model":"%s","usage":{"input_tokens":%s,"output_tokens":0}}}\n' "$5" "$TZO" "$1" "$3" "$4"; } > "$T/$1.jsonl"
+}
+ovq() { curl -s -H "$H_TOK" "$base/api/overview" | $PY -c "import json,sys; o=json.load(sys.stdin); c={x['issue']: x for x in o['projects'][0]['cards']}; $1" 2>&1 | tr -d '\r'; }
+hs() { grep -qF -- "$1" "$FACTORY_DIR/dashboard.html"; }
+ptb() { grep -qF -- "$1" "$FACTORY_DIR/lang/dashboard.pt-BR.json"; }
+printf '7\tStaged\n30\tCoding\n' > "$P/board.tsv"
+
+# AC-7: with no costs the overview flags nothing; the three limits read as absent
+rm -f "$H/config.yml"
+assert_contains "$(ovq 'print(c[7].get("over"), c[30].get("over"))')" "None None"
+assert_contains "$(ovq 'k=o.get("costs") or {}; print(k.get("card_warn"), k.get("card_block"), k.get("day_stop"), k.get("day_stopped"))')" "None None None"
+
+# AC-1: card 7 estimate is 24.30 (see above). card_warn 20 flags it; the figure against the limits is total - baseline
+printf 'pool: 6\ncosts:\n  card_warn: 20\n  card_block: 40\n  day_stop: 80\n' > "$H/config.yml"
+assert_contains "$(ovq 'print(c[7]["over"], round(c[7]["spent"], 2), c[7]["cost"])')" "warn 24.3 24.3"
+assert_contains "$(ovq 'k=o["costs"]; print(k["card_warn"], k["card_block"], k["day_stop"], k["day_stopped"])')" "20 40 80 False"
+printf 'pool: 6\ncosts:\n  card_warn: 25\n  card_block: 40\n' > "$H/config.yml"
+assert_contains "$(ovq 'print(c[7]["over"])')" "None"
+printf 'pool: 6\ncosts:\n  card_block: 40\n  day_stop: 80\n' > "$H/config.yml"
+assert_contains "$(ovq 'print(c[7]["over"], o["costs"]["card_warn"])')" "None None"   # no card_warn, no flag
+# a baseline (the card's estimate at its last cost block) is taken off the figure
+printf 'pool: 6\ncosts:\n  card_warn: 14\n  card_block: 40\n' > "$H/config.yml"
+mkdir -p "$P/cost"; printf '{"at":"2026-10-09T12:00:00-03:00","limit":40,"total":10,"baseline":0,"stages":{"develop":10}}\n' > "$P/cost/7.json"
+assert_contains "$(ovq 'print(c[7]["over"], round(c[7]["spent"], 2), c[7]["cost"])')" "warn 14.3 24.3"   # the marker's total is the next baseline
+printf '{"at":"2026-10-09T12:00:00-03:00","limit":40,"total":15,"baseline":0,"stages":{"develop":15}}\n' > "$P/cost/7.json"
+assert_contains "$(ovq 'print(c[7]["over"], round(c[7]["spent"], 2), c[7]["cost"])')" "None 9.3 24.3"   # 24.3 in all, but only 9.3 since: under card_warn 14
+rm "$P/cost/7.json"
+hs "passed the warning set in Settings, Costs" && pass "AC-1 the page has the over-warning flag and its title" || fail "AC-1 no over-warning flag in dashboard.html"
+hs "over \$" && pass "AC-1 the flag reads 'over \$N est.'" || fail "AC-1 no 'over \$' flag text in dashboard.html"
+hs "over the cost warning" && pass "AC-1 the lifecycle dot says it is over the cost warning" || fail "AC-1 the lifecycle board does not say over the cost warning"
+ptb "A estimativa deste card passou do aviso definido em Configurações, Custos. Nada para até o limite de bloqueio." && pass "AC-1 pt-BR title of the flag" || fail "AC-1 pt-BR flag title missing"
+ptb "acima do aviso de custo" && pass "AC-1 pt-BR lifecycle dot" || fail "AC-1 pt-BR lifecycle dot missing"
+
+# AC-6: a card that ran on a model with no price has an unknown estimate: never flagged, and its runs add nothing to the day
+printf 'pool: 6\ncosts:\n  card_warn: 1\n  card_block: 2\n  day_stop: 5\n' > "$H/config.yml"
+sess u30 30 claude-mystery-1 900000000 "$TODAY"
+assert_contains "$(ovq 'print(c[30]["cost"], c[30].get("over", "MISSING"), c[30].get("spent", "MISSING"))')" "None None None"
+assert_contains "$(ovq 'print(o["today"]["cost"], o["costs"]["day_stopped"])')" "0.0 False"
+assert_contains "unpriced=$(curl -s -H "$H_TOK" "$base/api/settings" | $PY -c 'import json,sys; print(json.load(sys.stdin)["unpriced"])' 2>&1 | tr -d '\r')" "unpriced=1"
+hs "has no price, so its cost is unknown and the cost limits skip it" && pass "AC-6 the \$ ? title says the limits skip it" || fail "AC-6 the price-missing title is not updated"
+hs "on a model with no price" && pass "AC-6 a visible note says cards ran on a model with no price" || fail "AC-6 no visible 'no price' note"
+ptb "Um modelo deste card não tem preço, então o custo é desconhecido e os limites de custo não o contam. Adicione em ~/.shipfloor/prices.yml." && pass "AC-6 pt-BR title" || fail "AC-6 pt-BR title missing"
+rm "$T/u30.jsonl"
+
+# AC-4: today's estimate across all projects past day_stop stops the day; AC-5: the next local day clears it
+printf 'pool: 6\ncosts:\n  day_stop: 80\n' > "$H/config.yml"
+sess d21 21 claude-opus-5-5 25000000 "$TODAY"      # US$ 100 today
+assert_contains "$(ovq 'k=o["costs"]; print(k["day_stop"], k["day_stopped"])')" "80 True"
+sess d21 21 claude-opus-5-5 25000000 "$YDAY"; printf '\n' >> "$T/d21.jsonl"   # the same session, a day earlier
+assert_contains "$(ovq 'print(o["costs"]["day_stopped"])')" "False"
+printf 'pool: 6\n' > "$H/config.yml"
+sess d21 21 claude-opus-5-5 25000000 "$TODAY"
+assert_contains "$(ovq 'print(o["costs"].get("day_stopped"))')" "False"           # no day_stop set: never stopped
+rm "$T/d21.jsonl"
+hs "Runs stopped for today" && pass "AC-4 the alerts line has 'Runs stopped for today'" || fail "AC-4 no day stop alert in dashboard.html"
+hs "passed the day limit of" && pass "AC-4 the alert gives today's estimate and the limit" || fail "AC-4 the alert has no explanation"
+hs "Sessions already running finish; runs start again tomorrow" && pass "AC-4 the alert says running sessions finish" || fail "AC-4 the alert does not say sessions finish"
+hs "Stopped for today by the cost limit" && pass "AC-4 waiting tiles say why" || fail "AC-4 waiting tiles do not say why"
+ptb "Execuções paradas por hoje" && pass "AC-4 pt-BR alert title" || fail "AC-4 pt-BR alert missing"
+ptb "Parado por hoje pelo limite de custo" && pass "AC-4 pt-BR waiting tile" || fail "AC-4 pt-BR waiting tile missing"
+
+# AC-3: a card blocked by cost reads in the inbox as spend per stage against the limit
+unblock7() { post -d '{}' "$base/api/card/shop/7/unblock" -H "$H_TOK" >/dev/null; }   # also drops the dashboard's one-minute caches
+dq() { unblock7; curl -s -H "$H_TOK" "$base/api/decide/shop/7" | $PY -c "import json,sys; d=json.load(sys.stdin); b=d['block'] or {}; $1" 2>&1 | tr -d '\r'; }
+mkdir -p "$P/cost"; printf '{"at":"2026-10-11T10:00:00-03:00","limit":40,"total":41.2,"baseline":0,"stages":{"develop":30.2,"refine":11}}\n' > "$P/cost/7.json"
+printf '%s\n' '[{"body":"Factory validate, step 2 (gates): blocked.\nacceptance-intact failed."},{"body":"Cost limit: blocked.\nEstimated total: $41.20 (estimate), limit $40.00.\n- develop: $30.20\n- refine: $11.00"}]' > "$FAKE_GH_DIR/issue-comments"
+assert_contains "$(dq 'print(b.get("kind"), float(b.get("limit") or 0), float(b.get("total") or 0), sorted((k, float(v)) for k, v in (b.get("stages") or {}).items()))')" "cost 40.0 41.2 [('develop', 30.2), ('refine', 11.0)]"
+assert_contains "$(dq 'print(b.get("stage"), b.get("step"), bool(b.get("tried")))')" "None None False"
+# the marker alone is not enough: the newest block note decides
+printf '%s\n' '[{"body":"Cost limit: blocked.\nEstimated total: $41.20 (estimate)"},{"body":"Factory validate, step 2 (gates): blocked.\nacceptance-intact failed."}]' > "$FAKE_GH_DIR/issue-comments"
+assert_contains "$(dq 'print(b.get("kind") == "cost")')" "False"
+# and a block note without the marker is an ordinary block
+printf '%s\n' '[{"body":"Cost limit: blocked.\nEstimated total: $41.20 (estimate)"}]' > "$FAKE_GH_DIR/issue-comments"; rm "$P/cost/7.json"
+assert_contains "$(dq 'print(b.get("kind") == "cost")')" "False"
+rm "$FAKE_GH_DIR/issue-comments"; rmdir "$P/cost" 2>/dev/null
+hs "A card reached its cost limit" && pass "AC-3 the inbox heading for a cost block" || fail "AC-3 no cost block heading"
+hs "Blocked · cost limit" && pass "AC-3 the inbox queue meta for a cost block" || fail "AC-3 no cost block queue meta"
+hs "since it was last unblocked" && pass "AC-3 the why says the spend is counted from the last unblock" || fail "AC-3 the why does not count from the unblock"
+hs "the limit for a card is" && pass "AC-3 the why gives the card limit" || fail "AC-3 the why does not give the limit"
+hs "Unblocking lets it spend up to" && pass "AC-3 the hint says what unblocking gives" || fail "AC-3 no unblock hint"
+ptb "Um card chegou ao limite de custo" && pass "AC-3 pt-BR heading" || fail "AC-3 pt-BR heading missing"
+ptb "Bloqueado · limite de custo" && pass "AC-3 pt-BR queue meta" || fail "AC-3 pt-BR queue meta missing"
+
+# AC-8: the Settings view saves, changes and clears the three limits; bad values are refused
+cset() { post -d "$1" "$base/api/settings/machine" -H "$H_TOK"; }
+cget() { curl -s -H "$H_TOK" "$base/api/settings" | $PY -c 'import json,sys; c=json.load(sys.stdin)["machine"]["costs"]; print(c["card_warn"], c["card_block"], c["day_stop"])' 2>&1 | tr -d '\r'; }
+printf 'pool: 6\nlanguage: pt-BR\n' > "$H/config.yml"
+[ "$(cset '{"costs":{"card_warn":20,"card_block":40,"day_stop":80}}')" = 200 ] && pass "AC-8 the three limits are saved" || fail "AC-8 saving the limits failed"
+assert_contains "$(tr '\n' ' ' < "$H/config.yml")" "card_warn: 20"
+assert_contains "$(tr '\n' ' ' < "$H/config.yml")" "card_block: 40"
+assert_contains "$(tr '\n' ' ' < "$H/config.yml")" "day_stop: 80"
+assert_contains "$(tr '\n' ' ' < "$H/config.yml")" "pool: 6"
+assert_contains "$(tr '\n' ' ' < "$H/config.yml")" "language: pt-BR"
+assert_contains "$(cget)" "20 40 80"
+[ "$(cset '{"costs":{"card_warn":12.5}}')" = 200 ] && pass "AC-8 one limit changes, with decimals" || fail "AC-8 changing one limit failed"
+assert_contains "$(cget)" "12.5 40 80"
+[ "$(cset '{"costs":{"day_stop":null}}')" = 200 ] && pass "AC-8 a limit is cleared with null" || fail "AC-8 clearing a limit failed"
+assert_contains "$(cget)" "12.5 40 None"
+case "$(cat "$H/config.yml")" in *day_stop*) fail "AC-8 a cleared limit is still in config.yml" ;; *) pass "AC-8 a cleared limit leaves config.yml" ;; esac
+before="$(cat "$H/config.yml")"
+for bad_body in '{"costs":{"card_warn":0}}' '{"costs":{"card_block":-3}}' '{"costs":{"day_stop":"abc"}}' '{"costs":{"day_stop":true}}' \
+                '{"costs":{"card_warn":50}}' '{"costs":{"card_block":10}}' '{"costs":{"bogus":5}}'; do
+  [ "$(cset "$bad_body")" = 400 ] && pass "AC-8 refused: $bad_body" || fail "AC-8 took $bad_body"
+done
+[ "$(cat "$H/config.yml")" = "$before" ] && pass "AC-8 refusals change nothing" || fail "AC-8 a refused value reached config.yml"
+assert_contains "$(curl -s -X POST -H 'Content-Type: application/json' -H "$H_TOK" -d '{"costs":{"card_warn":50}}' "$base/api/settings/machine")" "card_warn"   # the refusal says which
+[ "$(post -d '{"costs":{"day_stop":9}}' "$base/api/settings/machine")" = 403 ] && pass "AC-8 no token, no change" || fail "AC-8 changed the limits without the token"
+[ "$(cset '{"costs":{"card_warn":null,"card_block":null}}')" = 200 ] && pass "AC-8 the last limits are cleared" || fail "AC-8 clearing every limit failed"
+case "$(cat "$H/config.yml")" in *costs*) fail "AC-8 an empty costs stays in config.yml" ;; *) pass "AC-8 an empty costs is dropped from config.yml" ;; esac
+assert_contains "$(cat "$H/config.yml")" "pool: 6"
+assert_contains "$(cget)" "None None None"
+rm -f "$H/config.yml"
+hs "Warn on a card" && hs "Block a card" && hs "Stop the day" && pass "AC-8 the Settings rows exist" || fail "AC-8 the three Settings rows are missing"
+hs "limits and the prices behind the estimate" && pass "AC-8 the nav subtitle names the limits" || fail "AC-8 the Costs nav subtitle is not updated"
+hs 'inputmode="decimal"' && pass "AC-8 the fields are decimal text fields" || fail "AC-8 no decimal field"
+hs "Enter an amount above 0, or leave it empty for no limit." && pass "AC-8 the invalid-amount message" || fail "AC-8 no invalid-amount message"
+hs "The warning cannot be above the block" && pass "AC-8 the warn-above-block message" || fail "AC-8 no warn-above-block message"
+ptb "Informe um valor acima de 0, ou deixe vazio para sem limite." && pass "AC-8 pt-BR invalid-amount message" || fail "AC-8 pt-BR message missing"
+ptb "O aviso não pode ficar acima do bloqueio" && pass "AC-8 pt-BR warn-above-block message" || fail "AC-8 pt-BR warn message missing"
+for s in "Avisar em um card" "Bloquear um card" "Parar o dia" "limites e os preços por trás da estimativa"; do
+  ptb "$s" && pass "AC-8 pt-BR: $s" || fail "AC-8 pt-BR missing: $s"
+done
 finish
