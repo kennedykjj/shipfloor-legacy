@@ -239,11 +239,17 @@ retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a s
 GLOBAL=$(( ${SHIPFLOOR_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
 retry_infra || status=1
-run_pipeline refine     "Ready for Refinement" 0           "${LIM[0]}" "Technical Refinement" "Spec Review"        || status=1
-run_pipeline develop "Ready for Dev"        0           "${LIM[1]}" "Coding"               "Coding" "Validation" || status=1
-run_pipeline validate     "Validation"           0           0          ""                                         || status=1
-# one deploy at a time in a project: merges into its main are serial
-run_pipeline deploy    "Ready for Prod"       1           0          ""                                         || status=1
+# Outside the working hours (config.yml, hours) only the starts are skipped; the rest of the cycle runs as always.
+read -r hours_state hours_next < <(shipfloor_machine hours 2>/dev/null)
+if [ "${hours_state:-open}" = closed ]; then
+  echo "dispatch: outside working hours; runs start again at $hours_next" | shipfloor_say "${MLANG:-en}"
+else
+  run_pipeline refine     "Ready for Refinement" 0           "${LIM[0]}" "Technical Refinement" "Spec Review"        || status=1
+  run_pipeline develop "Ready for Dev"        0           "${LIM[1]}" "Coding"               "Coding" "Validation" || status=1
+  run_pipeline validate     "Validation"           0           0          ""                                         || status=1
+  # one deploy at a time in a project: merges into its main are serial
+  run_pipeline deploy    "Ready for Prod"       1           0          ""                                         || status=1
+fi
 # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
 [ "$(shipfloor_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
 # What finished cards and stray files left under tmp/ goes with every cycle (the same as `shipfloor clean`).
