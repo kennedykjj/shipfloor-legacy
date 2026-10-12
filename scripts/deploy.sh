@@ -28,7 +28,7 @@ WT="$FACTORY_WT_ROOT/$n"; TMP="$FACTORY_HOME/tmp/$n"; mkdir -p "$TMP"
 [ "$mode" = --continue ] || rm -f "$TMP"/fix.*  # a fresh run starts its fix rounds over
 TRAILER="Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 START="$(date +%s)"; BRANCH=""; PR=""
-polls() { local secs="$1"; [ "$POLL" -gt 0 ] && echo $(( secs / POLL + 1 )) || echo 60; }
+polls() { local secs="$1"; [ "$POLL" -gt 0 ] && echo $(( secs / POLL + 1 )) || echo "${FACTORY_POLLS:-60}"; }
 
 TAB=$'\t'
 # the PR's branch as one whole tab-separated field; inside a bracket expression "\t" is a backslash

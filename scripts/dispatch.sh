@@ -83,6 +83,11 @@ cleanup_processes() {  # stop processes (dev servers, test runners) left running
       ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' >/dev/null 2>&1 || true
 }
 
+read_rule() {  # read_rule <dir>: the permission rule that lets a run read under <dir>, never write; nothing when it does not exist
+  local d; d="$(cd "$1" 2>/dev/null && pwd)" || return 0
+  printf 'Read(/%s/**)' "$d"  # a rule's absolute path opens with two slashes
+}
+
 launch() {  # launch <pipeline> <issue>
   local p="$1" n="$2" dir="$HOME_DIR/locks/$1-$2.lock"
   mkdir "$dir" 2>/dev/null || return 0
@@ -92,6 +97,14 @@ launch() {  # launch <pipeline> <issue>
   # only the project's settings and this plugin: the owner's personal plugins, MCP servers and
   # output style cost every run ~19k tokens of context and steer its agents
   local extra=(--setting-sources project,local --strict-mcp-config --plugin-dir "$PLUGIN") envs=(SHIPFLOOR_FACTORY=1 "SHIPFLOOR_RUN_LOCK=$dir" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0)
+  # A run reads the factory's scripts and templates and the reports of earlier runs (the skills send it there), and
+  # writes neither. PowerShell is refused in every headless run; without the tool no turn is spent finding that out.
+  local rule rules=(); for rule in "$(read_rule "$HERE")" "$(read_rule "$HOME_DIR/reports-wt")"; do [ -z "$rule" ] || rules+=("$rule"); done
+  [ "${#rules[@]}" -eq 0 ] || extra+=(--allowedTools "${rules[@]}")
+  extra+=(--disallowedTools PowerShell)
+  # The owner's personal CLAUDE.md is loaded whatever the setting sources are: its memory and notes are not for a run.
+  envs+=(CLAUDE_CODE_DISABLE_AUTO_MEMORY=1)
+  extra+=(--append-system-prompt "This is an unattended factory run. A personal CLAUDE.md is for its owner's interactive sessions: what it says to read or write under ~/.claude (memory, journals, notes, a vault) does not apply here.")
   case "$p" in validate|deploy) extra+=(--model sonnet) ;; esac  # orchestration and conflict fixes: half the price
   local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(SHIPFLOOR_INFRA_RETRY=1); }
   (
@@ -268,11 +281,17 @@ retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a s
 GLOBAL=$(( ${SHIPFLOOR_MAX_PARALLEL:-${POOL[0]}} - $(live_runs) ))
 status=0
 retry_infra || status=1
-run_pipeline refine     "Ready for Refinement" 0           "${LIM[0]}" "Technical Refinement" "Spec Review"        || status=1
-run_pipeline develop "Ready for Dev"        0           "${LIM[1]}" "Coding"               "Coding" "Validation" || status=1
-run_pipeline validate     "Validation"           0           0          ""                                         || status=1
-# one deploy at a time in a project: merges into its main are serial
-run_pipeline deploy    "Ready for Prod"       1           0          ""                                         || status=1
+# Outside the working hours (config.yml, hours) only the starts are skipped; the rest of the cycle runs as always.
+read -r hours_state hours_next < <(shipfloor_machine hours 2>/dev/null)
+if [ "${hours_state:-open}" = closed ]; then
+  echo "dispatch: outside working hours; runs start again at $hours_next" | shipfloor_say "${MLANG:-en}"
+else
+  run_pipeline refine     "Ready for Refinement" 0           "${LIM[0]}" "Technical Refinement" "Spec Review"        || status=1
+  run_pipeline develop "Ready for Dev"        0           "${LIM[1]}" "Coding"               "Coding" "Validation" || status=1
+  run_pipeline validate     "Validation"           0           0          ""                                         || status=1
+  # one deploy at a time in a project: merges into its main are serial
+  run_pipeline deploy    "Ready for Prod"       1           0          ""                                         || status=1
+fi
 # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
 [ "$(shipfloor_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
 [ "$COSTFAIL" = 1 ] && status=1

@@ -1,7 +1,7 @@
 """Local dashboard: one page and a JSON API over ~/.shipfloor and the Claude Code transcripts of the
 factory's runs. Read-only, except the owner's decisions on a card that waits, messages to a running card and this machine's
 settings (the pool and the pauses)."""
-import argparse, json, os, re, secrets, statistics, subprocess, sys, threading, time, webbrowser
+import argparse, json, os, re, secrets, shlex, shutil, statistics, subprocess, sys, threading, time, webbrowser
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -54,6 +54,14 @@ section h2{font-size:17px;line-height:1.3}
 button{background:transparent;color:var(--ink);border-color:var(--rule)}
 </style>
 <script>
+/* the dashboard's theme: listening and "ready" come first, while the page parses, so the colors land before it paints;
+   "themed" says they were applied, and the dashboard shows the frame then; sends them again when the owner changes theme */
+addEventListener("message",function(e){
+ var m=e.data,r=document.documentElement;if(e.source!==parent||!m||m.shipfloor!=="theme")return;
+ for(var k in m.vars)if(/^[a-z-]+$/.test(k))r.style.setProperty("--"+k,m.vars[k]);
+ r.style.colorScheme=m.light?"light":"dark";
+ parent.postMessage({shipfloor:"themed"},"*")});
+parent.postMessage({shipfloor:"ready"},"*");
 /* tells the dashboard how far the review went, so its Approve can say so (the page itself is sandboxed) */
 addEventListener("load",function(){
  function send(){
@@ -63,17 +71,15 @@ addEventListener("load",function(){
    var s=it.closest("section"),h=s&&s.querySelector("h2"),p=it.querySelector("p"),t=it.querySelector("textarea");
    return "- ["+(h?h.textContent:"")+"] "+(p?p.textContent:"")+"\\n  -> "+((t&&t.value.trim())||"(no note)")});
   parent.postMessage({shipfloor:"review-progress",done:m?+m[1]:0,total:m?+m[2]:0,changes:chg},"*")}
- /* the dashboard's theme: it answers "ready" with its colors, and sends them again when the owner changes theme */
- addEventListener("message",function(e){
-  var m=e.data,r=document.documentElement;if(e.source!==parent||!m||m.shipfloor!=="theme")return;
-  for(var k in m.vars)if(/^[a-z-]+$/.test(k))r.style.setProperty("--"+k,m.vars[k]);
-  r.style.colorScheme=m.light?"light":"dark"});
- parent.postMessage({shipfloor:"ready"},"*");
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
 OWNER_MOVES = {"Spec Review": {"approve": "Ready for Dev", "request-changes": "Ready for Refinement"},
                "Staged": {"approve": "Ready for Prod", "request-changes": "Coding"}}
+
+
+def number(s):  # ASCII digits only: str.isdigit() also accepts "²" and the like, which int() rejects
+    return bool(re.fullmatch(r"[0-9]+", s))
 
 
 def read_yaml(path):
@@ -84,8 +90,61 @@ def read_yaml(path):
         return {}
 
 
+def find_bash(environ, windows):
+    if environ.get("SHIPFLOOR_BASH"):
+        return environ["SHIPFLOOR_BASH"]
+    norm = lambda p: os.path.normcase(os.path.normpath(p))
+    refused = set()
+    if windows:  # the WSL launcher lives here and fails without a distribution
+        if environ.get("SystemRoot"):
+            refused.add(norm(os.path.join(environ["SystemRoot"], "System32")))
+        if environ.get("LOCALAPPDATA"):
+            refused.add(norm(os.path.join(environ["LOCALAPPDATA"], "Microsoft", "WindowsApps")))
+    for d in environ.get("PATH", "").split(os.pathsep):
+        if not d:  # an empty entry would search the current directory
+            continue
+        hit = shutil.which("bash", path=d)
+        # on Windows which() may also find a bash in the current directory: the hit must sit in d
+        if hit and norm(os.path.dirname(hit)) == norm(d) and norm(os.path.dirname(hit)) not in refused:
+            return hit
+    return None
+
+
+_bash = None
+
+
 def bash():
-    return os.environ.get("SHIPFLOOR_BASH", "bash")
+    global _bash
+    if _bash is None:
+        _bash = find_bash(os.environ, os.name == "nt")
+        if _bash is None:
+            raise SystemExit("shipfloor dashboard: no usable bash found: set SHIPFLOOR_BASH or start it with shipfloor dashboard")
+    return _bash
+
+
+NO_SCHEDULER = ("Windows only: this machine has no ShipfloorDispatcher scheduled task. "
+                "Its pace is set by whatever schedules the dispatcher here.")
+
+
+def scheduler():
+    """(the command that sets the dispatcher's pace, None) or (None, why there is none). The minutes go last.
+    SHIPFLOOR_SCHEDULER (split like a command line) overrides; "none" says there is no scheduler; else the
+    installer script re-registers the Windows task."""
+    given = os.environ.get("SHIPFLOOR_SCHEDULER")
+    if given is not None:
+        try:
+            parts = [] if given.strip() == "none" else shlex.split(given)
+        except ValueError:
+            parts = []
+        return (parts, None) if parts else (None, NO_SCHEDULER)
+    if os.name != "nt":
+        return None, NO_SCHEDULER
+    try:  # the installed copy records the checkout it came from; a checkout is its own source
+        source = (HERE / ".source").read_text(encoding="utf-8").strip() or str(HERE.parent)
+    except OSError:
+        source = str(HERE.parent)
+    return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+            str(Path(source) / "installer" / "install-dispatcher.ps1"), "-EveryMin"], None
 
 
 def gh(*args, input=None):  # through bash, so FACTORY_GH can be a script on Windows too
@@ -204,7 +263,7 @@ class Factory:
         self.read_board(p, at)
         if at is None:
             return {}, None
-        return {int(c[0]): c[1] for c in (l.split("\t") for l in lines) if len(c) > 1 and c[0].isdigit()}, round(time.time() - at)
+        return {int(c[0]): c[1] for c in (l.split("\t") for l in lines) if len(c) > 1 and number(c[0])}, round(time.time() - at)
 
     def read_board(self, p, at):
         """The dispatcher's snapshot is as old as its last cycle, and a card the owner moves on GitHub shows only then.
@@ -240,14 +299,31 @@ class Factory:
             self._boards[p] = (data or {}).get("url")
         return self._boards[p]
 
-    def titles(self, p):
+    def titles(self, p, wanted):
+        """{n: title} for the wanted card numbers, asked of GitHub by number (100 to a call). Everything is
+        re-read after 5 minutes, a number never read at the next poll; a failed read keeps what was known."""
         at, known = self._titles.get(p, (0, {}))
-        if time.time() - at > 300:
-            repo = shipfloor_config.dotted(self.config(p), "project.repo")
-            issues, _ = gh_json("issue", "list", "--repo", str(repo), "--state", "all", "--limit", "300", "--json", "number,title")
-            if isinstance(issues, list):
-                known = {i["number"]: i.get("title", "") for i in issues if isinstance(i, dict) and "number" in i}
-            self._titles[p] = (time.time(), known)
+        stale = time.time() - at > 300
+        wanted = sorted(set(wanted))
+        ask = wanted if stale else [n for n in wanted if n not in known]
+        owner, _, name = str(shipfloor_config.dotted(self.config(p), "project.repo")).partition("/")
+        read, ok = {}, bool(ask)
+        for i in range(0, len(ask), 100):
+            batch = ask[i:i + 100]
+            fields = " ".join(f'i{int(n)}: issueOrPullRequest(number: {int(n)}) {{ ... on Issue {{ title }} ... on PullRequest {{ title }} }}' for n in batch)
+            query = f'query($owner: String!, $name: String!) {{ repository(owner: $owner, name: $name) {{ {fields} }} }}'
+            r = gh("api", "graphql", "-f", f"query={query}", "-f", f"owner={owner}", "-f", f"name={name}")
+            try:  # a number GitHub does not know makes gh exit 1 but the others are still printed
+                repo = ((json.loads(r.stdout or "null") or {}).get("data") or {}).get("repository")
+            except (ValueError, AttributeError):
+                repo = None
+            if not isinstance(repo, dict):
+                ok = False
+                break
+            read.update({n: ((repo.get(f"i{n}") or {}).get("title") or "") for n in batch})
+        if ok:
+            known = {**known, **read}
+            self._titles[p] = (time.time() if stale else at, known)
         return known
 
     def blocked(self, p):
@@ -280,8 +356,8 @@ class Factory:
         for line in r.stdout.splitlines():
             f = line.split("\t")
             if f[0] == "queue":
-                queue = int(f[1]) if f[1].isdigit() else 0
-            elif len(f) >= 4 and f[0].isdigit():
+                queue = int(f[1]) if number(f[1]) else 0
+            elif len(f) >= 4 and number(f[0]):
                 slots.append({"slot": int(f[0]), "state": f[1], "owner": f[2], "held_s": int(f[3] or 0),
                               "reason": f[4] if len(f) > 4 else ""})
         self._stacks = (time.time(), slots, queue)
@@ -426,7 +502,7 @@ class Factory:
         total = dashboard_cost.spend(found, prices, datetime.now().date().isoformat())["cards"].get(n, {"total": 0.0})["total"]
         columns, _ = self.board(p)
         reports = self.reports(p, n)
-        return {"project": p, "issue": n, "title": self.titles(p).get(n, ""), "column": columns.get(n),
+        return {"project": p, "issue": n, "title": self.titles(p, [*columns, n]).get(n, ""), "column": columns.get(n),
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
                 "total": rounded(total), "baseline": dashboard_cost.baselines(self.pdir(p)).get(n, 0.0), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
@@ -436,6 +512,15 @@ class Factory:
     def pool(self):
         m = shipfloor_config.merged(read_yaml(self.home / "config.yml"), shipfloor_config.MACHINE_DEFAULTS)
         return m["pool"], m["stages"]
+
+    def hours(self):
+        """The working hours as hours_state reads them now. Malformed, the windows are the value as written, one text each."""
+        raw = read_yaml(self.home / "config.yml")
+        state = shipfloor_config.hours_state(raw, shipfloor_config.now())
+        if state["error"]:
+            value = raw["hours"]
+            state["windows"] = [str(w) for w in value] if isinstance(value, list) else [str(value)]
+        return state
 
     def settings(self):
         """What the Settings view shows: this machine's limits (config.yml), the pauses, the dispatcher's last
@@ -463,9 +548,19 @@ class Factory:
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
+        every = shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml"))
+        if cycle and cycle["at"] and cycle["took_s"] is not None:  # the next one starts `every` minutes after the last one started
+            try:
+                cycle["next_at"] = (parse_ts(cycle["at"]) - timedelta(seconds=cycle["took_s"]) + timedelta(minutes=every)).isoformat()
+            except (ValueError, TypeError, AttributeError):
+                pass
+        if cycle:
+            cycle.setdefault("next_at", None)
+        command, why = scheduler()
         return {"machine": dict({k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, costs=self.costs()),
-                "paused": (self.home / "PAUSE").exists(), "cycle": cycle, "projects": projects, "prices": self.prices(),
-                "unpriced": unpriced}
+                "paused": (self.home / "PAUSE").exists(),
+                "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
+                "cycle": cycle, "projects": projects, "prices": self.prices(), "hours": self.hours(), "unpriced": unpriced}
 
     def registry(self):
         try:
@@ -497,9 +592,30 @@ class Factory:
                 new["costs"] = costs
             else:
                 new.pop("costs", None)
-        errs = shipfloor_config.machine_problems(new)
+        if "hours" in changes:  # a list of windows sets it; null or [] goes back to always
+            if changes["hours"] in (None, []):
+                new.pop("hours", None)
+            else:
+                new["hours"] = changes["hours"]
+        if isinstance(changes.get("dispatcher"), dict) and "every_min" in changes["dispatcher"]:
+            new["dispatcher"] = dict(new["dispatcher"] if isinstance(new.get("dispatcher"), dict) else {}, every_min=changes["dispatcher"]["every_min"])
+        errs = shipfloor_config.machine_problems(new) + (shipfloor_config.hours_problems(new) if "hours" in changes else [])
         if errs:
             return 400, {"error": "; ".join(errs)}
+        every = shipfloor_config.dispatcher_every(new)
+        if every != shipfloor_config.dispatcher_every(read_yaml(path)):  # the task is told first: if it refuses, nothing is saved
+            command, why = scheduler()
+            if not command:
+                return 409, {"error": why}
+            try:
+                r = subprocess.run([*command, str(every)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+                lines = [l.strip() for l in (r.stdout + "\n" + r.stderr).splitlines() if l.strip()]
+                if r.returncode != 0:
+                    return 409, {"error": (lines or [f"the scheduler exited {r.returncode}"])[-1]}
+            except subprocess.TimeoutExpired:
+                return 409, {"error": "the scheduler did not answer in 60 seconds"}
+            except OSError as e:
+                return 409, {"error": f"the scheduler could not start: {e}"}
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write("# shipfloor machine config: runs at once on this machine (pool) and per stage\n")
             yaml.safe_dump(new, f, sort_keys=False)
@@ -639,7 +755,7 @@ class Factory:
                 r["activity"] = doing.get((r["issue"], r["stage"]), [])
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
-            titles, blocked = self.titles(p), self.blocked(p)
+            titles, blocked = self.titles(p, columns), self.blocked(p)
             # how long a stage usually takes (its clean runs) and when each card's last run ended
             took, since = {}, {}
             for r in all_runs:
@@ -671,7 +787,7 @@ class Factory:
         day_stopped = dashboard_cost.over({"cards": {}, "today": today_cost}, limits, {})["day_stop"]
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
-                "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(),
+                "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
                 "alerts": shipfloor_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
@@ -789,8 +905,9 @@ class Factory:
         return {"language": code, "exact": cat.get("exact", {}), "rx": cat.get("rx", [])}
 
     def feed(self, limit=400):
-        """One timeline: the dispatcher's and the stacks' log lines, and one line per run, at the time it
-        ended (or started, while it still runs)."""
+        """One timeline: the dispatcher's and the stacks' log lines, and one event per run, at the time it ended
+        (or started, while it still runs), with what is known of what it left behind. A log line repeated in a
+        row is one event: how many times ("n") and since when ("since")."""
         out = []
         for source in ("dispatcher", "stacks"):
             f = self.home / "logs" / f"{source}.log"
@@ -805,15 +922,17 @@ class Factory:
             for line in lines:
                 m = FEED_LINE.match(line)
                 ts, text = m.groups() if m else (ts, line)
-                if text.strip():
-                    out.append({"ts": ts, "source": source, "text": text})
+                if not text.strip():
+                    continue
+                if m and out and out[-1]["source"] == source and out[-1]["text"] == text:
+                    out[-1].update(n=out[-1]["n"] + 1, ts=ts)
+                else:
+                    out.append({"ts": ts, "source": source, "text": text, "n": 1, "since": ts})
         today = datetime.now().date()
         for p in self.projects():
-            for day in (today - timedelta(days=1), today):
-                for r in self.runs(p, day=day.isoformat()):
-                    out.append({"source": p, "issue": r["issue"], "log": r["log"], "start": r["start"], "end": r["end"],
-                                "exit": r["exit"] if r["end"] else None, "ts": r["end"] or r["start"],
-                                "text": f"{r['stage']} #{r['issue']}"})
+            runs = [r for day in (today - timedelta(days=1), today) for r in self.runs(p, day=day.isoformat())]
+            if runs:
+                out.extend(self.feed_runs(p, runs))
 
         def at(e):
             try:
@@ -821,6 +940,72 @@ class Factory:
             except (ValueError, TypeError):
                 return 0.0
         return {"events": sorted(out, key=at)[-limit:]}  # the sort is stable: untimed lines keep their place
+
+    def feed_runs(self, p, runs):
+        """A feed event per run, with what each one left behind, every piece from its own source: the card's
+        title, the estimated cost of the run's sessions, the pull request and the failed gates its report names,
+        the last line of a run that failed and, on a card's newest run, the column the card is in now. A run with
+        no end is running only while its lock is there, and then it carries its step; otherwise its end was lost."""
+        prices, (columns, _) = self.prices(), self.board(p)
+        titles = self.titles(p, sorted({*columns, *(r["issue"] for r in runs)}))
+        began = lambda x: parse_ts(x["start"]).timestamp()
+        spent, reports, newest = {}, {}, {}
+        live = {(x["stage"], x["issue"]): x for x in self.live(p) if not x["orphan"]}
+        for s in self.sessions(p):  # a session belongs to a run the way a card's Sessions tab pairs them
+            mine = [r for r in runs if r["issue"] == s["issue"] and r["stage"] == s["stage"] and began(r) <= began(s) + 120]
+            if mine:
+                key, c = (mine[-1]["log"], mine[-1]["start"]), self.session_cost(s, prices)
+                spent[key] = None if c is None or spent.get(key, 0) is None else spent.get(key, 0) + c
+        for r in runs:
+            if r["issue"] not in newest or began(r) > began(newest[r["issue"]]):
+                newest[r["issue"]] = r
+
+        def report(r):  # the report this run wrote: its stage, and a file name stamped inside the run
+            if r["issue"] not in reports:
+                reports[r["issue"]] = self.reports(p, r["issue"])
+            stamp = lambda ts: ts[:19].replace(":", "")
+            mine = [x for x in reports[r["issue"]] if x["file"].startswith(r["stage"] + "-")
+                    and stamp(r["start"]) <= x["file"][len(r["stage"]) + 1:-5] <= stamp(r["end"])]
+            return mine[-1] if mine else {}
+
+        def last_line(r):  # what a failed run said last
+            said = ""
+            try:
+                with open(self.pdir(p) / "logs" / r["log"], encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        m = RUN_LINE.match(line)
+                        if m and m.group(1) == "end" and m.group(5) == r["end"]:
+                            return said[:300]
+                        said = "" if m else line.strip() or said
+            except OSError:
+                pass
+            return ""
+
+        out = []
+        for r in runs:
+            n, key = r["issue"], (r["log"], r["start"])
+            e = {"source": p, "issue": n, "stage": r["stage"], "title": titles.get(n, ""), "log": r["log"], "start": r["start"],
+                 "end": r["end"], "exit": r["exit"] if r["end"] else None, "ts": r["end"] or r["start"], "text": f"{r['stage']} #{n}"}
+            if key in spent:
+                e["cost"] = None if spent[key] is None else round(spent[key], 2)
+            if r["end"]:
+                rep = report(r)
+                if isinstance(rep.get("pr"), int):
+                    e["pr"] = rep["pr"]
+                if isinstance(rep.get("failed_gates"), list) and rep["failed_gates"]:
+                    e["failed"] = [str(g) for g in rep["failed_gates"]]
+                if r["exit"]:
+                    e["last"] = last_line(r)
+                if newest[n] is r and columns.get(n):
+                    e.update(column=columns[n], you=columns[n] in OWNER_MOVES)
+            else:
+                now = live.get((r["stage"], n)) if newest[n] is r else None
+                if now is None:
+                    e["lost"] = True
+                elif now["step"]:
+                    e["step"] = {"i": now["step"]["i"], "of": now["steps"], "label": now["step"]["label"]}
+            out.append(e)
+        return out
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -852,6 +1037,8 @@ class Handler(BaseHTTPRequestHandler):
         q, parts = parse_qs(url.query), [unquote(x) for x in url.path.strip("/").split("/")]
         if url.path == "/":
             return self.send(200, (HERE / "dashboard.html").read_bytes(), "text/html; charset=utf-8")
+        if url.path == "/favicon.ico":  # the browser asks without a token; nothing to show
+            return self.send(204, b"")
         if not self.allowed(q if parts[0] == "review" else None):
             return self.send(403, {"error": "missing or wrong token"})
         f = self.factory
@@ -865,18 +1052,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, f.settings())
             if parts == ["api", "feed"]:
                 return self.send(200, f.feed())
-            if known and len(parts) == 4 and parts[:2] == ["api", "card"] and parts[3].isdigit():
+            if known and len(parts) == 4 and parts[:2] == ["api", "card"] and number(parts[3]):
                 return self.send(200, f.card(parts[2], int(parts[3])))
-            if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and parts[3].isdigit():
+            if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and number(parts[3]):
                 return self.send(200, f.decide(parts[2], int(parts[3])))
-            if known and len(parts) == 4 and parts[:2] == ["api", "live"] and parts[3].isdigit():
+            if known and len(parts) == 4 and parts[:2] == ["api", "live"] and number(parts[3]):
                 return self.send(200, f.session(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "log"]:
                 start = q.get("from", ["-1"])[0]
-                body = f.log(parts[2], parts[3], int(start) if start.lstrip("-").isdigit() else -1)
+                body = f.log(parts[2], parts[3], int(start) if re.fullmatch(r"-?[0-9]+", start) else -1)
                 if body:
                     return self.send(200, body)
-            if len(parts) == 3 and parts[0] == "review" and parts[1] in f.projects() and parts[2].isdigit():
+            if len(parts) == 3 and parts[0] == "review" and parts[1] in f.projects() and number(parts[2]):
                 page = f.pdir(parts[1]) / "reviews" / f"{parts[2]}.html"
                 if page.is_file():
                     html = page.read_bytes()
@@ -907,7 +1094,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and parts[3].isdigit() and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -937,6 +1124,7 @@ def main():
     a.add_argument("--port", type=int, default=7717)
     a.add_argument("--no-open", action="store_true")
     args = a.parse_args()
+    bash()
     Handler.factory = Factory(args.home, os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     Handler.token = secrets.token_urlsafe(16)
     server = None

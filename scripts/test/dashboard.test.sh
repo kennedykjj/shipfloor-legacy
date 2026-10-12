@@ -48,10 +48,17 @@ assert_contains "$got" "Seven owner **Validate blocked (infrastructure)**: stack
 
 # the feed is one timeline: dispatcher lines and one line per run by time, an untimed line after the timed one above it
 D="$(date +%F)"; mkdir -p "$H/logs"
-printf '%sT10:00:00-03:00 shipfloor: shop: first\nmv: stderr\n%sT10:10:00-03:00 shipfloor: shop: last\n' "$D" "$D" > "$H/logs/dispatcher.log"
-printf '== start /sf:develop 7 %sT10:05:00-03:00 pid=1\n== end /sf:develop 7 exit=4 %sT10:06:00-03:00\n' "$D" "$D" > "$P/logs/$D-7-develop.log"
+printf '%sT10:00:00-03:00 shipfloor: shop: first\nmv: stderr\n%sT10:10:00-03:00 shipfloor: shop: last\n%sT10:20:00-03:00 shipfloor: shop: again\n%sT10:23:00-03:00 shipfloor: shop: again\n' "$D" "$D" "$D" "$D" > "$H/logs/dispatcher.log"
+printf '== start /sf:develop 7 %sT10:05:00-03:00 pid=1\ngate build: 2 tests failed\n\n== end /sf:develop 7 exit=4 %sT10:06:00-03:00\n' "$D" "$D" > "$P/logs/$D-7-develop.log"
 got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print(" | ".join(e["text"] + (" exit=%s" % e["exit"] if e.get("issue") else "") for e in json.load(sys.stdin)["events"]))')"
-assert_contains "$got" "shipfloor: shop: first | mv: stderr | develop #7 exit=4 | shipfloor: shop: last"
+assert_contains "$got" "shipfloor: shop: first | mv: stderr | develop #7 exit=4 | shipfloor: shop: last | shipfloor: shop: again"
+# a line repeated in a row is one event, and a run says what it left behind: the card's title, and its last words when it failed
+got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; ev=json.load(sys.stdin)["events"]; a=ev[-1]; r=[e for e in ev if e.get("issue")][0]; print(a["n"], a["since"][11:16], a["ts"][11:16], "|", r["stage"], r["title"], "|", r["last"])')"
+assert_contains "$got" "2 10:20 10:23 | develop Seven | gate build: 2 tests failed"
+# a run with no end and no lock is not running: its end was lost
+printf '== start /sf:refine 7 %sT09:00:00-03:00 pid=1\n' "$D" > "$P/logs/$D-7-refine.log"
+got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print([e.get("lost") for e in json.load(sys.stdin)["events"] if e.get("stage") == "refine"])')"
+assert_contains "$got" "[True]"; rm -f "$P/logs/$D-7-refine.log"
 [ "$(code "$base/api/feed")" = 403 ] && pass "no token, no feed" || fail "served the feed without the token"
 # the page's language is the machine's: English sends no catalog, pt-BR sends its own
 lang() { curl -s -H "$H_TOK" "$base/api/lang" | $PY -c 'import json,sys; d=json.load(sys.stdin); print(d["language"], len(d["exact"]) > 50, len(d["rx"]) > 20, d["exact"].get("Close", ""))'; }
@@ -325,4 +332,279 @@ ptb "O aviso não pode ficar acima do bloqueio" && pass "AC-8 pt-BR warn-above-b
 for s in "Avisar em um card" "Bloquear um card" "Parar o dia" "limites e os preços por trás da estimativa"; do
   ptb "$s" && pass "AC-8 pt-BR: $s" || fail "AC-8 pt-BR missing: $s"
 done
+# --- small hardening (#7): favicon, card numbers that are digits only in ASCII, contrast of the text tokens ---
+# AC-1: a browser asks for the favicon without a token; the answer is empty and carries no data
+got="$(curl -s -w '|%{http_code}' "$base/favicon.ico")"
+[ "$got" = "|204" ] && pass "AC-1 /favicon.ico without a token answers 204 with an empty body" || fail "AC-1 /favicon.ico without a token should answer 204 and nothing else, got '$got'"
+
+# AC-7 (and the base for AC-3/AC-4): card 12 is served for plain ASCII 12 on every route that takes a number
+echo '<p>spec 12</p>' > "$P/reviews/12.html"
+for r in api/card api/decide api/live; do
+  got="$(curl -s -o /dev/null -w '%{http_code}' -H "$H_TOK" "$base/$r/shop/12")"
+  [ "$got" = 200 ] && pass "AC-7 /$r/shop/12 still serves card 12" || fail "AC-7 /$r/shop/12 should answer 200, got $got"
+done
+got="$(curl -s -o /dev/null -w '%{http_code}' -H "$H_TOK" "$base/review/shop/12?t=$tok")"
+[ "$got" = 200 ] && pass "AC-7 /review/shop/12 still serves its page" || fail "AC-7 /review/shop/12 should answer 200, got $got"
+got="$(curl -s -H "$H_TOK" "$base/api/card/shop/12" | $PY -c 'import json,sys; print(json.load(sys.stdin)["issue"])')"
+[ "$got" = 12 ] && pass "AC-7 /api/card/shop/12 returns card 12" || fail "AC-7 /api/card/shop/12 should return issue 12, got '$got'"
+
+# AC-3: Arabic-Indic 12 (percent-encoded) is not card 12
+got="$(curl -s -w '|%{http_code}' -H "$H_TOK" "$base/api/card/shop/%D9%A1%D9%A2")"
+case "$got" in *'"issue"'*) fail "AC-3 /api/card/shop/١٢ returned card data: $got" ;; *"|404") pass "AC-3 /api/card/shop/١٢ answers 404 with no card data" ;; *) fail "AC-3 /api/card/shop/١٢ should answer 404, got: $got" ;; esac
+
+# AC-4: a segment that passes isdigit() but is not [0-9]+ is a 404 on every GET route that takes a number
+for seg in %C2%B2 %D9%A1%D9%A2; do
+  for r in api/card api/decide api/live review; do
+    got="$(curl -s -o /dev/null -w '%{http_code}' -H "$H_TOK" "$base/$r/shop/$seg?t=$tok")"
+    [ "$got" = 404 ] && pass "AC-4 GET /$r/shop/$seg answers 404" || fail "AC-4 GET /$r/shop/$seg should answer 404, got $got"
+  done
+done
+
+# AC-5: /api/log with a from that is not [0-9]+ answers as a non-numeric from does
+printf '0123456789abcdefghijklmnopqrstuvwxyz0123456789\n' > "$P/logs/ac5.log"
+logget() { curl -s -w '|%{http_code}' -H "$H_TOK" "$base/api/log/shop/ac5.log?from=$1"; }
+want="$(logget abc)"
+case "$want" in *"|200") pass "AC-5 from=abc answers 200 (the reference)" ;; *) fail "AC-5 from=abc should answer 200, got: $want" ;; esac
+for v in %C2%B2 %D9%A1%D9%A2; do
+  got="$(logget "$v")"
+  [ "$got" = "$want" ] && pass "AC-5 /api/log?from=$v answers as from=abc" || fail "AC-5 /api/log?from=$v should answer as from=abc ($want), got: $got"
+done
+rm "$P/logs/ac5.log"
+
+# AC-6: a POST with a card number that is not [0-9]+ gets a 404 (not a dropped connection) and moves nothing.
+# The path is sent byte by byte (~b2 stands for the raw Latin-1 byte 0xB2), since curl would rewrite it.
+rawpost() {  # rawpost <card segment, ~b2 for the raw byte 0xB2>: the status code, or "dropped" when no answer comes back
+  $PY -I - "$base" "$tok" "$1" <<'EOF'
+import socket, sys
+base, tok, seg = sys.argv[1:4]
+host, port = base.rsplit("//", 1)[1].split(":")
+raw = b"/api/card/shop/" + seg.replace("~b2", "\xb2").encode("latin-1") + b"/approve"
+body = b'{"column":"Spec Review"}'
+req = (b"POST " + raw + b" HTTP/1.1\r\nHost: 127.0.0.1:" + port.encode() + b"\r\nContent-Type: application/json\r\nX-Shipfloor-Token: " + tok.encode()
+       + b"\r\nContent-Length: " + str(len(body)).encode() + b"\r\nConnection: close\r\n\r\n" + body)
+try:
+    s = socket.create_connection((host, int(port)), timeout=5)
+    s.sendall(req)
+    data = b""
+    while True:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+except OSError:
+    pass
+print(data.split(b" ")[1].decode() if data.startswith(b"HTTP/") else "dropped")
+EOF
+}
+before="$(wc -l < "$FAKE_GH_DIR/calls")"
+for seg in '%C2%B2' '~b2' '%D9%A1%D9%A2'; do
+  got="$(rawpost "$seg" | tr -d '\r')"
+  case "$got" in
+    404) pass "AC-6 POST /api/card/shop/$seg/approve answers 404" ;;
+    dropped) fail "AC-6 POST /api/card/shop/$seg/approve dropped the connection, it should answer 404" ;;
+    *) fail "AC-6 POST /api/card/shop/$seg/approve should answer 404, got $got" ;;
+  esac
+done
+after="$(wc -l < "$FAKE_GH_DIR/calls")"
+[ "$before" = "$after" ] && pass "AC-6 no board call for a card number that is not [0-9]+" || fail "AC-6 a wrong card number reached the board ($before -> $after calls)"
+
+# AC-8: --soft, --muted and --faint keep 4.5:1 on --panel and --ground in every theme (12 of them).
+# A theme inherits what it does not redeclare from :root. Takes the HTML as its argument.
+contrast() {
+  $PY -I - "$1" <<'EOF'
+import re, sys
+css = re.sub(r"/\*.*?\*/", "", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
+base, themes = {}, {}
+for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+    m = re.fullmatch(r'\s*(:root\s*,\s*)?(?:\[data-theme="([\w-]+)"\])?\s*', sel)
+    if not m or not (m.group(1) or m.group(2)) or "--ground" not in body:
+        continue
+    toks = dict(re.findall(r"(--[\w-]+)\s*:\s*([^;]+?)\s*(?:;|$)", body))
+    if m.group(1):
+        base.update(toks)
+    if m.group(2):
+        themes[m.group(2)] = toks
+def lum(h):
+    h = h.lstrip("#")
+    h = "".join(c * 2 for c in h) if len(h) == 3 else h[:6]
+    c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+def ratio(a, b):
+    x, y = sorted((lum(a), lum(b)), reverse=True)
+    return (x + 0.05) / (y + 0.05)
+for name, t in sorted(themes.items()):
+    v = dict(base, **t)
+    for tok in ("--soft", "--muted", "--faint"):
+        for bg in ("--panel", "--ground"):
+            try:
+                r = ratio(v[tok], v[bg])
+            except (KeyError, ValueError):
+                print("FAIL AC-8 %s %s on %s: cannot read the colors (%s, %s)" % (name, tok, bg, v.get(tok), v.get(bg)))
+                continue
+            print("%s AC-8 %s %s on %s is %.2f:1 (needs 4.5)" % ("ok" if r >= 4.5 else "FAIL", name, tok, bg, r))
+print("%s AC-8 found %d themes (needs 12)" % ("ok" if len(themes) == 12 else "FAIL", len(themes)))
+EOF
+}
+while IFS= read -r line; do
+  line="${line%$'\r'}"
+  case "$line" in ok*) pass "${line#ok }" ;; *) fail "${line#FAIL }" ;; esac
+done <<< "$(contrast "$FACTORY_DIR/dashboard.html")"
+# the check is real: on a copy (never the repository's file) with a token lowered, or a theme gone, it prints FAIL
+M="$(mktemp -d)"
+sed 's/--faint: #93928a/--faint: #6a6a6a/' "$FACTORY_DIR/dashboard.html" > "$M/low.html"
+assert_contains "$(contrast "$M/low.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 tape --faint on --panel is"
+sed 's/--muted: #5c5040/--muted: #8a8a8a/' "$FACTORY_DIR/dashboard.html" > "$M/low-light.html"
+assert_contains "$(contrast "$M/low-light.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 kraft --muted on --ground is"
+grep -v '^\[data-theme="paper"\]' "$FACTORY_DIR/dashboard.html" > "$M/eleven.html"
+assert_contains "$(contrast "$M/eleven.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 found 11 themes (needs 12)"
+rm -r "$M"
+# the review iframe holds the panel color until its page has the theme (#12): no white, no other theme's palette
+printf '<!doctype html><html><head><title>spec</title></head><body><p>spec</p></body></html>\n' > "$P/reviews/21.html"
+printf '<p>a hand-written page, no head</p>\n' > "$P/reviews/22.html"
+shell="$(curl -s "$base/?t=$tok" | tr -d '\r' | tr '\n' ' ')"
+rule() { printf '%s' "$shell" | grep -o "$1" | head -n 1; }   # rule SELECTOR-REGEX: the first rule block, one line
+base_rule="$(rule '[ }]iframe *{[^}]*}')"
+themed_rule="$(rule 'iframe\.themed[^{]*{[^}]*}')"
+plain_rule="$(rule 'iframe\.plain[^{]*{[^}]*}')"
+embed="$(curl -s "$base/review/shop/21?embed=1&t=$tok" | tr -d '\r')"
+pos() { local s="${1%%"$2"*}"; [ "$s" = "$1" ] && echo -1 || echo "${#s}"; }  # pos TEXT NEEDLE: offset of the first NEEDLE, -1 if absent
+# AC-1: from the click until the page is shown, the review area is the panel color and never white
+case "$base_rule" in *"background: var(--panel)"*) pass "AC-1 the iframe holds the panel color before the page is shown" ;; *) fail "AC-1 the base iframe rule must be 'background: var(--panel)', got: $base_rule" ;; esac
+case "$base_rule" in *"visibility: hidden"*) pass "AC-1 the iframe paints nothing of the page until it is themed" ;; *) fail "AC-1 the base iframe rule must hide the page ('visibility: hidden') until it is themed, got: $base_rule" ;; esac
+case "$base_rule" in *"#fff"*|*"#ffffff"*|*"white"*) fail "AC-1 the base iframe rule must not hold white, got: $base_rule" ;; *) [ -n "$base_rule" ] && pass "AC-1 no white in the base iframe rule" || fail "AC-1 the iframe rule is missing from GET /" ;; esac
+case "$base_rule" in *"display: none"*|*"display:none"*) fail "AC-1 the iframe keeps its box while held (no display: none), got: $base_rule" ;; *) pass "AC-1 the held iframe keeps its box" ;; esac
+case "$themed_rule" in *"visibility: visible"*|*"visibility:visible"*) pass "AC-1 .themed shows the page" ;; *) fail "AC-1 an 'iframe.themed' rule with 'visibility: visible' must show the themed page, got: $themed_rule" ;; esac
+# AC-2: the theme reaches the page before it paints, and the dashboard reveals on the acknowledgement, not on "ready"
+r="$(pos "$embed" 'shipfloor:"ready"')"; l="$(pos "$embed" 'addEventListener("load"')"; m="$(pos "$embed" 'addEventListener("message"')"
+[ "$r" -ge 0 ] && [ "$l" -ge 0 ] && [ "$r" -lt "$l" ] && pass "AC-2 'ready' is posted before the load handler" || fail "AC-2 the embed script must post shipfloor:\"ready\" (at $r) before addEventListener(\"load\" (at $l), when it is parsed in <head>"
+[ "$m" -ge 0 ] && [ "$m" -lt "$r" ] && pass "AC-2 the theme listener is registered before 'ready'" || fail "AC-2 the embed script must register its 'message' listener (at $m) before it posts 'ready' (at $r)"
+case "$embed" in *'shipfloor:"themed"'*) pass "AC-2 the embed script posts 'themed'" ;; *) fail "AC-2 the embed script must post shipfloor:\"themed\" after applying each theme message" ;; esac
+case "$embed" in *'shipfloor:"review-progress"'*) [ "$(pos "$embed" 'shipfloor:"review-progress"')" -gt "$l" ] && pass "AC-2 review-progress stays in the load handler" || fail "AC-2 review-progress must stay inside the load handler" ;; *) fail "AC-2 the embed script lost its review-progress message" ;; esac
+printf '%s' "$shell" | grep -Eq 'shipfloor *=== *"themed"' && pass "AC-2 the dashboard listens for 'themed'" || fail "AC-2 the dashboard must reveal the page on the 'themed' message (m.shipfloor === \"themed\")"
+printf '%s' "$shell" | grep -Eq 'shipfloor *=== *"ready"[^;]*classList' && fail "AC-2 the dashboard must not reveal the page on 'ready'" || pass "AC-2 'ready' does not reveal the page"
+# AC-3: a page that does not take the embed theme is shown on white once its load ends, as today
+case "$plain_rule" in *"#fff"*) pass "AC-3 .plain carries #fff" ;; *) fail "AC-3 an 'iframe.plain' rule with 'background: #fff' must show a plain page, got: $plain_rule" ;; esac
+printf '%s' "$shell" | grep -Eq 'addEventListener\( *"load"' && printf '%s' "$shell" | grep -Eq 'classList\.(add|toggle)\( *"plain"' && pass "AC-3 .plain is set from the load path" || fail "AC-3 the dashboard must set .plain from a load listener on #pane when no 'ready' came"
+[ "$(curl -s "$base/review/shop/22?embed=1&t=$tok" | tr -d '\r')" = "$(tr -d '\r' < "$P/reviews/22.html")" ] && pass "AC-3 a page without </head> is returned unchanged" || fail "AC-3 a page without </head> must come back byte for byte on ?embed=1"
+[ "$(curl -s "$base/review/shop/21?t=$tok" | tr -d '\r')" = "$(tr -d '\r' < "$P/reviews/21.html")" ] && pass "AC-3 without embed=1 the bytes are the file's" || fail "AC-3 a page requested without embed=1 must be the file's bytes"
+# AC-4: every opening is a new iframe element in the held state, whatever card or how often
+case "$shell" in *'src="/review/${encodeURIComponent(p)}/${n}?embed=1&t='*) pass "AC-4 reviewPane builds the iframe afresh" ;; *) fail "AC-4 reviewPane must build the iframe element" ;; esac
+case "$shell" in *'<iframe class='*|*'<iframe title="Review page for #${esc(n)}" class='*) fail "AC-4 the state classes live in the DOM only, never in reviewPane's HTML" ;; *) pass "AC-4 reviewPane's HTML carries no state class" ;; esac
+case "$base_rule" in *"visibility: hidden"*"background: var(--panel)"*|*"background: var(--panel)"*"visibility: hidden"*) pass "AC-4 a new iframe starts held on the panel color" ;; *) fail "AC-4 a new iframe must start held (hidden, on var(--panel)) at every opening, got: $base_rule" ;; esac
+# AC-5: a themed page looks as today: the embed <style> block is byte for byte what it was
+want_css="$(printf '%s\n' '<style>' 'header.top{display:none}' \
+  'html:root:not([data-x]){--page:#0d1014;--sheet:#151a21;--surface:#1b212a;--ink:#ebe5d5;--muted:#8f8b80;--rule:#262e39;' \
+  '--linen:#262e39;--linen-ink:#ebe5d5;--display:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;--body:var(--display)}' \
+  '@media (prefers-color-scheme:light){html:root:not([data-x]){--page:#e7e7e4;--sheet:#f4f4f2;--surface:#ececea;--ink:#23262b;' \
+  '--muted:#6b6a66;--rule:#d9d9d4;--linen:#d9d9d4;--linen-ink:#23262b}}' \
+  'h1,section h2{font-weight:600}' 'section h2{font-size:17px;line-height:1.3}' '.count{display:none}' \
+  'button{background:transparent;color:var(--ink);border-color:var(--rule)}' '</style>')"
+assert_contains "$embed" "$want_css"
+assert_contains "$embed" '<p>spec</p></body>'
+case "$embed" in *'--page:#0d1014'*'</style>'*'<script>'*'</script></head>'*) pass "AC-5 the style block, then the script, then </head>" ;; *) fail "AC-5 the embed response must be <style>, <script>, then </head>" ;; esac
+# AC-5 (red now): the page still gets every color the theme sends, and acknowledges them once applied
+case "$embed" in *'r.style.setProperty("--"+k,m.vars[k])'*'shipfloor:"themed"'*) pass "AC-5 the theme is applied to the root, then 'themed' is posted" ;; *) fail "AC-5 the embed script must apply the theme vars to the root and only then post shipfloor:\"themed\"" ;; esac
+# AC-6: no review page, or none that arrives: the empty area is the panel color, not white
+printf '%s' "$shell" | grep -Fq "c.review ? \`<iframe" && printf '%s' "$shell" | grep -Fq "</iframe>\` : '<p class=\"placeholder\">No review page for this card. Refine builds it when the spec is ready.</p>'" && pass "AC-6 no review page renders the placeholder paragraph and no iframe" || fail "AC-6 reviewPane must render the .placeholder paragraph, and no iframe, when the card has no review page"
+case "$base_rule" in *"background: var(--panel)"*) pass "AC-6 an iframe whose document never arrives stays on the panel color" ;; *) fail "AC-6 the iframe must stay on var(--panel) while no document arrives, got: $base_rule" ;; esac
+# working hours: the overview and the settings carry `hours`, and Settings writes it. The dashboard reads the clock in its own
+# process, so each clock is a server of its own: one at 23:30 (outside 08:00-23:00) and one at 12:00 (inside)
+SRVS=""
+start_at() {  # start_at <HH:MM> <out file>: a dashboard whose clock says <HH:MM>
+  SHIPFLOOR_NOW="$1" $PY -I "$(nat "$FACTORY_DIR/dashboard.py")" --home "$(nat "$H")" --port 0 --no-open > "$2" 2>&1 &
+  SRVS="$SRVS $!"
+  for _ in $(seq 1 50); do grep -qs 'http://' "$2" && break; sleep 0.1; done
+}
+trap 'kill $srv $srv2 $SRVS 2>/dev/null' EXIT
+start_at 23:30 "$FAKE_GH_DIR/out-late"; url_late="$(grep -o 'http://[^ ]*' "$FAKE_GH_DIR/out-late")"; base_late="${url_late%%/?t=*}"; H_LATE="X-Shipfloor-Token: ${url_late##*t=}"
+start_at 12:00 "$FAKE_GH_DIR/out-noon"; url_noon="$(grep -o 'http://[^ ]*' "$FAKE_GH_DIR/out-noon")"; base_noon="${url_noon%%/?t=*}"; H_NOON="X-Shipfloor-Token: ${url_noon##*t=}"
+hours_of() {  # hours_of <base> <token header> <overview|settings>: the hours object as the API gives it
+  curl -s -H "$2" "$1/api/$3" | $PY -c 'import json,sys; h=(json.load(sys.stdin).get("hours") or {}); print(h.get("windows"), h.get("open"), h.get("next"), h.get("error") is not None)' 2>&1
+}
+cfg_hours() { $PY -I -c 'import json,sys,yaml; d=yaml.safe_load(open(sys.argv[1])) or {}; print(json.dumps(d.get("hours", "<unset>")))' "$(nat "$H/config.yml")" | tr -d '\r'; }
+cfg_other() { $PY -I -c 'import json,sys,yaml; d=yaml.safe_load(open(sys.argv[1])) or {}; d.pop("hours", None); print(json.dumps(d, sort_keys=True))' "$(nat "$H/config.yml")" | tr -d '\r'; }
+
+# AC-4 the overview and the settings say whether the factory is outside its hours and when the next window starts
+printf 'hours: ["08:00-23:00"]\n' > "$H/config.yml"
+assert_contains "$(hours_of "$base_late" "$H_LATE" overview)" "['08:00-23:00'] False 08:00 False"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "['08:00-23:00'] False 08:00 False"
+assert_contains "$(hours_of "$base_noon" "$H_NOON" overview)" "['08:00-23:00'] True None False"
+assert_contains "$(hours_of "$base_noon" "$H_NOON" settings)" "['08:00-23:00'] True None False"
+printf 'hours: ["08:00-23:00", "20:00-04:00"]\n' > "$H/config.yml"
+assert_contains "$(hours_of "$base_late" "$H_LATE" overview)" "['08:00-23:00', '20:00-04:00'] True None False"
+# AC-8 unset: always open, no message
+rm "$H/config.yml"
+assert_contains "$(hours_of "$base_late" "$H_LATE" overview)" "[] True None False"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "[] True None False"
+# AC-5 malformed in config.yml: open at all hours, the error and the value as written go to the page
+printf 'hours: ["8-23"]\n' > "$H/config.yml"
+assert_contains "$(hours_of "$base_late" "$H_LATE" overview)" "['8-23'] True None True"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "['8-23'] True None True"
+rm "$H/config.yml"
+
+# AC-7 Settings sets, changes and clears the window; the rest of config.yml stays; a malformed value is refused and writes nothing
+printf 'pool: 6\nlanguage: pt-BR\nstages:\n  develop: 3\n' > "$H/config.yml"
+rest_before="$(cfg_other)"
+mpost() { curl -s -o "$FAKE_GH_DIR/mbody" -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "$H_LATE" -d "$1" "$base_late/api/settings/machine"; }
+got="$(mpost '{"hours":["08:00-23:00","20:00-04:00"]}')"
+[ "$got" = 200 ] && pass "AC-7 setting hours is accepted" || fail "AC-7 setting hours answered $got: $(cat "$FAKE_GH_DIR/mbody")"
+[ "$(cfg_hours)" = '["08:00-23:00", "20:00-04:00"]' ] && pass "AC-7 config.yml holds exactly the windows set" || fail "AC-7 hours in config.yml: $(cfg_hours)"
+[ "$(cfg_other)" = "$rest_before" ] && pass "AC-7 the other keys of config.yml keep their values" || fail "AC-7 config.yml changed elsewhere: $(cfg_other), was $rest_before"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "['08:00-23:00', '20:00-04:00'] True None False"
+got="$(mpost '{"hours":["09:00-17:00"]}')"
+[ "$got" = 200 ] && [ "$(cfg_hours)" = '["09:00-17:00"]' ] && pass "AC-7 changing hours replaces the windows" || fail "AC-7 change answered $got, hours in config.yml: $(cfg_hours)"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "['09:00-17:00'] False 09:00 False"
+assert_contains "$(SHIPFLOOR_NOW=23:30 bash -c "source '$FACTORY_DIR/lib/project.sh'; shipfloor_machine hours" | tr -d '\r')" "closed 09:00"
+cp "$H/config.yml" "$FAKE_GH_DIR/config.saved"
+for badv in '["25:00-26:00"]' '["8-23"]' '["08:00-08:00"]' '["08:00-23:00", ""]' '["09:00-17:00", "nine-five"]'; do
+  got="$(mpost "{\"hours\":$badv}")"
+  [ "$got" = 400 ] && pass "AC-7 $badv is refused with 400" || fail "AC-7 $badv answered $got, want 400"
+  assert_contains "$(cat "$FAKE_GH_DIR/mbody")" '"error"'
+  assert_contains "$(cat "$FAKE_GH_DIR/mbody")" "hours"
+  cmp -s "$H/config.yml" "$FAKE_GH_DIR/config.saved" && pass "AC-7 $badv writes nothing" || fail "AC-7 $badv changed config.yml"
+done
+[ "$(post -d '{"hours":["01:00-02:00"]}' "$base_late/api/settings/machine")" = 403 ] && cmp -s "$H/config.yml" "$FAKE_GH_DIR/config.saved" && pass "AC-7 no token, no change of hours" || fail "AC-7 hours changed without the token"
+got="$(mpost '{"hours":null}')"
+[ "$got" = 200 ] && [ "$(cfg_hours)" = '"<unset>"' ] && pass "AC-7 null clears hours: the key is removed" || fail "AC-7 null answered $got, hours in config.yml: $(cfg_hours)"
+[ "$(cfg_other)" = "$rest_before" ] && pass "AC-7 clearing keeps the other keys" || fail "AC-7 clearing changed config.yml elsewhere: $(cfg_other)"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "[] True None False"
+mpost '{"hours":["09:00-17:00"]}' >/dev/null
+got="$(mpost '{"hours":[]}')"
+[ "$got" = 200 ] && [ "$(cfg_hours)" = '"<unset>"' ] && pass "AC-7 an empty list clears hours: the key is removed" || fail "AC-7 [] answered $got, hours in config.yml: $(cfg_hours)"
+got="$(mpost '{"pool":7}')"
+[ "$got" = 200 ] && assert_contains "$(cfg_other)" '"pool": 7' && [ "$(cfg_hours)" = '"<unset>"' ] || fail "AC-7 saving only the pool answered $got: $(cat "$FAKE_GH_DIR/mbody")"
+printf 'pool: 6\nhours: ["09:00-17:00"]\n' > "$H/config.yml"
+got="$(mpost '{"pool":7}')"
+[ "$got" = 200 ] && [ "$(cfg_hours)" = '["09:00-17:00"]' ] && pass "AC-7 saving the pool leaves hours as it was" || fail "AC-7 saving the pool answered $got and left hours at $(cfg_hours)"
+rm "$H/config.yml"
+
+# AC-4 / AC-7 the page: the copy and the control are in dashboard.html, the translations in dashboard.pt-BR.json
+html="$FACTORY_DIR/dashboard.html"
+for s in 'Outside working hours:' 'starts again at' 'Working hours' 'placeholder="always"' 'spellcheck="false"' 'autocomplete="off"' 'aria-invalid' \
+         'Windows like 08:00-23:00, separated by commas. Empty means always.' \
+         'Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.' \
+         'The hours in config.yml are not valid, so the dispatcher runs at all hours.' '.disp.idle .sdot'; do
+  grep -qF -- "$s" "$html" && pass "AC-4/AC-7 dashboard.html has '$s'" || fail "AC-4/AC-7 dashboard.html lacks '$s'"
+done
+cat > "$FAKE_GH_DIR/catalog.py" <<'EOP'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+ex, rx = d.get("exact", {}), [tuple(x) for x in d.get("rx", [])]
+want = {
+    "Outside working hours:": "Fora do hor\u00e1rio de trabalho:",
+    "Working hours": "Hor\u00e1rio de trabalho",
+    "always": "sempre",
+    "Windows like 08:00-23:00, separated by commas. Empty means always.": "Janelas como 08:00-23:00, separadas por v\u00edrgula. Vazio significa sempre.",
+    "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.": "Hor\u00e1rio de trabalho n\u00e3o salvo: escreva cada janela como HH:MM-HH:MM, separadas por v\u00edrgula.",
+    "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O hor\u00e1rio em config.yml n\u00e3o \u00e9 v\u00e1lido, ent\u00e3o o dispatcher roda a qualquer hora.",
+}
+for k, v in want.items():
+    print("ok" if ex.get(k) == v else "MISSING exact: " + k.encode("ascii", "replace").decode())
+print("ok" if (r"starts again at (\d\d:\d\d)", "volta a iniciar \u00e0s $1") in rx else "MISSING rx: starts again at (\\d\\d:\\d\\d)")
+EOP
+while IFS= read -r line; do
+  line="${line%$'\r'}"
+  [ "$line" = ok ] && pass "AC-4/AC-7 pt-BR catalog entry" || fail "AC-4/AC-7 dashboard.pt-BR.json: $line"
+done < <($PY -I "$(nat "$FAKE_GH_DIR/catalog.py")" "$(nat "$FACTORY_DIR/lang/dashboard.pt-BR.json")" 2>&1)
 finish
