@@ -99,10 +99,11 @@ cmd_doctor() {
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
   else echo "WARN installed copy differs from $src (shipfloor install)"; fi
   if [ -d "$INSTALLED" ]; then
-    local oc="" ob="" ov=""; IFS=$'\t' read -r oc ob ov 2>/dev/null < "$INSTALLED/.origin"
+    local oc="" ob="" ov="" mb; mb="$(main_of "$src")"
+    [ -f "$INSTALLED/.origin" ] && IFS=$'\t' read -r oc ob ov < "$INSTALLED/.origin"
     case "$ov" in
       verified) echo "ok   installed from $ob at ${oc:0:7}" ;;
-      forced) echo "WARN installed copy was forced from branch $ob at ${oc:0:7}, not a verified $(main_of "$src") (shipfloor install from a clean main)" ;;
+      forced) echo "WARN installed copy was forced from branch $ob at ${oc:0:7}, not a verified $mb (shipfloor install from a clean $mb)" ;;
       *) echo "WARN installed copy has no recorded commit (not a git clone, or installed before this check)" ;;
     esac
   fi
