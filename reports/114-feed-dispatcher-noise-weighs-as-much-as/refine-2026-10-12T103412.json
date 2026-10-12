@@ -1,0 +1,17 @@
+{
+  "issue": 114,
+  "slug": "feed-dispatcher-noise-weighs-as-much-as",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T10:30:00-03:00",
+  "finished_at": "2026-10-12T10:34:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 18368, "duration_s": 20},
+    {"role": "ux-designer", "tokens": 51540, "duration_s": 84}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
