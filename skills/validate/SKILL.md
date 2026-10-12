@@ -42,7 +42,7 @@ The branch is not merged with main here: the deploy does that, once, on the appr
 - Never push to a branch whose card is in Staged or Ready for Prod.
 
 ## 5. Failure rule
-Label `blocked`, comment step + gate output (no personal data) + what was tried, leave the card in Validation, report `outcome: blocked`. Infrastructure errors (a gate exit 3, Docker, network, a runner crash outside the code) are not rounds: when `SHIPFLOOR_INFRA_RETRY` is `1`, label `blocked` and say the automatic retry failed; otherwise label `blocked:infra`, and the dispatcher cleans up and retries once. Either way comment the step, the output and what was tried, and report `outcome: infra`. Copy every `flaky: <layer> <selector>` line a gate prints into the report's `flaky` list.
+Label `blocked`, comment step + gate output (no personal data) + what was tried, leave the card in Validation, report `outcome: blocked`. Infrastructure errors (a gate exit 3, Docker, network, a runner crash outside the code) are not rounds: when `SHIPFLOOR_INFRA_RETRY` is `1`, label `blocked` and say the automatic retry failed; otherwise label `blocked:infra`, and the dispatcher cleans up and retries once. Either way comment the step, the output and what was tried, and report `outcome: infra`. Copy every `flaky: <layer> <selector>` line a gate prints into the report's `flaky` list. A gate that says `<gate>: reused the pass on <sha> ...; nothing ran` ran nothing: put `build` or `green <layer> <selector>` in the report's `gates_reused` list and never count it as a gate run.
 
 ## 6. Report
 `report.json` + `report.md` in `<tmp>` → `report.sh <n> <slug> validate <tmp>/report.json <tmp>/report.md`; comment "Factory report — validate".

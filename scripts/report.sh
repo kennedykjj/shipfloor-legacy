@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Commits a factory report to the orphan branch factory-reports (never merged, never deployed).
 # report.json schema: {"issue","slug","pipeline","started_at","finished_at","outcome":"ok|blocked|infra",
-#   "agents":[{"role","tokens","duration_s"}],"rounds":{step:n},"gates_failed":[...],"flaky":["<layer> <selector>"],"manual_edit":true|false|null}
+#   "agents":[{"role","tokens","duration_s"}],"rounds":{step:n},"gates_failed":[...],"flaky":["<layer> <selector>"],"gates_reused":["build","green <layer> <selector>"],"manual_edit":true|false|null}
 set -euo pipefail
 usage() {
   echo "usage: report.sh <issue> <slug> <pipeline> <report.json> <report.md>"
