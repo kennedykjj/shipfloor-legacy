@@ -1,87 +1,108 @@
 ---
 name: Shipfloor Dashboard
-description: A deep-slate item shop for a software factory: cards are items, the drawer is the item tooltip.
+description: "A dark-by-default instrument for one owner of a software factory: a lifecycle band that shows where every card is, a short list of what waits for the owner, and a drawer for one card."
 colors:
-  ground: "#0d1014"
-  panel: "#151a21"
-  panel-hi: "#1b212a"
-  edge: "#262e39"
-  edge-hi: "#36404e"
-  parchment: "#ebe5d5"
-  muted: "#8f8b80"
-  faint: "#8b887f"
-  gold: "#e2b356"
-  coin: "#e2b356"
-  coin-rim: "#4a3206"
-  azure: "#63b2ff"
-  azure-ink: "#0b2440"
-  ok: "#7cc58a"
-  warn: "#d9a45b"
-  bad: "#f06a5f"
-  stone-ground: "#e7e7e4"
-  stone-panel: "#f4f4f2"
-  stone-panel-hi: "#fbfbfa"
-  stone-edge: "#d9d9d4"
-  stone-edge-hi: "#c4c4bd"
-  stone-ink: "#23262b"
-  stone-muted: "#5a5955"
-  stone-faint: "#686661"
-  stone-gold: "#855a0c"
-  stone-coin: "#c99a3c"
-  stone-azure: "#1a5fb4"
-  stone-ok: "#2f7d43"
-  stone-warn: "#9a5b12"
-  stone-bad: "#c23b31"
+  ground: "#0a0a0a"
+  panel: "#14171b"
+  panel-hi: "#1c2026"
+  edge: "#2a2f39"
+  edge-hi: "#3d444f"
+  text: "#f2f1ee"
+  soft: "#d6d8da"
+  muted: "#a3abb6"
+  faint: "#8f98a3"
+  sand: "#c7b9a6"
+  glow1a: "#3b4a5e"
+  glow1b: "#1c232d"
+  glow2: "#2a2622"
+  track: "#5a6472"
+  track-on: "#c9ced4"
+  refine: "#8fa8c7"
+  ok: "#9fcbaa"
+  warn: "#dcb872"
+  bad: "#e58f80"
 typography:
-  stat:
-    fontFamily: "ui-monospace, Cascadia Mono, SF Mono, Menlo, Consolas, monospace"
-    fontSize: "19px"
+  brand:
+    fontFamily: 'Barlow Condensed, "Arial Narrow", sans-serif'
+    fontSize: "23px"
     fontWeight: 600
-    lineHeight: 1.15
-    letterSpacing: "-0.01em"
-    fontFeature: "tabular-nums"
-  stat-sm:
-    fontFamily: "ui-monospace, Cascadia Mono, SF Mono, Menlo, Consolas, monospace"
-    fontSize: "15px"
-    fontWeight: 600
-    lineHeight: 1.15
-    fontFeature: "tabular-nums"
-  total:
-    fontFamily: "ui-monospace, Cascadia Mono, SF Mono, Menlo, Consolas, monospace"
+    letterSpacing: "0.06em"
+  display:
+    fontFamily: 'Barlow Condensed, "Arial Narrow", sans-serif'
+    fontSize: "34px"
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: "0.02em"
+  heading:
+    fontFamily: 'Barlow Condensed, "Arial Narrow", sans-serif'
     fontSize: "20px"
     fontWeight: 600
     lineHeight: 1.1
-    fontFeature: "tabular-nums"
+    letterSpacing: "0.05em"
+  control:
+    fontFamily: 'Barlow Condensed, "Arial Narrow", sans-serif'
+    fontSize: "17px"
+    fontWeight: 600
+    letterSpacing: "0.06em"
   headline:
-    fontFamily: "Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif"
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
     fontSize: "18px"
     fontWeight: 600
     lineHeight: 1.3
-  title:
-    fontFamily: "Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif"
-    fontSize: "13px"
+  base:
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
+    fontSize: "15px"
     fontWeight: 400
-    lineHeight: 1.35
+    lineHeight: 1.45
+  title:
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
+    fontSize: "14.5px"
+    fontWeight: 500
+    lineHeight: 1.3
   body:
-    fontFamily: "Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif"
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.45
+  ui-lg:
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
+    fontSize: "13.5px"
+    fontWeight: 400
+    lineHeight: 1.35
+  ui:
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
+    fontSize: "13px"
+    fontWeight: 400
   label:
-    fontFamily: "Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif"
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
+    fontSize: "12.5px"
+    fontWeight: 400
+  meta:
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
+    fontSize: "12px"
+    fontWeight: 400
+  note:
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
+    fontSize: "11.5px"
+    fontWeight: 400
+  caption:
+    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
     fontSize: "11px"
-    fontWeight: 600
-    lineHeight: 1.45
-    letterSpacing: "0.02em"
+    fontWeight: 500
+    letterSpacing: "0.14em"
   log:
-    fontFamily: "ui-monospace, Cascadia Mono, SF Mono, Menlo, Consolas, monospace"
+    fontFamily: 'ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace'
     fontSize: "12px"
     fontWeight: 400
     lineHeight: 1.55
 rounded:
+  bar: "2px"
   sm: "4px"
   md: "5px"
-  card: "6px"
+  lg: "6px"
+  ctrl: "8px"
+  tile: "12px"
+  panel: "16px"
   dial: "50%"
 spacing:
   xs: "6px"
@@ -89,27 +110,16 @@ spacing:
   md: "14px"
   lg: "20px"
 components:
-  card:
-    backgroundColor: "{colors.panel-hi}"
-    textColor: "{colors.parchment}"
-    rounded: "{rounded.card}"
-    padding: "9px 10px"
-  card-awaiting:
+  panel:
     backgroundColor: "{colors.panel}"
-    textColor: "{colors.azure}"
-    rounded: "{rounded.card}"
-    padding: "9px 10px"
-  button-approve:
-    backgroundColor: "{colors.azure}"
-    textColor: "{colors.azure-ink}"
-    rounded: "{rounded.md}"
-    padding: "7px 12px"
-  button-secondary:
-    backgroundColor: "{colors.panel-hi}"
-    textColor: "{colors.parchment}"
-    rounded: "{rounded.md}"
-    padding: "7px 12px"
-  flag:
+    textColor: "{colors.text}"
+    rounded: "{rounded.panel}"
+    padding: "18px 20px 14px"
+  tile:
+    textColor: "{colors.text}"
+    rounded: "{rounded.tile}"
+    padding: "12px 14px 10px"
+  tag:
     textColor: "{colors.muted}"
     rounded: "{rounded.sm}"
     padding: "1px 7px"
@@ -117,9 +127,19 @@ components:
     textColor: "{colors.ok}"
     rounded: "{rounded.sm}"
     padding: "2px 7px"
+  button:
+    backgroundColor: "{colors.panel-hi}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.md}"
+    padding: "7px 12px"
+  button-approve:
+    backgroundColor: "{colors.text}"
+    textColor: "{colors.ground}"
+    rounded: "{rounded.md}"
+    padding: "7px 12px"
   drawer:
     backgroundColor: "{colors.panel}"
-    textColor: "{colors.parchment}"
+    textColor: "{colors.text}"
     width: "min(660px, 52vw)"
 ---
 
@@ -127,148 +147,191 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Item Tooltip"**
+**Creative North Star: "The Floor Plan"**
 
-The dashboard is an item shop for a software factory. Every card on the board is an item; opening one slides in its tooltip, the drawer: name, gold cost, tabbed sections for sessions, log, gates and review, and one decision. Surfaces are deep slate with a top-lit edge in dark mode and neutral pale stone in light mode, both following `prefers-color-scheme`. The mood is a quiet, dense, glanceable instrument for one owner doing quick checks: open, approve what waits, glance at cost and runs, close.
+The dashboard is the floor plan of a software factory, read by one owner doing quick checks: look at the lifecycle band to see where every card stands, answer what waits for you, glance at what is running and what it cost, close. It has three views, chosen in the header: **Factory** (the board), **Feed** (a timeline of runs) and **Settings** (the dispatcher, the sessions, the projects, the themes and the prices). A card opens in a drawer; a dot on the lifecycle band opens a small peek first.
 
-Two colors carry meaning and nothing else does. Gold means money: the cost numerals and the coin mark. Azure means the owner: what waits for them and the actions they take. Everything else is slate, parchment (or ink on stone) and hairlines. The system rejects the generic grey kanban with colored tags: column identity comes from position and name, never from tag color.
+The surface is a dark page under a faint grain and two soft glows, with translucent panels and hairline borders. Its type is Barlow for words and Barlow Condensed in uppercase for headings; every number keeps tabular figures. Two roles are colored and nothing else is: the **accent** (`sand`) marks money and whatever waits for the owner, and the outcome trio (ok, warn, bad) marks results. Everything else is ink and hairlines. Color is chosen by the owner: twelve themes change the same tokens and nothing else.
 
 **Key Characteristics:**
-- Item cards with a top-lit border and a faint vertical gradient; the drawer is the same material at tooltip scale.
-- Two meaningful hues (gold for cost, azure for the owner), plus ok/warn/bad for outcomes only.
-- Monospace tabular figures for every number; system sans for everything else.
-- Hairline borders instead of shadows at rest; depth appears on hover and for the drawer.
-- One signature motion: the cooldown dial on running cards.
+- One lifecycle band: every column a cell on a dotted track, every card a dot.
+- Panels are translucent washes of the theme's ink over the ground, with a hairline border and a 16px radius.
+- Uppercase condensed headings and uppercase tracked captions; sentence case for everything a person reads as prose.
+- Hairlines instead of shadows at rest; depth appears for the drawer, the peek, the maximized panel and the hover of a tile.
+- Two continuous motions only: the cooldown dial on a running card and the pulse of a running dot, both stopped under reduced motion.
 
 ## Colors
 
-A slate-and-parchment ground with one coin-gold and one azure signal. The light theme keeps the same roles with darkened gold and azure for contrast on stone.
-
-### Primary
-- **Owner Azure** (`colors.azure`, light `colors.stone-azure`): the owner's color. Used for the "awaiting you" count and its card chips, the awaiting card's border, inset ring and tint, the waits line, the approve button fill (text is `azure-ink`), the focus ring, and the selection tint.
-
-### Secondary
-- **Coin Gold** (`colors.gold`, light `colors.stone-gold`): cost only. Cost numerals on cards, the session table and the drawer total, the header's spent-today figure, the `$ ?` unpriced marker, the coin mark (`.coin`), and the hairline rule under the tooltip header (gold at 60% mix). The coin itself is a struck disc: `colors.coin` (light `colors.stone-coin`, brighter than the text gold so it reads as metal on stone) lit by a white highlight at the top left, with a 1px rim mixed toward `colors.coin-rim`.
+Every color is a token of the base block (`:root, [data-theme="charcoal"]`), and every other theme sets the same tokens. The 19 front matter entries are exactly that block. Two more are derived from them in `:root`: `--gold` is `sand`, `--azure` is `text`, `--azure-ink` is `ground` and `--azure-soft` is `text` at 12% (the page still uses these names for the money and the owner's action).
 
 ### Neutral
-- **Deep Slate Ground** (`colors.ground`, light `colors.stone-ground`): page background and the textarea well.
-- **Slate Panel** (`colors.panel`) and **Raised Panel** (`colors.panel-hi`): header, drawer, cards (gradient from raised to panel), hover rows. Light: `stone-panel`, `stone-panel-hi`.
-- **Hairline** (`colors.edge`) and **Lit Edge** (`colors.edge-hi`): dividers and borders; the lit edge is the top border of cards and the drawer's left border.
-- **Parchment** (`colors.parchment`, light `colors.stone-ink`): primary text; also the running dial and the selected-tab underline.
-- **Muted** (`colors.muted`) and **Faint** (`colors.faint`): secondary text, column headings, table heads, "est." marks. Light: `stone-muted`, `stone-faint`.
-- **Outcome trio** (`colors.ok`, `colors.warn`, `colors.bad`; light `stone-ok`, `stone-warn`, `stone-bad`): run results, gate pass/fail, paused/offline flags, notices. Never decorative.
+- **Ground** (`colors.ground`): the page, under a grain and the glows (`glow1a`, `glow1b`, `glow2`), and the well of the text area and of code.
+- **Panel** (`colors.panel`) and **Raised Panel** (`colors.panel-hi`): the drawer, the peek, a maximized panel and hover rows; ordinary panels on the page are only a 2% wash of the ink over the ground.
+- **Hairline** (`colors.edge`) and **Lit Edge** (`colors.edge-hi`): dividers and borders; the lit edge is the border of the drawer, the peek and the buttons.
+- **Text steps** (`colors.text`, `colors.soft`, `colors.muted`, `colors.faint`): primary, body, secondary and tertiary text, in that order. Each theme holds every step to 4.5:1 on its ground and panels.
+- **Track** (`colors.track`, `colors.track-on`): the lifecycle band's dotted line, and its solid line under a stage that works.
+
+### Accent
+- **Sand** (`colors.sand`): the accent. It marks what waits for the owner (the waiting dot, the card number in "Your" list, the `waits for you` words, the focus ring, the open option and the selected nav item) and it is the color of money (`gold` is an alias of it). In Floor tape it is yellow, in Kraft a blue; it is never one of the outcome colors.
+- **Refine** (`colors.refine`): the hue of the Refine stage in the stage meters and the Settings pool bar.
+
+### Outcome trio
+- **ok, warn, bad** (`colors.ok`, `colors.warn`, `colors.bad`): results, gates, flags and alerts. A blocked card is `bad` in its number and its dot; infrastructure trouble is `warn`. Never decorative, and never the accent.
 
 ### Named Rules
-**The Coin Rule.** Gold appears only on money: cost numerals, the coin mark, the unpriced marker, and the tooltip header's cost rule. Never on buttons, headings, borders of cards or status.
+**The Accent Rule.** The accent appears on money and on what waits for the owner or what the owner is doing. Outcomes use their own trio.
 
-**The Owner Rule.** Azure appears only on what waits for the owner or what the owner does. If a thing does not need a human, it is not azure.
-
-**The Estimate Rule.** Every cost is labelled "est." in faint small type next to the figure; a missing price shows the gold `$ ?` marker with an explanatory title, never a zero.
+**The Estimate Rule.** Every cost is an estimate and says so: "est." next to the figure, or "Spent est." in the header; a missing price shows `$ ?` with an explanation, never a zero.
 
 ## Typography
 
-**Display/Body Font:** system sans (Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, Helvetica Neue, sans-serif)
-**Mono Font:** ui-monospace stack (Cascadia Mono, SF Mono, Menlo, Consolas, monospace)
+**Sans:** Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif
+**Condensed:** "Barlow Condensed", "Arial Narrow", sans-serif
+**Mono:** ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace
 
-**Character:** a tool's voice, not a brand's. Sans carries words; monospace with tabular figures carries every count, id, token total and cost so columns align and values do not jitter as they update. No webfonts, no CDN.
+**Character:** a tool's voice. Both Barlow faces are embedded in the file as `@font-face` data (Barlow 400, 500 and 600; Barlow Condensed 500 and 600), so the page needs no network, no CDN and no build. If a face fails to load, the system stack named after it takes over. Monospace carries logs, code, the Settings hours field and the time in the Feed.
 
 ### Hierarchy
-- **Stat** (mono, 600, 19px, 1.15; `stat-sm` 15px for per-stage slots and the tooltip stats): the header strip figures, with a 13px faint denominator.
-- **Headline** (sans, 600, 18px, 1.3): the tooltip title; the tooltip cost is `total`, mono 20px 600.
-- **Title** (sans, 400, 13px, 1.35, clamped to two lines): the card title.
-- **Body** (sans, 14px, 1.45): page base; tables at 12.5px, meta lines 12.5px.
-- **Label** (sans, 11-12px; 600 for column headings and section headers, 11px at 0.02em for section keys): column headings, table heads, flags, keys under stats. Sentence case, never uppercase.
-- **Log** (mono, 12px, 1.55, pre-wrap): the log pane.
+- **Brand** (condensed, 600, 23px, 0.06em, uppercase): the product name in the header.
+- **Display** (condensed, 500, 34px, uppercase): the heading of a panel (`h1.g`), such as Lifecycle or Today.
+- **Heading** (condensed, 600, 20px, uppercase): a column label in the lifecycle band, the tooltip total, a Settings group title.
+- **Control** (condensed, 600, 17px): the steppers and the heading of the decision.
+- **Headline** (sans, 600, 18px, 1.3): the drawer's card title.
+- **Base** (sans, 15px, 1.45): the page's base text, with tabular figures everywhere.
+- **Title** (sans, 14.5px, 500, 1.3, clamped to two lines): a card title in a tile, a pass and the peek.
+- **Body** (sans, 14px): sections of the inbox reader, the alerts, descriptions.
+- **UI** (13.5px, 13px, 12.5px): buttons, table cells, meta lines, tab labels, notices; 13.5px for the Feed's lines and the tile's last words.
+- **Meta** and **note** (12px, 11.5px): keys under stats, the legend, tags, gates, clocks and code.
+- **Caption** (sans, 500, 11px, 0.14em, uppercase): the uppercase caption of the header (the views, the stats), of the inbox's section titles and of the legend. Captions are always uppercase and tracked wide; headings are condensed and uppercase; only prose is in sentence case.
+- **Log** (mono, 12px, 1.55, pre-wrap): the log pane and the Feed's time.
+
+The type ramp is the set of values used by three or more rules, plus 18px, 23px and 34px for their named roles. The values used by fewer rules are listed under Known deviations.
 
 ### Named Rules
-**The Figures Rule.** Any number is mono with `tabular-nums` (`.num`). Prose stays sans.
+**The Figures Rule.** Any number keeps tabular figures (`font-variant-numeric: tabular-nums` on the body). Prose stays proportional.
 
 ## Layout
 
-A full-height flex column that never scrolls the page: a slim header strip, then `main` holding the board and the drawer. The strip is a row of stats separated by hairlines (brand, awaiting you, pool in use, per-stage slots with 3px meters, runs today with ok/failed counts, spent today, then factory state right-aligned). Awaiting you comes first because it is the one number that asks for action; at zero it turns muted. The board is ten columns in factory order, each `flex: 1 1 180px` with a 166px floor; empty columns collapse to a 92px stub with a wrapping heading. The two owner columns (Spec Review, Staged) get full-strength headings. Cards stack with an 8px gap inside 10px column padding, and the board scrolls horizontally when columns do not fit. A column whose cards overflow fades its last 34px through a mask, so the cut reads as "more below".
+The page is a grid of three rows (the header, the alerts when something is wrong, then the view) that does not scroll as a whole above 1180px; each panel scrolls inside itself. The page padding is `clamp(16px, 4vw, 56px)`.
 
-The drawer is absolutely positioned over the board's right edge: `min(660px, 52vw)`, widening to `min(1180px, 72vw)` for the Review tab. Drawer content uses a 20px side gutter. Below 860px the header wraps, stats drop their borders, and the drawer takes the full width; below 600px the per-stage slots hide and the brand takes its own line. The drawer is a size container: under 540px the decision stacks and the tooltip stats go two by two.
+The **header** is a 68px line: the brand, the three views, then at the right the stats (the project switch when there is more than one project, a link to the board on GitHub, Pool in use, Stacks in use, Runs today with failures, Spent est. today). The stats are captions with a bold value.
+
+The **Factory** view is the **lifecycle band** on top, and two columns below it. The band is a panel with one cell per board column, in factory order (Inbox, Ready for Refinement, Technical Refinement, Spec Review, Ready for Dev, Coding, Validation, Staged, Ready for Prod, Done), each with a condensed label, a caption naming who works there, and a dotted track that turns solid under a stage in progress. A card is a dot on its cell's track, numbered below it; a cell with more cards than fit shows "+N". A legend under the track reads: running (on the step it reported), queued, waits for you, blocked. Below the band, a narrow column holds the **Your** panel (what waits for you, oldest first) and **Today** (telemetry); the wide column holds **In progress**, a grid of tiles for running cards and, separated, the cards the factory holds but is not running, drawn dashed with the reason in words.
+
+Every panel has a maximize button in its top right corner; maximized, it takes 90% of the screen over a dimmed and blurred page. The lifecycle maximized lists every card by name in two lanes (Upstream, Downstream) of five columns. Your maximized becomes a decision inbox of three columns: the queue (240px), what to read, and the decision (350px) as options that each say what happens next, answered with the keys 1 to 9.
+
+The drawer is fixed to the right edge: `min(660px, 52vw)`, `min(1180px, 72vw)` for a card that waits for the owner, 90% of the screen when maximized. Below 1180px the page scrolls, the columns stack and the drawer takes the full width. The drawer is a size container: under 540px the decision stacks and the tooltip stats go two by two.
 
 ## Elevation & Depth
 
-Hybrid, mostly tonal. At rest depth is conveyed by surface steps (ground, panel, raised panel) and hairline borders with a lit top edge; there are no resting shadows. Cards lift 1px with a soft shadow on hover. The drawer casts a leftward soft shadow over the board.
+Tonal first. A panel is a 2% wash and a 9% hairline; the drawer, the peek, a maximized panel and the select's list are the page's only raised surfaces, and they use the `--shadow` token or the drawer's own cast.
 
 ### Shadow Vocabulary
-- **Hover lift** (`box-shadow: 0 10px 30px rgba(0,0,0,.45)`, light `rgba(40,36,28,.14)`; via `--shadow`): card hover with `translateY(-1px)`.
-- **Drawer cast** (`box-shadow: -14px 0 32px -8px rgba(0,0,0,.45)`): open drawer only; removed when closed.
-- **Dial ring** (`0 0 0 2px panel, 0 0 0 3px edge`): the cooldown dial's inset ring.
+- **Raise** (`--shadow`: `0 10px 30px rgba(0,0,0,.45)` in dark themes; each light theme sets a softer one): the peek, a maximized panel, the select's list.
+- **Drawer cast** (`-14px 0 32px -8px rgba(0,0,0,.45)`): the open drawer only; removed when closed.
+- **Dial ring** (`0 0 0 2px panel, 0 0 0 3px edge`): the cooldown dial.
+- **Hot dot** (`0 0 0 4px` ink at 25%): the dot that is hovered or open.
 
 ### Named Rules
-**The Flat-At-Rest Rule.** Cards and panels carry no shadow until hovered or, for the drawer, open.
+**The Flat-At-Rest Rule.** Panels and tiles carry no shadow until something opens over them.
 
 ## Shapes
 
-Small, tool-like radii: 4px on flags, gates, chips and selects; 5px on buttons and the textarea; 6px on cards; a full circle for the dial and the coin. Borders are 1px hairlines; the awaiting card adds a 1px inset azure ring. The tooltip header is closed by a gold hairline, and the drawer is a flat-edged panel with no radius.
+Radii come from one scale: 2px on bars, meters and the tick of a progress step; 4px on tags, gates, keys and code; 5px on buttons, the text area, the hours field and the scrollbar thumb; 6px on small cards (the maximize button, a chip in the lanes, the block note); 8px on selects, option cards, the peek and the stepper; 12px on a tile, an alert and the save bar; 16px on a panel; a full circle for dots, the dial and the switch knob. Borders are 1px hairlines.
 
 ## Components
 
-### Cards
-Item tiles: raised-to-panel gradient, 1px border with a lit top edge, 6px radius, 9px 10px padding, number (mono, muted) at left and gold cost at right, title below, optional status line. Hover lifts 1px. A running card gains the lit border and a dial line. A blocked card adds a small neutral-outlined flag whose first word carries the outcome color: **blocked** (bad) · needs you, or **infra** (warn) · retrying; the red never fills or borders the card, so the owner's azure stays the loudest thing on the board. An awaiting card takes the azure border, inset azure ring, azure-tinted gradient, a top edge lit in azure (azure mixed 55% with parchment) and a footer band: the waits line ("spec to review" or "ready to ship", 12px 600 azure) runs edge to edge on an azure tint under an azure hairline, the owner's version of the tooltip head's gold rule. A card being moved dims to 55% and reads "moving...". The open card gets a parchment border. A card in Done shows its cost muted, without the coin: it is history, not a decision, and gold stays rare. A card whose title could not be read from GitHub says "Title not loaded" in faint italic instead of repeating its number. Each card's accessible name is short and ordered: number, title, status, blocked, cost.
+### Header
+The brand at the left, then the views as three uppercase captions (the pressed one in `text`, the others `muted`), then the stats at the right. The project switch is a caption, a value and a small chevron; where the browser allows (`appearance: base-select`) its list is drawn by the page with the raised panel and a sand mark on the checked option. Under 1180px the header wraps.
 
-Column headings are text only: owner columns read their name in parchment followed by a small azure "yours"; factory columns are muted. Done shows its last five cards and a dashed "Show N more" button.
+### Alerts
+A line that exists only while something is wrong: a bad-tinted bordered strip with one item per cause, each with a dot in its outcome color. Offline and Not updating (bad), Factory paused (bad), a project the dispatcher skips (bad), Board N min old (warn). It is a polite live region.
+
+### Lifecycle Band
+See Layout. A dot is 10px in `text` (running ones pulse once every 2.6s), hollow with a `muted` ring when queued, `sand` when it waits for the owner, `warn` when infrastructure failed and `bad` when blocked; the number under it takes the same color. Clicking a dot opens the line peek.
+
+### Your
+Panel titled "N wait(s) for you" or "Nothing waits for you". Each pass is a hairline-separated block: the card number (condensed, sand; bad when blocked), a caption with the column and the age, the title (clamped to two lines), and a footer of plain actions: **Approve** as a pill (`text` fill, `ground` text), Review, the request-changes field and the link to GitHub. The list fades its last 44px through a mask when it overflows. The footer reads N next, A approve, R review, L log.
+
+### In Progress
+Tiles of 320px or more in an auto-fill grid. A running tile has the number (condensed, 22px), the cost in the accent, a clock at the right, the title (two lines), a step bar (done steps `muted`, the current one `text` and breathing), a step line ("Step 4 of 7: Engineer", warn when slower than usual), what the agent said last, and its last tool calls in mono, then a footer with Open session and Log. A waiting tile is dashed, with no fill, and says why in the accent ("Waiting for the pool · 4 of 4 busy").
 
 ### Cooldown Dial (signature)
-A 13px circle filled by a conic gradient sweep in parchment over lit-edge, ringed by the dial ring, rotating a full turn every 6s linearly via a registered `--sweep` angle. Appears only on running cards. Under `prefers-reduced-motion: reduce` it stops and shows a static quarter (90deg); card and drawer transitions are also disabled. It is the only continuous motion; the log skeleton shimmer is a loading state only.
+A 13px circle filled by a conic sweep in `text` over the lit edge, ringed by the dial ring, turning once every 6s through a registered `--sweep` angle. It appears on a running card. Under `prefers-reduced-motion: reduce` it stops on a static quarter (90deg), and the pulse of the dot, the breathing of the step bar and the card transitions stop as well.
 
-### Header Strip
-Stats with a 12px muted key under a 19px mono value; slot meters are 3px parchment bars at 75% opacity. The "awaiting you" stat is azure and lists the waiting card numbers as small azure mono buttons that open the card. Flags are 12px, 4px-radius outlines; warn and bad take their outcome color. When the board snapshot is older than 5 minutes, a warn flag "board N min old" replaces the neutral "running". A project the dispatcher skips raises a bad flag "<project> skipped since HH:MM" with the reason in its title, and a bad line in the decision. The awaiting key carries a small `kbd` "n" for the next-card key; its buttons carry the column and title as their accessible name. On a narrow screen the board fades its right edge while more lanes scroll in.
+### Today
+The day in small charts with a key, and a list of how long each stage usually takes. Chart labels are 11px `faint`.
 
 ### Tooltip Drawer
-Panel with a lit left edge, `role="dialog"` (non-modal), labelled by its title. The tooltip head reads like an item tooltip: the number and title (headline), a bordered Close button pinned at the top right (it comes last in the tab order, after the decision and the tabs; Esc closes too), a meta line (column, the state in azure "waits for you: ..." or a dial and clock when running, the GitHub link), then a stat row of four `dt`/`dd` pairs: cost Inbox to now (gold `total` with "est."), sessions, first to last run, last report (pipeline plus its outcome color, and "(before develop)" when another stage runs now). A blocked card adds the block note: "**Blocked** · the factory stopped and waits for your call" (or "infrastructure failed; the factory retries once"), then the one line that says what the owner must decide and the failed gate, both pulled from the factory's issue comment, Unblock & retry at the right, and the full report folded under "Full report" (rendered from its markdown: headings, bullets, code). The gold hairline closes the head.
+A panel with a lit left edge, `role="dialog"` (non-modal), labelled by its title. The head is a raised-to-panel gradient closed by a hairline in the accent at 60%: the number and title (headline), a bordered Close button at the top right (Esc closes too), a maximize button beside it, a meta line (column, "waits for you" in the accent or a dial and clock when running, the GitHub link), and four stats as `dt`/`dd` pairs: cost Inbox to now (the total, 20px, with "est."), sessions, first to last run, last report. A blocked card adds the block note: "**Blocked** · the factory stopped and waits for your call" (or "infrastructure failed; the factory retries once"), then the one line that says what the owner must decide and the failed gate, both taken from the factory's issue comment, Unblock and retry at the right, and the full report folded under "Full report", rendered from its markdown.
 
-Under the head, for Spec Review and Staged cards only, sits **the decision**, whatever tab is open: "Your decision" with the review progress on the right ("1 of 3 reviewed · 1 change", mono), Approve with its destination, a hint, the request-changes textarea and Request changes (disabled until there is text), plus "Use the review's N changes", which fills the textarea from the review marks. When the board snapshot is stale, a warn line in the decision says how old it is and that the actions read the live board first. A review with nothing to mark says so ("nothing to mark in the review"). In a drawer narrower than 540px the textarea folds: the first click on Request changes opens it. While the review has unreviewed items or asks for changes, Approve turns **soft** (azure tint, azure text) and asks twice: the first click becomes "Approve with 2 not reviewed" for 4s. After a move the notice names the next waiting card as a button. Notices are a polite live region. A card in an owner column opens on the Review tab and keeps the wide drawer on every tab, so tabs never reflow it; any other card opens on Sessions in the narrow drawer.
+Under the head, for Spec Review and Staged cards only, sits **the decision**, whatever tab is open: "Your decision" with the review progress on the right ("1 of 3 reviewed · 1 change"), Approve with its destination, a hint, the request-changes text area and Request changes (disabled until there is text), plus "Use the review's N changes", which fills the text area from the review marks. When the board snapshot is stale, a warn line says how old it is and that the actions read the live board first; a skipped project adds a bad line. In a drawer narrower than 540px the text area folds until Request changes is clicked. While the review has unreviewed items or asks for changes, Approve turns **soft** (tinted, text in `text`) and asks twice: the first click says "Approve with 2 not reviewed" for 4s. Notices are a polite live region.
 
-Then underlined tabs (Sessions, Log, Gates, Review) with mono counts, a real tablist (roving tabindex, arrow keys, Home and End) over one tabpanel. Sessions are a right-aligned numeric table with sticky heads (start, stage and model, input, output, cache read plus written with the split on hover, time, result, cost), dashed sub-rows for subagents and a total row. Gates map outcomes explicitly: ok, done, pass and merged are ok; fail, error and blocked are bad; anything else is muted; a stage with no gates and no notes says "No gates for this stage". The Log tab counts the card's log files; the log scrolls under its own bar and opens at its end. The Review tab hosts the review page in a sandboxed iframe.
+Then underlined tabs (Live, Sessions, Log, Gates, Review) with counts, a real tablist (roving tabindex, arrow keys, Home and End) over one tabpanel. Live is the session as it happens, with a field to say a word to the run that is working. Sessions are a right-aligned numeric table with sticky heads, dashed sub-rows for subagents and a total row. Gates map outcomes explicitly: ok, done, pass and merged are ok; fail, error and blocked are bad; anything else is muted. The Log tab counts the card's log files; the log opens at its end. The Review tab hosts the review page in a sandboxed iframe.
 
 ### How a Card Opens
 Where a card opens depends on where it was clicked, so the click never hides what the owner was looking at. A card in In progress, and its Log link, opens **maximized**: the drawer at 90% of the screen over a dimmed, blurred board, a running card on Live and a waiting one on Sessions; the side drawer would cover its own tile. A card that waits for the owner opens the wide side drawer on Review, with the decision. Esc or Close returns to the board, and focus goes back to what opened the card.
 
 ### Line Peek
-A click on a dot of the lifecycle line opens the **peek**, never the drawer: the line is the map, and a drawer over its right half hides the stages the dot sits in. The peek is a small raised panel (panel-hi, lit hairline border, 8px radius, the drawer's shadow, 340px at most) anchored under its dot by a 10px arrow, clamped to 12px from the window edges. It holds the number and title (14.5px 600), one muted meta line (column, "Develop running 4 min" or the dot's state, "step 2 of 7 · Plan", the cost in gold), the stage's step bar, and one row of actions: the primary button, then Log (ghost), then the GitHub link. The primary is "Open session" for a running card and "Open card" otherwise, both maximized; a card that waits for the owner says "Review" and opens the wide drawer, so the decision keeps its place. `role="dialog"`, labelled "Card summary"; its dot carries `aria-expanded` and the open ring. Focus moves to the primary button. Esc closes it and returns focus to the dot; so do a click outside, a click on the same dot and leaving the Factory view. Another dot moves it. It follows its dot on every refresh and closes when the dot leaves the line.
+A click on a dot of the lifecycle line opens the **peek**, never the drawer: the line is the map, and a drawer over its right half hides the stages the dot sits in. The peek is a small raised panel (panel-hi, lit hairline border, 8px radius, the drawer's shadow, 340px at most) anchored under its dot by a 10px arrow, clamped to 12px from the window edges. It holds the number and title (14.5px 600), one muted meta line (column, "Develop running 4 min" or the dot's state, "step 2 of 7 · Plan", the cost in the accent), the stage's step bar, and one row of actions: the primary button, then Log (ghost), then the GitHub link. The primary is "Open session" for a running card and "Open card" otherwise, both maximized; a card that waits for the owner says "Review" and opens the wide drawer, so the decision keeps its place. `role="dialog"`, labelled "Card summary"; its dot carries `aria-expanded` and the open ring. Focus moves to the primary button. Esc closes it and returns focus to the dot; so do a click outside, a click on the same dot and leaving the Factory view. Another dot moves it. It follows its dot on every refresh and closes when the dot leaves the line.
 
 ### Feed
 One timeline, newest first, with a heading where the day changes. Above it, the filters (All, Waits for you, Failures, Running, Dispatcher), each with its count, and "Newest first". A run is **one row** placed at the time it ended (or started, while it runs): the time in mono, a mark whose shape carries the state (dot ok, diamond failed, ring running, dash for a dispatcher line or a run whose end was never logged), the project when there is more than one, the stage in bold, the card's number and title, and "waits for you" in the accent when the card sits in an owner column after that run. On the right, the duration (or "running 6m", or "· exit 4") and the run's estimated cost. A second line appears only when something is known of what the run left behind, each piece from its own source: the last line of a run that failed (the log), "PR #64" and "gates failed: build" (the run's report), "now in Staged" on the card's newest run (the board), "Step 4 of 7: Engineer" while it runs (its lock). Nothing is inferred from the stage. The whole row opens the card maximized on that run's log; the title is the row's button and keeps focus across refreshes. There is no button in a row. A dispatcher or stacks line repeated in a row is one row with "37× since 00:09".
+
+### Settings
+The dispatcher is the top line of the view: a dot (ok, warn when idle, bad when off), its status in words, the working hours field (mono) and the switch that stops it. Below it, a nav of sections at the left (Sessions, Projects, Themes, Costs) and the section at the right in groups: a group is a panel with a condensed title, rows of a label, a description and a control (a stepper, a switch, a select, a value). A pool bar shows how the stages share the sessions, and warns when they ask for more than the pool allows. While anything is unsaved, a sticky save bar with a sand border counts the changes and offers Discard and Save; a changed control turns its value sand. Under 1180px the nav becomes a row and rows stack.
 
 ### Language
 The page is written in English and shown in the machine's language (`language` in `~/.shipfloor/config.yml`). In another language, every piece of text is rewritten as it enters the document, from the catalog the server sends (`scripts/lang/dashboard.<code>.json`): a whole piece by `exact`, a phrase inside one by `rx`. So a new string needs no code, only an entry; one with no entry shows in English. What the factory did not write is never rewritten: card titles, logs, and what the agents said (the `RAW` selector). Board columns keep their GitHub names in the data and show translated.
 
 ### Themes
-The owner picks how the dashboard looks in Settings, under Themes. A theme only changes color tokens: the base block in `scripts/dashboard.html` is Charcoal, and each `[data-theme="<id>"]` block sets the same tokens (ground, panels, edges, the four text steps, the accent `sand`, ok/warn/bad, the two glows, the lifecycle track, `refine`). A light theme also sets `--ov`, `--well`, `--scrim`, `--shadow` and `color-scheme: light`. No color is written out in a rule: tints come from `color-mix` over a token.
+The owner picks how the dashboard looks in Settings, under Themes. A theme only changes color tokens: the base block in `scripts/dashboard.html` is Charcoal, and each `[data-theme="<id>"]` block sets the same tokens (ground, panels, edges, the four text steps, the accent `sand`, ok/warn/bad, the glows, the lifecycle track, `refine`). A light theme also sets `--ov`, `--well`, `--scrim`, `--shadow` and `color-scheme: light`. Almost no color is written out in a rule: tints come from `color-mix` over a token (`--ov`, the ink of the theme, is what makes a panel's wash and hairline), the few exceptions being the white of a plain review page and of the Approve pill's hover, and the dark well of the inbox's decision column.
 
 Nine dark themes (Floor tape, Charcoal, Dock, Machine green, Blueprint, Foundry, Night shift, Terminal, High contrast) and three light ones (Kraft, Steel, Drafting paper). Auto, the default, follows the system: Floor tape in dark, Kraft in light. The choice lives in the browser (`localStorage`, `shipfloor.theme`) and is applied before the first paint. In every theme the accent is not one of the outcome colors, so where the accent is yellow the warning is orange.
 
 A swatch is a button that carries its theme's `data-theme`, so it is drawn with the same tokens as the page it stands for. The embedded review page gets the theme's colors as a message. To add a theme: one block in the CSS and one entry in `THEMES`; `scripts/test/theme.test.sh` refuses a theme with a missing token or with text under 4.5:1 on its ground and panels.
 
 ### Buttons
-- **Approve:** azure fill, `azure-ink` text, 600 weight, 5px radius, 7px 12px; hover brightens 8%.
-- **Secondary (Request changes, Retry):** raised panel, lit-edge border, parchment text; hover border turns parchment.
-- **Disabled:** 50% opacity, progress cursor.
-- **Focus:** 2px azure outline, 2px offset on every focusable element.
+- **Button:** raised panel, lit-edge border, 5px radius, 7px 12px; hover turns the border to `text`. **Ghost** drops the fill and sits in `muted` at 12.5px.
+- **Approve:** `text` fill, `ground` text, 600 weight; hover brightens 8%. Soft (asks twice): tinted fill. In the lists it is a pill (40px radius).
+- **Disabled:** not-allowed cursor, faint text; progress cursor while a move is in flight.
+- **Focus:** a 2px `sand` outline, 2px offset, on every focusable element.
 
 ### Embedded Review Pages
-Agent-written review pages in the iframe are re-themed by `EMBED_CSS` in `scripts/dashboard.py`: their own header hidden, section headings at 17px 600, its own reviewed count hidden (the decision shows it), and their page, sheet, surface, ink, muted and rule variables remapped to ground, panel, raised panel, parchment, muted and hairline (and the stone set in light), system sans for display and body, 600 headings, transparent buttons with hairline borders. While the page loads, the iframe element paints nothing of it and holds the drawer's panel color (`var(--panel)`); it is shown, with one 150ms ease-out opacity fade (instant under reduced motion), once the page has acknowledged the theme (`themed`), and white (`#fff`) is its background only under a plain page, one that does not take the embed theme and never announces itself (`ready`), shown when its load ends. The same embed adds a small script that announces `ready`, acknowledges each theme with `themed`, and posts the page's marks (`review-progress`: done, total, the changes as text) to the dashboard, which accepts them only from that iframe.
+Agent-written review pages in the iframe are re-themed by `EMBED_CSS` in `scripts/dashboard.py`: their own header hidden, section headings at 17px 600, their own reviewed count hidden (the decision shows it), transparent buttons with hairline borders. The dashboard sends the page its theme as a message (`page` = ground, `sheet` = panel, `surface` = raised panel, `ink` = text, `muted`, `rule` = hairline), and the embed applies it and, when the owner changes theme, again. While the page loads, the iframe element paints nothing of it and holds the drawer's panel color (`var(--panel)`); it is shown, with one 150ms ease-out opacity fade (instant under reduced motion), once the page has acknowledged the theme (`themed`), and white is its background only under a plain page, one that does not take the embed theme and never announces itself (`ready`), shown when its load ends. The same embed adds a small script that announces `ready`, acknowledges each theme with `themed`, and posts the page's marks (`review-progress`: done, total, the changes as text) to the dashboard, which accepts them only from that iframe.
 
 ### Keyboard and Live Updates
-Esc closes the drawer (not while typing); n opens the next card awaiting you; arrows move between tabs. Opening a card moves focus to its title, closing returns it to the card. The page polls every 5s but rewrites a region only when its markup changed, so focus, scroll, the open select and typed text survive; clocks tick on their own. The first read shows "Reading the factory…", and a failed read raises a "not updating" flag with the error in its title.
+Esc closes the peek, the maximized panel or the drawer, in that order (not while typing). On the Your list, N moves to the next waiting card, and A, R and L approve, open the review or open the log of the focused card; in the maximized inbox the keys 1 to 9 pick an option. Arrows, Home and End move between the drawer's tabs. Opening a card moves focus to its title, closing returns it to the card. The overview is read every 2s, the Feed every 5s, the open card every 5s and Settings every 10s, but a region is rewritten only when its markup changed, so focus, scroll, the open select and typed text survive; clocks tick on their own. The first read shows "Reading the factory…", and a failed read raises a "Not updating" alert with the error.
+
+## Known deviations
+
+Values that fewer than three rules use and that have no named role. They stay as they are on the page until a rule widens the ramp or the scale.
+
+- `15.5px` — `.isec .plain`
+- `16px` — `.lane, .thp .n`
+- `21px` — `.ique .pnum, .iread h2`
+- `22px` — `.tnum`
+- `24px` — `.pnum, .disp h1`
+- `26px` — `.band > h1, .side h1`
+- `30px` — `.set-body > h1`
+- `10px` — `.iopt, .thp`
+- `14px` — `.drawer.open.full`
+- `40px` — `.stub .pill, .edit .pill`
+- `1px` — `.f-bad .fdot`
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** use gold only for cost and the coin mark, and azure only for the owner's waiting items and actions.
-- **Do** set every number in mono with tabular figures and label every cost "est.".
-- **Do** keep surfaces flat at rest and express hierarchy with the panel steps and hairlines.
-- **Do** provide the light-theme value for every new color token in the `prefers-color-scheme: light` block, darkening gold and azure for contrast.
-- **Do** keep the cooldown dial as the single continuous animation and give any new motion a reduced-motion fallback.
+- **Do** take every color from a token, and give every new token a value in every theme.
+- **Do** keep captions uppercase and tracked, headings condensed and uppercase, and prose in sentence case.
+- **Do** keep numbers in tabular figures and label every cost as an estimate.
+- **Do** keep surfaces flat at rest and let only what opens (drawer, peek, maximized panel) cast a shadow.
+- **Do** keep the dial and the dot's pulse as the only continuous motion, and give any new motion a reduced-motion fallback.
 - **Do** keep factory stage and column names verbatim.
 
 ### Don't:
-- **Don't** color-code columns or cards with tags or per-stage hues; position and name identify a stage.
-- **Don't** use gold or azure as decoration (borders, headings, icons, dividers) or use red/green for anything but outcomes.
-- **Don't** add emoji, icon fonts or glyph icons; text labels carry actions and column ownership.
-- **Don't** add webfonts, CDN assets or a build step; the dashboard is one self-contained file.
-- **Don't** add resting shadows, gradients beyond the panel step, or a second continuous animation.
+- **Don't** color-code columns or cards; position and name identify a stage, and the dot's state is carried by its fill too.
+- **Don't** use the accent as decoration, or the outcome colors for anything but results.
+- **Don't** add emoji or icon fonts; text labels carry actions (the few inline SVG marks are the maximize and external-link glyphs).
+- **Don't** link a font or an asset from the network, or add a build step; the dashboard is one self-contained file.
+- **Don't** add resting shadows or a third continuous animation.
