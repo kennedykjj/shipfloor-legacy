@@ -28,6 +28,8 @@ if [ $# -gt 0 ]; then files=("$@"); else
   # the slowest files first, so the run takes about as long as the slowest one
   mapfile -t files < <(ls -S *.test.sh | grep '^deploy-'; ls *.test.sh | grep -v '^deploy-')
 fi
+# the deploy tests share one base repo: built here once, not once per file
+case " ${files[*]}" in *" deploy-"*) DEPLOY_BASE="$(source ./deploy-lib.sh; echo "$BASE")"; export DEPLOY_BASE ;; esac
 printf '%s\n' "${files[@]}" | xargs -P "$jobs" -I{} bash -c \
   's=$(date +%s); bash "$1" > "$2/$1.out" 2>&1; echo "$? $(( $(date +%s) - s ))" > "$2/$1.rc"' _ {} "$out"
 status=0; failed=()

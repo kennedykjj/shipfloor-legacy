@@ -95,6 +95,7 @@ select { font-size: 13px; background: color-mix(in srgb, var(--ov) 5.1%, transpa
 .proj::after { content: ""; width: 5px; height: 5px; margin: -3px 0 0 -11px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); pointer-events: none; }
 .proj:hover select { border-bottom-color: var(--edge-hi); } .proj:hover::after { border-color: var(--text); }
 .stats .sep { width: 1px; height: 16px; background: var(--hair); }
+.stats > span { display: contents; }
 /* its list is drawn by the page where the browser allows it (Chromium); elsewhere it stays the system's */
 @supports (appearance: base-select) {
   .proj select, .proj select::picker(select) { appearance: base-select; }
@@ -285,6 +286,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
   .drawer { transition: none; }
   .dot, .dot.run i::before, .bar i, .steps li.now { animation: none; transition: none !important; }
   .skeleton { animation: none; }
+  #pane .themed, #pane .plain { transition: none; }
 }
 
 /* drawer: the item tooltip */
@@ -318,14 +320,17 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .tip-stats .total dd { font-size: 20px; line-height: 1.1; }
 .tip-stats .report dd { font: 500 13px var(--sans); padding-top: 3px; }
 .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--edge); flex: none; }
-.feed { overflow: auto; min-width: 0; min-height: 0; }
 /* settings: the dispatcher on top of every section, the sections on the left, and a bar while something is unsaved */
 .settings { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; } .settings[hidden], .set-save[hidden] { display: none; }
 .disp { padding: 14px 20px; display: flex; gap: 12px 26px; flex-wrap: wrap; align-items: center; border-color: var(--edge-hi); background: var(--panel); }
 .disp.off { border-color: var(--bad); } .disp .who { margin-right: auto; } .disp h1 { font-size: 24px; display: flex; gap: 10px; align-items: center; }
 .disp .who p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 .sdot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); } .disp.off .sdot { background: var(--bad); }
+.disp.idle .sdot { background: var(--warn); } .disp .who p .warn { color: var(--warn); }
 .sfl { display: flex; gap: 10px; align-items: center; font-size: 14px; color: var(--soft); }
+.hrs input { width: 26ch; font: 13px var(--mono); color: var(--text); background: var(--ground); border: 1px solid var(--edge); border-radius: 5px; padding: 7px 9px; }
+.hrs input.dirty { color: var(--sand); } .hrs input[aria-invalid="true"] { border-color: var(--bad); }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .set-cols { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; margin-top: 16px; padding-top: 6px; overflow-y: auto; min-height: 0; align-content: start; }
 .set-nav { display: flex; flex-direction: column; gap: 2px; align-self: start; position: sticky; top: 0; }
 .set-nav button { text-align: left; background: none; border: 0; border-left: 2px solid transparent; padding: 8px 12px; cursor: pointer; color: var(--muted); font-size: 14.5px; }
@@ -333,13 +338,15 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .set-body > h1 { font-size: 30px; } .set-body > .lead { margin: 6px 0 0; color: var(--muted); font-size: 14px; max-width: 74ch; }
 .sgroup { margin-top: 20px; } .sgroup > h2 { margin: 0; padding: 14px 20px 0; font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .sgroup > h2 code, .sgroup .from code { font: 11.5px var(--mono); color: var(--faint); text-transform: none; letter-spacing: 0; }
-.sgroup > h2.ptitle2 { padding: 16px 20px 2px; font: 600 20px var(--cond); letter-spacing: .04em; color: var(--text); justify-content: space-between; } .ptitle2 span { font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.sgroup > h2.ptitle2 { padding: 16px 20px 2px; font: 600 20px var(--cond); letter-spacing: .04em; color: var(--text); justify-content: space-between; } .ptitle2 span { font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: auto; } .ptitle2 span b { font-weight: 500; color: var(--warn); }
+.ptitle2 .max { position: static; flex: none; align-self: center; color: var(--muted); } .ptitle2 .max[aria-expanded="false"] svg { transform: rotate(180deg); } .sgroup.shut > h2.ptitle2 { padding-bottom: 14px; }
 .srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--edge); } .sgroup > h2 + .srow { border-top: 0; }
 .srow .st { margin: 0; font-weight: 500; } .srow .sd { margin: 0; font-size: 13px; color: var(--muted); max-width: 66ch; } .srow .sv { font-size: 13.5px; color: var(--soft); text-align: right; max-width: 46ch; overflow-wrap: anywhere; }
 .stp { display: inline-flex; align-items: center; border: 1px solid var(--edge-hi); border-radius: 8px; overflow: hidden; }
 .stp button { width: 34px; height: 34px; background: var(--panel-hi); border: 0; cursor: pointer; font-size: 17px; } .stp button:hover { background: var(--edge); }
 .stp output { min-width: 46px; text-align: center; font: 600 17px var(--cond); } .stp.dirty output { color: var(--sand); }
 .sknob { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; } .sknob small { font-size: 12px; color: var(--muted); }
+.disp .sknob { align-items: flex-start; } .disp .sknob small { max-width: 34ch; } .disp select.dirty { color: var(--sand); } .disp .late { color: var(--warn); }
 .sw { position: relative; width: 44px; height: 24px; flex: none; display: inline-block; } .sw input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
 .sw i { position: absolute; inset: 0; border-radius: 12px; background: var(--edge-hi); pointer-events: none; } .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--text); transition: transform .15s; }
 .sw input:checked + i { background: var(--bad); } .sw input:checked + i::after { transform: translateX(20px); } .sw input:focus-visible + i { outline: 2px solid var(--sand); outline-offset: 2px; }
@@ -361,19 +368,41 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .thp .s { position: absolute; right: 19px; bottom: 19px; display: flex; gap: 4px; } .thp .s i { width: 7px; height: 7px; border-radius: 50%; background: var(--k); }
 .thp.two { display: grid; grid-template-columns: 1fr 1fr; padding: 0; background: none; } .thp.two > span { position: relative; padding: 11px 7px; background: var(--ground); } .thp.two .s { right: 13px; }
 @media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow .sv { text-align: left; } }
-.ev { display: grid; grid-template-columns: 12ch 11ch 1fr; gap: 0 12px; }
-.ev button { all: unset; cursor: pointer; text-decoration: underline; }
-.ev.run b { color: var(--text); } .ev b { font-weight: 500; }
-.ev-more { margin: 4px 0 10px calc(23ch + 24px); padding: 2px 0 2px 12px; border-left: 2px solid var(--edge-hi); display: flex; flex-direction: column; gap: 8px; }
-.ev-more pre { margin: 0; font: inherit; color: var(--soft); white-space: pre-wrap; word-break: break-word; }
-.ev-more .acts, .peek .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-family: var(--sans); }
+/* feed: every project's runs and the dispatcher's own lines, newest first; a run's line opens its card on that run's log */
+.feed { overflow: auto; min-width: 0; min-height: 0; padding: 14px clamp(14px, 2.2vw, 28px) 28px; scrollbar-color: var(--edge-hi) transparent; }
+.ftools { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.ftools div { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.ftools button { border: 0; border-bottom: 1px solid transparent; background: none; padding: 4px 0; cursor: pointer; color: var(--muted); font-size: 13px; }
+.ftools button b { font-weight: 500; color: var(--faint); margin-left: 5px; }
+.ftools button[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--text); } .ftools button:hover { color: var(--text); }
+.flist { list-style: none; margin: 0; padding: 0; }
+.fday { display: flex; gap: 12px; align-items: center; margin-top: 18px; padding-bottom: 2px; } .fday::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+.fday:first-child { margin-top: 8px; }
+.fev { display: grid; grid-template-columns: 5ch 9px minmax(0, 1fr) auto 8ch; gap: 0 14px; align-items: start; padding: 6px 4px 7px; border-top: 1px solid var(--hair); }
+.fday + .fev { border-top: 0; }
+.fev[data-full] { cursor: pointer; } .fev[data-full]:hover { background: color-mix(in srgb, var(--ov) 3.5%, transparent); }
+.ftime { font: 12px/1.9 var(--mono); color: var(--muted); }
+.fhead { margin: 0; display: flex; align-items: baseline; gap: 0 10px; min-width: 0; } .fhead b { font-weight: 600; flex: none; }
+.fsrc { color: var(--muted); font-size: 13px; flex: none; }
+.ftitle { all: unset; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftitle:focus-visible { outline: 2px solid var(--sand); outline-offset: 2px; border-radius: 4px; }
+.fyou { color: var(--sand); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.fleft { margin: 0; color: var(--soft); font-size: 13.5px; overflow-wrap: anywhere; }
+.fside { font-size: 13px; color: var(--muted); white-space: nowrap; text-align: right; }
+/* the mark: its shape carries the state, the colour repeats it */
+.fdot { width: 9px; height: 9px; border-radius: 50%; margin-top: 7px; background: var(--ok); }
+.f-bad .fdot { background: var(--bad); border-radius: 1px; transform: rotate(45deg); } .f-bad .fhead b { color: var(--bad); } .f-bad .fleft { color: var(--text); }
+.f-run .fdot { background: none; box-shadow: inset 0 0 0 2px var(--sand); }
+.f-sys .fdot { height: 2px; border-radius: 0; background: var(--faint); margin-top: 11px; }
+.f-sys .fhead { color: var(--soft); font-size: 13.5px; align-items: start; } .f-sys .fraw { overflow-wrap: anywhere; }
+@media (max-width: 1180px) { .fev { grid-template-columns: 5ch 9px minmax(0, 1fr); } .fside { grid-column: 3; text-align: left; } .fside:empty { display: none; } .ftitle { white-space: normal; } .fhead { flex-wrap: wrap; } }
+.peek .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-family: var(--sans); }
 /* the peek: a card's summary, anchored to its dot on the line */
 .peek { position: fixed; z-index: 2; width: min(340px, calc(100vw - 24px)); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 8px; box-shadow: var(--shadow); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .peek[hidden] { display: none; }
 .peek::before { content: ""; position: absolute; top: -6px; left: var(--tip, 40px); width: 10px; height: 10px; background: var(--panel-hi); border-left: 1px solid var(--edge-hi); border-top: 1px solid var(--edge-hi); transform: rotate(45deg); }
 .peek h3 { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.3; text-wrap: balance; } .peek h3 .num { color: var(--muted); font-weight: 500; margin-right: 7px; }
 .peek .meta { margin: 0; font-size: 12.5px; color: var(--muted); } .peek .acts a { font-size: 13px; color: var(--soft); margin-left: 2px; }
-.ev button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 10px 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
 .tabs button .b { margin-left: 5px; font-size: 11px; color: var(--faint); }
@@ -441,6 +470,7 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .btn.approve.soft:hover { filter: none; border-color: var(--azure); background: color-mix(in srgb, var(--azure) 24%, transparent); }
 .btn.ghost { background: none; border-color: var(--edge); color: var(--muted); padding: 4px 10px; font-size: 12.5px; }
 .btn.ghost:hover { color: var(--text); border-color: var(--edge-hi); }
+select:disabled { cursor: not-allowed; color: var(--faint); border-color: var(--edge); }
 .btn:disabled, .btn:disabled:hover { cursor: not-allowed; color: var(--faint); background: var(--panel); border-color: var(--edge); filter: none; }
 .btn.approve:disabled { opacity: .6; color: var(--azure-ink); background: var(--azure); }
 .drawer.busy .btn:disabled { cursor: progress; }
@@ -451,7 +481,9 @@ textarea::placeholder { color: var(--faint); }
 .notice:empty { display: none; }
 .notice.good { color: var(--ok); }
 .notice .btn { color: var(--text); }
-iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
+iframe { flex: 1; width: 100%; border: 0; background: var(--panel); min-height: 0; visibility: hidden; opacity: 0; transition: opacity 150ms ease-out; }  /* hidden until the page has the theme (.themed), or is known not to take it (.plain) */
+iframe.themed { visibility: visible; opacity: 1; }
+iframe.plain { visibility: visible; opacity: 1; background: #fff; }
 .review { display: flex; flex-direction: column; height: 100%; }
 .review .none { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
 .placeholder { padding: 20px; color: var(--muted); max-width: 64ch; }
@@ -472,6 +504,7 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
   header { flex-wrap: wrap; padding: 12px 0; } .stats { margin-left: 0; flex-wrap: wrap; }
   .cols { grid-template-columns: 1fr; } .yours { max-height: 70vh; } .work { min-height: 320px; }
   .drawer.open, .drawer.wide { width: 100%; }
+  .disp .hrs { flex-basis: 100%; order: 1; } .disp .hrs input { width: 100%; max-width: 26ch; }
 }
 </style>
 <script>
@@ -489,7 +522,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <header>
   <span class="g brand">Shipfloor</span>
   <nav class="views" aria-label="View"><button data-view="board" aria-pressed="true">Factory</button><button data-view="feed" aria-pressed="false">Feed</button><button data-view="settings" aria-pressed="false">Settings</button></nav>
-  <div class="stats" id="stats"></div>
+  <div class="stats"><span id="scope"></span><span id="stats"></span></div>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
 <main>
@@ -511,7 +544,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
         <p class="cap" id="wfoot" style="padding-top:12px;margin:auto 0 0" title="The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card."></p></section>
     </div>
   </section>
-  <section class="feed log panel" id="feed" aria-label="Feed" tabindex="0" hidden></section>
+  <section class="feed panel" id="feed" aria-label="Feed" tabindex="0" hidden></section>
   <div class="peek" id="peek" role="dialog" aria-label="Card summary" hidden></div>
   <section class="settings" id="settings" aria-label="Settings" hidden>
     <div class="disp panel" id="disp"></div>
@@ -562,7 +595,7 @@ function setHTML(el, html) { if (el._html === html) return false; el._html = htm
 // text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
 // 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
 const LANG = { exact: {}, rx: [] };
-const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .ev > span, iframe, textarea, code";
+const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
 function loc(s) {
   const t = s.trim(); if (!t || !/[A-Za-z]{2}/.test(t)) return s;
   if (Object.hasOwn(LANG.exact, t)) return s.replace(t, LANG.exact[t]);
@@ -656,9 +689,10 @@ function renderStrip() {
   const o = S.overview; if (!o) return;
   const slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
   const held = slots.map((x) => `slot ${x.slot}: ${x.state}${x.owner !== "-" ? ` ${x.owner}` : ""}${x.state !== "free" ? ` ${elapsed(new Date(Date.now() - x.held_s * 1000))}` : ""}${x.reason ? ` (${x.reason})` : ""}`).join("\n");
-  setHTML($("stats"), `${o.projects.length > 1 ? `<label class="proj cap">Project<select id="proj">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select></label>` : ""}
-    ${project()?.board_url ? `<a class="cap" href="${esc(project().board_url)}" target="_blank" rel="noopener">Board on GitHub${EXT}</a>` : ""}${o.projects.length > 1 ? `<i class="sep"></i>` : ""}
-    <span class="cap" title="Sessions running now, out of the pool size">Pool<b>${o.pool.used} / ${o.pool.size}</b></span>
+  // The project switch is its own region: the numbers beside it change at every read, and rewriting it would close its open list.
+  setHTML($("scope"), `${o.projects.length > 1 ? `<label class="proj cap">Project<select id="proj">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select></label>` : ""}
+    ${project()?.board_url ? `<a class="cap" href="${esc(project().board_url)}" target="_blank" rel="noopener">Board on GitHub${EXT}</a>` : ""}${o.projects.length > 1 ? `<i class="sep"></i>` : ""}`);
+  setHTML($("stats"), `<span class="cap" title="Sessions running now, out of the pool size">Pool<b>${o.pool.used} / ${o.pool.size}</b></span>
     <span class="cap${stuck ? " stuck" : ""}" title="Run environments in use${held ? "\n" + esc(held) : ""}">Stacks<b>${busy} / ${slots.length}</b>${o.queue ? ` · +${o.queue} waiting` : ""}</span>
     <span class="cap">Runs today<b>${o.today.runs}</b>${o.today.failed ? ` · ${o.today.failed} failed` : ""}</span>
     <span class="cap" title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml">Spent est.<b>$${o.today.cost.toFixed(2)}</b></span>`);
@@ -673,6 +707,7 @@ function renderFlags() {
   if (o?.paused) add("bad", "Factory paused", "No new run starts. <code>shipfloor resume</code> continues.");
   if (p?.paused) add("warn", `${esc(p.slug)} paused`, `<code>shipfloor resume ${esc(p.slug)}</code> continues.`);
   if (o?.usage_limited) add("bad", "Usage limit hit", "Agents wait for the limit to reset.");
+  if (o && !o.paused && o.hours && !o.hours.open) add("warn", "Outside working hours:", `starts again at ${esc(o.hours.next)}`);  // a paused factory shows only the pause
   for (const x of o?.projects || []) if (x.skipped) add("bad", `${esc(x.slug)} skipped since ${when(x.skipped.since)}`, `${esc(x.skipped.reason)}. Nothing moves there until this is fixed; the Feed has the dispatcher's log.`);
   for (const a of o?.alerts || []) add("warn", "Health", `${esc(a)}. History in <code>~/.shipfloor/logs/health-*.jsonl</code>.`);
   const orphans = (o?.runs || []).filter((r) => r.orphan);
@@ -1254,24 +1289,52 @@ async function act(action, moveOnly) {
 /* feed: every project's runs and the dispatcher's own log, oldest first */
 // Settings: this machine's limits and the pauses are the owner's to change here. A project's own settings live in
 // its repository; they are shown as the dispatcher last read them, with where to change them.
-const SET = { data: null, sec: "sessions", draft: {}, err: "" };
+const SET = { data: null, sec: "sessions", draft: {}, err: "", shut: {}, busy: false, hoursBad: false };
+const hoursText = (d) => (d?.hours?.windows || []).join(", ");  // the windows as the field shows them
+try { SET.shut = JSON.parse(localStorage.getItem("shipfloor.shut")) || {}; } catch (e) { /* storage blocked: every project starts open */ }
 const THEMES = { dark: [["tape", "Floor tape"], ["charcoal", "Charcoal"], ["dock", "Dock"], ["machine", "Machine green"], ["blueprint", "Blueprint"], ["foundry", "Foundry"], ["night", "Night shift"], ["terminal", "Terminal"], ["contrast", "High contrast"]],
   light: [["kraft", "Kraft"], ["steel", "Steel"], ["paper", "Drafting paper"]] };
 const STAGE_HELP = { refine: "Writing specs.", develop: "Building a card.", validate: "Reviewing and opening the pull request.", deploy: "Merging and deploying. Always one card at a time per project." };
 const STAGE_HUE = { refine: "var(--refine)", develop: "var(--text)", validate: "var(--sand)", deploy: "var(--ok)" };
 const knobOf = (k) => { const [, slug, key] = k.split("|"); return SET.data.projects.find((p) => p.slug === slug)?.knobs[key]; };  // "p|<project>|<knob>"
-const setWas = (k) => k.startsWith("p|") ? knobOf(k).value : k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : SET.data.machine[k];
+const setWas = (k) => k === "hours" ? hoursText(SET.data) : k.startsWith("p|") ? knobOf(k).value : k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : k === "every_min" ? SET.data.dispatcher.every_min : SET.data.machine[k];
 const setVal = (k) => k in SET.draft ? SET.draft[k] : setWas(k);
-async function loadSettings() { const { status, body } = await api("/api/settings"); if (status === 200) { SET.data = body; renderSettings(); } }
+// How often the dispatcher looks for work: the choices as the page words them, and the reason shown when the machine has no task to set.
+const EVERY = { 1: "1 minute", 3: "3 minutes", 5: "5 minutes", 10: "10 minutes" };
+const NO_TASK = "Windows only: this machine has no ShipfloorDispatcher scheduled task. Its pace is set by whatever schedules the dispatcher here.";
+function cycleStatus(d) {
+  if (d.paused) return "Paused: no new run starts on any project. Sessions already running finish.";
+  const h = d.hours || {}, warn = h.error ? ` <span class="warn">The hours in config.yml are not valid, so the dispatcher runs at all hours.</span>` : "";
+  if (h.open === false && h.next) return `<b>Outside working hours:</b> starts again at ${esc(h.next)}${warn}`;
+  if (!d.cycle?.at) return "No cycle recorded yet." + warn;
+  let next = "";
+  if (d.dispatcher?.can_set && d.cycle.next_at) {  // a pace the machine does not run is never shown as a forecast
+    const left = (new Date(d.cycle.next_at) - Date.now()) / 60000;
+    next = left > 0 ? ` · next cycle in ${Math.max(1, Math.ceil(left))} min` : left > -1 ? " · next cycle overdue" : ` · <span class="late">next cycle overdue by ${Math.floor(-left)} min</span>`;
+  }
+  return `Running · last cycle ${dur(d.cycle.at, new Date())} ago${d.cycle.took_s != null ? `, it took ${d.cycle.took_s}s` : ""}${d.cycle.exit ? ` and ended with exit ${d.cycle.exit}` : ""}${next}${warn}`;
+}
+async function loadSettings() {
+  const { status, body } = await api("/api/settings"); if (status !== 200) return;
+  SET.data = body;
+  const p = document.activeElement?.id === "every" && $("disp").querySelector(".who p");  // the select is focused or open: only the status text moves
+  if (p) { p.innerHTML = cycleStatus(body); $("disp")._html = null; } else renderSettings();
+}
 function renderSettings() {
   const d = SET.data; if (!d) return;
+  const dp = d.dispatcher, pace = dp && `<select id="every"${dp.can_set ? "" : " disabled"}${"every_min" in SET.draft ? ' class="dirty"' : ""}>${dp.choices.map((n) => `<option value="${n}"${n === setVal("every_min") ? " selected" : ""}>${EVERY[n] || n + " minutes"}</option>`).join("")}</select>`;
   const row = (t, text, ctl) => `<div class="srow"><div><p class="st">${t}</p><p class="sd">${text}</p></div>${ctl}</div>`;
   const stepper = (k, min, max, by = 1) => `<span class="stp${k in SET.draft ? " dirty" : ""}"><button data-step="${k}" data-by="${-by}" data-min="${min}" data-max="${max}" aria-label="Less">−</button><output>${setVal(k)}</output><button data-step="${k}" data-by="${by}" data-min="${min}" data-max="${max}" aria-label="More">+</button></span>`;
   const sw = (target, on, label) => `<span class="sw"><input type="checkbox" data-pause="${esc(target)}" ${on ? "checked" : ""} aria-label="${esc(label)}"><i></i></span>`;
-  $("disp").classList.toggle("off", d.paused);
-  setHTML($("disp"), `<div class="who"><h1 class="g"><i class="sdot"></i>Dispatcher</h1><p>${d.paused ? "Paused: no new run starts on any project. Sessions already running finish."
-    : d.cycle?.at ? `Running · last cycle ${dur(d.cycle.at, new Date())} ago${d.cycle.took_s != null ? `, it took ${d.cycle.took_s}s` : ""}${d.cycle.exit ? ` and ended with exit ${d.cycle.exit}` : ""}` : "No cycle recorded yet."}</p></div>
-    <label class="sfl">Pause the factory${sw("", d.paused, "Pause the factory")}</label>`);
+  const h = d.hours || {}, outside = !d.paused && h.open === false && !!h.next;  // a paused factory shows only the pause
+  const hv = "hours" in SET.draft ? SET.draft.hours : hoursText(d), bad = SET.hoursBad || (!!h.error && !("hours" in SET.draft));
+  const helper = "Windows like 08:00-23:00, separated by commas. Empty means always.";
+  $("disp").classList.toggle("off", d.paused); $("disp").classList.toggle("idle", outside);
+  const field = document.activeElement?.id === "hours-in" ? document.activeElement : null, caret = field && [field.selectionStart, field.selectionEnd];
+  if (setHTML($("disp"), `<div class="who"><h1 class="g"><i class="sdot"></i>Dispatcher</h1><p>${cycleStatus(d)}</p></div>
+    ${dp ? `<label class="sfl">Looks for work every ${dp.can_set ? pace : `<span class="sknob">${pace}<small>${esc(dp.why || NO_TASK)}</small></span>`}</label>` : ""}
+    <label class="sfl hrs">Working hours<input type="text" id="hours-in" class="${"hours" in SET.draft ? "dirty" : ""}" value="${esc(hv)}" placeholder="always" spellcheck="false" autocomplete="off" title="${helper}" aria-describedby="hours-help"${bad ? ' aria-invalid="true"' : ""}></label><span class="vh" id="hours-help">${helper}</span>
+    <label class="sfl">Pause the factory${sw("", d.paused, "Pause the factory")}</label>`) && field) { const n = $("hours-in"); n.focus({ preventScroll: true }); n.setSelectionRange(...caret); }  // the rewrite took the focus and the caret with it
   const secs = [["sessions", "Sessions", "how much runs at once"], ["projects", "Projects", d.projects.map((p) => p.slug).join(", ") || "none yet"], ["costs", "Costs", "the prices behind the estimate"], ["themes", "Themes", "how this dashboard looks"]];
   setHTML($("set-nav"), secs.map(([id, name, sub]) => `<button data-setsec="${id}" aria-current="${SET.sec === id}">${name}<small>${esc(sub)}</small></button>`).join(""));
   let body = "";
@@ -1291,11 +1354,11 @@ function renderSettings() {
   } else if (SET.sec === "projects") {
     const list = (v) => Array.isArray(v) ? v.join(", ") : v || "";
     body = `<h1 class="g">Projects</h1><p class="lead">The repositories this factory works on. How the factory operates on a project (the pause and the four limits with steppers) is decided here, for this machine. What a project is (its files, layers and commands) is part of its repository and is shown as last read.</p>
-      ${d.projects.map((p) => { const dep = p.deploy || {};
+      ${d.projects.map((p) => { const dep = p.deploy || {}, shut = !!SET.shut[p.slug];
         const knob = (key, min, max, unit, by = 1) => { const k = `p|${p.slug}|${key}`, x = p.knobs[key], v = setVal(k);
           return `<span class="sknob">${stepper(k, min, max, by)}<small>${v === 0 ? "no limit" : unit}${v !== x.repo ? ` · the repository says ${x.repo || "no limit"}` : ""}</small></span>`; };
-        return `<div class="sgroup panel"><h2 class="ptitle2 g">${esc(p.slug)}<span>${esc(p.repo || "")}${p.board?.number ? ` · board #${p.board.number}` : ""} · ${esc(p.main)}${p.board_url ? ` · <a href="${esc(p.board_url)}" target="_blank" rel="noopener">board on GitHub${EXT}</a>` : ""}</span></h2>
-        ${row("Paused", "The dispatcher skips this project. Other projects keep running, and sessions already running finish.", sw(p.slug, p.paused, `Pause ${p.slug}`))}
+        return `<div class="sgroup panel${shut ? " shut" : ""}"><h2 class="ptitle2 g">${esc(p.slug)}<span>${esc(p.repo || "")}${p.board?.number ? ` · board #${p.board.number}` : ""} · ${esc(p.main)}${p.board_url ? ` · <a href="${esc(p.board_url)}" target="_blank" rel="noopener">board on GitHub${EXT}</a>` : ""}${shut && p.paused ? " · <b>Paused</b>" : ""}</span><button class="max" data-fold="${esc(p.slug)}" aria-expanded="${!shut}" aria-label="${shut ? "Expand" : "Minimize"} ${esc(p.slug)}" title="${shut ? "Expand" : "Minimize"}"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button></h2>
+        ${shut ? "" : `${row("Paused", "The dispatcher skips this project. Other projects keep running, and sessions already running finish.", sw(p.slug, p.paused, `Pause ${p.slug}`))}
         ${row("Cards in progress at once", "Coding and Validation count together, so pull requests do not pile up against main. 0 is no limit.", knob("limits.develop.wip", 0, 40, "cards"))}
         ${row("Specs in refinement at once", "Cards being refined, before they wait for your approval. 0 is no limit.", knob("limits.refine.wip", 0, 40, "cards"))}
         ${row("Minutes the deploy waits for CI and production", "Past this the deploy stops and the card comes back to you.", knob("deploy.timeout_min", 5, 240, "minutes", 5))}
@@ -1305,7 +1368,7 @@ function renderSettings() {
         ${dep.ci_workflow ? row("CI the deploy waits for", "The workflow whose result decides whether a card ships.", `<span class="sv">${esc(dep.ci_workflow)}</span>`) : ""}
         <h2>Layers</h2><div class="swrap"><table><thead><tr><th>layer</th><th>path</th><th>stack</th><th>build</th><th>tests live in</th></tr></thead><tbody>${p.layers.map((l) =>
           `<tr><td>${esc(l.name)}${l.tests_only ? ' <span class="cap">tests only</span>' : ""}</td><td><code>${esc(l.path || "")}</code></td><td>${esc(l.stack || "")}</td><td><code>${esc(l.build || l.test || "")}</code></td><td><code>${esc(list(l.tests))}</code></td></tr>`).join("")}</tbody></table></div>
-        <p class="from">The limits above are kept on this machine, over what the repository says. To change the rest, edit <code>.shipfloor/factory.yml</code> in ${esc(p.repo || "the repository")} on ${esc(p.main)}. The dispatcher reads it again on every cycle.</p></div>`; }).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}`;
+        <p class="from">The limits above are kept on this machine, over what the repository says. To change the rest, edit <code>.shipfloor/factory.yml</code> in ${esc(p.repo || "the repository")} on ${esc(p.main)}. The dispatcher reads it again on every cycle.</p>`}</div>`; }).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}`;
   } else if (SET.sec === "themes") {
     const face = (id) => `<span data-theme="${id}"><span class="c"><span class="n">#184</span><i class="t"></i><i class="m"></i></span><span class="s">${["ok", "warn", "bad"].map((k) => `<i style="--k:var(--${k})"></i>`).join("")}</span></span>`;
     const pick = (id, name, sub = "") => `<button class="thm" data-theme-pick="${id}" aria-pressed="${THEME === id}">${id === "auto" ? `<span class="thp two" aria-hidden="true">${face("tape")}${face("kraft")}</span>` : face(id).replace("<span ", '<span class="thp" aria-hidden="true" ')}<b>${name}</b>${sub ? `<small>${sub}</small>` : ""}</button>`;
@@ -1322,6 +1385,7 @@ function renderSettings() {
   setHTML($("set-body"), body);
   const n = Object.keys(SET.draft).length;
   $("set-save").hidden = !n && !SET.err;
+  $("set-save").querySelectorAll("button").forEach((b) => { b.disabled = SET.busy; });
   setHTML($("set-count"), SET.err ? `<span class="bad">${esc(SET.err)}</span>` : `<b>${plural(n, "change")} not saved.</b> <span>Applied on the dispatcher's next cycle. Running sessions are not touched.</span>`);
 }
 function setStep(t) {
@@ -1329,21 +1393,35 @@ function setStep(t) {
   if (n === setWas(k)) delete SET.draft[k]; else SET.draft[k] = n;
   SET.err = ""; renderSettings();
 }
+function setHours(input) {  // typing is the draft; the server alone judges whether it is a valid window
+  const v = input.value;
+  if (v === setWas("hours")) delete SET.draft.hours; else SET.draft.hours = v;
+  if (SET.hoursBad) { SET.hoursBad = false; SET.err = ""; }
+  renderSettings();
+}
 async function setSave() {
+  if (SET.busy) return;
   const body = { stages: {} }, per = {};  // this machine's limits in one request, then each project's overrides
   for (const [k, v] of Object.entries(SET.draft)) {
-    if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = v === knobOf(k).repo ? null : v; }
-    else if (k.startsWith("stages.")) body.stages[k.slice(7)] = v; else body[k] = k === "stack_wait" ? v * 60 : v;
+    if (k === "hours") body.hours = v.trim() ? v.split(",").map((w) => w.trim()) : null;  // an empty field clears it
+    else if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = v === knobOf(k).repo ? null : v; }
+    else if (k.startsWith("stages.")) body.stages[k.slice(7)] = v; else if (k === "every_min") body.dispatcher = { every_min: v }; else body[k] = k === "stack_wait" ? v * 60 : v;
   }
   const posts = [...(Object.keys(body).length > 1 || Object.keys(body.stages).length ? [["machine", body]] : []), ...Object.entries(per).map(([project, values]) => ["project", { project, values }])];
-  SET.err = "";
+  SET.err = ""; SET.hoursBad = false; SET.busy = true; renderSettings();
   for (const [what, payload] of posts) {
     const r = await api(`/api/settings/${what}`, { method: "POST", body: JSON.stringify(payload) });
-    if (r.status !== 200) { SET.err = r.body.error || "The settings were not saved."; break; }
+    if (r.status !== 200) {
+      SET.hoursBad = what === "machine" && r.status === 400 && /(^|; )hours/.test(r.body.error || "");
+      SET.err = SET.hoursBad ? "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas."
+        : r.status === 409 && what === "machine" && "every_min" in SET.draft  // the system's own reason, in the page's sentence
+        ? `The pace was not changed: ${String(r.body.error || "").replace(/\.+$/, "")}. The dispatcher still looks for work every ${SET.data.dispatcher.every_min} min.` : r.body.error || "The settings were not saved.";
+      break;
+    }
     SET.data = r.body;
     for (const k of Object.keys(SET.draft)) if (what === "machine" ? !k.startsWith("p|") : k.startsWith(`p|${payload.project}|`)) delete SET.draft[k];
   }
-  loadOverview(); renderSettings();
+  SET.busy = false; loadOverview(); renderSettings();
 }
 async function setPause(input) {  // a pause is urgent: it applies at once, not with Save
   const r = await api("/api/settings/pause", { method: "POST", body: JSON.stringify({ project: input.dataset.pause || null, paused: input.checked }) });
@@ -1362,32 +1440,36 @@ async function loadFeed() {
   if (S.view !== "feed") return;
   const { status, body } = await api("/api/feed");
   if (status !== 200) return;
-  S.feed = body.events; renderFeed(); feedTail();
+  S.feed = body.events; renderFeed();
 }
 const evId = (e) => `${e.source}/${e.log}/${e.start}`;
+const FEED_IS = { all: () => true, you: (e) => e.you, bad: (e) => e.issue && e.end && e.exit !== 0, run: (e) => e.issue && !e.end && !e.lost, sys: (e) => !e.issue };
+const FEED_NAMES = { all: "All", you: "Waits for you", bad: "Failures", run: "Running", sys: "Dispatcher" };
+const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
+function feedLeft(e) {  // what a run left behind, each piece from its source: the log, the report, the board, the run's lock
+  return [e.last && `<span class="fraw">${esc(e.last)}</span>`, e.pr && `PR #${e.pr}`,
+    e.failed && `<span>gates failed</span>: <span class="fraw">${esc(e.failed.join(", "))}</span>`,
+    e.column && `<span>now in</span> <span>${esc(e.column)}</span>`,
+    e.step && `Step ${e.step.i} of ${e.step.of}: <span>${esc(e.step.label)}</span>`].filter(Boolean).join(" · ");
+}
 function renderFeed() {
-  const el = $("feed"); const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40, had = document.activeElement?.dataset?.ev;
-  const html = (S.feed || []).map((e) => {
-    const head = `<span class="muted" title="${esc(e.ts)}">${e.ts ? when(e.ts) : ""}</span><span class="muted">${esc(e.source)}</span>`;
-    if (!e.issue) return `<div class="ev">${head}<span>${esc(e.text)}</span></div>`;
-    const id = esc(evId(e)), open = S.feedOpen === evId(e), k = `${esc(e.source)}/${e.issue}`;
-    const more = open ? `<div class="ev-more"><pre>${esc(S.feedTail ?? "Reading the log…")}</pre>
-      <div class="acts"><button class="btn" data-full="${k}" data-go="log" data-log="${esc(e.log)}">Whole log</button><button class="btn ghost" data-full="${k}">Open card</button></div></div>` : "";
-    return `<div class="ev ${e.end ? (e.exit === 0 ? "ok" : "bad") : "run"}">${head}<span><button data-ev="${id}" aria-expanded="${open}">${esc(e.text)}</button> <span class="muted">· ${e.end ? dur(e.start, e.end) : `${mins(e.start)}m`} ·</span> <b data-t>${e.end ? (e.exit === 0 ? "ok" : `exit ${e.exit}`) : "running"}</b></span></div>${more}`;
+  const el = $("feed"), all = S.feed || [], f = S.feedFilter || "all", many = (S.overview?.projects.length || 0) > 1;
+  const had = document.activeElement?.closest?.("#feed [data-ev], #feed [data-feed]"), again = had && (had.dataset.ev ? `[data-ev="${CSS.escape(had.dataset.ev)}"]` : `[data-feed="${had.dataset.feed}"]`);
+  let day = "";
+  const rows = all.filter(FEED_IS[f]).reverse().map((e) => {  // newest first, a heading where the day changes
+    const d = e.ts ? new Date(e.ts).toDateString() : day, head = d === day ? "" : `<li class="fday cap">${new Date(e.ts).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</li>`;
+    day = d;
+    const time = `<time class="ftime" title="${esc(e.ts)}">${hhmm(e.ts)}</time><i class="fdot" aria-hidden="true"></i>`;
+    if (!e.issue) return `${head}<li class="fev f-sys">${time}<p class="fhead"><b>${esc(e.source)}</b><span class="fraw">${esc(e.text)}</span></p><span class="fside">${e.n > 1 ? `${e.n}× <span>since</span> ${hhmm(e.since)}` : ""}</span></li>`;
+    const open = `data-full="${esc(e.source)}/${e.issue}" data-go="log" data-log="${esc(e.log)}"`, left = feedLeft(e);
+    return `${head}<li class="fev f-${e.end ? (e.exit === 0 ? "ok" : "bad") : e.lost ? "sys" : "run"}" ${open}>${time}
+      <div><p class="fhead">${many ? `<span class="fsrc">${esc(e.source)}</span>` : ""}<b>${esc(e.stage)}</b><button class="ftitle fraw" ${open} data-ev="${esc(evId(e))}">#${e.issue} ${esc(e.title)}</button>${e.you ? '<span class="fyou">waits for you</span>' : ""}</p>${left ? `<p class="fleft">${left}</p>` : ""}</div>
+      <span class="fside">${e.end ? dur(e.start, e.end) : e.lost ? "<span>no end logged</span>" : `<span>running</span> ${mins(e.start)}m`}${e.end && e.exit ? ` · exit ${e.exit}` : ""}</span><span class="fside num">${"cost" in e ? money(e.cost) + EST : ""}</span></li>`;
   }).join("");
-  if (!setHTML(el, html || '<p class="placeholder">Nothing logged yet.</p>')) return;
-  if (had) el.querySelector(`[data-ev="${CSS.escape(had)}"]`)?.focus({ preventScroll: true });
-  if (atEnd && !S.feedOpen) el.scrollTop = el.scrollHeight;
+  const tools = `<div class="ftools"><div role="group" aria-label="Filter the feed">${Object.keys(FEED_IS).map((k) => `<button data-feed="${k}" aria-pressed="${f === k}">${FEED_NAMES[k]}<b>${all.filter(FEED_IS[k]).length}</b></button>`).join("")}</div><span class="cap">Newest first</span></div>`;
+  if (!setHTML(el, tools + (rows ? `<ol class="flist">${rows}</ol>` : `<p class="placeholder">${all.length ? "Nothing here." : "Nothing logged yet."}</p>`))) return;
+  if (again) el.querySelector(again)?.focus({ preventScroll: true });
 }
-async function feedTail() {  // the last lines of the open run's log; read again on every feed refresh, so a running one moves
-  const id = S.feedOpen, e = id && (S.feed || []).find((x) => x.issue && evId(x) === id);
-  if (!e) return;
-  const { status, body } = await api(`/api/log/${encodeURIComponent(e.source)}/${encodeURIComponent(e.log)}?from=-1`);
-  if (S.feedOpen !== id) return;
-  S.feedTail = status === 200 ? body.text.split("\n").filter((l) => l.trim()).slice(-12).join("\n") || "(empty)" : "The log could not be read.";
-  renderFeed();
-}
-function toggleEv(id) { S.feedOpen = S.feedOpen === id ? null : id; S.feedTail = null; renderFeed(); feedTail(); }
 
 let tailing = false;
 async function unblock() {
@@ -1421,13 +1503,18 @@ function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog
 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
-  const t = e.target.closest("[data-step],[data-theme-pick],[data-setsec],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-step],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.dataset.step) setStep(t);
   else if (t.dataset.themePick) { theme(t.dataset.themePick); renderSettings(); themeReview(); }
   else if (t.dataset.setsec) { SET.sec = t.dataset.setsec; renderSettings(); }
+  else if (t.dataset.fold) {
+    const k = t.dataset.fold; if (SET.shut[k]) delete SET.shut[k]; else SET.shut[k] = 1;
+    try { localStorage.setItem("shipfloor.shut", JSON.stringify(SET.shut)); } catch (e) { /* storage blocked: lasts for this page */ }
+    renderSettings(); [...document.querySelectorAll("[data-fold]")].find((b) => b.dataset.fold === k)?.focus();  // the rewrite took the focus with it
+  }
   else if (t.dataset.set === "save") setSave();
-  else if (t.dataset.set === "discard") { SET.draft = {}; SET.err = ""; renderSettings(); }
+  else if (t.dataset.set === "discard") { if (SET.busy) return; SET.draft = {}; SET.err = ""; SET.hoursBad = false; renderSettings(); }
   else if (t.dataset.iq) { INB.cur = t.dataset.iq; INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox(); }
   else if (t.dataset.io) { INB.pick = +t.dataset.io; renderInbox(); if (!$("inote").hidden) $("inote").focus(); }
   else if (t.id === "igo") inboxConfirm();
@@ -1435,7 +1522,7 @@ document.addEventListener("click", (e) => {
   else if (t.hasAttribute("data-max")) maximize(t.parentElement, !t.parentElement.classList.contains("maxed"));
   else if (t.hasAttribute("data-dmax")) grow($("drawer"), () => { S.full = !S.full; renderDrawer(); });
   else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, t.dataset.go); if (t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; } }, t.closest(".tile"));  // a card in progress opens maximized, 90% of the screen: the side drawer would cover its own tile
-  else if (t.dataset.ev) toggleEv(t.dataset.ev);
+  else if (t.dataset.feed) { S.feedFilter = t.dataset.feed; renderFeed(); }
   else if (t.dataset.peek) peek(t.dataset.peek);
   else if (t.dataset.q) quick(t.dataset.q, t.closest("[data-key]").dataset.key);
   else if (t.dataset.open && t.dataset.log) { openCard(t.dataset.open, "log"); S.log = t.dataset.log; S.logNext = -1; S.logText = ""; }  // a feed line opens its own run's log
@@ -1452,9 +1539,14 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("submit", (e) => { if (e.target.id === "compose") { e.preventDefault(); say(); } });
 document.addEventListener("keydown", (e) => { if (e.target.id === "say" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); say(); } });
-document.addEventListener("input", (e) => { if (e.target.id === "changes") syncDecide(); if (e.target.id === "inote") renderInbox(); });
+document.addEventListener("keydown", (e) => { if (e.target.id === "hours-in" && e.key === "Enter") { e.preventDefault(); if (Object.keys(SET.draft).length) setSave(); } });
+document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "changes") syncDecide(); if (e.target.id === "inote") renderInbox(); });
 document.addEventListener("change", (e) => {
   if (e.target.matches?.("[data-pause]")) setPause(e.target);
+  if (e.target.id === "every") {  // a draft like a stepper's: Save applies it, picking the saved value again drops it
+    if (+e.target.value === setWas("every_min")) delete SET.draft.every_min; else SET.draft.every_min = +e.target.value;
+    SET.err = ""; renderSettings(); $("every")?.focus();
+  }
   if (e.target.id === "logsel") { S.log = e.target.value; S.logNext = -1; S.logText = ""; renderDrawer(); followLog(); }
   if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
 });
@@ -1484,11 +1576,14 @@ function themeReview() {  // the review page is sandboxed: it gets the theme's c
 }
 window.addEventListener("message", (e) => {
   const f = document.querySelector("#pane iframe"); const m = e.data;
-  if (f && e.source === f.contentWindow && m && m.shipfloor === "ready") themeReview();
+  if (f && e.source === f.contentWindow && m && m.shipfloor === "ready") { themeReview(); f.heard = true; f.classList.remove("plain"); }
+  if (f && e.source === f.contentWindow && m && m.shipfloor === "themed") f.classList.add("themed");
   if (!f || e.source !== f.contentWindow || !S.open || !m || m.shipfloor !== "review-progress") return;
   S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
   syncDecide();
 });
+// a page that never says "ready" does not take the theme: show it plain; one that did is never left hidden
+$("pane").addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
 $("list").addEventListener("scroll", fade); window.addEventListener("resize", fade);
 window.addEventListener("resize", renderPeek); document.addEventListener("scroll", () => { if (S.peek) renderPeek(); }, true);
 // a card's pass, its row and its dot light up together

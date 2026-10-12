@@ -53,10 +53,11 @@ def mem_free_mb():
 
 
 def snapshot(home, seconds, code, overlap):
-    from dashboard import Factory  # here, not at the top: the dashboard imports this module for alerts()
+    from dashboard import Factory, read_yaml  # here, not at the top: the dashboard imports this module for alerts()
     f = Factory(home, "")
     pool, slots = f.pool()
     paused, limited = (f.home / "PAUSE").exists(), f.usage_limited()
+    outside = not shipfloor_config.hours_state(read_yaml(f.home / "config.yml"), shipfloor_config.now())["open"]
     live = {p: [r for r in f.live(p) if not r["orphan"]] for p in f.projects()}
     used = {st: sum(r["stage"] == st for runs in live.values() for r in runs) for st in slots}
     free_pool = pool - sum(used.values())
@@ -67,7 +68,7 @@ def snapshot(home, seconds, code, overlap):
         columns, age = f.board(p)
         blocked, busy = f.blocked(p), {r["issue"] for r in runs}
         limits = shipfloor_config.merged(f.config(p), shipfloor_config.DEFAULTS)["limits"]
-        stopped = paused or limited or (f.pdir(p) / "PAUSE").exists() or bool(f.skipped(p))
+        stopped = paused or limited or outside or (f.pdir(p) / "PAUSE").exists() or bool(f.skipped(p))
 
         def waiting(col):
             return sum(c == col and n not in blocked and n not in busy for n, c in columns.items())
@@ -91,6 +92,7 @@ def snapshot(home, seconds, code, overlap):
     return {"ts": datetime.now().astimezone().isoformat(timespec="seconds"),
             "cycle": {"s": seconds, "exit": code, "overlap": overlap},
             "paused": paused, "usage_limited": limited,
+            "outside_hours": outside,
             "machine": {"cpu": cpu_percent(), "mem_free_mb": mem_free_mb(),
                         "disk_free_gb": round(shutil.disk_usage(home).free / 2**30, 1)},
             "pool": {"size": pool, "used": sum(used.values())},
@@ -119,6 +121,16 @@ def alerts(home):
         out.append(f"{key}: more runs than the limit")
     if any(c["cycle"]["overlap"] for c in last):
         out.append("two dispatcher cycles ran at once")
+    try:
+        every = shipfloor_config.dispatcher_every(shipfloor_config.yaml.safe_load((Path(home) / "config.yml").read_text(encoding="utf-8")))
+    except (OSError, ValueError, shipfloor_config.yaml.YAMLError):  # no config, or one the dispatcher itself refuses
+        every = shipfloor_config.dispatcher_every(None)
+    try:
+        late = (datetime.now().astimezone() - datetime.fromisoformat(last[-1]["ts"])).total_seconds() / 60
+    except (IndexError, KeyError, ValueError, TypeError):
+        late = 0  # no health line yet: nothing to be late
+    if late > 1.5 * every:
+        out.append(f"no dispatcher cycle for {round(late)} min (it runs every {every})")
     return out
 
 

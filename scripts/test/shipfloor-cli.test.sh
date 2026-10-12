@@ -112,4 +112,6 @@ assert_exit 0 bash "$FACTORY_DIR/gate.sh" -C "$W" acceptance-intact "$qa9"
 assert_contains "$(bash "$M" accept shop 9 again 2>&1)" "nothing to accept"
 # pool shows the stack slots
 out="$(bash "$M" pool)"; assert_contains "$out" "stacks: 3"; assert_contains "$out" "slot 0: free"
+# the first registered project ("shop") starts no stack of its own, yet the machine's 3 slots are listed
+assert_contains "$out" "slot 1: free"; assert_contains "$out" "slot 2: free"
 finish

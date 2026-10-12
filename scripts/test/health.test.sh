@@ -68,7 +68,50 @@ assert_contains "$(last 'd["cycle"]["overlap"]')" "True"
 touch "$H/PAUSE"; rm "$H/dispatch.pid"; bash "$FACTORY_DIR/shipfloor-dispatch.sh"
 assert_contains "$(last 'd["paused"]')" "True"
 
+# outside the working hours nothing is expected to start: the line says so, records no idle key and raises no alert
+setup; printf 'hours: ["08:00-23:00"]\n' >> "$H/config.yml"; printf '26\tReady for Dev\tI26\n27\tReady for Dev\tI27\n' > "$P/board.tsv"
+export SHIPFLOOR_NOW=23:30
+health record
+[ "$(last 'd.get("outside_hours")')" = True ] && pass "AC-6 outside the hours the line says outside_hours" || fail "AC-6 the line has no outside_hours=true at 23:30: $(last 'd.get("outside_hours")')"
+assert_contains "$(last 'd["idle"]')" "[]"
+health record; health record
+[ -z "$(health alerts)" ] && pass "AC-6 no alert for a stretch outside the hours" || fail "AC-6 alerted outside the hours: $(health alerts)"
+export SHIPFLOOR_NOW=12:00
+health record
+[ "$(last 'd.get("outside_hours")')" = False ] && pass "AC-6 inside the hours outside_hours is false" || fail "AC-6 the line at 12:00 says outside_hours=$(last 'd.get("outside_hours")')"
+assert_contains "$(last 'd["idle"]')" "['shop/develop']"
+health record; health record
+assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting for 3 cycles in a row"
+export SHIPFLOOR_NOW=23:30
+setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"
+health record
+[ "$(last 'd.get("outside_hours")')" = False ] && pass "AC-6 without hours outside_hours is false" || fail "AC-6 without hours the line says outside_hours=$(last 'd.get("outside_hours")')"
+assert_contains "$(last 'd["idle"]')" "['shop/develop']"
+unset SHIPFLOOR_NOW
+# lines written before the field existed read as inside the hours: their idle keys still count
+setup; mkdir -p "$H/logs"
+for _ in 1 2 3; do printf '{"cycle": {"s": 1, "exit": 0, "overlap": false}, "idle": ["shop/develop"], "over": []}\n'; done > "$H/logs/health-2026-10.jsonl"
+assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting for 3 cycles in a row"
+
 # doctor repeats the alerts
 out="$(bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
 assert_contains "$out" "WARN health: two dispatcher cycles ran at once"
+
+# a missed cycle: the newest line is older than 1.5 x the pace in config.yml (10 min here, so 15)
+cyc() {  # cyc <minutes ago>: a health line for a cycle that ended that long ago
+  mkdir -p "$H/logs"
+  $PY -I -c 'import json,sys; from datetime import datetime,timedelta; t=(datetime.now().astimezone()-timedelta(minutes=float(sys.argv[1]))).isoformat(timespec="seconds"); print(json.dumps({"ts":t,"cycle":{"s":5,"exit":0,"overlap":False},"paused":False,"idle":[],"over":[]}))' "$1" >> "$H/logs/health-$(date +%Y-%m).jsonl"
+}
+setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 30; cyc 20; cyc 10
+case "$(health alerts)" in *"no dispatcher cycle"*) fail "AC-7 alerted on cycles arriving on time every 10 minutes: $(health alerts)" ;; *) pass "AC-7 cycles every 10 minutes on time raise no missed-cycle alert" ;; esac
+setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 45; cyc 35; cyc 25
+out="$(health alerts)"
+assert_contains "$out" "no dispatcher cycle for"
+assert_contains "$out" "(it runs every 10)"
+# the pace comes from config.yml: without the key it is 3, and 10 minutes without a cycle is late
+setup; cyc 20; cyc 15; cyc 10
+assert_contains "$(health alerts)" "(it runs every 3)"
+# no health line yet: nothing to be late
+setup; mkdir -p "$H/logs"
+case "$(health alerts)" in *"no dispatcher cycle"*) fail "AC-7 alerted with no health line yet" ;; *) pass "AC-7 no health line, no missed-cycle alert" ;; esac
 finish

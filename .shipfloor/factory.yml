@@ -10,15 +10,18 @@ context: [PRODUCT.md, DESIGN.md, README.md]
 # acceptance-intact lets through an edit to an acceptance test that adds or removes none of these lines.
 acceptance_assertions: 'assert_|pass "|fail "'
 limits:
-  develop: {wip: 2}   # Coding + Validation: most cards meet in scripts/dashboard.html, so few branches at once
+  develop: {wip: 0}   # no project cap on Coding + Validation (omitting it would cap at 4): the machine pool decides
 layers:
   - name: factory
     path: ./
     stack: Bash and Python 3 (stdlib + PyYAML); the dashboard is one HTML file, no build; tests print "ok" / "FAIL" lines
-    build: TEST_JOBS=4 bash scripts/test/run.sh   # the whole suite; 4 jobs, since other runs share the machine
+    # The tests tied to what the card changed against main (a shared helper runs them all). The whole suite is CI's:
+    # it runs on the PR and deploy.required_checks waits for it. Here it took 4 minutes a build; there, one.
+    build: TEST_JOBS=4 bash scripts/test/run.sh --changed origin/main
     test: 's={selector}; bash scripts/test/run.sh "${s##*/}"'   # selector: a test file, with or without its path
     ran: '^ +ok '
     assertions: '^ +FAIL '
     tests: ['scripts/test/*.test.sh']
 # no stack: nothing here needs a running app yet (a card with the ui label gets no screen check)
-# no deploy block: a card is done at the merge
+# The deploy merges only with the CI job green on the PR, then waits for CI on main; red there opens a revert PR.
+deploy: {ci_workflow: CI, required_checks: [test]}
