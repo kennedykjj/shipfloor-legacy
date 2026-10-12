@@ -1,6 +1,9 @@
 {
   "_": "pt-BR for the dashboard. The page is written in English; when the machine's language is pt-BR it rewrites what it shows with this file: 'exact' replaces a whole piece of text, 'rx' rewrites a phrase inside one (JavaScript regular expressions, applied in order). Text with no entry stays in English. Card titles, logs and what the agents wrote are never touched.",
   "exact": {
+    "This link is no longer valid": "Este link não é mais válido",
+    "The dashboard does not accept it any more, so this page stopped updating. To get the current link, run in a terminal:": "O dashboard não o aceita mais, então esta página parou de atualizar. Para pegar o link atual, rode no terminal:",
+    "Then open the URL it prints. This tab stays as it is.": "Depois abra a URL que ele imprimir. Esta aba fica como está.",
     "Factory": "Fábrica",
     "Feed": "Feed",
     "All": "Tudo",

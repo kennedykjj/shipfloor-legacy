@@ -500,6 +500,11 @@ iframe.plain { visibility: visible; opacity: 1; background: #fff; }
 .review { display: flex; flex-direction: column; height: 100%; }
 .review .none { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
 .placeholder { padding: 20px; color: var(--muted); max-width: 64ch; }
+/* a refused link: the page stops at the header and one message */
+body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #peek, body.refused #drawer, body.refused #dim { display: none !important; }
+#msg.refusal { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 20px; max-width: 64ch; color: var(--muted); outline: none; }
+#msg.refusal strong { color: var(--text); font-size: 14px; font-weight: 600; }
+#msg.refusal code { font: 13px var(--mono); color: var(--text); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 4px; padding: 2px 7px; white-space: nowrap; user-select: all; }
 .skeleton { height: 14px; margin: 14px 20px; border-radius: 4px; background: linear-gradient(90deg, var(--edge), var(--panel-hi), var(--edge)); background-size: 200% 100%; animation: shimmer 1.2s ease infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
@@ -596,7 +601,7 @@ const OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Stage
 const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged", "shipped"]);
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
-const S = { view: "board", overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "",
+const S = { view: "board", overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "", refused: false,
   expanded: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {} };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -646,8 +651,10 @@ async function loadLang() {
 function tick(root = document) { root.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }); }
 
 async function api(path, opts = {}) {
+  if (S.refused) return { status: 403, body: {} };
   try {
     const r = await fetch(path, { ...opts, headers: { "X-Shipfloor-Token": token, "Content-Type": "application/json", ...(opts.headers || {}) } });
+    if (r.status === 403) { if (!S.refused) { S.refused = true; refuse(); } return { status: 403, body: {} }; }
     const body = await r.json().catch(() => ({}));
     setOffline(false);
     return { status: r.status, body };
@@ -656,8 +663,20 @@ async function api(path, opts = {}) {
     return { status: 0, body: { error: "the dashboard server is not answering" } };
   }
 }
-function setOffline(v) { if (S.offline !== v) { S.offline = v; renderFlags(); } }
-function setError(v) { if (S.error !== v) { S.error = v; renderFlags(); } }
+function setOffline(v) { if (S.refused) return; if (S.offline !== v) { S.offline = v; renderFlags(); } }
+function setError(v) { if (S.refused) return; if (S.error !== v) { S.error = v; renderFlags(); } }
+// The server no longer accepts this page's link (it comes from a previous start): stop asking, drop the factory's data, say what to run.
+function refuse() {
+  S.open = null; S.card = null; S.full = false; S.peek = null;
+  document.querySelectorAll(".panel.maxed").forEach((p) => p.classList.remove("maxed"));
+  document.querySelectorAll("iframe").forEach((f) => f.remove());  // its src carries the token and loads on its own
+  $("drawer").inert = true; $("drawer").classList.remove("open"); $("dim").hidden = true; $("peek").hidden = true;
+  setHTML($("alerts"), "");
+  document.body.classList.add("refused");
+  const m = $("msg"); m.hidden = false; m.className = "refusal"; m.setAttribute("role", "alert"); m.setAttribute("tabindex", "-1");
+  setHTML(m, '<strong>This link is no longer valid</strong><span>The dashboard does not accept it any more, so this page stopped updating. To get the current link, run in a terminal:</span><code>shipfloor dashboard</code><span>Then open the URL it prints. This tab stays as it is.</span>');
+  m.focus();
+}
 
 const money = (v) => v == null ? '<span class="unpriced" title="A model in this card has no price, so its cost is unknown and the cost limits skip it. Add it to ~/.shipfloor/prices.yml.">$ ?</span>' : `<span class="coin">${v.toFixed(2)}</span>`;
 // The cost limits (config.yml, costs): a limit is shown whole when it is, and with cents when it is not. A card that passed
@@ -690,7 +709,7 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 /* overview */
 async function loadOverview() {
   const { status, body } = await api("/api/overview");
-  if (status === 403) { $("band").hidden = $("cols").hidden = true; $("msg").hidden = false; setHTML($("msg"), 'This link belongs to an earlier run of the dashboard. Open the URL that <code>shipfloor dashboard</code> printed.'); return; }
+  if (S.refused) return;
   if (status !== 200) { if (status) setError(body.error || `the overview answered ${status}`); return; }
   setError("");
   S.overview = body;
@@ -722,6 +741,7 @@ function renderStrip() {
 }
 // The alerts line exists only while something is wrong.
 function renderFlags() {
+  if (S.refused) return;
   const o = S.overview, p = project(), f = [];
   const add = (k, b, text) => f.push(`<span class="${k}"><b>${b}</b>${text}</span>`);
   if (S.offline) add("bad", "Offline", "The dashboard server is not answering. Is <code>shipfloor dashboard</code> still running?");
@@ -760,6 +780,7 @@ function maximize(panel, on) {
 const stale = (p) => p?.board_age_s != null && p.board_age_s > STALE_S;
 const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" ? "stop" : c.blocked === "infra" ? "infra" : c.running ? "run" : c.awaiting ? "you" : "wait";
 function renderBoard() {
+  if (S.refused) return;
   const p = project();
   $("band").hidden = $("cols").hidden = !p; $("msg").hidden = !!p;
   if (!p) { if (S.overview) setHTML($("msg"), 'No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.'); return; }
@@ -1679,6 +1700,7 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
 });
 document.addEventListener("keydown", (e) => {
+  if (S.refused) return;
   const typing = e.target.closest?.("textarea, input, select");
   if (e.key === "Escape" && S.peek && !S.open) { peek(S.peek); return; }
   if (!typing && inboxOn() && /^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); document.querySelector(`[data-io="${+e.key - 1}"]`)?.click(); return; }
@@ -1722,7 +1744,7 @@ document.querySelectorAll("[data-maxable]").forEach((el) => el.insertAdjacentHTM
 $("d-max").innerHTML = MAX;
 $("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
 loadLang().finally(loadOverview);
-setTimeout(() => { if (!S.overview) setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); }, 6000);
+setTimeout(() => { if (!S.overview && !S.refused) setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); }, 6000);
 setInterval(loadOverview, 2000);
 setInterval(loadFeed, 5000);
 setInterval(() => { if (S.view === "settings") loadSettings(); }, 10000);

@@ -1180,6 +1180,32 @@ class Server(ThreadingHTTPServer):
     allow_reuse_address = os.name != "nt"  # on Windows SO_REUSEADDR lets a second server share the port
 
 
+def link_token(home):
+    """The link's secret, kept in <home>/dashboard.token so a link survives a restart.
+    A missing or damaged file is replaced by a new token; an unwritable home keeps it in memory."""
+    path = Path(home) / "dashboard.token"
+    try:
+        saved = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        saved = ""
+    if re.fullmatch(r"[A-Za-z0-9_-]{22}", saved):
+        return saved
+    token = secrets.token_urlsafe(16)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(token + "\n")
+        os.replace(tmp, path)
+    except OSError:
+        print("shipfloor dashboard: could not save the link's secret; this link will not survive a restart", file=sys.stderr, flush=True)
+    return token
+
+
 def main():
     a = argparse.ArgumentParser(prog="shipfloor dashboard")
     a.add_argument("--home", required=True)
@@ -1188,7 +1214,7 @@ def main():
     args = a.parse_args()
     bash()
     Handler.factory = Factory(args.home, os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    Handler.token = secrets.token_urlsafe(16)
+    Handler.token = link_token(args.home)
     server = None
     for port in [0] if args.port == 0 else range(args.port, args.port + 10):
         try:
