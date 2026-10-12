@@ -1,0 +1,1 @@
+{"outcome": "infra", "agents": [], "rounds": 0, "failed_gates": [], "flaky": [], "gates_reused": ["build", "green factory scripts/test/dashboard-names.test.sh"], "amendments": []}
