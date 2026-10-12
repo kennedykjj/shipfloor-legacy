@@ -558,7 +558,13 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
 
 // Every region is rewritten only when its markup changed, so polling keeps focus, scroll and typed text.
-function setHTML(el, html) { if (el._html === html) return false; el._html = html; el.innerHTML = html; tick(el); return true; }
+// review marks wait here (one per dashboard, for the card they were made on) until the debounce fires or the iframe goes away
+const MARKS = { wait: null, timer: 0 };
+function flushMarks() {  // silent on purpose: a lost save changes nothing on screen; keepalive lets it outlive a hidden page
+  clearTimeout(MARKS.timer); MARKS.timer = 0; const w = MARKS.wait; MARKS.wait = null; if (!w) return;
+  try { fetch(`/api/card/${encodeURIComponent(w.p)}/${w.n}/marks`, { method: "POST", keepalive: true, headers: { "X-Shipfloor-Token": token, "Content-Type": "application/json" }, body: JSON.stringify({ rev: w.rev, marks: w.marks }) }).catch(() => {}); } catch (e) { /* nothing to do */ }
+}
+function setHTML(el, html) { if (el._html === html) return false; if (el.id === "pane") flushMarks(); el._html = html; el.innerHTML = html; tick(el); return true; }
 // Language: the page is written in English. In another language (the machine's, ~/.shipfloor/config.yml) every piece of
 // text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
 // 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
@@ -1487,10 +1493,15 @@ function themeReview() {  // the review page is sandboxed: it gets the theme's c
 window.addEventListener("message", (e) => {
   const f = document.querySelector("#pane iframe"); const m = e.data;
   if (f && e.source === f.contentWindow && m && m.shipfloor === "ready") themeReview();
+  if (f && e.source === f.contentWindow && S.open && m && m.shipfloor === "review-marks" && typeof m.rev === "string" && m.marks && typeof m.marks === "object" && !Array.isArray(m.marks)) {
+    const [p, n] = S.open.split("/"); MARKS.wait = { p, n, rev: m.rev, marks: m.marks };
+    clearTimeout(MARKS.timer); MARKS.timer = setTimeout(flushMarks, 500);
+  }
   if (!f || e.source !== f.contentWindow || !S.open || !m || m.shipfloor !== "review-progress") return;
   S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
   syncDecide();
 });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushMarks(); }); window.addEventListener("pagehide", flushMarks);
 $("list").addEventListener("scroll", fade); window.addEventListener("resize", fade);
 window.addEventListener("resize", renderPeek); document.addEventListener("scroll", () => { if (S.peek) renderPeek(); }, true);
 // a card's pass, its row and its dot light up together
