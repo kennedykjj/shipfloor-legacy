@@ -1,0 +1,18 @@
+{
+  "issue": 80,
+  "slug": "shipfloor-install-refuses-a-clone-that-i",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T23:40:00-03:00",
+  "finished_at": "2026-10-12T00:22:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 55648, "duration_s": 397},
+    {"role": "engineer", "tokens": 57054, "duration_s": 609},
+    {"role": "engineer", "tokens": 14959, "duration_s": 117}
+  ],
+  "rounds": {"acceptance-tests": 1, "implementation": 2},
+  "gates_failed": ["build (once, after round 2: scripts/test/gate-stack.test.sh, 3 FAIL; passed on the rerun with no change)"],
+  "flaky": ["factory scripts/test/gate-stack.test.sh"],
+  "amendments": [],
+  "manual_edit": false
+}
