@@ -1,0 +1,4 @@
+{"issue": 34, "slug": "models-per-stage-and-per-agent-are-confi", "pipeline": "validate", "started_at": null, "finished_at": null, "outcome": "ok",
+ "agents": [{"role": "engineer", "tokens": 21040, "duration_s": 22}, {"role": "engineer", "tokens": 55662, "duration_s": 57}],
+ "rounds": {"2": 0, "3": 0, "4": 2}, "gates_failed": ["build (gate-stack.test.sh, unrelated flake; green alone and on rerun)"],
+ "flaky": ["factory scripts/test/gate-stack.test.sh"], "manual_edit": false}
