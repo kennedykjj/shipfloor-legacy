@@ -1,0 +1,3 @@
+{"issue": 50, "slug": "dashboard-a-quick-approve-skips-the-revi", "pipeline": "refine", "started_at": "2026-10-12T01:06:34Z", "finished_at": "2026-10-12T01:09:49Z", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 28674, "duration_s": 44}, {"role": "ux-designer", "tokens": 54609, "duration_s": 71}],
+ "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "manual_edit": null}
