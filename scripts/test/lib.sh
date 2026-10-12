@@ -3,6 +3,9 @@
 # A test never inherits a factory: when the factory works on this repository, a run comes with FACTORY_HOME,
 # FACTORY_CONFIG and SHIPFLOOR_HOME of the real one, and a test would register, pause and remove there.
 for v in $(compgen -v FACTORY_; compgen -v SHIPFLOOR_; compgen -v AGHANIM_); do unset "$v"; done; unset v
+# The tests name their branch main. Git for Windows ships init.defaultBranch=main and Linux does not: there a bare
+# remote made by a test pointed at master, and a clone of it checked nothing out.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0=main
 FACTORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FAILS=0
 export FACTORY_HOME="${FACTORY_HOME:-$(mktemp -d)}"  # never touch the real ~/.shipfloor

@@ -11,7 +11,7 @@ before="$(git --git-dir="$remote" rev-parse feat/7-x)"; code="$(run 7)"
 [ -z "$(git -C "$FACTORY_WT_ROOT/7" status --porcelain)" ] && pass "worktree left clean" || fail "worktree dirty"
 
 # a small conflict → handed over (exit 3); after it is resolved, --continue finishes
-setup; on_branch shared.txt card; main_commit shared.txt main; code="$(run 7)"
+scene conflict
 [ "$code" = 3 ] && pass "small conflict handed over" || fail "exit $code: $(cat "$T/out")"
 assert_contains "$(cat "$T/out")" "CONFLICT shared.txt"
 echo resolved > "$FACTORY_WT_ROOT/7/shared.txt"; git -C "$FACTORY_WT_ROOT/7" add shared.txt; git -C "$FACTORY_WT_ROOT/7" commit -q --no-edit
@@ -23,7 +23,7 @@ git -C "$w" rm -q shared.txt; git -C "$w" commit -qm "main: drop shared"; git -C
 code="$(run 7)"; [ "$code" = 3 ] && pass "modify/delete conflict handed over" || fail "exit $code: $(cat "$T/out")"
 
 # --continue refuses a resolution that changes files that did not conflict
-setup; on_branch shared.txt card; main_commit shared.txt main; run 7 >/dev/null
+scene conflict
 echo resolved > "$FACTORY_WT_ROOT/7/shared.txt"; echo sneaky > "$FACTORY_WT_ROOT/7/api/A.kt"
 git -C "$FACTORY_WT_ROOT/7" add -A; git -C "$FACTORY_WT_ROOT/7" commit -q --no-edit
 code="$(run 7 --continue)"; [ "$code" = 5 ] && pass "tampered resolution blocked" || fail "exit $code: $(cat "$T/out")"
