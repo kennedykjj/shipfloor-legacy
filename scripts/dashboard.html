@@ -987,9 +987,9 @@ function inboxConfirm() {
   INB.hold = { key: c.key, o, text, column: c.column, timer: setTimeout(inboxFlush, 5000) };
   INB.gone[c.key] = Date.now(); INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox();
 }
-async function inboxFlush() {
+async function inboxFlush(keep) {
   const h = INB.hold; if (!h) return; clearTimeout(h.timer); INB.hold = null; const [p, n] = h.key.split("/");
-  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${h.o.id}`, { method: "POST", body: JSON.stringify({ column: h.column, text: h.text, move_only: false }) });
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${h.o.id}`, { method: "POST", keepalive: keep === true, body: JSON.stringify({ column: h.column, text: h.text, move_only: false }) });
   if (status === 200) { if (body.moved_to) S.moving[h.key] = body.moved_to; delete INB.data[h.key]; loadOverview(); }
   else { delete INB.gone[h.key]; INB.cur = h.key; INB.err = `#${n}: ${body.error || "the decision did not go through"}`; }
   if (inboxOn()) renderInbox();
@@ -1076,8 +1076,11 @@ function renderTelem(p) {
 function quick(q, k) {
   const [p, n] = k.split("/"), moves = OWNER[cardOf(p, +n)?.column];
   delete S.note[k];
-  if (q === "approve" && moves) S.pending[k] = { to: moves[0], timer: setTimeout(() => { delete S.pending[k]; post(k, "approve", ""); }, 5000) };
-  else if (q === "undo") { clearTimeout(S.pending[k]?.timer); delete S.pending[k]; }
+  if (q === "approve" && moves) {
+    const r = S.review[k], doubt = reviewDoubt(r), unseen = !r && cardOf(p, +n)?.review;
+    if (doubt || unseen) return lookFirst(k, doubt);
+    S.pending[k] = { to: moves[0], timer: setTimeout(() => sendPending(k), 5000) };
+  } else if (q === "undo") { clearTimeout(S.pending[k]?.timer); delete S.pending[k]; }
   else if (q === "changes") S.editing = k;
   else if (q === "cancel") S.editing = null;
   else if (q === "unblock") post(k, "unblock", "");
@@ -1085,11 +1088,23 @@ function quick(q, k) {
   renderBoard();
   if (q === "changes") $("qc")?.focus();
 }
-async function post(k, action, text) {
+// An entry leaves S.pending before it is sent, by the timer or by leaving the page, so it goes out once.
+function sendPending(k, keep) { const e = S.pending[k]; if (!e) return; clearTimeout(e.timer); delete S.pending[k]; return post(k, "approve", "", keep); }
+// The list asks the drawer's question: with doubt (or marks never seen) it opens the confirmation and sends nothing.
+function lookFirst(k, doubt) {
+  openCard(k, "review");
+  clearTimeout(S.armTimer);
+  if (doubt) {
+    S.armed = k; S.unseen = null; syncDecide();
+    S.armTimer = setTimeout(() => { if (S.armed === k) { S.armed = null; syncDecide(); } }, 4000);
+    $("approve")?.focus({ preventScroll: true });
+  } else { S.unseen = k; syncDecide(); }
+}
+async function post(k, action, text, keep) {
   const [p, n] = k.split("/");
-  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${action}`, { method: "POST", body: JSON.stringify({ column: cardOf(p, +n)?.column, text, move_only: false }) });
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${action}`, { method: "POST", keepalive: !!keep, body: JSON.stringify({ column: cardOf(p, +n)?.column, text, move_only: false }) });
   if (status === 200) { if (body.moved_to) S.moving[k] = body.moved_to; return loadOverview(); }
-  S.note[k] = body.error || "The action failed."; renderBoard();
+  S.note[k] = action === "approve" ? `#${n} was not approved: ${body.error || "the decision did not go through."}` : body.error || "The action failed."; renderBoard();
 }
 
 /* drawer */
@@ -1097,14 +1112,14 @@ async function openCard(key, tab) {
   const same = S.open === key; const [p, n] = key.split("/"); const ov = cardOf(p, +n);
   S.tab = tab || (same && S.tab) || (ov && OWNER[ov.column] ? "review" : "sessions");
   if (maxed()) maximize(maxed(), false);  // the drawer opens over the board, not under a maximized panel
-  if (!same) { S.liveHtml = ""; S.card = null; S.log = null; S.logNext = -1; S.logText = ""; S.armed = null; }
+  if (!same) { S.liveHtml = ""; S.card = null; S.log = null; S.logNext = -1; S.logText = ""; S.armed = null; S.unseen = null; }
   S.open = key;
   renderBoard(); renderDrawer();
   $("tip-title")?.focus({ preventScroll: true });
   await loadCard();
 }
 function closeCard() {
-  const key = S.open; S.open = null; S.card = null; S.full = false; renderBoard(); renderDrawer();
+  const key = S.open; S.open = null; S.card = null; S.full = false; S.unseen = null; renderBoard(); renderDrawer();
   if (key) $("board").querySelector(sel(key))?.focus({ preventScroll: true });
 }
 async function loadCard() {
@@ -1200,7 +1215,7 @@ function renderDecide(p, n, column) {
       <div class="decide-k"><b id="decide-k">Your decision</b><span id="rv-progress" class="num"></span></div>
       ${project()?.skipped ? `<p class="stale skipped">The dispatcher skips ${esc(project().slug)} since ${when(project().skipped.since)}: ${esc(project().skipped.reason)}. A card you move stays where it lands until that is fixed.</p>` : ""}
       ${stale(project()) ? `<p class="stale">The board snapshot is ${Math.round(project().board_age_s / 60)} min old. Approve and Request changes read the live board first and stop if the card moved.</p>` : ""}
-      <div class="decide-a"><button class="btn approve" id="approve" data-act="approve" data-label="Approve → ${esc(moves[0])}">Approve → ${esc(moves[0])}</button><span class="hint" id="approve-hint"></span></div>
+      <div class="decide-a"><button class="btn approve" id="approve" aria-describedby="approve-hint" data-act="approve" data-label="Approve → ${esc(moves[0])}">Approve → ${esc(moves[0])}</button><span class="hint" id="approve-hint"></span></div>
       <div class="decide-b"><textarea id="changes" aria-label="What should change" placeholder="What should change (posted on the issue)"></textarea>
         <div class="acts"><button class="btn" id="request" data-act="request-changes">Request changes → ${esc(moves[1])}</button><button class="btn ghost" id="fill" hidden></button></div></div>
       ${notice}</div>`
@@ -1226,7 +1241,7 @@ function syncDecide() {
     : r ? "nothing to mark in the review" : S.card && !S.card.review ? "no review page" : "";
   a.classList.toggle("soft", !!doubt);
   a.textContent = armed ? `Approve with ${doubt}` : a.dataset.label;
-  $("approve-hint").textContent = armed ? "Click again to move it anyway." : doubt ? (r.done < r.total ? `${plural(r.total - r.done, "item")} not reviewed yet` : `The review asks for ${plural(r.changes.length, "change")}.`) : "";
+  $("approve-hint").textContent = armed ? "Click again to move it anyway." : doubt ? (r.done < r.total ? `${plural(r.total - r.done, "item")} not reviewed yet` : `The review asks for ${plural(r.changes.length, "change")}.`) : S.unseen === S.open && !r ? "Nothing was approved: look at the review first." : "";
   const t = $("changes"); const typed = !!t.value.trim();
   t.classList.toggle("filled", typed);
   // a narrow drawer folds the textarea behind Request changes: the first click opens it
@@ -1748,6 +1763,7 @@ window.addEventListener("message", (e) => {
   if (f && e.source === f.contentWindow && m && m.shipfloor === "ready") { themeReview(); f.heard = true; f.classList.remove("plain"); }
   if (f && e.source === f.contentWindow && m && m.shipfloor === "themed") f.classList.add("themed");
   if (!f || e.source !== f.contentWindow || !S.open || !m || m.shipfloor !== "review-progress") return;
+  if (S.unseen === S.open) S.unseen = null;
   S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
   syncDecide();
 });
@@ -1762,6 +1778,9 @@ for (const [ev, on] of [["mouseover", true], ["focusin", true], ["mouseout", fal
 document.querySelectorAll("[data-maxable]").forEach((el) => el.insertAdjacentHTML("afterbegin", `<button class="max" data-max aria-label="Maximize ${el.dataset.maxable}" title="Maximize">${MAX}</button>`));
 $("d-max").innerHTML = MAX;
 $("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
+// leaving the page sends what still waits its five seconds; switching tabs does not
+window.addEventListener("pagehide", () => { Object.keys(S.pending).forEach((k) => sendPending(k, true)); if (INB.hold) inboxFlush(true); });  // true: fetch keepalive, which outlives the page
+window.addEventListener("pageshow", (e) => { if (e.persisted) loadOverview(); });
 loadLang().finally(loadOverview);
 setTimeout(() => { if (!S.overview && !S.refused) { $("msg").removeAttribute("role"); setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); } }, 6000);
 setInterval(loadOverview, 2000);
