@@ -1,0 +1,27 @@
+{
+  "issue": 51,
+  "slug": "dashboard-below-1180px-the-panels-overla",
+  "pipeline": "develop",
+  "outcome": "infra",
+  "branch": "feat/51-dashboard-below-1180px-the-panels-overla",
+  "head": "110a5b803dedae63864d3e3ecc2acec52da87aef",
+  "started": "2026-10-12T02:20:40-03:00",
+  "finished": "2026-10-12T02:23:00-03:00",
+  "step": 5,
+  "label": "blocked",
+  "reason": "GitHub Actions fails every job in the repository within 2 seconds since 04:13Z; the automatic retry found the same. All local gates pass on the merged head.",
+  "agents": [],
+  "tokens": 0,
+  "rounds": {"acceptance_tests": 0, "implementation": 0},
+  "gates": {
+    "passed": ["test-plan", "forbidden", "migration", "qa-commit", "acceptance-intact", "build", "green scripts/test/dashboard-narrow.test.sh"],
+    "failed": []
+  },
+  "flaky": [],
+  "amendments": [],
+  "not_verified": [
+    "The cause on GitHub's side: job logs and annotations could not be read",
+    "SHIPFLOOR_INFRA_RETRY could not be read; the run is taken to be the automatic retry",
+    "AC-2, AC-4 and AC-7 are manual and not yet checked in a browser"
+  ]
+}
