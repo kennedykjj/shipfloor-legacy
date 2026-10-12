@@ -15,12 +15,13 @@ case "$mode" in deploy|--refresh|--continue) ;; *) n="" ;; esac
 [[ "$n" =~ ^[0-9]+$ ]] || { echo "usage: deploy.sh <n> [--refresh | --continue]" >&2; exit 2; }
 shipfloor_resolve . || exit 2
 mapfile -d '' -t V < <(shipfloor_cfg values project.repo project.main deploy.ci_workflow deploy.environment \
-  deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks   deploy.healthcheck deploy.required_checks deploy.fix_max_files deploy.fix_max_lines language)
-[ "${#V[@]}" -eq 14 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
+  deploy.timeout_min deploy.conflict_max_files deploy.conflict_max_hunks paths.specs deploy.allow_no_checks   deploy.healthcheck deploy.required_checks deploy.fix_max_files deploy.fix_max_lines language deploy.local_ci)
+[ "${#V[@]}" -eq 15 ] || { echo "deploy: cannot read the project config" >&2; exit 2; }
 REPO="${V[0]}" MAIN="${V[1]}" CI_WORKFLOW="${V[2]}" ENVIRONMENT="${V[3]}"
 TIMEOUT_MIN="${V[4]:-30}" MAX_FILES="${V[5]:-5}" MAX_HUNKS="${V[6]:-20}" SPECS="${V[7]}" ALLOW_NO_CHECKS="${V[8]:-false}"
 HEALTH="${V[9]}" REQUIRED="${V[10]}"  # lists, one item per line
 DLANG="${V[13]:-en}"  # what this script says, in the log and on the card
+LOCAL_CI="${V[14]:-}"  # the project's CI as a command run here, where GitHub's checks would be waited for
 FIX_FILES="${V[11]:-3}" FIX_LINES="${V[12]:-40}"  # a fix within both, outside the acceptance tests, ships without a new approval
 GH="${FACTORY_GH:-gh}"; BOARD="${FACTORY_BOARD:-$HERE/board.sh}"; GATE="$HERE/gate.sh"
 CURL="${FACTORY_CURL:-curl}"; POLL="${FACTORY_POLL:-30}"
@@ -221,6 +222,7 @@ staged-head: $sha"
 
 ci_findings() {  # ci_findings <sha>: the red checks and the end of each failed run's log
   local id; echo "checks on $1: $CI_STATES"
+  if [ -n "$LOCAL_CI" ]; then echo "deploy.local_ci: $LOCAL_CI"; tail -n 150 "$TMP/local-ci.txt" 2>/dev/null; return 0; fi
   for id in $("$GH" run list --repo "$REPO" --commit "$1" --json databaseId,conclusion --jq '.[] | select(.conclusion == "failure") | .databaseId' 2>/dev/null); do
     [[ "$id" =~ ^[0-9]+$ ]] && "$GH" run view "$id" --repo "$REPO" --log-failed 2>/dev/null | tail -n 150
   done
@@ -236,6 +238,16 @@ fast_gates() {  # deterministic checks only: CI runs build and tests on this exa
   slug="${BRANCH#feat/$n-}"; spec="$(ls "$WT/$SPECS"*-"$slug"-design.md 2>/dev/null | head -1)"
   qa="$(qa_commit)"
   bash "$GATE" -C "$WT" fast "$mb" "${spec:-/dev/null}" $qa >"$TMP/gates.txt" 2>&1
+}
+
+local_ci() {  # local_ci <sha>: deploy.local_ci run in the card's worktree on this head: 0 green, 1 red (CI_STATES), 2 timed out
+  # For a project with no CI on GitHub, or none it can pay for: the head merged with main is still tested before it ships.
+  local rc; say "local CI on $1"
+  if command -v timeout >/dev/null 2>&1; then (cd "$WT" && timeout "$(( TIMEOUT_MIN * 60 ))" bash -c "$LOCAL_CI") >"$TMP/local-ci.txt" 2>&1; rc=$?
+  else (cd "$WT" && bash -c "$LOCAL_CI") >"$TMP/local-ci.txt" 2>&1; rc=$?; fi
+  [ "$rc" = 0 ] && { say "local CI passed on $1"; return 0; }
+  [ "$rc" = 124 ] && { say "local CI did not finish on $1 in $TIMEOUT_MIN min"; return 2; }
+  CI_STATES="local-ci=FAILURE"; say "local CI failed on $1 (exit $rc)"; return 1
 }
 
 wait_checks() {  # wait_checks <sha>: 0 green, 1 red (CI_STATES), 2 timed out
@@ -305,7 +317,7 @@ if [ "$RESUMED" = 0 ]; then
     sha="$(g rev-parse HEAD)"
     [ "$sha" != "$HEAD_SHA" ] && push_recorded "$sha"
     [ "$mode" = --refresh ] && { say "up to date with main"; exit 0; }
-    wait_checks "$sha"; rc=$?
+    if [ -n "$LOCAL_CI" ]; then local_ci "$sha"; else wait_checks "$sha"; fi; rc=$?
     if [ "$rc" != 0 ]; then
       [ "$merged" = 1 ] || block "CI failed on the PR ($sha)"
       [ "$rc" = 1 ] || back_to_coding "CI did not finish on the PR after merging main ($sha)"

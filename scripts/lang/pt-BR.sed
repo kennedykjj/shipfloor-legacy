@@ -121,6 +121,10 @@ s~: back to Coding: ~: voltou para Coding: ~
 s~: blocked: ~: bloqueado: ~
 s~checks did not finish \(last: ~os checks não terminaram (último: ~
 s~checks failed on ~os checks falharam em ~
+s~local CI passed on ~o CI local passou em ~
+s~local CI failed on (.*) \(exit ~o CI local falhou em \1 (saída ~
+s~local CI did not finish on (.*) in (.*) min~o CI local não terminou em \1 em \2 min~
+s~local CI on ~CI local em ~
 s~could not comment on #~não foi possível comentar em #~
 s~could not label #([0-9]+) blocked~não foi possível marcar #\1 como blocked~
 s~could not move the card to ~não foi possível mover o card para ~
