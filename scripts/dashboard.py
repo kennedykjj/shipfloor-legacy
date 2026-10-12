@@ -489,6 +489,8 @@ class Factory:
                              "repo": shipfloor_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
                              "knobs": {k: {"value": knob(cfg, k), "repo": knob(repo, k)} for k in KNOBS}, "context": cfg.get("context") or [],
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
+                             "language": {"code": cfg.get("language") or "en", "set": cfg.get("language") is not None,
+                                          "file": ".shipfloor/factory.yml"},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
         every = shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml"))
@@ -500,7 +502,8 @@ class Factory:
         if cycle:
             cycle.setdefault("next_at", None)
         command, why = scheduler()
-        return {"machine": {k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, "paused": (self.home / "PAUSE").exists(),
+        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, "language": m.get("language") or "en"},
+                "languages": shipfloor_config.LANGS, "paused": (self.home / "PAUSE").exists(),
                 "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
                 "cycle": cycle, "projects": projects, "prices": self.prices()}
 
@@ -516,13 +519,15 @@ class Factory:
         path, new = self.home / "config.yml", json.loads(json.dumps(read_yaml(self.home / "config.yml")))
         if not isinstance(new, dict) or not isinstance(changes, dict):
             return 400, {"error": "config.yml is not a YAML mapping; fix it by hand"}
-        for k in ("pool", "stacks", "stack_wait"):
+        for k in ("pool", "stacks", "stack_wait", "language"):
             if k in changes:
                 new[k] = changes[k]
         if isinstance(changes.get("stages"), dict):
             new["stages"] = dict(new["stages"] if isinstance(new.get("stages"), dict) else {}, **changes["stages"])
         if isinstance(changes.get("dispatcher"), dict) and "every_min" in changes["dispatcher"]:
             new["dispatcher"] = dict(new["dispatcher"] if isinstance(new.get("dispatcher"), dict) else {}, every_min=changes["dispatcher"]["every_min"])
+        if "language" in changes and not isinstance(changes["language"], str):
+            return 400, {"error": f"language must be one of {', '.join(shipfloor_config.LANGS)}"}
         errs = shipfloor_config.machine_problems(new)
         if errs:
             return 400, {"error": "; ".join(errs)}
