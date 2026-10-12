@@ -1,0 +1,1 @@
+{"issue": 37, "stage": "validate", "outcome": "staged", "rounds": 0, "failed_gates": ["merge conflict with main (resolved by engineer)"], "flaky": [], "amendments": [], "pr": 96, "head": "989139011f46438ba8d4c2c4aa2483b09da40495"}
