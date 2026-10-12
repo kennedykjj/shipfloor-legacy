@@ -96,7 +96,7 @@ A gate whose layer has `needs_stack: true` wraps its test run in `stack up` … 
 
 The gate exits 3 on infrastructure: the stack did not come up or did not become healthy, or a slot could not be leased. Skills treat exit 3 as an infrastructure error (decision 3). Exit 1 (blocked by the code) and exit 2 (bad usage) keep their meaning.
 
-### Pickio (manual PR, `.aghanim/` and the compose file are forbidden to agents)
+### Shop (manual PR, `.aghanim/` and the compose file are forbidden to agents)
 
 - `docker-compose.yml`: every published port takes its variable with today's port as the default, for example `"${AGHANIM_PORT_WEB:-3000}:3000"`. Service-to-service URLs stay on the compose network names. Browser-facing URLs (`NEXT_PUBLIC_*`, CORS origins, MinIO public URL) come from the same variables. Without the factory, `docker compose up` behaves exactly as today.
 - `web/playwright.config.ts`: `baseURL: process.env.AGHANIM_STACK_URL ?? 'http://localhost:3000'`. Under the factory there is no `webServer` (the gate brought the stack up); outside it, `webServer` stays as today with `reuseExistingServer: !process.env.CI`.
