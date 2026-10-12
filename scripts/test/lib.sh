@@ -60,3 +60,11 @@ run_dispatch() {  # run_dispatch: dispatch.sh ($D), then wait until every run it
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; FAILS=$((FAILS+1)); }
 finish() { [ "$FAILS" -eq 0 ]; }
+wait_for() {  # wait_for <what> <command...>: retry the command every 0.1 s until it succeeds; after TEST_WAIT_SECS (default 60) seconds, fail and return 1
+  local what="$1" limit=$((SECONDS + ${TEST_WAIT_SECS:-60}))
+  shift
+  while ! "$@" >/dev/null 2>&1; do
+    if [ "$SECONDS" -ge "$limit" ]; then fail "timed out waiting for $what"; return 1; fi
+    sleep 0.1
+  done
+}
