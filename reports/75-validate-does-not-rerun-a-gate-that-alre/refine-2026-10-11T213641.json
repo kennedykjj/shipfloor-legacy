@@ -1,0 +1,15 @@
+{
+  "issue": 75,
+  "slug": "validate-does-not-rerun-a-gate-that-alre",
+  "pipeline": "refine",
+  "started_at": "2026-10-11T21:33:00-03:00",
+  "finished_at": "2026-10-11T21:38:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 16878, "duration_s": 39}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "manual_edit": null
+}
