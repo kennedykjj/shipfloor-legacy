@@ -52,11 +52,26 @@ def mem_free_mb():
     return None  # shortcut: macOS has no /proc, read vm_stat when a factory runs there
 
 
+def cost_stopped(home, projects):
+    """True when today's estimate reached costs.day_stop: the dispatcher starts nothing, as it does paused."""
+    try:
+        import dashboard_cost
+        costs = dashboard_cost.read_costs(home)
+        if not costs.get("day_stop") or not projects:
+            return False
+        claude_dir = os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
+        spent, base = dashboard_cost.estimate(home, projects[0], claude_dir, costs)
+        return bool(dashboard_cost.over(spent, costs, base)["day_stop"])
+    except (SystemExit, Exception):  # an unreadable config or transcripts: the dispatcher says so itself
+        return False
+
+
 def snapshot(home, seconds, code, overlap):
     from dashboard import Factory, read_yaml  # here, not at the top: the dashboard imports this module for alerts()
     f = Factory(home, "")
     pool, slots = f.pool()
     paused, limited = (f.home / "PAUSE").exists(), f.usage_limited()
+    cost_stop = cost_stopped(home, list(f.projects()))
     outside = not shipfloor_config.hours_state(read_yaml(f.home / "config.yml"), shipfloor_config.now())["open"]
     live = {p: [r for r in f.live(p) if not r["orphan"]] for p in f.projects()}
     used = {st: sum(r["stage"] == st for runs in live.values() for r in runs) for st in slots}
@@ -68,7 +83,7 @@ def snapshot(home, seconds, code, overlap):
         columns, age = f.board(p)
         blocked, busy = f.blocked(p), {r["issue"] for r in runs}
         limits = shipfloor_config.merged(f.config(p), shipfloor_config.DEFAULTS)["limits"]
-        stopped = paused or limited or outside or (f.pdir(p) / "PAUSE").exists() or bool(f.skipped(p))
+        stopped = paused or limited or cost_stop or outside or (f.pdir(p) / "PAUSE").exists() or bool(f.skipped(p))
 
         def waiting(col):
             return sum(c == col and n not in blocked and n not in busy for n, c in columns.items())
@@ -92,7 +107,7 @@ def snapshot(home, seconds, code, overlap):
     stacks, queue = f.stacks()
     return {"ts": datetime.now().astimezone().isoformat(timespec="seconds"),
             "cycle": {"s": seconds, "exit": code, "overlap": overlap},
-            "paused": paused, "usage_limited": limited,
+            "paused": paused, "usage_limited": limited, "cost_stop": cost_stop,
             "outside_hours": outside,
             "machine": {"cpu": cpu_percent(), "mem_free_mb": mem_free_mb(),
                         "disk_free_gb": round(shutil.disk_usage(home).free / 2**30, 1)},

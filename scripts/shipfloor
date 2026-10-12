@@ -26,21 +26,51 @@ source_dir() {  # the plugin checkout this copy came from
   if [ -f "$HERE/.source" ]; then cat "$HERE/.source"; else (cd "$HERE/.." && pwd); fi
 }
 
+put_file() {  # put_file <from> <to>: sets PUT to same | added | replaced | failed; copy beside the target, then rename over it
+  local from="$1" to="$2" tmp="${2%/*}/.${2##*/}.install-tmp"
+  PUT=same
+  if [ -f "$to" ]; then cmp -s "$from" "$to" && return 0; PUT=replaced; else PUT=added; fi
+  mkdir -p "${to%/*}"
+  # cp -p keeps the mode (the execute bit) on the temporary file; mv gets the target last
+  if cp -p "$from" "$tmp" && mv -f "$tmp" "$to"; then return 0; fi
+  rm -f "$tmp"; PUT=failed
+}
+
 cmd_install() {
   local src; src="$(source_dir)"
   [ -f "$src/scripts/gate.sh" ] || die "cannot find the plugin at $src"
   mkdir -p "$INSTALLED" "$SHIPFLOOR_HOME/projects" "$SHIPFLOOR_HOME/logs"
-  (cd "$src/scripts" && find . -path ./test -prune -o -type f -print) | while IFS= read -r f; do
-    mkdir -p "$INSTALLED/$(dirname "$f")"; cp "$src/scripts/$f" "$INSTALLED/$f"
-  done
-  # drop what the plugin no longer ships (e.g. the legacy aghanim scripts carried over by migrate-home)
-  (cd "$INSTALLED" && find . -type f ! -name .source ! -path './templates/*' -print) | while IFS= read -r f; do
-    [ -f "$src/scripts/$f" ] || rm -f "$INSTALLED/$f"
-  done
-  rm -rf "$INSTALLED/templates"; cp -r "$src/templates" "$INSTALLED/templates"
-  echo "$src" > "$INSTALLED/.source"
-  echo "installed $src → $INSTALLED"
-  echo "next: shipfloor add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
+  local f nrep=0 nadd=0 ndel=0 nbad=0 d
+  # every file goes in by rename, so a running script keeps its old inode and a reader never sees half a file
+  find "$INSTALLED" -type f -name '.*.install-tmp' -exec rm -f {} + 2>/dev/null  # leftovers of a killed install
+  while IFS= read -r f; do
+    put_file "$src/scripts/$f" "$INSTALLED/$f"
+    case "$PUT" in replaced) nrep=$((nrep+1)) ;; added) nadd=$((nadd+1)) ;; failed) nbad=$((nbad+1)); echo "shipfloor: could not replace ${f#./}" >&2 ;; esac
+  done < <(cd "$src/scripts" && find . -path ./test -prune -o -type f -print)
+  while IFS= read -r f; do
+    put_file "$src/templates/$f" "$INSTALLED/templates/$f"
+    case "$PUT" in replaced) nrep=$((nrep+1)) ;; added) nadd=$((nadd+1)) ;; failed) nbad=$((nbad+1)); echo "shipfloor: could not replace templates/${f#./}" >&2 ;; esac
+  done < <(cd "$src/templates" && find . -type f -print)
+  mkdir -p "$INSTALLED/templates"
+  # drop what the plugin no longer ships (e.g. the legacy aghanim scripts carried over by migrate-home): scripts, then templates
+  while IFS= read -r f; do
+    [ -f "$src/scripts/$f" ] || { if rm -f "$INSTALLED/$f" && [ ! -e "$INSTALLED/$f" ]; then ndel=$((ndel+1)); else nbad=$((nbad+1)); echo "shipfloor: could not replace ${f#./}" >&2; fi; }
+  done < <(cd "$INSTALLED" && find . -type f ! -name .source ! -name '.*.install-tmp' ! -path './templates/*' -print)
+  while IFS= read -r f; do
+    [ -f "$src/templates/$f" ] || { if rm -f "$INSTALLED/templates/$f" && [ ! -e "$INSTALLED/templates/$f" ]; then ndel=$((ndel+1)); else nbad=$((nbad+1)); echo "shipfloor: could not replace templates/${f#./}" >&2; fi; }
+  done < <(cd "$INSTALLED/templates" && find . -type f ! -name '.*.install-tmp' -print)
+  while IFS= read -r d; do rmdir "$d" 2>/dev/null; done < <(find "$INSTALLED" -mindepth 1 -depth -type d ! -path "$INSTALLED/templates")  # only the empty ones go
+  # .source last and only when all is in place: doctor then never says "matches" for a half copy
+  if [ "$nbad" = 0 ]; then  # by rename too: other commands read it while an install runs
+    echo "$src" > "$SHIPFLOOR_HOME/.source.new"; put_file "$SHIPFLOOR_HOME/.source.new" "$INSTALLED/.source"; rm -f "$SHIPFLOOR_HOME/.source.new"
+    [ "$PUT" = failed ] && { nbad=$((nbad+1)); echo "shipfloor: could not replace .source" >&2; }
+  fi
+  echo "installed $src → $INSTALLED: $nrep replaced, $nadd added, $ndel removed"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) echo "next: shipfloor add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\"" ;;
+    *) echo "next: shipfloor add <repo>; then bash \"$src/installer/install-dispatcher.sh\"" ;;
+  esac
+  [ "$nbad" = 0 ]
 }
 
 cmd_doctor() {
@@ -56,6 +86,12 @@ cmd_doctor() {
   elif diff -rq -x test -x .source "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
   else echo "WARN installed copy differs from $src (shipfloor install)"; fi
+  local dst dkind
+  dkind="$(bash "$src/installer/install-dispatcher.sh" --status 2>/dev/null)"; dst=$?
+  case $dst in
+    0) echo "ok   dispatcher registered (${dkind#registered: })" ;;
+    1) echo "WARN no dispatcher registered; run: bash $src/installer/install-dispatcher.sh" ;;
+  esac
   local alert
   while IFS= read -r alert; do
     [ -n "$alert" ] && echo "WARN health: $alert (~/.shipfloor/logs/health-*.jsonl)"
