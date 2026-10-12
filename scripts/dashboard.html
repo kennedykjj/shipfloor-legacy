@@ -164,7 +164,7 @@ main { min-height: 0; display: grid; }
 .band.maxed { display: flex; flex-direction: column; overflow: hidden; } .band.maxed > h1 { display: block; }
 .band.maxed .cells, .band.maxed .legend { display: none; }
 .band.maxed .lanes { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr); }
-.lane { margin: 12px 0 0; padding-bottom: 6px; border-bottom: 1px solid var(--edge-hi); font-size: 16px; letter-spacing: .1em; color: var(--sand); }
+.lane { margin: 12px 0 0; padding-bottom: 6px; border-bottom: 1px solid var(--edge-hi); font-size: 16px; letter-spacing: .1em; color: var(--soft); }
 .lane small { font: 400 12.5px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 10px; }
 .lcols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: 0; }
 .lcol { min-width: 0; overflow-y: auto; padding: 8px 12px 10px; border-left: 1px solid color-mix(in srgb, var(--ov) 14.9%, transparent); display: flex; flex-direction: column; gap: 6px; } .lcol:first-child { border-left: 0; padding-left: 0; }
@@ -182,7 +182,7 @@ main { min-height: 0; display: grid; }
 h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-weight: 500; }
 #list { list-style: none; margin: 12px -6px 0; overflow-y: auto; min-height: 0; padding: 0 6px; }
 /* what waits for you, maximized: a decision inbox. The queue, what to read, and the decision as options that each say what happens next */
-.inbox, .yours.maxed #list, .yours.maxed .foot, .iconf[hidden], .itoast[hidden] { display: none; }
+.inbox, .yours.maxed #list, .iconf[hidden], .itoast[hidden] { display: none; }
 .yours.maxed .inbox { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 350px; margin-top: 12px; border-top: 1px solid var(--edge); }
 .ique { border-right: 1px solid var(--edge); overflow-y: auto; }
 .ique button { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--edge); border-left: 3px solid transparent; padding: 10px 12px; cursor: pointer; }
@@ -213,7 +213,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .idec h2 { margin: 0; font-size: 17px; letter-spacing: .06em; } #io { display: contents; }
 .iopt { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--edge-hi); border-radius: 10px; padding: 11px 13px; cursor: pointer; } .iopt:hover { border-color: var(--muted); }
 .iopt[aria-pressed="true"] { border-color: var(--text); background: var(--panel-hi); box-shadow: inset 3px 0 0 var(--text); }
-.iopt .t { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; font-weight: 600; font-size: 15px; } .iopt kbd { font-size: 11px; margin: 0; color: var(--muted); }
+.iopt .t { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; font-weight: 600; font-size: 15px; } .iopt kbd { font-size: 12px; margin: 0; color: var(--muted); }
 .iopt .when { margin: 3px 0 0; font-size: 13px; color: var(--muted); } .iopt .then { margin: 7px 0 0; padding-top: 7px; border-top: 1px dashed var(--edge-hi); font-size: 13px; color: var(--soft); }
 .iopt .then::before { content: "→ "; color: var(--sand); } .iopt .caveat { color: var(--warn); }
 .iconf { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--edge-hi); } #inote, #inote:focus { height: 76px; } .ihint { margin: 0; font-size: 12.5px; color: var(--muted); }
@@ -236,7 +236,8 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .edit textarea { height: 64px; background: color-mix(in srgb, var(--ov) 5.1%, transparent); border-color: color-mix(in srgb, var(--ov) 23.9%, transparent); border-radius: 8px; }
 .bar { height: 2px; background: color-mix(in srgb, var(--ov) 14.9%, transparent); margin-top: 10px; } .bar i { display: block; height: 2px; background: var(--sand); animation: drain 5s linear forwards; } @keyframes drain { to { width: 0; } }
 .empty { color: var(--muted); font-size: 14px; padding-top: 2px; max-width: 34ch; }
-.foot { margin: auto 0 0; padding-top: 12px; border-top: 1px solid var(--hair); display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.foot { margin: auto 0 0; padding-top: 12px; border-top: 1px solid var(--hair); display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; }
+.foot .keys-list, .foot .keys-inbox { display: flex; flex-wrap: wrap; gap: 4px 16px; } .foot .keys-inbox, .yours.maxed .foot .keys-list { display: none; } .yours.maxed .foot .keys-inbox { display: flex; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; overflow-y: auto; min-height: 0; margin-top: 14px; align-content: start; }
 .tile { border: 1px solid var(--hair); border-radius: 12px; background: var(--well); padding: 12px 14px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .tile.hot { border-color: color-mix(in srgb, var(--ov) 33.3%, transparent); } .tile.ch { border-color: var(--sand); }
@@ -508,7 +509,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
             <aside class="idec" aria-label="Your decision"><h2 class="g">Your decision</h2><div id="io"></div>
               <div class="iconf" id="ic" hidden><textarea id="inote" aria-label="Your note"></textarea><button class="btn approve" id="igo"></button><p class="ihint" id="ihint"></p></div>
               <div class="itoast" id="itoast" role="status" hidden><span id="imsg"></span><button id="iundo">Undo</button></div><p class="pnote" id="ierr" role="status"></p></aside></div>
-          <p class="foot cap"><span><kbd>N</kbd>next</span><span><kbd>A</kbd>approve</span><span><kbd>R</kbd>review</span><span><kbd>L</kbd>log</span></p></section>
+          <p class="foot cap"><span class="keys-list"><span><kbd>N</kbd>next</span><span><kbd>A</kbd>approve</span><span><kbd>R</kbd>review</span><span><kbd>L</kbd>log</span></span><span class="keys-inbox"><span><kbd>1–9</kbd>choose</span><span><kbd>Esc</kbd>close</span></span></p></section>
         <section class="telem panel" data-maxable="today" aria-labelledby="ht"><h1 class="g" id="ht">Today</h1><div id="telem"></div></section>
       </div>
       <section class="work panel" data-maxable="what is in progress" aria-labelledby="hw"><h1 class="g" id="hw"></h1><div class="tiles" id="tiles"></div>
