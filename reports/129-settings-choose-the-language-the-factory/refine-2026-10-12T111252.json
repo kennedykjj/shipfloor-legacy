@@ -1,0 +1,17 @@
+{
+  "issue": 129,
+  "slug": "settings-choose-the-language-the-factory",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T11:02:00-03:00",
+  "finished_at": "2026-10-12T11:13:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 15504, "duration_s": 20},
+    {"role": "ux-designer", "tokens": 56901, "duration_s": 75}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
