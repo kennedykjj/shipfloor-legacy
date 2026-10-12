@@ -6,7 +6,7 @@
     "Then open the URL it prints. This tab stays as it is.": "Depois abra a URL que ele imprimir. Esta aba fica como está.",
     "Factory": "Fábrica",
     "Feed": "Feed",
-    "All": "Tudo",
+    "Runs": "Execuções",
     "Waits for you": "Espera você",
     "Failures": "Falhas",
     "Newest first": "Mais recente em cima",
@@ -16,6 +16,7 @@
     "no end logged": "sem fim registrado",
     "now in": "agora em",
     "gates failed": "gates que falharam",
+    "no failed gate recorded": "nenhum gate que falhou foi registrado",
     "Board on GitHub": "Quadro no GitHub",
     "Pool": "Pool",
     "Stacks": "Stacks",
@@ -580,6 +581,10 @@
     [
       " and ended with exit (\\d+)",
       " e terminou com exit $1"
+    ],
+    [
+      "ended with exit (\\d+)",
+      "terminou com exit $1"
     ],
     [
       "The ceiling for every project together\\.",

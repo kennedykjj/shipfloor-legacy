@@ -728,7 +728,8 @@ const EST = '<span class="est" title="Estimated from the run transcripts\' token
 const UNTITLED = '<span class="untitled" title="The dashboard could not read the issue titles from GitHub (gh).">Title not loaded</span>';
 const outcome = (o) => { const v = String(o || "").toLowerCase(); return OK_OUTCOMES.has(v) ? "ok" : BAD_OUTCOMES.has(v) ? "bad" : "muted"; };
 function tok(n) { if (!n) return "–"; if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
-function when(iso) { if (!iso) return "–"; const d = new Date(iso); const t = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }) + " " + t; }
+const dateLocale = () => document.documentElement.lang === "pt-BR" ? "pt-BR" : "en-US";  // the page's language, never the browser's
+function when(iso) { if (!iso) return "–"; const d = new Date(iso), l = dateLocale(); const t = d.toLocaleTimeString(l, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(l, l === "pt-BR" ? { day: "2-digit", month: "2-digit" } : { month: "short", day: "numeric" }) + " " + t; }
 function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
 const liveRun = (p, n, stage) => S.overview?.runs.find((r) => r.project === p && r.issue === n && r.stage === stage && !r.orphan)?.started || null;
 const last = (sessions, stage) => sessions.filter((x) => x.stage === stage).pop();
@@ -1729,21 +1730,22 @@ async function loadFeed() {
   S.feed = body.events; renderFeed();
 }
 const evId = (e) => `${e.source}/${e.log}/${e.start}`;
-const FEED_IS = { all: () => true, you: (e) => e.you, bad: (e) => e.issue && e.end && e.exit !== 0, run: (e) => e.issue && !e.end && !e.lost, sys: (e) => !e.issue };
-const FEED_NAMES = { all: "All", you: "Waits for you", bad: "Failures", run: "Running", sys: "Dispatcher" };
-const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
-function feedLeft(e) {  // what a run left behind, each piece from its source: the log, the report, the board, the run's lock
-  return [e.last && `<span class="fraw">${esc(e.last)}</span>`, e.pr && `PR #${e.pr}`,
-    e.failed && `<span>gates failed</span>: <span class="fraw">${esc(e.failed.join(", "))}</span>`,
+const FEED_IS = { runs: (e) => e.issue, you: (e) => e.you, bad: (e) => e.issue && e.end && e.exit !== 0, run: (e) => e.issue && !e.end && !e.lost, sys: (e) => !e.issue };
+const FEED_NAMES = { runs: "Runs", you: "Waits for you", bad: "Failures", run: "Running", sys: "Dispatcher" };
+const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "";
+function feedLeft(e) {  // what a run left behind, each piece from its source: the report, the board, the run's lock; a failed run says why first
+  const why = e.failed ? `<span>gates failed</span>: <span class="fraw">${esc(e.failed.join(", "))}</span>`
+    : e.end && e.exit !== 0 ? `<span>ended with exit ${e.exit}</span> · <span>no failed gate recorded</span>` : "";
+  return [why, e.pr && `PR #${e.pr}`,
     e.column && `<span>now in</span> <span>${esc(e.column)}</span>`,
     e.step && `Step ${e.step.i} of ${e.step.of}: <span>${esc(e.step.label)}</span>`].filter(Boolean).join(" · ");
 }
 function renderFeed() {
-  const el = $("feed"), all = S.feed || [], f = S.feedFilter || "all", many = (S.overview?.projects.length || 0) > 1;
+  const el = $("feed"), all = S.feed || [], f = S.feedFilter || "runs", many = (S.overview?.projects.length || 0) > 1;
   const had = document.activeElement?.closest?.("#feed [data-ev], #feed [data-feed]"), again = had && (had.dataset.ev ? `[data-ev="${CSS.escape(had.dataset.ev)}"]` : `[data-feed="${had.dataset.feed}"]`);
   let day = "";
   const rows = all.filter(FEED_IS[f]).reverse().map((e) => {  // newest first, a heading where the day changes
-    const d = e.ts ? new Date(e.ts).toDateString() : day, head = d === day ? "" : `<li class="fday cap">${new Date(e.ts).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</li>`;
+    const d = e.ts ? new Date(e.ts).toDateString() : day, head = d === day ? "" : `<li class="fday cap">${new Date(e.ts).toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long" })}</li>`;
     day = d;
     const time = `<time class="ftime" title="${esc(e.ts)}">${hhmm(e.ts)}</time><i class="fdot" aria-hidden="true"></i>`;
     if (!e.issue) return `${head}<li class="fev f-sys">${time}<p class="fhead"><b>${esc(e.source)}</b><span class="fraw">${esc(e.text)}</span></p><span class="fside">${e.n > 1 ? `${e.n}× <span>since</span> ${hhmm(e.since)}` : ""}</span></li>`;
