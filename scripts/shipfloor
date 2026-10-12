@@ -7,7 +7,7 @@
 #   pool [set <n> | stage <stage> <n> | stacks <n>]  runs at once on this machine, per stage, and stack slots
 #   clean <slug>                  remove what cards left under tmp/ (the dispatcher does it every cycle)
 #   accept <slug> <n> <reason>    owner only: take card <n>'s acceptance tests as they stand (acceptance-intact)
-#   dashboard [--port N] [--no-open]  local dashboard: pool, runs, logs, cost per card, reviews
+#   dashboard [--port N] [--no-open] [--token T]  local dashboard: pool, runs, logs, cost per card, reviews
 #   migrate-home [OLD]            move the old ~/.aghanim home here (one-time, after the rename; legacy aghanim)
 set -uo pipefail
 HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
@@ -174,7 +174,7 @@ cmd_pool() {  # pool | pool set <n> | pool stage <stage> <n>: the machine-wide a
   esac
 }
 
-cmd_dashboard() {  # dashboard [--port N] [--no-open]: serves the local dashboard until Ctrl+C
+cmd_dashboard() {  # dashboard [--port N] [--no-open] [--token T]: serves the local dashboard until Ctrl+C
   SHIPFLOOR_BASH="$(shipfloor_native "$BASH")" shipfloor_python "$(shipfloor_native "$HERE/dashboard.py")" \
     --home "$(shipfloor_native "$SHIPFLOOR_HOME")" "$@"
 }
