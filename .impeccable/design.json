@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-11T00:00:00Z",
+  "generatedAt": "2026-10-12T00:00:00Z",
   "title": "Design System: Shipfloor Dashboard",
   "extensions": {
     "colorMeta": {
@@ -20,6 +20,7 @@
       "track": { "role": "neutral", "displayName": "Lifecycle Track", "canonical": "#5a6472" },
       "track-on": { "role": "neutral", "displayName": "Lifecycle Track, Working", "canonical": "#c9ced4" },
       "refine": { "role": "secondary", "displayName": "Refine Stage", "canonical": "#8fa8c7" },
+      "validate": { "role": "secondary", "displayName": "Validate Stage", "canonical": "#c896ec" },
       "ok": { "role": "outcome", "displayName": "Outcome Green", "canonical": "#9fcbaa" },
       "warn": { "role": "outcome", "displayName": "Outcome Amber", "canonical": "#dcb872" },
       "bad": { "role": "outcome", "displayName": "Outcome Red", "canonical": "#e58f80" }
