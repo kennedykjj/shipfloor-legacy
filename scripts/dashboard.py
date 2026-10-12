@@ -449,7 +449,7 @@ class Factory:
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
-        return {"machine": {k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, "paused": (self.home / "PAUSE").exists(),
+        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt"}, "paused": (self.home / "PAUSE").exists(),
                 "cycle": cycle, "projects": projects, "prices": self.prices()}
 
     def registry(self):
@@ -469,6 +469,11 @@ class Factory:
                 new[k] = changes[k]
         if isinstance(changes.get("stages"), dict):
             new["stages"] = dict(new["stages"] if isinstance(new.get("stages"), dict) else {}, **changes["stages"])
+        if "notify" in changes:
+            had, ch = new.get("notify") or {}, changes["notify"]
+            if isinstance(had, dict) and isinstance(ch, dict):  # key by key; events and channels too
+                had = {**had, **{k: {**(had.get(k) if isinstance(had.get(k), dict) else {}), **v} if k in ("events", "channels") and isinstance(v, dict) else v for k, v in ch.items()}}
+            new["notify"] = had if isinstance(ch, dict) and isinstance(had, dict) else ch
         errs = shipfloor_config.machine_problems(new)
         if errs:
             return 400, {"error": "; ".join(errs)}
