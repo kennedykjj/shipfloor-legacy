@@ -78,7 +78,7 @@ assert_exit 1 bash "$M" migrate-home "$(mktemp -d)/nope"
 # install drops files the plugin no longer ships (the old scripts after migrate-home)
 export SHIPFLOOR_HOME="$(mktemp -d)"; mkdir -p "$SHIPFLOOR_HOME/factory"
 echo stale > "$SHIPFLOOR_HOME/factory/aghanim-dispatch.sh"
-assert_exit 0 bash "$M" install
+assert_exit 0 bash "$(plugin_copy)/scripts/shipfloor" install
 [ ! -e "$SHIPFLOOR_HOME/factory/aghanim-dispatch.sh" ] && pass "stale installed file removed" || fail "stale installed file kept"
 [ -f "$SHIPFLOOR_HOME/factory/gate.sh" ] && [ -f "$SHIPFLOOR_HOME/factory/.source" ] && pass "install still complete" || fail "install incomplete"
 finish

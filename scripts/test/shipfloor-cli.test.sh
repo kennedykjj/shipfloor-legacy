@@ -13,7 +13,7 @@ with_config() {  # with_config <yaml>: a repo whose origin/main carries that con
 }
 
 # install copies the scripts and templates to a fixed place, without the tests
-assert_exit 0 bash "$M" install
+assert_exit 0 bash "$(plugin_copy)/scripts/shipfloor" install
 for f in gate.sh board.sh dispatch.sh shipfloor-dispatch.sh shipfloor-config.sh shipfloor_config.py lib/project.sh shipfloor templates/spec-template.md; do
   [ -f "$SHIPFLOOR_HOME/factory/$f" ] && pass "installed $f" || fail "missing $f"
 done
@@ -140,11 +140,12 @@ out="$(HOME="$dh" PATH="$SB:$PATH" SF_UNAME=MINGW64_NT-10.0 bash "$M" doctor 2>&
 case "$out" in *"dispatcher registered"*) fail "AC-8 doctor on Windows talks about the Linux/macOS dispatcher: $out" ;; *) pass "AC-8 doctor on Windows prints no dispatcher line" ;; esac
 # the "next:" line of install names the command of the system it runs on
 ih="$(mktemp -d)"
-out="$(SHIPFLOOR_HOME="$ih" PATH="$SB:$PATH" SF_UNAME=Linux bash "$M" install 2>&1)"
+pc="$(plugin_copy)"  # a copy that is not a clone: install refuses a clone that is not a clean main (#80)
+out="$(SHIPFLOOR_HOME="$ih" PATH="$SB:$PATH" SF_UNAME=Linux bash "$pc/scripts/shipfloor" install 2>&1)"
 assert_contains "$out" "install-dispatcher.sh"
-out="$(SHIPFLOOR_HOME="$ih" PATH="$SB:$PATH" SF_UNAME=Darwin bash "$M" install 2>&1)"
+out="$(SHIPFLOOR_HOME="$ih" PATH="$SB:$PATH" SF_UNAME=Darwin bash "$pc/scripts/shipfloor" install 2>&1)"
 assert_contains "$out" "install-dispatcher.sh"
-out="$(SHIPFLOOR_HOME="$ih" PATH="$SB:$PATH" SF_UNAME=MINGW64_NT-10.0 bash "$M" install 2>&1)"
+out="$(SHIPFLOOR_HOME="$ih" PATH="$SB:$PATH" SF_UNAME=MINGW64_NT-10.0 bash "$pc/scripts/shipfloor" install 2>&1)"
 assert_contains "$out" "install-dispatcher.ps1"
 # the README names the install and uninstall command next to the Windows one
 readme="$(cat "$SRC/README.md")"

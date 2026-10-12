@@ -29,6 +29,13 @@ new_repo() {  # new_repo: a fresh repo with one commit (README.md) on main, priv
   echo "$dir"
 }
 
+plugin_copy() {  # plugin_copy: a plain (non-git) copy of scripts/ and templates/ in a temp dir; prints its path
+  local dir; dir="$(mktemp -d)"
+  mkdir -p "$dir/scripts"; cp -r "$FACTORY_DIR/." "$dir/scripts/"; cp -r "$FACTORY_DIR/../templates" "$dir/templates"
+  rm -rf "$dir/scripts/test"; find "$dir/scripts" -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null
+  echo "$dir"
+}
+
 assert_exit() {
   local want="$1"; shift
   local out; out="$("$@" 2>&1)"; local got=$?
