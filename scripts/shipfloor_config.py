@@ -3,7 +3,7 @@
 Exit codes: 0 ok, 1 negative answer (invalid config on validate, missing key, no owner layer),
 2 unusable (missing or invalid config, unknown layer or role, bad usage). Read-only.
 """
-import json, os, re, sys, warnings
+import json, os, re, sys, time, warnings
 
 warnings.simplefilter("ignore")  # ERE classes like [[:space:]] make Python's re warn
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
@@ -564,8 +564,55 @@ def machine_problems(raw):
     return errs
 
 
+WINDOW = re.compile(r"([01][0-9]|2[0-3]):([0-5][0-9])-([01][0-9]|2[0-3]):([0-5][0-9])")
+
+
+def now():
+    """The clock for working hours: local HH:MM, or SHIPFLOOR_NOW when set."""
+    return os.environ.get("SHIPFLOOR_NOW") or time.strftime("%H:%M")
+
+
+def hours_problems(raw):
+    """Why `hours` is unusable, as lines that start with 'hours'. Missing or [] is fine."""
+    value = raw.get("hours") if isinstance(raw, dict) else None
+    if value is None or value == []:
+        return []
+    if not isinstance(value, list):
+        return ["hours must be a list of HH:MM-HH:MM windows"]
+    errs = []
+    for w in value:
+        m = WINDOW.fullmatch(w) if isinstance(w, str) else None
+        if not m:
+            errs.append(f"hours: {w!r} is not a window HH:MM-HH:MM (24-hour, 00:00 to 23:59)")
+        elif m.group(1, 2) == m.group(3, 4):
+            errs.append(f"hours: {w!r} starts and ends at the same time")
+    return errs
+
+
+def minutes(hhmm):
+    return int(hhmm[:2]) * 60 + int(hhmm[3:5])
+
+
+def hours_state(raw, now):
+    """{windows, open, next, error}: a window includes its start and excludes its end; an end before its
+    start crosses midnight. Unset or malformed is open; closed, next is the nearest coming start."""
+    value = raw.get("hours") if isinstance(raw, dict) else None
+    errs = hours_problems(raw)
+    if errs:
+        return {"windows": json.dumps(value, ensure_ascii=False), "open": True, "next": None, "error": errs[0]}
+    windows = value or []
+    at, starts = minutes(now), []
+    for w in windows:
+        start, end = minutes(w[:5]), minutes(w[6:])
+        if start <= at < end or (end < start and (at >= start or at < end)):
+            return {"windows": windows, "open": True, "next": None, "error": None}
+        starts.append(w[:5])
+    return {"windows": windows, "open": not windows,
+            "next": min(starts, key=lambda s: (minutes(s) - at) % 1440) if starts else None, "error": None}
+
+
 def machine(rest):
-    """machine <validate | values <key>... | show | set <key> <int> | stage-models | models-check [<agent>...]> on $SHIPFLOOR_MACHINE_CONFIG."""
+    """machine <validate | values <key>... | show | hours | set <key> <int> | stage-models | models-check [<agent>...]> on $SHIPFLOOR_MACHINE_CONFIG."""
     path = os.environ.get("SHIPFLOOR_MACHINE_CONFIG", "")
     raw = {}
     if path and os.path.isfile(path):
@@ -578,9 +625,14 @@ def machine(rest):
             raw = {}
     errs = [f"not valid YAML: {raw}"] if isinstance(raw, yaml.YAMLError) else machine_problems(raw)
     cmd, args = (rest[0], rest[1:]) if rest else ("", [])
+    if cmd == "hours" and not args:
+        state = hours_state(raw, now())
+        print("open" if state["open"] else f"closed {state['next']}"); return 0
     if cmd == "validate" and not args:
         for e in errs:
             print(f"shipfloor-config: {path}: {e}", file=sys.stderr)
+        for e in hours_problems(raw):
+            print(f"shipfloor-config: {path}: {e}; ignored, runs start at all hours", file=sys.stderr)
         return 1 if errs else 0
     if cmd == "set" and len(args) == 2:
         if isinstance(raw, yaml.YAMLError):
@@ -626,7 +678,7 @@ def machine(rest):
             print(f"  {k}: {data['stages'][k]}")
         print(f"stacks: {data['stacks']}")
         return 0
-    raise Unusable("usage: machine validate | values <key>... | show | set <key> <int> | stage-models | models-check [<agent>...]")
+    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | models-check [<agent>...]")
 
 
 def main(argv):
