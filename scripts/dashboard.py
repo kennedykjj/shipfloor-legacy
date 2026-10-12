@@ -1,7 +1,7 @@
 """Local dashboard: one page and a JSON API over ~/.shipfloor and the Claude Code transcripts of the
 factory's runs. Read-only, except the owner's decisions on a card that waits, messages to a running card and this machine's
 settings (the pool and the pauses)."""
-import argparse, json, os, re, secrets, shlex, statistics, subprocess, sys, threading, time, webbrowser
+import argparse, json, os, re, secrets, shlex, shutil, statistics, subprocess, sys, threading, time, webbrowser
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -82,8 +82,36 @@ def read_yaml(path):
         return {}
 
 
+def find_bash(environ, windows):
+    if environ.get("SHIPFLOOR_BASH"):
+        return environ["SHIPFLOOR_BASH"]
+    norm = lambda p: os.path.normcase(os.path.normpath(p))
+    refused = set()
+    if windows:  # the WSL launcher lives here and fails without a distribution
+        if environ.get("SystemRoot"):
+            refused.add(norm(os.path.join(environ["SystemRoot"], "System32")))
+        if environ.get("LOCALAPPDATA"):
+            refused.add(norm(os.path.join(environ["LOCALAPPDATA"], "Microsoft", "WindowsApps")))
+    for d in environ.get("PATH", "").split(os.pathsep):
+        if not d:  # an empty entry would search the current directory
+            continue
+        hit = shutil.which("bash", path=d)
+        # on Windows which() may also find a bash in the current directory: the hit must sit in d
+        if hit and norm(os.path.dirname(hit)) == norm(d) and norm(os.path.dirname(hit)) not in refused:
+            return hit
+    return None
+
+
+_bash = None
+
+
 def bash():
-    return os.environ.get("SHIPFLOOR_BASH", "bash")
+    global _bash
+    if _bash is None:
+        _bash = find_bash(os.environ, os.name == "nt")
+        if _bash is None:
+            raise SystemExit("shipfloor dashboard: no usable bash found: set SHIPFLOOR_BASH or start it with shipfloor dashboard")
+    return _bash
 
 
 NO_SCHEDULER = ("Windows only: this machine has no ShipfloorDispatcher scheduled task. "
@@ -971,6 +999,7 @@ def main():
     a.add_argument("--port", type=int, default=7717)
     a.add_argument("--no-open", action="store_true")
     args = a.parse_args()
+    bash()
     Handler.factory = Factory(args.home, os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     Handler.token = secrets.token_urlsafe(16)
     server = None
