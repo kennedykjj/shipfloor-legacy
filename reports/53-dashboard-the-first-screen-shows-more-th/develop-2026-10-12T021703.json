@@ -1,0 +1,14 @@
+{
+  "issue": 53,
+  "slug": "dashboard-the-first-screen-shows-more-th",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T05:13:00Z",
+  "finished_at": "2026-10-12T05:17:00Z",
+  "outcome": "infra",
+  "agents": [],
+  "rounds": {"5": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
