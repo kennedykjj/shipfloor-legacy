@@ -1,0 +1,17 @@
+{
+  "issue": 75,
+  "slug": "validate-does-not-rerun-a-gate-that-alre",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T22:19:00-03:00",
+  "finished_at": "2026-10-11T22:47:23-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 46197, "duration_s": 210},
+    {"role": "engineer", "tokens": 53134, "duration_s": 318}
+  ],
+  "rounds": {"3": 1, "4": 1, "5": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": false
+}
