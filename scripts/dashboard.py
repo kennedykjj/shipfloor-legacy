@@ -543,7 +543,7 @@ class Factory:
         if cycle:
             cycle.setdefault("next_at", None)
         command, why = scheduler()
-        return {"machine": {k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, "paused": (self.home / "PAUSE").exists(),
+        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt"}, "paused": (self.home / "PAUSE").exists(),
                 "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
                 "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours()}
 
@@ -595,6 +595,11 @@ class Factory:
                 new[k] = changes[k]
         if isinstance(changes.get("stages"), dict):
             new["stages"] = dict(new["stages"] if isinstance(new.get("stages"), dict) else {}, **changes["stages"])
+        if "notify" in changes:
+            had, ch = new.get("notify") or {}, changes["notify"]
+            if isinstance(had, dict) and isinstance(ch, dict):  # key by key; events and channels too
+                had = {**had, **{k: {**(had.get(k) if isinstance(had.get(k), dict) else {}), **v} if k in ("events", "channels") and isinstance(v, dict) else v for k, v in ch.items()}}
+            new["notify"] = had if isinstance(ch, dict) and isinstance(had, dict) else ch
         if "hours" in changes:  # a list of windows sets it; null or [] goes back to always
             if changes["hours"] in (None, []):
                 new.pop("hours", None)
