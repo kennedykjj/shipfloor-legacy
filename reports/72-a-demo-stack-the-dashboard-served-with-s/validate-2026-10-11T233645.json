@@ -1,0 +1,19 @@
+{
+  "issue": 72,
+  "slug": "a-demo-stack-the-dashboard-served-with-s",
+  "pipeline": "validate",
+  "started_at": "2026-10-12T03:00:00Z",
+  "finished_at": "2026-10-12T03:30:00Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "engineer (README merge conflict)", "tokens": 17047, "duration_s": 18},
+    {"role": "engineer (demo-gh by-number title query)", "tokens": 16000, "duration_s": 63}
+  ],
+  "rounds": {"gates": 2, "review": 1, "ci": 1},
+  "gates_failed": [
+    "build and green after merging main (AC-5: main's dashboard asks titles by graphql query, demo-gh did not answer it; fixed by engineer)"
+  ],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
