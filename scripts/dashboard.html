@@ -1711,8 +1711,8 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
 });
 document.addEventListener("keydown", (e) => {
-  if (S.refused) return;
   const typing = e.target.closest?.("textarea, input, select");
+  if (S.refused) return;
   if (e.key === "Tab" && S.open && S.full && !e.ctrlKey && !e.metaKey && !e.altKey) {  // the maximized drawer is modal: Tab cycles inside it; the side drawer leaves to the board
     const dr = $("drawer"), f = [...dr.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')].filter((x) => !x.disabled && x.tabIndex >= 0 && x.getClientRects().length);
     const a = document.activeElement, i = f.indexOf(a);
