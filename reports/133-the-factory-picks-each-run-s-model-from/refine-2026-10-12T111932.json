@@ -1,0 +1,17 @@
+{
+  "issue": 133,
+  "slug": "the-factory-picks-each-run-s-model-from",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T11:15:21-03:00",
+  "finished_at": "2026-10-12T11:19:18-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 16008, "duration_s": 21},
+    {"role": "ux-designer", "tokens": 58869, "duration_s": 78}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
