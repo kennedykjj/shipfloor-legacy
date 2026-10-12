@@ -186,10 +186,10 @@ main { min-height: 0; display: grid; }
 /* below the line: what waits for the owner, and what the factory is doing */
 .cols { display: grid; grid-template-columns: minmax(320px, 410px) minmax(0, 1fr); gap: 20px; min-height: 0; }
 .side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
-.yours, .work, .telem { padding: 18px 20px 14px; display: flex; flex-direction: column; min-height: 0; } .yours { flex: 0 1 auto; } .telem { flex: 0 0 auto; max-height: 60%; min-height: 292px; overflow-y: auto; }  /* min-height: its heading and both charts whole */
+.yours, .work, .telem { padding: 18px 20px 14px; display: flex; flex-direction: column; min-height: 0; } .yours { flex: 0 1000 auto; } .yours:not(.maxed) { min-height: var(--ymin, 0px); } .telem { flex: 0 1 auto; max-height: 60%; min-height: 100px; overflow-y: auto; }  /* Yours gives way first, down to its heading, two cards and foot (fit sets --ymin); then Today, down to its floor, and scrolls inside itself */
 .side h1 { font-size: 26px; }
 h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-weight: 500; }
-#list { list-style: none; margin: 12px -6px 0; overflow-y: auto; min-height: 0; padding: 0 6px; }
+#list { list-style: none; margin: 12px -6px 0; overflow-y: auto; min-height: var(--two, 0px); padding: 0 6px; }  /* --two: the first two cards whole, set by fit */
 /* what waits for you, maximized: a decision inbox. The queue, what to read, and the decision as options that each say what happens next */
 .inbox, .yours.maxed #list, .foot[hidden], .iconf[hidden], .itoast[hidden] { display: none; }
 .yours.maxed .inbox { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 350px; margin-top: 12px; border-top: 1px solid var(--edge); }
@@ -232,7 +232,10 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .itoast { display: flex; gap: 10px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45.1%, transparent); border-radius: 8px; padding: 8px 10px; }
 .itoast button { background: none; border: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 @media (max-width: 1180px) { .yours.maxed .inbox { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .ique, .idec { border: 0; overflow: visible; } .iread { overflow: visible; padding-inline: 0; } }
-#list.cut { -webkit-mask-image: linear-gradient(#000 calc(100% - 44px), transparent); mask-image: linear-gradient(#000 calc(100% - 44px), transparent); }
+#list.cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: linear-gradient(#000 calc(100% - 44px), transparent); mask-image: linear-gradient(#000 calc(100% - 44px), transparent); }
+.telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(#000 calc(100% - 24px), transparent); mask-image: linear-gradient(#000 calc(100% - 24px), transparent); }
+/* the shortest column: fit puts .tight on .side only with Today open, when the list floor, the gap and Today's floor do not fit */
+.side.tight { gap: 10px; } .side.tight .yours:not(.maxed) .foot { display: none; } .side.tight #telem h2:first-child { margin-top: 6px; }
 .pass { border-top: 1px solid var(--hair); padding: 10px 2px 12px; } .pass.hot { background: color-mix(in srgb, var(--ov) 3.5%, transparent); }
 .ptitle { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
 .ptitle .row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -537,6 +540,9 @@ body.refused .views, body.refused .stats, body.refused #alerts, body.refused #ba
   .yours:not(.maxed), .work:not(.maxed), .telem:not(.maxed) { max-height: none; min-height: auto; flex: none; overflow: visible; }
   .yours:not(.maxed) #list, .work:not(.maxed) .tiles, .telem:not(.maxed) .tiles { overflow: visible; }
   .work:not(.maxed) .tiles, .telem:not(.maxed) .tiles { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+  .yours:not(.maxed) #list { min-height: 0; }
+  .side.tight { gap: normal; } .side.tight .yours:not(.maxed) .foot:not([hidden]) { display: flex; } .side.tight #telem h2:first-child { margin-top: 16px; }
+  .telem:not(.maxed).cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: none; mask-image: none; }
   .drawer.open, .drawer.wide { width: 100%; }
   .disp .hrs { flex-basis: 100%; order: 1; } .disp .hrs input { width: 100%; max-width: 26ch; }
 }
@@ -844,6 +850,7 @@ function show(which, on) {
   S.show[which] = on; el.classList.toggle("min", !on); btn.setAttribute("aria-expanded", on);
   btn.title = on ? "Minimize" : "Expand"; btn.setAttribute("aria-label", `${btn.title} ${el.dataset.maxable}`);
   if (on) renderBoard(); else renderSum(project());  // opening draws what the closed panel skipped
+  fit();
 }
 // A running card sits on the step it reported; with no step yet, further right the longer it runs against the usual.
 function progress(p, c) {
@@ -919,7 +926,23 @@ function renderLanes(p, by, key, labels) {
   setHTML($("lanes"), LANES.map(([name, what, a, b]) => `<h2 class="lane g">${name}<small>${what}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
     `<div class="lcol"><div class="lab">${col.stage ? `<b class="g">${STAGE_NAME[col.stage]}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${labels[col.name]}</span></div>${by[col.name].map(chip).join("")}</div>`).join("")}</div>`).join(""));
 }
-const fade = () => { const l = $("list"); l.classList.toggle("cut", l.scrollHeight - l.scrollTop - l.clientHeight > 8); };
+// Fits the column below the line. The list keeps its first two cards whole (--two), Yours keeps room for them (--ymin) and Today
+// gives way, scrolling inside itself. .tight compacts the column only when Today is open and even that does not fit; the call
+// decides from the measure with .tight off, so it does not flip between refreshes. It never scrolls and never moves focus.
+function fit() {
+  const l = $("list"), t = $("today"), w = $("tiles"), side = document.querySelector(".side"), yours = document.querySelector(".yours");
+  side.classList.remove("tight");
+  const ps = [...l.querySelectorAll(".pass")], mark = ps.length > 1 ? ps[1] : ps[0];
+  const two = mark ? Math.ceil(mark.getBoundingClientRect().bottom - l.getBoundingClientRect().top + l.scrollTop) : 0;
+  l.style.setProperty("--two", two ? `${two}px` : "0px");
+  const foot = yours.querySelector(".foot"), footH = foot.offsetHeight;
+  const chrome = Math.ceil(l.getBoundingClientRect().top - yours.getBoundingClientRect().top + parseFloat(getComputedStyle(yours).paddingBottom));
+  const narrow = matchMedia("(max-width: 1180px)").matches;
+  const tight = !narrow && S.show.today && !maxed() && side.clientHeight > 0 && side.clientHeight <chrome + footH + two + 20 + (parseFloat(getComputedStyle(t).minHeight) || 100);
+  side.classList.toggle("tight", tight);
+  yours.style.setProperty("--ymin", `${chrome + (tight ? 0 : footH) + two}px`);
+  for (const el of [l, t, w]) el.classList.toggle("cut", el.scrollHeight - el.scrollTop - el.clientHeight > 8);
+}
 function renderYours() {
   const w = waiting();
   $("hy").textContent = w.length ? `${w.length} wait${w.length === 1 ? "s" : ""} for you` : "Nothing waits for you";
@@ -930,7 +953,7 @@ function renderYours() {
     if ($("qc") && text != null) $("qc").value = text;
     if (held) (onText ? $("qc") : document.querySelector(`.pass[data-key="${CSS.escape(held)}"] .ptitle`))?.focus({ preventScroll: true });
   }
-  fade();
+  fit();
   if (inboxOn()) renderInbox();
 }
 // What waits for you, maximized: a decision inbox. The queue (the oldest wait first), what to read to decide the
@@ -1095,6 +1118,7 @@ function renderWork(p, key, fresh) {
   const group = (name, list) => list.length ? `<p class="grp cap">${name}</p>${list.join("")}` : "";
   setHTML($("tiles"), group("Running", tiles) + group("Waiting", idle) || '<p class="empty">Nothing is in progress.</p>');
   $("wfoot").textContent = `Closest to Done first · ${ago(p.board_age_s)}${p.paused ? " · project paused" : ""}`;
+  fit();
 }
 // Today by the hour: runs that ended (clean or failed) and what the sessions cost, then how long a stage usually takes.
 function renderTelem(p) {
@@ -1116,6 +1140,7 @@ function renderTelem(p) {
   setHTML($("telem"), `${hs.length ? `<h2>Runs that ended, by hour <span><b>${ok}</b> clean · <b>${failed}</b> failed</span></h2>${runs}<div class="key"><span style="--k:var(--ok)"><i></i>clean</span><span><i style="background:repeating-linear-gradient(45deg, var(--bad) 0 2px, color-mix(in srgb, var(--bad) 22.0%, transparent) 2px 4px)"></i>failed</span></div>
     <h2>Spend by hour <span><b>$${spent.toFixed(2)}</b> est.</span></h2>${cost}` : '<p class="empty">No run has ended today.</p>'}
     ${usual.length ? `<h2>A stage usually takes</h2><div class="usual">${usual.map(([st, name]) => `<span>${name}</span><i style="width:${(p.typical_s[st] / most * 100).toFixed(0)}%"></i><span>${Math.max(1, Math.round(p.typical_s[st] / 60))} min</span>`).join("")}</div>` : ""}${ended}`);
+  fit();
 }
 // The owner's quick actions on a pass. Approve waits five seconds so a wrong click can be undone.
 function quick(q, k) {
@@ -1816,7 +1841,8 @@ document.addEventListener("keydown", (e) => {
   }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase(), cur = document.activeElement?.closest?.(".pass");
-  if (k === "n") { const ps = [...document.querySelectorAll(".pass .ptitle")]; ps[(ps.indexOf(cur?.querySelector(".ptitle")) + 1) % ps.length]?.focus(); }
+  if (k === "n") { const ps = [...document.querySelectorAll(".pass .ptitle")], nx = ps[(ps.indexOf(cur?.querySelector(".ptitle")) + 1) % ps.length], l = $("list");
+    nx?.focus(); if (nx) l.scrollTop += nx.closest(".pass").getBoundingClientRect().top - l.getBoundingClientRect().top; }  // the card's top at the list's top edge
   const hit = { a: '[data-q="approve"]', r: '[data-go="review"]', l: '[data-go="log"]' }[k]; if (hit && cur) cur.querySelector(hit)?.click();
 });
 // review pages run sandboxed; the dashboard's embed script posts their marks here
@@ -1840,7 +1866,8 @@ window.addEventListener("message", (e) => {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushMarks(); });
 // a page that never says "ready" does not take the theme: show it plain; one that did is never left hidden
 $("pane").addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
-$("list").addEventListener("scroll", fade); window.addEventListener("resize", fade);
+for (const id of ["list", "today", "tiles"]) $(id).addEventListener("scroll", fit);
+window.addEventListener("resize", fit);
 window.addEventListener("resize", renderPeek); document.addEventListener("scroll", () => { if (S.peek) renderPeek(); }, true);
 // a card's pass, its row and its dot light up together
 const hot = (e, on) => { const k = e.target.closest?.("[data-key]")?.dataset.key; if (k) document.querySelectorAll(`[data-key="${CSS.escape(k)}"]`).forEach((el) => el.classList.toggle("hot", on)); };
