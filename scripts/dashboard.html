@@ -655,8 +655,10 @@ function localize(node) {
     }
   const w = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) localize(n);
 }
+let LANG_LOADED = "en";  // the language this page was loaded in: Settings tells "saved" from "shown" by it
 async function loadLang() {
   const { status, body } = await api("/api/lang");
+  if (status === 200 && body.language) LANG_LOADED = body.language;
   if (status !== 200 || !body.language || body.language === "en") return;
   LANG.exact = body.exact || {};
   LANG.rx = (body.rx || []).flatMap(([re, to]) => { try { return [[new RegExp(re, "g"), to]]; } catch { return []; } });
@@ -1458,7 +1460,7 @@ function cycleStatus(d) {
 async function loadSettings() {
   const { status, body } = await api("/api/settings"); if (status !== 200) return;
   SET.data = body;
-  const p = document.activeElement?.id === "every" && $("disp").querySelector(".who p");  // the select is focused or open: only the status text moves
+  const p = (document.activeElement?.id === "every" || document.activeElement?.id === "lang") &&$("disp").querySelector(".who p");  // the select is focused or open: only the status text moves
   if (p) { p.innerHTML = cycleStatus(body); $("disp")._html = null; } else renderSettings();
 }
 function renderSettings() {
@@ -1477,7 +1479,7 @@ function renderSettings() {
     ${dp ? `<label class="sfl">Looks for work every ${dp.can_set ? pace : `<span class="sknob">${pace}<small>${esc(dp.why || NO_TASK)}</small></span>`}</label>` : ""}
     <label class="sfl hrs">Working hours<input type="text" id="hours-in" class="${"hours" in SET.draft ? "dirty" : ""}" value="${esc(hv)}" placeholder="always" spellcheck="false" autocomplete="off" title="${helper}" aria-describedby="hours-help"${bad ? ' aria-invalid="true"' : ""}></label><span class="vh" id="hours-help">${helper}</span>
     <label class="sfl">Pause the factory${sw("", d.paused, "Pause the factory")}</label>`) && field) { const n = $("hours-in"); n.focus({ preventScroll: true }); n.setSelectionRange(...caret); }  // the rewrite took the focus and the caret with it
-  const secs = [["sessions", "Sessions", "how much runs at once"], ["models", "Agents and models", "which model runs each role"], ["projects", "Projects", d.projects.map((p) => p.slug).join(", ") || "none yet"], ["costs", "Costs", "limits and the prices behind the estimate"], ["themes", "Themes", "how this dashboard looks"], ["notify", "Notifications", "when the factory needs you"]];
+  const secs = [["sessions", "Sessions", "how much runs at once"], ["models", "Agents and models", "which model runs each role"], ["projects", "Projects", d.projects.map((p) => p.slug).join(", ") || "none yet"], ["costs", "Costs", "limits and the prices behind the estimate"], ["themes", "Themes", "how this dashboard looks"], ["notify", "Notifications", "when the factory needs you"], ["language", "Language", "the page and what the factory writes"]];
   setHTML($("set-nav"), secs.map(([id, name, sub]) => `<button data-setsec="${id}" aria-current="${SET.sec === id}">${name}<small>${esc(sub)}</small></button>`).join(""));
   let body = "";
   if (SET.sec === "sessions") {
@@ -1538,6 +1540,15 @@ function renderSettings() {
       ${group("", THEMES.first)}
       <div class="sgroup panel"><h2 class="ptitle2 g">More themes<span class="inuse">${inUse ? `In use: <b>${esc(inUse)}</b>` : ""}</span><button class="max" data-fold="themes" aria-expanded="${open}" aria-controls="more-themes" aria-label="${open ? "Minimize" : "Expand"} more themes" title="${open ? "Minimize" : "Expand"}"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button></h2></div>
       <div id="more-themes"${open ? "" : " hidden"}>${group("Dark", THEMES.dark)}${group("Light", THEMES.light)}</div>`;
+  } else if (SET.sec === "language") {
+    const langs = d.languages || {}, said = (c) => `${esc(loc(langs[c] || c))} (${esc(c)})`, mine = setVal("language") || "en", saved = d.machine.language || "en";
+    const pick = `<select id="lang"${"language" in SET.draft ? ' class="dirty"' : ""} aria-label="Language of this dashboard">${Object.keys(langs).map((c) => `<option value="${esc(c)}"${c === mine ? " selected" : ""}>${said(c)}</option>`).join("")}</select>`;
+    body = `<h1 class="g">Language</h1><p class="lead">The language of this dashboard, and the language the factory writes in for each project. The text a product shows its own users is not a factory setting: it is set in the files that project's agents read.</p>
+      <div class="sgroup panel"><h2>This dashboard <code>~/.shipfloor/config.yml</code></h2>
+        ${row("Language of this dashboard", saved !== LANG_LOADED ? `Saved as ${esc(loc(langs[saved] || saved))}. Reload the page to see it.` : "The dashboard's own text. What the agents wrote is shown as written. Applied when the page is reloaded.", pick)}</div>
+      <div class="sgroup panel"><h2>What the factory writes <code>.shipfloor/factory.yml</code></h2>
+        ${d.projects.map((p) => row(esc(p.slug), `<code>${esc(p.language.file)}</code>${p.language.set ? "" : " · no language key, the factory default"}`, `<span class="sv">${said(p.language.code)}</span>`)).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}
+        ${d.projects.length ? `<p class="from">Read-only here: a project's language is part of its repository. To change it, edit <code>language</code> in its <code>.shipfloor/factory.yml</code>. The dispatcher reads it again on every cycle.</p>` : ""}</div>`;
   } else if (SET.sec === "notify") {
     const refusal = { reminder: "The reminder takes 15 to 720 minutes.", topic: "The topic takes letters, digits, - and _, up to 64.", quiet: "Quiet hours need both times, and they cannot be the same." };  // what the server says, to mark the field at fault
     const nk = (k) => "n|" + k, bad = (what) => SET.err.includes(refusal[what]), on = (k) => setVal(nk(k)), topic = on("ntfy_topic");
@@ -1582,7 +1593,7 @@ function renderSettings() {
   $("set-save").hidden = !n && !SET.err;
   $("set-save").querySelectorAll("button").forEach((b) => { b.disabled = SET.busy; });
   $("set-save").querySelector('[data-set="save"]').disabled = SET.busy || COST_KEYS.some((k) => costErr(k));  // a bad amount cannot be saved
-  setHTML($("set-count"), SET.err ? `<span class="bad">${esc(SET.err)}</span>` : `<b>${plural(n, "change")} not saved.</b> <span>Applied on the dispatcher's next cycle. Running sessions are not touched.</span>`);
+  setHTML($("set-count"), SET.err ? `<span class="bad">${esc(SET.err)}</span>` : `<b>${plural(n, "change")} not saved.</b> <span>Applied on the dispatcher's next cycle. Running sessions are not touched.${"language" in SET.draft ? "<span> The language shows after a reload.</span>" : ""}</span>`);
 }
 function setStep(t) {
   const k = t.dataset.step, n = Math.min(+t.dataset.max, Math.max(+t.dataset.min, setVal(k) + +t.dataset.by));
@@ -1629,7 +1640,9 @@ async function setSave() {
       SET.hoursBad = what === "machine" && r.status === 400 && /(^|; )hours/.test(r.body.error || "");
       SET.err = SET.hoursBad ? "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas."
         : r.status === 409 && what === "machine" && "every_min" in SET.draft  // the system's own reason, in the page's sentence
-        ? `The pace was not changed: ${String(r.body.error || "").replace(/\.+$/, "")}. The dispatcher still looks for work every ${SET.data.dispatcher.every_min} min.` : r.body.error || "The settings were not saved.";
+        ? `The pace was not changed: ${String(r.body.error || "").replace(/\.+$/, "")}. The dispatcher still looks for work every ${SET.data.dispatcher.every_min} min.`
+        : r.status === 400 && what === "machine" && "language" in SET.draft ? `The language was not changed: ${String(r.body.error || "").replace(/\.+$/, "")}. This dashboard stays in ${loc((SET.data.languages || {})[SET.data.machine.language] || SET.data.machine.language)}.`
+        : r.body.error || "The settings were not saved.";
       break;
     }
     SET.data = r.body;
@@ -1765,6 +1778,10 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "every") {  // a draft like a stepper's: Save applies it, picking the saved value again drops it
     if (+e.target.value === setWas("every_min")) delete SET.draft.every_min; else SET.draft.every_min = +e.target.value;
     SET.err = ""; renderSettings(); $("every")?.focus();
+  }
+  if (e.target.id === "lang") {  // the same: a draft, applied by Save, dropped when the saved value is picked again
+    if (e.target.value === setWas("language")) delete SET.draft.language; else SET.draft.language = e.target.value;
+    SET.err = ""; renderSettings(); $("lang")?.focus();
   }
   if (e.target.id === "logsel") { S.log = e.target.value; S.logNext = -1; S.logText = ""; renderDrawer(); followLog(); }
   if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
