@@ -1,0 +1,15 @@
+{
+  "issue": 78,
+  "slug": "shipfloor-install-replaces-each-script-i",
+  "pipeline": "refine",
+  "started_at": "2026-10-11T21:39:39-03:00",
+  "finished_at": "2026-10-11T21:42:08-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 20066, "duration_s": 42}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "manual_edit": null
+}
