@@ -1838,7 +1838,7 @@ window.addEventListener("message", (e) => {
   S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
   syncDecide();
 });
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushMarks(); }); window.addEventListener("pagehide", flushMarks);  // flushMarks sends with keepalive, which outlives the page
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushMarks(); });
 // a page that never says "ready" does not take the theme: show it plain; one that did is never left hidden
 $("pane").addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
 $("list").addEventListener("scroll", fade); window.addEventListener("resize", fade);
@@ -1852,6 +1852,7 @@ $("d-max").innerHTML = MAX;
 $("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
 // leaving the page sends what still waits its five seconds; switching tabs does not
 window.addEventListener("pagehide", () => { Object.keys(S.pending).forEach((k) => sendPending(k, true)); if (INB.hold) inboxFlush(true); });  // true: fetch keepalive, which outlives the page
+window.addEventListener("pagehide", flushMarks);  // the review marks too; flushMarks sends with keepalive
 window.addEventListener("pageshow", (e) => { if (e.persisted) loadOverview(); });
 loadLang().finally(loadOverview);
 setTimeout(() => { if (!S.overview && !S.refused) { $("msg").removeAttribute("role"); setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); } }, 6000);
