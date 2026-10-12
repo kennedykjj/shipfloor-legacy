@@ -1,0 +1,17 @@
+{
+  "issue": 9,
+  "slug": "flaky-test-dispatch-review-deleted",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T21:13:00-03:00",
+  "finished_at": "2026-10-11T21:28:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 32687, "duration_s": 131},
+    {"role": "engineer", "tokens": 13412, "duration_s": 51}
+  ],
+  "rounds": {"acceptance_tests": 1, "implementation": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
