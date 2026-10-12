@@ -1,0 +1,19 @@
+{
+  "issue": 55,
+  "slug": "dashboard-small-fixes-from-the-critique",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T23:08:00-03:00",
+  "finished_at": "2026-10-11T23:23:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 47932, "duration_s": 124},
+    {"role": "engineer (T1 legend, sizes, lane headings)", "tokens": 22620, "duration_s": 30},
+    {"role": "engineer (T2 resume, modal drawer, alert, day rows, catalog)", "tokens": 58484, "duration_s": 127},
+    {"role": "engineer (T2 fix round)", "tokens": 25035, "duration_s": 48}
+  ],
+  "rounds": {"plan": 1, "acceptance_tests": 1, "T1": 1, "T2": 2, "last_gates": 1},
+  "gates_failed": ["build (after T1: only acceptance assertions of T2, the task still to come; pass after T2)"],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
