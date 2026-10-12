@@ -15,7 +15,7 @@ The board (a GitHub Project v2) has fixed columns. The owner moves cards between
 | `/sf:validate` | Validation | Staged | gates, review (code, UX, security), PR with green CI |
 | `/sf:deploy` | Ready for Prod | Done | up to date with `main` (resolving conflicts, fixing what breaks), merge tested on the current `main`, waits for CI and deploy; on failure opens a revert PR |
 
-The gates (`scripts/gate.sh`) do not depend on the model: file scope per role, forbidden paths, untouched acceptance tests, immutable, unique and ordered migrations, build per layer, red by assertion (not by a compile error) and green with at least one test run.
+The gates (`scripts/gate.sh`) do not depend on the model: file scope per role, forbidden paths, untouched acceptance tests, immutable, unique and ordered migrations, build per layer, red by assertion (not by a compile error) and green with at least one test run. `build` and `green` reuse a pass the factory recorded for the same clean commit and inputs, say so in their output, and run again when anything differs.
 
 A dispatcher (a scheduled task, every 3 minutes by default) goes through every registered project and starts pipelines with `claude -p`, within the machine's agent pool, each stage's slots and the project's WIP.
 
