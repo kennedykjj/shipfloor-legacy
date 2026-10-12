@@ -24,9 +24,12 @@ mapfile -d '' -t LIM < <(shipfloor_cfg values limits.refine.wip limits.develop.w
 # The machine pool (~/.shipfloor/config.yml): runs at once on this machine, and per stage, across projects.
 shipfloor_machine validate || { echo "dispatch: invalid $SHIPFLOOR_HOME/config.yml" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
 MLANG="$(shipfloor_machine values language 2>/dev/null | tr -d '\0')"
-mapfile -d '' -t POOL < <(shipfloor_machine values pool stages.refine stages.develop stages.validate stages.deploy)
-[ "${#POOL[@]}" -eq 5 ] || { echo "dispatch: cannot read the machine pool" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
+mapfile -d '' -t POOL < <(shipfloor_machine values pool stages.refine stages.develop stages.validate stages.deploy costs.card_block costs.day_stop)  # the cost limits ride on this read: none set, no estimate starts
+[ "${#POOL[@]}" -eq 7 ] || { echo "dispatch: cannot read the machine pool" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
 declare -A STAGE_SLOTS=([refine]="${POOL[1]}" [develop]="${POOL[2]}" [validate]="${POOL[3]}" [deploy]="${POOL[4]}")
+mapfile -d '' -t MODELS < <(shipfloor_machine stage-models)  # refine develop validate deploy; empty = no --model flag
+[ "${#MODELS[@]}" -eq 4 ] || { echo "dispatch: cannot read the stage models" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
+declare -A STAGE_MODEL=([refine]="${MODELS[0]}" [develop]="${MODELS[1]}" [validate]="${MODELS[2]}" [deploy]="${MODELS[3]}")
 
 refresh_control() {  # control checkout = exactly origin/main
   [ "${FACTORY_CONTROL_REFRESH:-1}" = "0" ] && return 0
@@ -105,7 +108,7 @@ launch() {  # launch <pipeline> <issue>
   # The owner's personal CLAUDE.md is loaded whatever the setting sources are: its memory and notes are not for a run.
   envs+=(CLAUDE_CODE_DISABLE_AUTO_MEMORY=1)
   extra+=(--append-system-prompt "This is an unattended factory run. A personal CLAUDE.md is for its owner's interactive sessions: what it says to read or write under ~/.claude (memory, journals, notes, a vault) does not apply here.")
-  case "$p" in validate|deploy) extra+=(--model sonnet) ;; esac  # orchestration and conflict fixes: half the price
+  [ -z "${STAGE_MODEL[$p]:-}" ] || extra+=(--model "${STAGE_MODEL[$p]}")  # validate and deploy default to sonnet: half the price
   local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(SHIPFLOOR_INFRA_RETRY=1); }
   (
     trap '' HUP
@@ -147,6 +150,9 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = t
   { [ "$maxpar" -eq 0 ] || [ "$stage_free" -lt "$free" ]; } && free="$stage_free"  # 0 = the stage slots decide
   [ "$free" -le 0 ] && return 0
   start_run() {
+    STARTED=0
+    case " $BLOCK_CARDS " in *" $1 "*) block_card "$1" && return 0 ;; esac  # blocked, not started: it takes no slot
+    STARTED=1
     if [ "$refreshed" = 0 ]; then
       refresh_control || { echo "dispatch: could not refresh $CONTROL from origin/main" | shipfloor_say "${MLANG:-en}" >&2; return 1; }
       refreshed=1
@@ -182,7 +188,8 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = t
     { [ "$slots" -le 0 ] || [ "$GLOBAL" -le 0 ]; } && break
     printf '%s\n' "$running" | grep -qx "$n" && continue
     card_busy "$n" && continue
-    start_run "$n" || return 1; slots=$((slots - 1))
+    start_run "$n" || return 1
+    [ "$STARTED" = 1 ] && slots=$((slots - 1))
   done
   return 0
 }
@@ -203,6 +210,44 @@ mv "$SNAP.$$.tmp" "$SNAP"
 export FACTORY_BOARD_SNAPSHOT="$SNAP"
 
 usage_limited && { echo "dispatch: Claude usage limit hit recently; waiting" | shipfloor_say "${MLANG:-en}"; exit 0; }
+
+# Cost limits (machine config `costs`): none set, nothing below starts a process. A marker cost/<n>.json
+# (the baseline of a block) goes when its card leaves the board. An empty board read proves nothing: it keeps them.
+if grep -q . "$SNAP" 2>/dev/null; then
+  for f in "$HOME_DIR"/cost/*.json; do
+    [ -f "$f" ] || continue; n="${f##*/}"; n="${n%.json}"
+    [ -n "$(snapshot_status "$n")" ] || rm -f "$f"
+  done
+fi
+BLOCK_CARDS=""
+if [ -n "${POOL[5]}${POOL[6]}" ]; then
+  shipfloor_py
+  COST_PY=("$SHIPFLOOR_PY" -I "$(shipfloor_native "$HERE/dashboard_cost.py")")
+  COST_ARGS=(--home "$(shipfloor_native "$SHIPFLOOR_HOME")" --project "${FACTORY_PROJECT:?}")
+  limits="$("${COST_PY[@]}" limits "${COST_ARGS[@]}" | tr -d '\r')" || { echo "dispatch: cannot read the cost limits" | shipfloor_say "${MLANG:-en}" >&2; exit 1; }
+  while IFS=$'\t' read -r kind a b; do
+    case "$kind" in
+      day_stop) echo "dispatch: today's estimate US$ $a reached costs.day_stop (US$ $b); no new run until tomorrow" | shipfloor_say "${MLANG:-en}"; exit 0 ;;
+      block) BLOCK_CARDS="$BLOCK_CARDS $a" ;;
+    esac
+  done <<< "$limits"
+fi
+STARTED=0 COSTFAIL=0
+
+block_card() {  # block_card <issue>: the comment says why, then the label; a failure of either fails the cycle
+  local n="$1" m="$HOME_DIR/cost/$1.json" body="$HOME_DIR/tmp/cost-$1.md" rc=0 gh="${FACTORY_GH:-gh}"
+  cp "$m" "$m.prev" 2>/dev/null
+  "${COST_PY[@]}" block "${COST_ARGS[@]}" --issue "$n" --out "$(shipfloor_native "$body")" || rc=$?
+  if [ "$rc" = 1 ]; then rm -f "$m.prev"; return 1; fi  # no known estimate: never judged, it starts
+  if [ "$rc" = 0 ]; then
+    "$gh" issue comment "$n" ${REPO:+-R "$REPO"} --body-file "$body" >/dev/null && "$BOARD" label "$n" add blocked && { rm -f "$m.prev" "$body"; echo "dispatch: #$n reached costs.card_block; blocked" | shipfloor_say "${MLANG:-en}"; return 0; }
+    rc=1
+  fi
+  # not told: put the marker back, or the next cycle would take this block for done and start the card
+  if [ -f "$m.prev" ]; then mv -f "$m.prev" "$m"; else rm -f "$m"; fi
+  rm -f "$body"; COSTFAIL=1; echo "dispatch: could not block #$n at costs.card_block" | shipfloor_say "${MLANG:-en}" >&2
+  return 0
+}
 
 refresh_staged() {  # keep approved-to-be PRs on top of main: deploy.sh --refresh, a script, no agent slot
   local n dir log cards
@@ -252,6 +297,7 @@ else
 fi
 # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
 [ "$(shipfloor_cfg get deploy.refresh_staged 2>/dev/null)" = true ] && { refresh_staged || status=1; }
+[ "$COSTFAIL" = 1 ] && status=1
 # What finished cards and stray files left under tmp/ goes with every cycle (the same as `shipfloor clean`).
 shipfloor_sweep_tmp | sed "s|^|$(date -Is) dispatch: removed |"
 exit $status

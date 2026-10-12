@@ -40,11 +40,14 @@ cmd_install() {
   rm -rf "$INSTALLED/templates"; cp -r "$src/templates" "$INSTALLED/templates"
   echo "$src" > "$INSTALLED/.source"
   echo "installed $src → $INSTALLED"
-  echo "next: shipfloor add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) echo "next: shipfloor add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\"" ;;
+    *) echo "next: shipfloor add <repo>; then bash \"$src/installer/install-dispatcher.sh\"" ;;
+  esac
 }
 
 cmd_doctor() {
-  local bad=0 t src
+  local bad=0 t src agents=() line warned=0
   for t in git gh claude; do command -v "$t" >/dev/null && echo "ok   $t" || { echo "FAIL $t not found"; bad=1; }; done
   if shipfloor_python -c 'import yaml' 2>/dev/null; then echo "ok   python + PyYAML"; else echo "FAIL python 3 with PyYAML (pip install pyyaml)"; bad=1; fi
   gh auth status >/dev/null 2>&1 && echo "ok   gh authenticated" || { echo "FAIL gh auth login"; bad=1; }
@@ -56,6 +59,12 @@ cmd_doctor() {
   elif diff -rq -x test -x .source "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
   else echo "WARN installed copy differs from $src (shipfloor install)"; fi
+  local dst dkind
+  dkind="$(bash "$src/installer/install-dispatcher.sh" --status 2>/dev/null)"; dst=$?
+  case $dst in
+    0) echo "ok   dispatcher registered (${dkind#registered: })" ;;
+    1) echo "WARN no dispatcher registered; run: bash $src/installer/install-dispatcher.sh" ;;
+  esac
   local alert
   while IFS= read -r alert; do
     [ -n "$alert" ] && echo "WARN health: $alert (~/.shipfloor/logs/health-*.jsonl)"
@@ -81,8 +90,14 @@ cmd_doctor() {
         strict="$(gh api "repos/$r/branches/$b/protection" --jq .required_status_checks.strict 2>&1)"
         if [ "$strict" = true ]; then echo "ok   $slug: $b requires up-to-date branches"
         else echo "WARN $slug: $b does not require up-to-date branches (${strict##*: }); a hand merge can race the deploy"; fi )
+      mapfile -t -O "${#agents[@]}" agents < <( shipfloor_use "$slug" "$repo" "$wt" "$main"
+        for line in $(shipfloor_cfg layers --implementers); do shipfloor_cfg layer "$line" agent; done )
     done < "$REGISTRY"
   else echo "WARN no projects (shipfloor add <repo>)"; fi
+  while IFS= read -r line; do
+    [ -n "$line" ] && { echo "WARN models: $line"; warned=1; }
+  done < <(shipfloor_machine models-check "${agents[@]}" 2>&1 | tr -d '\r')
+  [ "$warned" -eq 1 ] || echo "ok   models"
   return $bad
 }
 

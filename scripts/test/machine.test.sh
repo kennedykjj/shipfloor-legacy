@@ -35,7 +35,49 @@ assert_contains "$(m values stacks ports.base ports.span stack_wait stack_stale 
 bad 'stacks: 0'
 bad 'ports: {base: 70000, span: 20}'
 bad 'stack_wait: x'
+# the notify block: defaults without it, and every value checked
+rm -f "$SHIPFLOOR_HOME/config.yml"
+assert_contains "$(m values notify.reminder_min notify.events.done notify.channels.toast | tr '\0' ' ')" "60 false true"
+bad 'notify: {reminder_min: 14}'
+bad 'notify: {quiet: "08:00-08:00"}'
+bad 'notify: {ntfy_topic: "has space"}'
+bad 'notify: {channels: {ntfy: true}}'
+bad 'notify: {events: {launch: true}}'
+bad 'notify: {colour: red}'
+printf 'notify: {quiet: "23:00-08:00", ntfy_topic: abc_1-2, channels: {ntfy: true}}\n' > "$SHIPFLOOR_HOME/config.yml"
+assert_exit 0 m validate
 
+# costs: optional limits in US$, no defaults; each a number > 0, card_warn <= card_block, no other key
+cv() { m values costs.card_warn costs.card_block costs.day_stop | tr '\0' '|'; }
+good() { printf '%s\n' "$1" > "$SHIPFLOOR_HOME/config.yml"; assert_exit 0 m validate; }
+rm -f "$SHIPFLOOR_HOME/config.yml"
+[ "$(cv)" = "|||" ] && pass "AC-7 no costs: every limit reads empty" || fail "AC-7 costs without a file: $(cv)"
+good $'costs:\n  card_warn: 20\n  card_block: 40\n  day_stop: 80'
+[ "$(cv)" = "20|40|80|" ] && pass "AC-8 the three limits read back" || fail "AC-8 costs values: $(cv)"
+good $'costs:\n  card_warn: 12.5\n  card_block: 40.25\n  day_stop: 80.5'
+[ "$(cv)" = "12.5|40.25|80.5|" ] && pass "AC-8 amounts may have decimals" || fail "AC-8 decimal costs: $(cv)"
+good $'costs:\n  day_stop: 80'
+[ "$(cv)" = "||80|" ] && pass "AC-7 only some keys: the others read empty" || fail "AC-7 partial costs: $(cv)"
+good $'costs:\n  card_warn: 20'
+good $'costs:\n  card_block: 40'
+good $'costs:\n  card_warn: 40\n  card_block: 40'   # equal is allowed: warn <= block
+good $'pool: 4\ncosts: {}'
+bad $'costs:\n  card_warn: 0'
+bad $'costs:\n  card_block: -5'
+bad $'costs:\n  day_stop: 0'
+bad $'costs:\n  day_stop: lots'
+bad $'costs:\n  card_block: true'
+bad $'costs:\n  card_warn: [20]'
+bad $'costs:\n  card_warn: 50\n  card_block: 40'   # the warning above the block
+bad $'costs:\n  card_stop: 10'                      # unknown key
+bad $'costs:\n  day_stop: 80\n  daily: 5'
+bad 'costs: 5'
+bad $'costs:\n  - 10'
+printf 'costs:\n  card_warn: 50\n  card_block: 40\n' > "$SHIPFLOOR_HOME/config.yml"
+assert_contains "$(m validate 2>&1)" "costs"
+assert_exit 2 m values costs.card_block   # an invalid costs section is never read as a limit
+printf 'costs:\n  card_warn: 0\n' > "$SHIPFLOOR_HOME/config.yml"
+assert_contains "$(m validate 2>&1)" "costs"
 # working hours: `machine hours` says open, or closed and when the next window starts; the clock is SHIPFLOOR_NOW
 hoursat() { SHIPFLOOR_NOW="$1" m hours 2>&1 | tr -d '\r'; }
 expect() {  # expect <test name> <HH:MM> <want>
