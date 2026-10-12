@@ -1,0 +1,17 @@
+{
+  "issue": 54,
+  "slug": "design-md-describes-the-page-before-the",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T02:20:00Z",
+  "finished_at": "2026-10-12T02:32:00Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 55159, "duration_s": 106},
+    {"role": "engineer (T1 DESIGN.md and sidecar)", "tokens": 120189, "duration_s": 310}
+  ],
+  "rounds": {"plan": 1, "acceptance_tests": 1, "T1": 1, "last_gates": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
