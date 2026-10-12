@@ -36,7 +36,7 @@ mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --form
 [ "${#files[@]}" -gt 0 ] && git -C "$2" -c core.quotePath=false diff --no-color -U1 "$qa" HEAD -- "${files[@]}"
 """
 COST_BLOCK = "Cost limit: blocked."  # how the dispatcher opens the note of a block by cost
-BOARD_TTL_S = 10 # while someone watches, the board is read again this often
+BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:sf|aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy aghanim, legacy mylos
 # The review page inside the dashboard's drawer: the drawer already carries the title and the one
