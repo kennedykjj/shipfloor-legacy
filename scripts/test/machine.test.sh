@@ -35,6 +35,17 @@ assert_contains "$(m values stacks ports.base ports.span stack_wait stack_stale 
 bad 'stacks: 0'
 bad 'ports: {base: 70000, span: 20}'
 bad 'stack_wait: x'
+# the notify block: defaults without it, and every value checked
+rm -f "$SHIPFLOOR_HOME/config.yml"
+assert_contains "$(m values notify.reminder_min notify.events.done notify.channels.toast | tr '\0' ' ')" "60 false true"
+bad 'notify: {reminder_min: 14}'
+bad 'notify: {quiet: "08:00-08:00"}'
+bad 'notify: {ntfy_topic: "has space"}'
+bad 'notify: {channels: {ntfy: true}}'
+bad 'notify: {events: {launch: true}}'
+bad 'notify: {colour: red}'
+printf 'notify: {quiet: "23:00-08:00", ntfy_topic: abc_1-2, channels: {ntfy: true}}\n' > "$SHIPFLOOR_HOME/config.yml"
+assert_exit 0 m validate
 
 # costs: optional limits in US$, no defaults; each a number > 0, card_warn <= card_block, no other key
 cv() { m values costs.card_warn costs.card_block costs.day_stop | tr '\0' '|'; }

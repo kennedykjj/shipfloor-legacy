@@ -456,7 +456,9 @@ DEFAULT_VERSION = r"^[A-Za-z]*([0-9]+(?:[._][0-9]+)*)"  # V27__x.sql, 000027_x.u
 STAGES = ("refine", "develop", "validate", "deploy")
 MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
                     "stacks": 3, "ports": {"base": 20000, "span": 20},
-                    "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3}}
+                    "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3},
+                    "notify": {"events": {"waiting": True, "blocked": True, "reminder": True, "stuck": True, "done": False},
+                               "channels": {"toast": True, "ntfy": False}, "ntfy_topic": "", "reminder_min": 60, "quiet": ""}}
 DISPATCHER_EVERY = (1, 3, 5, 10)  # minutes between dispatcher cycles; the installer's trigger reads it
 
 
@@ -468,6 +470,38 @@ def dispatcher_every(raw):
 
 
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
+QUIET = re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]-(?:[01][0-9]|2[0-3]):[0-5][0-9]")
+NTFY_TOPIC = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+def notify_problems(raw):
+    """Sentences for the dashboard's Settings where the page shows one; the rest are for the file's owner."""
+    if not isinstance(raw, dict):
+        return ["notify must be a mapping"]
+    defaults, errs = MACHINE_DEFAULTS["notify"], []
+    for k, v in raw.items():
+        if k not in defaults:
+            errs.append(f"notify.{k}: unknown setting")
+        elif k in ("events", "channels") and not isinstance(v, dict):
+            errs.append(f"notify.{k} must be a mapping")
+        elif k in ("events", "channels"):
+            for name, on in v.items():
+                if name not in defaults[k]:
+                    errs.append(f"notify.{k}.{name}: unknown setting")
+                elif not isinstance(on, bool):
+                    errs.append(f"notify.{k}.{name} must be true or false")
+    minutes, quiet, topic = raw.get("reminder_min", 60), raw.get("quiet", ""), raw.get("ntfy_topic", "")
+    if not isinstance(minutes, int) or isinstance(minutes, bool) or not 15 <= minutes <= 720:
+        errs.append("The reminder takes 15 to 720 minutes.")
+    if not isinstance(quiet, str) or (quiet and not (QUIET.fullmatch(quiet) and quiet[:5] != quiet[6:])):
+        errs.append("Quiet hours need both times, and they cannot be the same.")
+    if not isinstance(topic, str) or (topic and not NTFY_TOPIC.fullmatch(topic)):
+        errs.append("The topic takes letters, digits, - and _, up to 64.")
+    elif not topic and (raw.get("channels") or {}).get("ntfy") is True:
+        errs.append("The phone push needs a topic.")
+    return errs
+
+
 MODELS = ("opus", "sonnet", "haiku", "fable")  # what `claude --model` and the Agent tool's model take
 STAGE_MODELS = {"refine": None, "develop": None, "validate": "sonnet", "deploy": "sonnet"}  # None = no --model flag
 PLUGIN_AGENTS = {"product-owner": "opus", "ux-designer": "opus", "qa-engineer": "sonnet", "engineer": "sonnet", "cybersec": "opus"}
@@ -543,6 +577,7 @@ def machine_problems(raw):
     if raw.get("language", "en") not in LANGS:
         errs.append(f"language must be one of {', '.join(LANGS)}")
     errs += cost_problems(raw.get("costs"))
+    errs += notify_problems(raw["notify"]) if "notify" in raw else []
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
     if not isinstance(pool, int) or isinstance(pool, bool) or pool < 1:
         errs.append("pool must be an integer >= 1")

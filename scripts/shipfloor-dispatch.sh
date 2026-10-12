@@ -16,9 +16,11 @@ if kill -0 "$(cat "$CYCLE" 2>/dev/null)" 2>/dev/null; then OVERLAP=--overlap; el
 health() {
   local rc=$?
   [ -n "$OVERLAP" ] || rm -f "$CYCLE"
-  local p=("$BASH" "$HERE/shipfloor_health.py" "$SHIPFLOOR_HOME")  # one cygpath start for the three
+  local p=("$BASH" "$HERE/shipfloor_health.py" "$SHIPFLOOR_HOME" "$HERE/shipfloor_notify.py")  # one cygpath start for the four
   if command -v cygpath >/dev/null; then mapfile -t p < <(cygpath -m "${p[@]}"); fi
   SHIPFLOOR_BASH="${p[0]}" shipfloor_python "${p[1]}" record     --home "${p[2]}" --seconds $(( $(date +%s) - START )) --exit "$rc" $OVERLAP >/dev/null 2>&1 || true
+  # what waits for the owner is told after the health line is written; its failures are lines in this log, never the cycle's
+  SHIPFLOOR_BASH="${p[0]}" shipfloor_python "${p[3]}" cycle --home "${p[2]}" >/dev/null || true
 }
 trap health EXIT
 [ -e "$SHIPFLOOR_HOME/PAUSE" ] && exit 0
