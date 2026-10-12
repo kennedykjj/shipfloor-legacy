@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-11T00:00:00Z",
+  "generatedAt": "2026-10-12T00:00:00Z",
   "title": "Design System: Shipfloor Dashboard",
   "extensions": {
     "colorMeta": {
@@ -25,7 +25,8 @@
       "bad": { "role": "outcome", "displayName": "Outcome Red", "canonical": "#e58f80" }
     },
     "typographyMeta": {
-      "brand": { "displayName": "Brand", "purpose": "The product name in the header; Barlow Condensed, uppercase." },
+      "brand": { "displayName": "Brand / Number", "purpose": "The product name in the header and the card number, one size in Yours and in a tile; Barlow Condensed, uppercase." },
+      "section": { "displayName": "Section", "purpose": "The heading of the maximized line, of Yours and of a Settings section; Barlow Condensed, uppercase." },
       "display": { "displayName": "Display", "purpose": "The heading of a panel; Barlow Condensed, uppercase." },
       "heading": { "displayName": "Heading", "purpose": "Lifecycle column labels, the tooltip total and Settings group titles." },
       "headline": { "displayName": "Headline", "purpose": "The drawer's card title." },
