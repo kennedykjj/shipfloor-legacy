@@ -3,6 +3,16 @@
   "exact": {
     "Factory": "Fábrica",
     "Feed": "Feed",
+    "All": "Tudo",
+    "Waits for you": "Espera você",
+    "Failures": "Falhas",
+    "Newest first": "Mais recente em cima",
+    "Filter the feed": "Filtrar o feed",
+    "Nothing here.": "Nada aqui.",
+    "since": "desde",
+    "no end logged": "sem fim registrado",
+    "now in": "agora em",
+    "gates failed": "gates que falharam",
     "Board on GitHub": "Quadro no GitHub",
     "Pool": "Pool",
     "Stacks": "Stacks",
@@ -75,6 +85,8 @@
     "Send": "Enviar",
     "Undo": "Desfazer",
     "Maximize": "Maximizar",
+    "Minimize": "Minimizar",
+    "Expand": "Expandir",
     "Restore (Esc)": "Restaurar (Esc)",
     "Maximize the session": "Maximizar a sessão",
     "Maximize or restore the card": "Maximizar ou restaurar o card",
@@ -219,6 +231,12 @@
     "Settings": "Configurações",
     "Settings sections": "Seções das configurações",
     "Pause the factory": "Pausar a fábrica",
+    "Looks for work every": "Procura trabalho a cada",
+    "1 minute": "1 minuto",
+    "3 minutes": "3 minutos",
+    "5 minutes": "5 minutos",
+    "10 minutes": "10 minutos",
+    "Windows only: this machine has no ShipfloorDispatcher scheduled task. Its pace is set by whatever schedules the dispatcher here.": "Só no Windows: esta máquina não tem a tarefa agendada ShipfloorDispatcher. O ritmo é definido por quem agenda o dispatcher aqui.",
     "Paused: no new run starts on any project. Sessions already running finish.": "Pausada: nenhuma execução nova começa em nenhum projeto. As sessões que já rodam terminam.",
     "No cycle recorded yet.": "Nenhum ciclo registrado ainda.",
     "how much runs at once": "quanto roda ao mesmo tempo",
@@ -295,12 +313,42 @@
     "files": "arquivos",
     "board on GitHub": "quadro no GitHub",
     "The settings were not saved.": "As configurações não foram salvas.",
-    "The pause did not go through.": "A pausa não foi aplicada."
+    "The pause did not go through.": "A pausa não foi aplicada.",
+    "Outside working hours:": "Fora do horário de trabalho:",
+    "Working hours": "Horário de trabalho",
+    "always": "sempre",
+    "Windows like 08:00-23:00, separated by commas. Empty means always.": "Janelas como 08:00-23:00, separadas por vírgula. Vazio significa sempre.",
+    "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.": "Horário de trabalho não salvo: escreva cada janela como HH:MM-HH:MM, separadas por vírgula.",
+    "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora."
   },
   "rx": [
     [
+      "starts again at (\\d\\d:\\d\\d)",
+      "volta a iniciar às $1"
+    ],
+    [
       "Running · last cycle (\\S+) ago",
       "Rodando · último ciclo há $1"
+    ],
+    [
+      "· next cycle in (\\d+) min",
+      "· próximo ciclo em $1 min"
+    ],
+    [
+      "next cycle overdue by (\\d+) min",
+      "próximo ciclo atrasado há $1 min"
+    ],
+    [
+      "· next cycle overdue$",
+      "· próximo ciclo atrasado"
+    ],
+    [
+      "^The pace was not changed: (.*)\\. The dispatcher still looks for work every (\\d+) min\\.$",
+      "O ritmo não mudou: $1. O dispatcher continua procurando trabalho a cada $2 min."
+    ],
+    [
+      "dispatcher\\.every_min must be 1, 3, 5 or 10",
+      "dispatcher.every_min deve ser 1, 3, 5 ou 10"
     ],
     [
       ", it took (\\d+)s",
@@ -389,6 +437,14 @@
     [
       "^Pause (\\S+)$",
       "Pausar $1"
+    ],
+    [
+      "^Minimize (\\S+)$",
+      "Minimizar $1"
+    ],
+    [
+      "^Expand (\\S+)$",
+      "Expandir $1"
     ],
     [
       "\\bStep (\\d+) of (\\d+)",
