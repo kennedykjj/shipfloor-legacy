@@ -1,0 +1,1 @@
+{"issue":113,"slug":"dashboard-approving-has-three-different","pipeline":"validate","started_at":"2026-10-12T14:00:00Z","finished_at":"2026-10-12T14:10:00Z","outcome":"ok","agents":[],"rounds":{},"gates_failed":[],"flaky":[],"gates_reused":["build","green factory scripts/test/dashboard-names.test.sh"],"manual_edit":false}
