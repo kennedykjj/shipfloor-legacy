@@ -96,7 +96,7 @@
       "refersTo": "panel",
       "description": "A header stat: an uppercase caption and its bold value.",
       "html": "<span class=\"ds-cap\">Runs today<b>12</b> · 1 failed</span>",
-      "css": ".ds-cap{font:500 11px/1.45 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}.ds-cap b{color:var(--text);font-weight:600;margin-left:7px;letter-spacing:.05em}"
+      "css": ".ds-cap{font:500 12px/1.45 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}.ds-cap b{color:var(--text);font-weight:600;margin-left:7px;letter-spacing:.05em}"
     },
     {
       "name": "Tag",
@@ -104,7 +104,7 @@
       "refersTo": "tag",
       "description": "A fact about a card; outcome tags take their color.",
       "html": "<span class=\"ds-tag\">stopped 2 times</span> <span class=\"ds-tag ds-bad\">gate: build</span>",
-      "css": ".ds-tag{font:11.5px var(--sans);border:1px solid var(--edge-hi);border-radius:4px;padding:1px 7px;color:var(--muted);white-space:nowrap}.ds-bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 50%,transparent)}"
+      "css": ".ds-tag{font:12px var(--sans);border:1px solid var(--edge-hi);border-radius:4px;padding:1px 7px;color:var(--muted);white-space:nowrap}.ds-bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 50%,transparent)}"
     },
     {
       "name": "Gate Chip",
@@ -112,7 +112,7 @@
       "refersTo": "gate",
       "description": "Pass or fail result of a gate, outcome color only.",
       "html": "<span class=\"ds-gate\">lint pass</span> <span class=\"ds-gate ds-fail\">tests fail</span>",
-      "css": ".ds-gate{font:11.5px var(--mono);padding:2px 7px;border-radius:4px;border:1px solid var(--edge);color:var(--ok)}.ds-fail{color:var(--bad);border-color:currentColor}"
+      "css": ".ds-gate{font:12px var(--mono);padding:2px 7px;border-radius:4px;border:1px solid var(--edge);color:var(--ok)}.ds-fail{color:var(--bad);border-color:currentColor}"
     },
     {
       "name": "Drawer Tabs",
@@ -120,7 +120,7 @@
       "refersTo": "drawer",
       "description": "Underlined text tabs with counts.",
       "html": "<nav class=\"ds-tabs\"><button aria-selected=\"true\">Sessions<span class=\"ds-b\">3</span></button><button aria-selected=\"false\">Log</button><button aria-selected=\"false\">Gates<span class=\"ds-b\">2</span></button><button aria-selected=\"false\">Review</button></nav>",
-      "css": ".ds-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--edge);background:var(--panel)}.ds-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 10px 8px;color:var(--muted);cursor:pointer;font:13px var(--sans)}.ds-tabs button[aria-selected=\"true\"]{color:var(--text);border-bottom-color:var(--text)}.ds-tabs button:focus-visible{outline:2px solid var(--sand);outline-offset:2px}.ds-b{margin-left:5px;font-size:11px;color:var(--faint)}"
+      "css": ".ds-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--edge);background:var(--panel)}.ds-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 10px 8px;color:var(--muted);cursor:pointer;font:13px var(--sans)}.ds-tabs button[aria-selected=\"true\"]{color:var(--text);border-bottom-color:var(--text)}.ds-tabs button:focus-visible{outline:2px solid var(--sand);outline-offset:2px}.ds-b{margin-left:5px;font-size:12px;color:var(--faint)}"
     }
   ],
   "narrative": {
