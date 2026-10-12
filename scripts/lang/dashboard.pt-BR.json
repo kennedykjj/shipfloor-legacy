@@ -239,6 +239,7 @@
     "Follow the system": "Seguir o sistema",
     "Auto": "Automático",
     "Floor tape in dark, Kraft in light": "Fita de piso no escuro, Kraft no claro",
+    "More themes": "Mais temas",
     "Dark": "Escuros",
     "Light": "Claros",
     "Floor tape": "Fita de piso",
@@ -306,6 +307,10 @@
     "The pause did not go through.": "A pausa não foi aplicada."
   },
   "rx": [
+    [
+      "^In use: ",
+      "Em uso: "
+    ],
     [
       "\\bin use\\b",
       "em uso"

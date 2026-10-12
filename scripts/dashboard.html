@@ -342,7 +342,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .set-body > h1 { font-size: 30px; } .set-body > .lead { margin: 6px 0 0; color: var(--muted); font-size: 14px; max-width: 74ch; }
 .sgroup { margin-top: 20px; } .sgroup > h2 { margin: 0; padding: 14px 20px 0; font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .sgroup > h2 code, .sgroup .from code { font: 11.5px var(--mono); color: var(--faint); text-transform: none; letter-spacing: 0; }
-.sgroup > h2.ptitle2 { padding: 16px 20px 2px; font: 600 20px var(--cond); letter-spacing: .04em; color: var(--text); justify-content: space-between; } .ptitle2 span { font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: auto; } .ptitle2 span b { font-weight: 500; color: var(--warn); }
+.sgroup > h2.ptitle2 { padding: 16px 20px 2px; font: 600 20px var(--cond); letter-spacing: .04em; color: var(--text); justify-content: space-between; } .ptitle2 span { font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: auto; } .ptitle2 span b { font-weight: 500; color: var(--warn); } .ptitle2 span.inuse b { color: var(--text); }
 .ptitle2 .max { position: static; flex: none; align-self: center; color: var(--muted); } .ptitle2 .max[aria-expanded="false"] svg { transform: rotate(180deg); } .sgroup.shut > h2.ptitle2 { padding-bottom: 14px; }
 .srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--edge); } .sgroup > h2 + .srow { border-top: 0; }
 .srow .st { margin: 0; font-weight: 500; } .srow .sd { margin: 0; font-size: 13px; color: var(--muted); max-width: 66ch; } .srow .sv { font-size: 13.5px; color: var(--soft); text-align: right; max-width: 46ch; overflow-wrap: anywhere; }
@@ -1290,10 +1290,10 @@ async function act(action, moveOnly) {
 /* feed: every project's runs and the dispatcher's own log, oldest first */
 // Settings: this machine's limits and the pauses are the owner's to change here. A project's own settings live in
 // its repository; they are shown as the dispatcher last read them, with where to change them.
-const SET = { data: null, sec: "sessions", draft: {}, err: "", shut: {} };
+const SET = { data: null, sec: "sessions", draft: {}, err: "", shut: {}, moreThemes: false };
 try { SET.shut = JSON.parse(localStorage.getItem("shipfloor.shut")) || {}; } catch (e) { /* storage blocked: every project starts open */ }
-const THEMES = { dark: [["tape", "Floor tape"], ["charcoal", "Charcoal"], ["dock", "Dock"], ["machine", "Machine green"], ["blueprint", "Blueprint"], ["foundry", "Foundry"], ["night", "Night shift"], ["terminal", "Terminal"], ["contrast", "High contrast"]],
-  light: [["kraft", "Kraft"], ["steel", "Steel"], ["paper", "Drafting paper"]] };
+const THEMES = { first: [["auto", "Auto"], ["tape", "Floor tape"], ["kraft", "Kraft"], ["contrast", "High contrast"]],
+  dark: [["charcoal", "Charcoal"], ["dock", "Dock"], ["machine", "Machine green"], ["blueprint", "Blueprint"], ["foundry", "Foundry"], ["night", "Night shift"], ["terminal", "Terminal"]], light: [["steel", "Steel"], ["paper", "Drafting paper"]] };
 const STAGE_HELP = { refine: "Writing specs.", develop: "Building a card.", validate: "Reviewing and opening the pull request.", deploy: "Merging and deploying. Always one card at a time per project." };
 const STAGE_HUE = { refine: "var(--refine)", develop: "var(--text)", validate: "var(--sand)", deploy: "var(--ok)" };
 const knobOf = (k) => { const [, slug, key] = k.split("|"); return SET.data.projects.find((p) => p.slug === slug)?.knobs[key]; };  // "p|<project>|<knob>"
@@ -1364,10 +1364,14 @@ function renderSettings() {
         <p class="from">The limits above are kept on this machine, over what the repository says. To change the rest, edit <code>.shipfloor/factory.yml</code> in ${esc(p.repo || "the repository")} on ${esc(p.main)}. The dispatcher reads it again on every cycle.</p>`}</div>`; }).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}`;
   } else if (SET.sec === "themes") {
     const face = (id) => `<span data-theme="${id}"><span class="c"><span class="n">#184</span><i class="t"></i><i class="m"></i></span><span class="s">${["ok", "warn", "bad"].map((k) => `<i style="--k:var(--${k})"></i>`).join("")}</span></span>`;
-    const pick = (id, name, sub = "") => `<button class="thm" data-theme-pick="${id}" aria-pressed="${THEME === id}">${id === "auto" ? `<span class="thp two" aria-hidden="true">${face("tape")}${face("kraft")}</span>` : face(id).replace("<span ", '<span class="thp" aria-hidden="true" ')}<b>${name}</b>${sub ? `<small>${sub}</small>` : ""}</button>`;
-    const group = (title, list) => `<div class="sgroup panel"><h2>${title}</h2><div class="thms">${list.map((x) => pick(...x)).join("")}</div></div>`;
+    const pick = (id, name) => { const sub = id === "auto" ? "Floor tape in dark, Kraft in light" : ""; return `<button class="thm" data-theme-pick="${id}" aria-pressed="${THEME === id}">${id === "auto" ? `<span class="thp two" aria-hidden="true">${face("tape")}${face("kraft")}</span>` : face(id).replace("<span ", '<span class="thp" aria-hidden="true" ')}<b>${name}</b>${sub ? `<small>${sub}</small>` : ""}</button>`; };
+    const group = (title, list) => `<div class="sgroup panel">${title ? `<h2>${title}</h2>` : ""}<div class="thms">${list.map((x) => pick(...x)).join("")}</div></div>`;
+    const inUse = THEMES.first.some(([id]) => id === THEME) ? "" : [...THEMES.dark, ...THEMES.light].find(([id]) => id === THEME)?.[1];  // behind the fold: say which one is on
+    const open = SET.moreThemes;
     body = `<h1 class="g">Themes</h1><p class="lead">How this dashboard looks. The choice is kept in this browser and changes nothing in the factory.</p>
-      ${group("Follow the system", [["auto", "Auto", "Floor tape in dark, Kraft in light"]])}${group("Dark", THEMES.dark)}${group("Light", THEMES.light)}`;
+      ${group("", THEMES.first)}
+      <div class="sgroup panel"><h2 class="ptitle2 g">More themes<span class="inuse">${inUse ? `In use: <b>${esc(inUse)}</b>` : ""}</span><button class="max" data-fold="themes" aria-expanded="${open}" aria-controls="more-themes" aria-label="${open ? "Minimize" : "Expand"} more themes" title="${open ? "Minimize" : "Expand"}"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button></h2></div>
+      <div id="more-themes"${open ? "" : " hidden"}>${group("Dark", THEMES.dark)}${group("Light", THEMES.light)}</div>`;
   } else {
     const models = Object.entries(d.prices || {});
     body = `<h1 class="g">Costs</h1><p class="lead">The dashboard estimates what a card cost from the tokens of its runs and these prices, in US$ per million tokens.</p>
@@ -1413,7 +1417,7 @@ async function setPause(input) {  // a pause is urgent: it applies at once, not 
 function setView(v) {
   S.view = v;
   $("board").hidden = v !== "board"; $("feed").hidden = v !== "feed"; $("settings").hidden = v !== "settings";
-  if (v === "settings") loadSettings();
+  if (v === "settings") { SET.moreThemes = false; loadSettings(); }  // the themes fold starts closed every time
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === v));
   renderPeek();
   loadFeed();
@@ -1485,8 +1489,9 @@ document.addEventListener("click", (e) => {
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.dataset.step) setStep(t);
   else if (t.dataset.show) show(t.dataset.show, !S.show[t.dataset.show]);
-  else if (t.dataset.themePick) { theme(t.dataset.themePick); renderSettings(); themeReview(); }
+  else if (t.dataset.themePick) { const id = t.dataset.themePick; theme(id); renderSettings(); themeReview(); document.querySelector(`[data-theme-pick="${id}"]`)?.focus(); }  // the rewrite took the focus with it
   else if (t.dataset.setsec) { SET.sec = t.dataset.setsec; renderSettings(); }
+  else if (t.dataset.fold === "themes") { SET.moreThemes = !SET.moreThemes; renderSettings(); document.querySelector('[data-fold="themes"]')?.focus(); }  // not saved: it closes whenever Settings opens
   else if (t.dataset.fold) {
     const k = t.dataset.fold; if (SET.shut[k]) delete SET.shut[k]; else SET.shut[k] = 1;
     try { localStorage.setItem("shipfloor.shut", JSON.stringify(SET.shut)); } catch (e) { /* storage blocked: lasts for this page */ }
