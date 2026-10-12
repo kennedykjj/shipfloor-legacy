@@ -1,0 +1,17 @@
+{
+  "issue": 119,
+  "slug": "dashboard-say-why-a-card-is-blocked-link",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T10:48:09",
+  "finished_at": "2026-10-12T10:51:59",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 28423, "duration_s": 29},
+    {"role": "ux-designer", "tokens": 49320, "duration_s": 84}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
