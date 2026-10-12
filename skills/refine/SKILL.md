@@ -13,7 +13,7 @@ Scripts: `board.sh`, `gate.sh`, `report.sh`, `review-page.sh` and `shipfloor-con
 
 Progress: as you begin each numbered step below, run `shipfloor-config.sh step <number>` with that step's number (the dashboard shows which step a run is on; the failure rule is not a step).
 
-Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates (which run each layer's commands from the layer's directory). Avoid pipes after these commands; redirect long output to a file inside `<tmp>`, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Shell variables do not survive between commands: write revisions (`base`) as literal SHAs. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
+Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates (which run each layer's commands from the layer's directory). Avoid pipes after these commands; redirect long output to a file inside `<tmp>`, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. A command with a `$` in it is refused too: no shell variables (`W=...`, `$W`, `$HOME`), no `$(...)`, no `for` or `while`, no `; echo $?`. Write every path and SHA out in full and run one gate per call: a command that fails is reported with its exit code, and every gate ends with `gate <name>: pass` or `FAIL`. Read, search and list files with Read, Grep and Glob, not `cat`, `grep`, `ls`, `head` or `sed`. `gate.sh --help` and `report.sh --help` say how each is called. Give `gh` its text with `--body-file <file in tmp>`, never `--body "..."`. Below, `base` name revisions: write each as its literal SHA. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
 
 Keep a running report: start time, each agent's role, tokens and duration as reported when it finishes (null if not reported), rounds per step, failed gates.
 
@@ -26,15 +26,15 @@ The owner reviews only `## Open questions`; everything else is decided here.
 - Keep every section short: criteria one line each, no paragraphs restating the issue.
 
 ## 1. Pick the card
-- Issue given → use it. Else `n=$(board.sh first "Ready for Refinement")`; empty → stop: "Nothing in Ready for Refinement."
+- Issue given → use it. Else `n` = what `board.sh first "Ready for Refinement"` prints; empty → stop: "Nothing in Ready for Refinement."
 - `board.sh count "Spec Review"` ≥ the refinement WIP limit (`shipfloor-config.sh get limits.refine.wip`) → stop: "Spec Review is full."
 - `board.sh move <n> "Technical Refinement"`.
 
 ## 2. Worktree
 - `slug`: issue title lowercased, ascii, hyphens, max 40 chars.
 - `git fetch origin`; if `origin/feat/<n>-<slug>` exists, `git worktree add <worktrees>/<n> feat/<n>-<slug>`; else `git worktree add <worktrees>/<n> -b feat/<n>-<slug> origin/<main>`. If the worktree already exists, reuse it.
-- `base=$(git -C <wt> rev-parse HEAD)`. All later commands run in the worktree.
-- Spec: `<specs><today>-<slug>-design.md` (reuse an existing `*-<slug>-design.md`); if missing, copy `~/.shipfloor/factory/templates/spec-template.md` and fill the header.
+- `base` = what `git -C <wt> rev-parse HEAD` prints. All later commands run in the worktree.
+- Spec: `<specs><today>-<slug>-design.md` (reuse an existing `*-<slug>-design.md`); if missing, Read `~/.shipfloor/factory/templates/spec-template.md`, Write the spec from it (a `cp` from outside the worktree is refused) and fill the header.
 - Rework: if the issue has a comment starting with "Spec review" newer than the last spec commit, pass it to every role as `findings` and redo only items marked Change.
 
 ## 3. Product Owner
@@ -54,7 +54,7 @@ Call `cybersec` in mode `spec`; paste its text into `## Security`.
 - Gate: `gate.sh -C <worktree> scope techlead <base>` must pass.
 - Gate: `gate.sh -C <worktree> test-plan <spec>`. A failure you can fix (missing row, short path, wrong layer) → fix the table (max 2 rounds). A failure because no layer fits → the `**Layers:**` open question above must be there; publish anyway (develop blocks on this gate until the config changes).
 - `git add <spec> && git commit -m "docs(<slug>): spec for #<n>"`; `git push -u origin feat/<n>-<slug>`.
-- Build the local review page: `review-page.sh <wt>/<spec> <n> feat/<n>-<slug> <reviews>/<n>.html`; on Windows open it for the owner with `cmd //c start "" "$(cygpath -w <reviews>/<n>.html)"`.
+- Build the local review page: `review-page.sh <wt>/<spec> <n> feat/<n>-<slug> <reviews>/<n>.html`. Do not open it: the owner reads it in the dashboard, and a headless run cannot start a browser.
 - `gh issue comment <n> --repo <repo>` with: spec link on GitHub (`https://github.com/<repo>/blob/feat/<n>-<slug>/<spec>`), the local review page path, the open questions (or "nothing to decide"), and how to answer: paste "Copy review" as a comment and move the card back to Ready for Refinement, or move it to Ready for Dev to approve.
 - `board.sh move <n> "Spec Review"`.
 

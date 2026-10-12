@@ -7,4 +7,5 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$(dirname "$4")"
 w() { if command -v cygpath >/dev/null; then cygpath -w "$1"; else echo "$1"; fi; }
-python -I "$(w "$HERE/review_page.py")" "$(w "$1")" "$2" "$3" "$(w "$4")" "$(w "$HERE/review-template.html")" "$1" "${FACTORY_PROJECT:-}"
+source "$HERE/lib/project.sh"  # shipfloor_python: a machine may have python3 and no python
+shipfloor_python "$(w "$HERE/review_page.py")" "$(w "$1")" "$2" "$3" "$(w "$4")" "$(w "$HERE/review-template.html")" "$1" "${FACTORY_PROJECT:-}"

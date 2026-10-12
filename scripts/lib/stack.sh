@@ -85,8 +85,8 @@ queue_ticket() {  # queue_ticket <owner>: write the owner's ticket, named by the
   t="$q/$(printf '%019d' $(( max + 1 )))-$1"; echo "$$ ${SHIPFLOOR_RUN_LOCK:--}" > "$t"; rmdir "$q/.lock"; echo "$t"
 }
 
-stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order, up to WAIT seconds; 3 = gave up
-  local q="$STACK_LOCKS/stack-queue" t f pid run k st waited=0
+stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order, up to WAIT seconds on the clock; 3 = gave up
+  local q="$STACK_LOCKS/stack-queue" t f pid run k st deadline=$(( SECONDS + WAIT )) note=$SECONDS
   t="$(queue_ticket "$1")"
   trap 'rm -f "$t"' EXIT INT TERM
   while :; do
@@ -103,14 +103,14 @@ stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order, 
         fi
       done
     fi
-    if [ "$waited" -ge "$WAIT" ]; then rm -f "$t"; trap - EXIT INT TERM; echo "stack: no free slot after ${WAIT}s" >&2; return 3; fi
-    [ $(( waited % 60 )) -eq 0 ] && echo "stack: waiting, position $(ls "$q" | sort | grep -nxF "${t##*/}" | cut -d: -f1) of $(ls "$q" | wc -l | tr -d ' ')" >&2
-    sleep 1; waited=$(( waited + 1 ))
+    if [ "$SECONDS" -ge "$deadline" ]; then rm -f "$t"; trap - EXIT INT TERM; echo "stack: no free slot after ${WAIT}s" >&2; return 3; fi
+    [ "$SECONDS" -ge "$note" ] && { note=$(( SECONDS + 60 )); echo "stack: waiting, position $(ls "$q" | sort | grep -nxF "${t##*/}" | cut -d: -f1) of $(ls "$q" | wc -l | tr -d ' ')" >&2; }
+    sleep 1
   done
 }
 
-stack_up() {  # stack_up <owner>: lease, clean the range, up, wait for health; prints the URL; 3 = infrastructure
-  local d i body="" health
+stack_up() {  # stack_up <owner>: lease, clean the range, up, wait for health up to TIMEOUT seconds on the clock; prints the URL; 3 = infrastructure
+  local d body="" health deadline healthy=0 m
   stack_settings; stack_lease "$1" || return 3
   d="$(slot_dir "$SLOT")"; slot_env "$SLOT"
   env | grep -E '^SHIPFLOOR_(SLOT|STACK|STACK_URL|PORT_[A-Z0-9]+)=' > "$d/env"; printf '%s' "$DOWN" > "$d/down"; pwd > "$d/cwd"
@@ -122,13 +122,16 @@ stack_up() {  # stack_up <owner>: lease, clean the range, up, wait for health; p
       echo "stack: up failed:" >&2; tail -20 "$d/up.log" >&2; slot_down "$SLOT"; slot_release "$SLOT"; return 3
     fi
     health="$(fill_ports "$SLOT" "$HEALTH")"
-    for (( i = 0; i < TIMEOUT; i++ )); do
-      if [ -z "$health" ] || body="$(curl -fsS -m 5 "$health" 2>/dev/null)" && { [ -z "$REJECT" ] || ! printf '%s' "$body" | grep -Eq -- "$REJECT"; }; then
-        break
+    deadline=$(( SECONDS + TIMEOUT ))
+    while :; do
+      m=$(( deadline - SECONDS )); [ "$m" -gt 5 ] && m=5; [ "$m" -lt 1 ] && m=1
+      if [ -z "$health" ] || body="$(curl -fsS -m "$m" "$health" 2>/dev/null)" && { [ -z "$REJECT" ] || ! printf '%s' "$body" | grep -Eq -- "$REJECT"; }; then
+        healthy=1; break
       fi
+      [ "$SECONDS" -ge "$deadline" ] && break
       sleep 1
     done
-    if [ "$i" -ge "$TIMEOUT" ]; then
+    if [ "$healthy" -eq 0 ]; then
       echo "stack: not healthy after ${TIMEOUT}s at $health" >&2; tail -20 "$d/up.log" >&2
       slot_down "$SLOT"; slot_release "$SLOT"; return 3
     fi
