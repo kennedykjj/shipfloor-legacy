@@ -1,0 +1,17 @@
+{
+  "issue": 118,
+  "slug": "dashboard-on-a-phone-keyboard-hints-on-a",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T10:45:00-03:00",
+  "finished_at": "2026-10-12T10:48:09-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 29127, "duration_s": 26},
+    {"role": "ux-designer", "tokens": 36646, "duration_s": 38}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
