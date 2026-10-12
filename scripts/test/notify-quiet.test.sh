@@ -88,7 +88,8 @@ n_is 1 "AC-5 six waiting cards are one notification"
 has "toast${T}Shipfloor · 6 cards need you${T}shop #7 Seven · Spec Review|shop #8 Eight · Spec Review|shop #9 Nine · Spec Review|shop #10 Ten · Spec Review|and 2 more" "AC-5 four lines, then 'and 2 more'"
 
 # AC-5: only what still needs the owner when the quiet hours end is listed; with nothing left, nothing is sent
-setup; conf "$QUIET"; board ''
+# (stuck is off here: the decided card sits in Ready for Dev for hours, and the idle cause would hold by the spec)
+setup; conf $'notify: {channels: {toast: true}, events: {reminder: false, stuck: false}, quiet: "23:00-08:00"}'; board ''
 cycle 2026-10-10T23:30:00
 board '7\tSpec Review\tI7\n'; cycle 2026-10-11T01:00:00
 board '7\tReady for Dev\tI7\n'; cycle 2026-10-11T03:00:00
