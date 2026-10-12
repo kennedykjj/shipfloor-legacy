@@ -151,7 +151,7 @@ Every dispatcher cycle appends one line to `~/.shipfloor/logs/health-<YYYY-MM>.j
 The factory speaks English unless told otherwise. Two keys change that, each `en` (default) or `pt-BR`:
 
 - `language` in a project's `.shipfloor/factory.yml`: what people read about that project. The agents write specs, comments, reports and review pages in it; the gates' messages and what the deploy logs and posts on the card come out in it.
-- `language` in `~/.shipfloor/config.yml`: this machine. The dashboard and the dispatcher's own log lines.
+- `language` in `~/.shipfloor/config.yml`: this machine. The dashboard and the dispatcher's own log lines. It can also be set in Settings > Language, which shows each project's language too (read-only).
 
 What other code reads stays in English whatever the language: commit messages, the spec's `##` headings, the markers on a card (`staged-head:`, `deploy-merge:`, `deploy-fix:`, "Factory report"), labels, and the board's column names on GitHub (the dashboard shows them translated). The scripts and the page are written in English and translated where their text leaves them, by the catalogs in `scripts/lang/` (`<code>.sed` for the scripts, `dashboard.<code>.json` for the page): a phrase with no entry there comes out in English, and a new language is a new pair of files plus its code in `LANGS` (`scripts/shipfloor_config.py`).
 
