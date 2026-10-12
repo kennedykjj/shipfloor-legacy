@@ -1,0 +1,26 @@
+{
+  "issue": 114,
+  "slug": "feed-dispatcher-noise-weighs-as-much-as",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T10:50:00-03:00",
+  "finished_at": "2026-10-12T11:06:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 76163, "duration_s": 152},
+    {"role": "engineer", "tokens": 43400, "duration_s": 406},
+    {"role": "qa-engineer (test ruling)", "tokens": 18990, "duration_s": 29}
+  ],
+  "rounds": {"plan": 1, "acceptance tests": 1, "implementation task 1": 1, "qa ruling on an earlier card's test": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [
+    {
+      "file": "scripts/test/dashboard-language.test.sh",
+      "by": "qa-engineer",
+      "commit": "1b077e1c231cb964c19f03138525dcc644645279",
+      "reason": "AC-4 of the language-section card refused any `pt-BR` on the page; #114's spec puts `pt-BR` in dateLocale() and when(). The engineer had exempted every line with `toLocale` or `dateLocale`; QA replaced that with a check that strips only the two locale expressions and greps the rest of the page."
+    }
+  ],
+  "manual_edit": false
+}
