@@ -1,8 +1,21 @@
 {
   "_": "pt-BR for the dashboard. The page is written in English; when the machine's language is pt-BR it rewrites what it shows with this file: 'exact' replaces a whole piece of text, 'rx' rewrites a phrase inside one (JavaScript regular expressions, applied in order). Text with no entry stays in English. Card titles, logs and what the agents wrote are never touched.",
   "exact": {
+    "This link is no longer valid": "Este link não é mais válido",
+    "The dashboard does not accept it any more, so this page stopped updating. To get the current link, run in a terminal:": "O dashboard não o aceita mais, então esta página parou de atualizar. Para pegar o link atual, rode no terminal:",
+    "Then open the URL it prints. This tab stays as it is.": "Depois abra a URL que ele imprimir. Esta aba fica como está.",
     "Factory": "Fábrica",
     "Feed": "Feed",
+    "All": "Tudo",
+    "Waits for you": "Espera você",
+    "Failures": "Falhas",
+    "Newest first": "Mais recente em cima",
+    "Filter the feed": "Filtrar o feed",
+    "Nothing here.": "Nada aqui.",
+    "since": "desde",
+    "no end logged": "sem fim registrado",
+    "now in": "agora em",
+    "gates failed": "gates que falharam",
     "Board on GitHub": "Quadro no GitHub",
     "Pool": "Pool",
     "Stacks": "Stacks",
@@ -11,6 +24,14 @@
     "est.": "est.",
     "Lifecycle": "Ciclo de vida",
     "Today": "Hoje",
+    "Yesterday": "Ontem",
+    "No new run starts. Running sessions finish.": "Nenhuma execução nova começa. As sessões que já rodam terminam.",
+    "No new run starts there. Running sessions finish.": "Nenhuma execução nova começa nele. As sessões que já rodam terminam.",
+    "Resume": "Retomar",
+    "Resume the factory": "Retomar a fábrica",
+    "Still paused: the resume did not go through.": "Continua pausado: a retomada não foi aplicada.",
+    "choose": "escolher",
+    "close": "fechar",
     "Inbox": "Entrada",
     "Ready for Refinement": "Pronto para refinar",
     "Technical Refinement": "Refinamento técnico",
@@ -75,6 +96,8 @@
     "Send": "Enviar",
     "Undo": "Desfazer",
     "Maximize": "Maximizar",
+    "Minimize": "Minimizar",
+    "Expand": "Expandir",
     "Restore (Esc)": "Restaurar (Esc)",
     "Maximize the session": "Maximizar a sessão",
     "Maximize or restore the card": "Maximizar ou restaurar o card",
@@ -137,6 +160,7 @@
     "What should change in the spec?": "O que deve mudar na spec?",
     "What should be done instead?": "O que deve ser feito em vez disso?",
     "Click again to move it anyway.": "Clique de novo para mover mesmo assim.",
+    "Nothing was approved: look at the review first.": "Nada foi aprovado: veja a revisão primeiro.",
     "Write the note first: it goes with the decision.": "Escreva a nota primeiro: ela vai junto com a decisão.",
     "You can undo for a few seconds after confirming.": "Dá para desfazer por alguns segundos depois de confirmar.",
     "Retry the move": "Tentar mover de novo",
@@ -188,7 +212,7 @@
     "Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.": "Ainda lendo a fábrica. A primeira leitura processa a transcrição de cada execução e pede ao GitHub os títulos das issues, então pode levar alguns segundos.",
     "Title not loaded": "Título não carregado",
     "The dashboard could not read the issue titles from GitHub (gh).": "O dashboard não conseguiu ler os títulos das issues no GitHub (gh).",
-    "A model in this card has no price. Add it to ~/.shipfloor/prices.yml.": "Um modelo deste card não tem preço. Adicione em ~/.shipfloor/prices.yml.",
+    "A model in this card has no price, so its cost is unknown and the cost limits skip it. Add it to ~/.shipfloor/prices.yml.": "Um modelo deste card não tem preço, então o custo é desconhecido e os limites de custo não o contam. Adicione em ~/.shipfloor/prices.yml.",
     "Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml": "Estimado pelos tokens das transcrições e por ~/.shipfloor/prices.yml",
     "Cache read plus cache written; hover a row for the split": "Cache lido mais cache escrito; passe o mouse numa linha para ver a divisão",
     "Sessions running now, out of the pool size": "Sessões rodando agora, sobre o tamanho do pool",
@@ -219,18 +243,25 @@
     "Settings": "Configurações",
     "Settings sections": "Seções das configurações",
     "Pause the factory": "Pausar a fábrica",
+    "Looks for work every": "Procura trabalho a cada",
+    "1 minute": "1 minuto",
+    "3 minutes": "3 minutos",
+    "5 minutes": "5 minutos",
+    "10 minutes": "10 minutos",
+    "Windows only: this machine has no ShipfloorDispatcher scheduled task. Its pace is set by whatever schedules the dispatcher here.": "Só no Windows: esta máquina não tem a tarefa agendada ShipfloorDispatcher. O ritmo é definido por quem agenda o dispatcher aqui.",
     "Paused: no new run starts on any project. Sessions already running finish.": "Pausada: nenhuma execução nova começa em nenhum projeto. As sessões que já rodam terminam.",
     "No cycle recorded yet.": "Nenhum ciclo registrado ainda.",
     "how much runs at once": "quanto roda ao mesmo tempo",
     "Projects": "Projetos",
     "Costs": "Custos",
-    "the prices behind the estimate": "os preços por trás da estimativa",
+    "limits and the prices behind the estimate": "limites e os preços por trás da estimativa",
     "Themes": "Temas",
     "how this dashboard looks": "a aparência deste dashboard",
     "How this dashboard looks. The choice is kept in this browser and changes nothing in the factory.": "A aparência deste dashboard. A escolha fica neste navegador e não muda nada na fábrica.",
     "Follow the system": "Seguir o sistema",
     "Auto": "Automático",
     "Floor tape in dark, Kraft in light": "Fita de piso no escuro, Kraft no claro",
+    "More themes": "Mais temas",
     "Dark": "Escuros",
     "Light": "Claros",
     "Floor tape": "Fita de piso",
@@ -295,12 +326,239 @@
     "files": "arquivos",
     "board on GitHub": "quadro no GitHub",
     "The settings were not saved.": "As configurações não foram salvas.",
-    "The pause did not go through.": "A pausa não foi aplicada."
+    "The pause did not go through.": "A pausa não foi aplicada.",
+    "Language": "Idioma",
+    "the page and what the factory writes": "a página e o que a fábrica escreve",
+    "The language of this dashboard, and the language the factory writes in for each project. The text a product shows its own users is not a factory setting: it is set in the files that project's agents read.": "O idioma deste dashboard e o idioma em que a fábrica escreve em cada projeto. O texto que um produto mostra aos próprios usuários não é uma configuração da fábrica: ele é definido nos arquivos que os agentes daquele projeto leem.",
+    "This dashboard": "Este dashboard",
+    "Language of this dashboard": "Idioma deste dashboard",
+    "The dashboard's own text. What the agents wrote is shown as written. Applied when the page is reloaded.": "O texto do próprio dashboard. O que os agentes escreveram aparece como foi escrito. Vale quando a página é recarregada.",
+    "The language shows after a reload.": "O idioma aparece depois de recarregar.",
+    "What the factory writes": "O que a fábrica escreve",
+    "Read-only here: a project's language is part of its repository. To change it, edit": "Somente leitura aqui: o idioma de um projeto faz parte do repositório dele. Para mudar, edite",
+    "in its": "no",
+    ". The dispatcher reads it again on every cycle.": ". O dispatcher lê o arquivo de novo a cada ciclo.",
+    "English": "Inglês",
+    "Brazilian Portuguese": "Português do Brasil",
+    "This card's estimate passed the warning set in Settings, Costs. Nothing stops until the block limit.": "A estimativa deste card passou do aviso definido em Configurações, Custos. Nada para até o limite de bloqueio.",
+    ", over the cost warning": ", acima do aviso de custo",
+    "Runs stopped for today": "Execuções paradas por hoje",
+    "Stopped for today by the cost limit": "Parado por hoje pelo limite de custo",
+    "A card reached its cost limit": "Um card chegou ao limite de custo",
+    "cost limit": "limite de custo",
+    "est. cost": "custo est.",
+    "Limits": "Limites",
+    "Warn on a card": "Avisar em um card",
+    "Flags a card whose estimate passes this. Nothing stops.": "Marca o card cuja estimativa passa disto. Nada para.",
+    "Block a card": "Bloquear um card",
+    "Its next run does not start and the card waits for your call. Unblocking grants the same amount again.": "A próxima execução não começa e o card espera sua decisão. Desbloquear libera o mesmo valor de novo.",
+    "Stop the day": "Parar o dia",
+    "Past this, across every project, no new run starts until tomorrow. Sessions already running finish.": "Acima disto, somando todos os projetos, nenhuma execução começa até amanhã. As sessões em andamento terminam.",
+    "Enter an amount above 0, or leave it empty for no limit.": "Informe um valor acima de 0, ou deixe vazio para sem limite.",
+    "Notifications": "Notificações",
+    "when the factory needs you": "quando a fábrica precisa de você",
+    "The factory tells you when it waits for you or stops by itself. These settings are this machine's, for every project. A change applies from the dispatcher's next cycle.": "A fábrica avisa quando espera você ou para sozinha. Estas configurações são desta máquina, para todos os projetos. Uma mudança vale a partir do próximo ciclo do dispatcher.",
+    "Events": "Eventos",
+    "Channels": "Canais",
+    "Quiet hours": "Horário de silêncio",
+    "A card waits for your decision": "Um card espera a sua decisão",
+    "It entered Spec Review or Staged.": "Entrou em Spec Review ou Staged.",
+    "A run is blocked": "Uma execução bloqueou",
+    "It stopped and waits for your call.": "Ela parou e espera a sua decisão.",
+    "Remind me of a card that still waits": "Lembrar de um card que ainda espera",
+    "Once per wait, never once per cycle.": "Uma vez por espera, nunca uma por ciclo.",
+    "Minutes before the reminder": "Minutos até o lembrete",
+    "Counted from when the card started waiting.": "Contados de quando o card começou a esperar.",
+    "The factory is stuck": "A fábrica travou",
+    "The usage limit was hit, a project is skipped, or no card moved for an hour.": "O limite de uso foi atingido, um projeto foi pulado ou nenhum card andou em uma hora.",
+    "A card reached production": "Um card chegou em produção",
+    "Asks nothing of you.": "Não pede nada de você.",
+    "Windows notification on this machine": "Notificação do Windows nesta máquina",
+    "A toast on this desktop.": "Um aviso nesta área de trabalho.",
+    "Windows only": "Só no Windows",
+    "Push to your phone": "Push no celular",
+    "Through ntfy.sh. Sends the project and the card's number, title and state to that service, and nothing else.": "Pelo ntfy.sh. Envia o projeto e o número, o título e o estado do card para esse serviço, e nada mais.",
+    "Set a topic to turn this on.": "Defina um tópico para ligar.",
+    "ntfy topic": "Tópico do ntfy",
+    "Subscribe to the same topic in the ntfy app. Anyone who knows the topic can read these notifications: pick a long, random one.": "Assine o mesmo tópico no app do ntfy. Quem souber o tópico lê estas notificações: escolha um longo e aleatório.",
+    "Nothing is sent between these times, on this machine's clock. Afterwards one notification lists what still needs you. Leave both empty for none.": "Nada é enviado entre estes horários, no relógio desta máquina. Depois, uma notificação lista o que ainda precisa de você. Deixe os dois vazios para não ter.",
+    "From": "De",
+    "To": "Até",
+    "No channel is on: nothing is sent.": "Nenhum canal está ligado: nada é enviado.",
+    "Every event is off: nothing is sent.": "Todos os eventos estão desligados: nada é enviado.",
+    "The topic takes letters, digits, - and _, up to 64.": "O tópico aceita letras, dígitos, - e _, até 64.",
+    "Quiet hours need both times, and they cannot be the same.": "O horário de silêncio precisa dos dois horários, e eles não podem ser iguais.",
+    "The reminder takes 15 to 720 minutes.": "O lembrete aceita de 15 a 720 minutos.",
+    "Agents and models": "Agentes e modelos",
+    "which model runs each role": "qual modelo roda cada papel",
+    "Which model each stage's session and each agent runs on. Default keeps the model the plugin ships with. A change takes effect on the dispatcher's next cycle; sessions already running keep their model.": "Em qual modelo roda a sessão de cada estágio e cada agente. Padrão mantém o modelo que vem com o plugin. A mudança vale a partir do próximo ciclo do dispatcher; as sessões que já estão rodando continuam no modelo delas.",
+    "Stages": "Estágios",
+    "Agents": "Agentes",
+    "No priced run in the last 7 days.": "Nenhuma execução com preço nos últimos 7 dias.",
+    "Writes the Product section of a spec.": "Escreve a seção Product da spec.",
+    "Writes the UX section and checks the screens in validation.": "Escreve a seção UX e confere as telas na validação.",
+    "Writes the acceptance tests before the code.": "Escreve os testes de aceitação antes do código.",
+    "Implements a layer that names no agent of its own.": "Implementa uma camada que não indica um agente próprio.",
+    "Writes the Security section and reviews the diff.": "Escreve a seção Security e revisa o diff.",
+    "Outside working hours:": "Fora do horário de trabalho:",
+    "Working hours": "Horário de trabalho",
+    "always": "sempre",
+    "Windows like 08:00-23:00, separated by commas. Empty means always.": "Janelas como 08:00-23:00, separadas por vírgula. Vazio significa sempre.",
+    "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.": "Horário de trabalho não salvo: escreva cada janela como HH:MM-HH:MM, separadas por vírgula.",
+    "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora."
   },
   "rx": [
     [
+      "^In use: ",
+      "Em uso: "
+    ],
+    [
+      "\\bin use\\b",
+      "em uso"
+    ],
+    [
+      "est\\. spent today",
+      "est. gastos hoje"
+    ],
+    [
+      "(\\d+) runs? today",
+      "$1 execuções hoje"
+    ],
+    [
+      "^Saved as (.*)\\. Reload the page to see it\\.$",
+      "Salvo como $1. Recarregue a página para ver."
+    ],
+    [
+      "^The language was not changed: (.*)\\. This dashboard stays in (.*)\\.$",
+      "O idioma não foi alterado: $1. Este dashboard continua em $2."
+    ],
+    [
+      "language must be one of ([A-Za-z, -]+)",
+      "language deve ser um de $1"
+    ],
+    [
+      "· no language key, the factory default",
+      "· sem a chave language, o padrão da fábrica"
+    ],
+    [
+      "^Default \\((.+)\\)$",
+      "Padrão ($1)"
+    ],
+    [
+      "^default is (.+)$",
+      "o padrão é $1"
+    ],
+    [
+      "Claude Code's(\\)?)$",
+      "o do Claude Code$1"
+    ],
+    [
+      "the session's(\\)?)$",
+      "o da sessão$1"
+    ],
+    [
+      "^Model for (.+)$",
+      "Modelo de $1"
+    ],
+    [
+      "per card · (\\d+) cards?, last 7 days",
+      "por card · $1 card(s), últimos 7 dias"
+    ],
+    [
+      "No price for (.+) in prices\\.yml: its cost cannot be estimated\\.",
+      "Sem preço para $1 em prices.yml: não dá para estimar o custo."
+    ],
+    [
+      "config\\.yml says \"(.*)\", which the factory does not know\\. Runs use the default until you pick a model\\.",
+      "O config.yml diz \"$1\", que a fábrica não conhece. As execuções usam o padrão até você escolher um modelo."
+    ],
+    [
+      "config\\.yml names (.+), which is not a stage or an agent here\\. It is ignored\\.",
+      "O config.yml cita $1, que não é um estágio nem um agente daqui. Ele é ignorado."
+    ],
+    [
+      "^(\\S+): \"(.*)\" is not a model the factory knows\\. Nothing was saved\\.$",
+      "$1: \"$2\" não é um modelo que a fábrica conhece. Nada foi salvo."
+    ],
+    [
+      "Project agent · (\\S+), layer (\\S+)",
+      "Agente do projeto · $1, camada $2"
+    ],
+    [
+      "starts again at (\\d\\d:\\d\\d)",
+      "volta a iniciar às $1"
+    ],
+    [
+      "Blocked · cost limit",
+      "Bloqueado · limite de custo"
+    ],
+    [
+      "over \\$(\\d+)\\.(\\d+) est\\.",
+      "acima de $$$1,$2 est."
+    ],
+    [
+      "over \\$(\\d+) est\\.",
+      "acima de $$$1 est."
+    ],
+    [
+      "Today's estimate, \\$(\\d+)\\.(\\d+), passed the day limit of \\$(\\d+)\\.(\\d+)\\. Sessions already running finish; runs start again tomorrow\\. The limit is in Settings, Costs\\.",
+      "A estimativa de hoje, $$$1,$2, passou do limite do dia de $$$3,$4. As sessões em andamento terminam; as execuções voltam amanhã. O limite fica em Configurações, Custos."
+    ],
+    [
+      "Spent \\$(\\d+)\\.(\\d+) est\\. since it was last unblocked; the limit for a card is \\$(\\d+)\\.(\\d+)\\.",
+      "Gastou $$$1,$2 est. desde o último desbloqueio; o limite por card é $$$3,$4."
+    ],
+    [
+      "Spent \\$(\\d+)\\.(\\d+) est\\. since Inbox; the limit for a card is \\$(\\d+)\\.(\\d+)\\.",
+      "Gastou $$$1,$2 est. desde o Inbox; o limite por card é $$$3,$4."
+    ],
+    [
+      "\\$(\\d+)\\.(\\d+) est\\. since Inbox\\.",
+      "$$$1,$2 est. desde o Inbox."
+    ],
+    [
+      "Unblocking lets it spend up to \\$(\\d+)\\.(\\d+) more, counted from now\\.",
+      "Desbloquear deixa o card gastar até mais $$$1,$2, contados a partir de agora."
+    ],
+    [
+      "The warning cannot be above the block \\(\\$(\\d+)\\.(\\d+)\\)\\.",
+      "O aviso não pode ficar acima do bloqueio ($$$1,$2)."
+    ],
+    [
+      "The warning cannot be above the block \\(\\$(\\d+)\\)\\.",
+      "O aviso não pode ficar acima do bloqueio ($$$1)."
+    ],
+    [
+      "(\\d+) cards ran on a model with no price\\. The limits do not count them\\.",
+      "$1 cards rodaram em um modelo sem preço. Os limites não os contam."
+    ],
+    [
+      "(\\d+) card ran on a model with no price\\. The limits do not count it\\.",
+      "$1 card rodou em um modelo sem preço. Os limites não o contam."
+    ],
+    [
       "Running · last cycle (\\S+) ago",
       "Rodando · último ciclo há $1"
+    ],
+    [
+      "· next cycle in (\\d+) min",
+      "· próximo ciclo em $1 min"
+    ],
+    [
+      "next cycle overdue by (\\d+) min",
+      "próximo ciclo atrasado há $1 min"
+    ],
+    [
+      "· next cycle overdue$",
+      "· próximo ciclo atrasado"
+    ],
+    [
+      "^The pace was not changed: (.*)\\. The dispatcher still looks for work every (\\d+) min\\.$",
+      "O ritmo não mudou: $1. O dispatcher continua procurando trabalho a cada $2 min."
+    ],
+    [
+      "dispatcher\\.every_min must be 1, 3, 5 or 10",
+      "dispatcher.every_min deve ser 1, 3, 5 ou 10"
     ],
     [
       ", it took (\\d+)s",
@@ -389,6 +647,26 @@
     [
       "^Pause (\\S+)$",
       "Pausar $1"
+    ],
+    [
+      "^Resume (\\S+)$",
+      "Retomar $1"
+    ],
+    [
+      "^Minimize more themes$",
+      "Minimizar mais temas"
+    ],
+    [
+      "^Expand more themes$",
+      "Expandir mais temas"
+    ],
+    [
+      "^Minimize (\\S+)$",
+      "Minimizar $1"
+    ],
+    [
+      "^Expand (\\S+)$",
+      "Expandir $1"
     ],
     [
       "\\bStep (\\d+) of (\\d+)",
@@ -597,6 +875,14 @@
     [
       "^Use the review's ",
       "Usar as da revisão: "
+    ],
+    [
+      "^(#\\d+) was not approved: the decision did not go through\\.$",
+      "$1 não foi aprovado: a decisão não foi aplicada."
+    ],
+    [
+      "^(#\\d+) was not approved: ",
+      "$1 não foi aprovado: "
     ],
     [
       "^(#\\d+) (.*) in a few seconds\\.$",

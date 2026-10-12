@@ -13,7 +13,7 @@ with_config() {  # with_config <yaml>: a repo whose origin/main carries that con
 }
 
 # install copies the scripts and templates to a fixed place, without the tests
-assert_exit 0 bash "$M" install
+assert_exit 0 bash "$(plugin_copy)/scripts/shipfloor" install
 for f in gate.sh board.sh dispatch.sh shipfloor-dispatch.sh shipfloor-config.sh shipfloor_config.py lib/project.sh shipfloor templates/spec-template.md; do
   [ -f "$SHIPFLOOR_HOME/factory/$f" ] && pass "installed $f" || fail "missing $f"
 done
@@ -112,4 +112,47 @@ assert_exit 0 bash "$FACTORY_DIR/gate.sh" -C "$W" acceptance-intact "$qa9"
 assert_contains "$(bash "$M" accept shop 9 again 2>&1)" "nothing to accept"
 # pool shows the stack slots
 out="$(bash "$M" pool)"; assert_contains "$out" "stacks: 3"; assert_contains "$out" "slot 0: free"
+# the first registered project ("shop") starts no stack of its own, yet the machine's 3 slots are listed
+assert_contains "$out" "slot 1: free"; assert_contains "$out" "slot 2: free"
+
+# AC-8: doctor says whether a dispatcher is registered and by which mechanism; the machine is faked by stand-ins
+SRC="$(cd "$FACTORY_DIR/.." && pwd)"; ST="$(mktemp -d)"; SB="$(mktemp -d)"; export SF_ST="$ST" SF_REAL_UNAME="$(command -v uname)"
+printf '#!/usr/bin/env bash\nif [ "${1:-}" = -s ]; then echo "${SF_UNAME:-Linux}"; else exec "$SF_REAL_UNAME" "$@"; fi\n' > "$SB/uname"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$SB/systemctl"
+printf '#!/usr/bin/env bash\ncase "${1:-}" in -l) [ -f "$SF_ST/table" ] && { cat "$SF_ST/table"; exit 0; }; exit 1 ;; -) cat > "$SF_ST/table" ;; esac\n' > "$SB/crontab"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$SB/launchctl"
+chmod +x "$SB/uname" "$SB/systemctl" "$SB/crontab" "$SB/launchctl"
+dh="$(mktemp -d)"
+out="$(HOME="$dh" PATH="$SB:$PATH" SF_UNAME=Linux bash "$M" doctor 2>&1)"
+assert_contains "$out" "WARN no dispatcher registered; run: bash $SRC/installer/install-dispatcher.sh"
+printf '*/3 * * * * /usr/bin/bash -l %s/factory/run-dispatcher.sh # shipfloor-dispatcher\n' "$SHIPFLOOR_HOME" > "$ST/table"
+out="$(HOME="$dh" PATH="$SB:$PATH" SF_UNAME=Linux bash "$M" doctor 2>&1)"
+assert_contains "$out" "ok   dispatcher registered (cron)"
+case "$out" in *"no dispatcher registered"*) fail "AC-8 doctor warns of no dispatcher while the crontab holds one" ;; *) pass "AC-8 a registered dispatcher draws no warning" ;; esac
+# the warning does not change doctor's exit code
+rm -f "$ST/table"
+a="$(HOME="$dh" PATH="$SB:$PATH" SF_UNAME=Linux bash "$M" doctor >/dev/null 2>&1; echo $?)"
+printf '*/3 * * * * /usr/bin/bash -l x # shipfloor-dispatcher\n' > "$ST/table"
+b="$(HOME="$dh" PATH="$SB:$PATH" SF_UNAME=Linux bash "$M" doctor >/dev/null 2>&1; echo $?)"
+[ "$a" = "$b" ] && pass "AC-8 the missing-dispatcher warning leaves doctor's exit code alone" || fail "AC-8 doctor exits $a without a dispatcher and $b with one"
+# on Windows doctor stays as it is
+out="$(HOME="$dh" PATH="$SB:$PATH" SF_UNAME=MINGW64_NT-10.0 bash "$M" doctor 2>&1)"
+case "$out" in *"dispatcher registered"*) fail "AC-8 doctor on Windows talks about the Linux/macOS dispatcher: $out" ;; *) pass "AC-8 doctor on Windows prints no dispatcher line" ;; esac
+# the "next:" line of install names the command of the system it runs on
+ih="$(mktemp -d)"
+pc="$(plugin_copy)"  # a copy that is not a clone: install refuses a clone that is not a clean main (#80)
+out="$(SHIPFLOOR_HOME="$ih" PATH="$SB:$PATH" SF_UNAME=Linux bash "$pc/scripts/shipfloor" install 2>&1)"
+assert_contains "$out" "install-dispatcher.sh"
+out="$(SHIPFLOOR_HOME="$ih" PATH="$SB:$PATH" SF_UNAME=Darwin bash "$pc/scripts/shipfloor" install 2>&1)"
+assert_contains "$out" "install-dispatcher.sh"
+out="$(SHIPFLOOR_HOME="$ih" PATH="$SB:$PATH" SF_UNAME=MINGW64_NT-10.0 bash "$pc/scripts/shipfloor" install 2>&1)"
+assert_contains "$out" "install-dispatcher.ps1"
+# the README names the install and uninstall command next to the Windows one
+readme="$(cat "$SRC/README.md")"
+assert_contains "$readme" "install-dispatcher.ps1"
+assert_contains "$readme" "install-dispatcher.sh"
+assert_contains "$readme" "install-dispatcher.sh --uninstall"
+case "$readme" in *[Ll]inger*) pass "README explains lingering" ;; *) fail "README does not mention lingering for the Linux dispatcher" ;; esac
+case "$readme" in *"PATH changes"*) pass "README says to run the installer again after PATH changes" ;; *) fail "README does not say to run the installer again after your PATH changes" ;; esac
+case "$readme" in *macOS*) pass "README names macOS" ;; *) fail "README does not name macOS" ;; esac
 finish

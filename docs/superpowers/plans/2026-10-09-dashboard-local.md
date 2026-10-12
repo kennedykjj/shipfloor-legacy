@@ -681,7 +681,7 @@ and add after it: `` `aghanim dashboard` opens a local page with the pool, live 
 - [ ] **Step 4: Check against the real home (read-only)**
 
 Run: `bash scripts/aghanim dashboard --no-open --port 0 &` then `curl -s "<printed url with /api/overview?t=...>"` piped to `python -m json.tool | head -40`, then stop the server.
-Expected: the pool shows `size: 10` and the per-stage slots, `projects[0].slug == "pickio"`, cards with columns from `board.tsv`, non-null costs on cards that have runs. Then `bash scripts/test/run.sh dashboard.test.sh hygiene.test.sh aghanim-cli.test.sh` → PASS.
+Expected: the pool shows `size: 10` and the per-stage slots, `projects[0].slug == "shop"`, cards with columns from `board.tsv`, non-null costs on cards that have runs. Then `bash scripts/test/run.sh dashboard.test.sh hygiene.test.sh aghanim-cli.test.sh` → PASS.
 
 - [ ] **Step 5: Commit**
 
