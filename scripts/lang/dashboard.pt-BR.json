@@ -314,6 +314,17 @@
     "board on GitHub": "quadro no GitHub",
     "The settings were not saved.": "As configurações não foram salvas.",
     "The pause did not go through.": "A pausa não foi aplicada.",
+    "Agents and models": "Agentes e modelos",
+    "which model runs each role": "qual modelo roda cada papel",
+    "Which model each stage's session and each agent runs on. Default keeps the model the plugin ships with. A change takes effect on the dispatcher's next cycle; sessions already running keep their model.": "Em qual modelo roda a sessão de cada estágio e cada agente. Padrão mantém o modelo que vem com o plugin. A mudança vale a partir do próximo ciclo do dispatcher; as sessões que já estão rodando continuam no modelo delas.",
+    "Stages": "Estágios",
+    "Agents": "Agentes",
+    "No priced run in the last 7 days.": "Nenhuma execução com preço nos últimos 7 dias.",
+    "Writes the Product section of a spec.": "Escreve a seção Product da spec.",
+    "Writes the UX section and checks the screens in validation.": "Escreve a seção UX e confere as telas na validação.",
+    "Writes the acceptance tests before the code.": "Escreve os testes de aceitação antes do código.",
+    "Implements a layer that names no agent of its own.": "Implementa uma camada que não indica um agente próprio.",
+    "Writes the Security section and reviews the diff.": "Escreve a seção Security e revisa o diff.",
     "Outside working hours:": "Fora do horário de trabalho:",
     "Working hours": "Horário de trabalho",
     "always": "sempre",
@@ -322,6 +333,50 @@
     "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora."
   },
   "rx": [
+    [
+      "^Default \\((.+)\\)$",
+      "Padrão ($1)"
+    ],
+    [
+      "^default is (.+)$",
+      "o padrão é $1"
+    ],
+    [
+      "Claude Code's(\\)?)$",
+      "o do Claude Code$1"
+    ],
+    [
+      "the session's(\\)?)$",
+      "o da sessão$1"
+    ],
+    [
+      "^Model for (.+)$",
+      "Modelo de $1"
+    ],
+    [
+      "per card · (\\d+) cards?, last 7 days",
+      "por card · $1 card(s), últimos 7 dias"
+    ],
+    [
+      "No price for (.+) in prices\\.yml: its cost cannot be estimated\\.",
+      "Sem preço para $1 em prices.yml: não dá para estimar o custo."
+    ],
+    [
+      "config\\.yml says \"(.*)\", which the factory does not know\\. Runs use the default until you pick a model\\.",
+      "O config.yml diz \"$1\", que a fábrica não conhece. As execuções usam o padrão até você escolher um modelo."
+    ],
+    [
+      "config\\.yml names (.+), which is not a stage or an agent here\\. It is ignored\\.",
+      "O config.yml cita $1, que não é um estágio nem um agente daqui. Ele é ignorado."
+    ],
+    [
+      "^(\\S+): \"(.*)\" is not a model the factory knows\\. Nothing was saved\\.$",
+      "$1: \"$2\" não é um modelo que a fábrica conhece. Nada foi salvo."
+    ],
+    [
+      "Project agent · (\\S+), layer (\\S+)",
+      "Agente do projeto · $1, camada $2"
+    ],
     [
       "starts again at (\\d\\d:\\d\\d)",
       "volta a iniciar às $1"

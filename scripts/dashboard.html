@@ -367,7 +367,9 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .thp .t, .thp .m { display: block; height: 4px; border-radius: 2px; margin-top: 7px; width: 72%; background: var(--text); } .thp .m { width: 46%; margin-top: 5px; background: var(--muted); }
 .thp .s { position: absolute; right: 19px; bottom: 19px; display: flex; gap: 4px; } .thp .s i { width: 7px; height: 7px; border-radius: 50%; background: var(--k); }
 .thp.two { display: grid; grid-template-columns: 1fr 1fr; padding: 0; background: none; } .thp.two > span { position: relative; padding: 11px 7px; background: var(--ground); } .thp.two .s { right: 13px; }
-@media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow .sv { text-align: left; } }
+.sknob select { height: 34px; min-width: 12ch; max-width: 100%; border-radius: 4px; border-color: var(--edge-hi); } .sknob select.dirty { color: var(--sand); border-color: var(--sand); }
+.sknob small.warn { color: var(--warn); max-width: 40ch; text-align: right; } .set-body > .note.warn { margin: 14px 0 0; font-size: 13px; color: var(--warn); }
+@media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow .sv { text-align: left; } .sknob { align-items: flex-start; } .sknob small.warn { text-align: left; } }
 /* feed: every project's runs and the dispatcher's own lines, newest first; a run's line opens its card on that run's log */
 .feed { overflow: auto; min-width: 0; min-height: 0; padding: 14px clamp(14px, 2.2vw, 28px) 28px; scrollbar-color: var(--edge-hi) transparent; }
 .ftools { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -1297,7 +1299,9 @@ const THEMES = { dark: [["tape", "Floor tape"], ["charcoal", "Charcoal"], ["dock
 const STAGE_HELP = { refine: "Writing specs.", develop: "Building a card.", validate: "Reviewing and opening the pull request.", deploy: "Merging and deploying. Always one card at a time per project." };
 const STAGE_HUE = { refine: "var(--refine)", develop: "var(--text)", validate: "var(--sand)", deploy: "var(--ok)" };
 const knobOf = (k) => { const [, slug, key] = k.split("|"); return SET.data.projects.find((p) => p.slug === slug)?.knobs[key]; };  // "p|<project>|<knob>"
-const setWas = (k) => k === "hours" ? hoursText(SET.data) : k.startsWith("p|") ? knobOf(k).value : k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : k === "every_min" ? SET.data.dispatcher.every_min : SET.data.machine[k];
+const modelOf = (k) => { const [, group, name] = k.split("|"); return SET.data.models[group][name]; };  // "m|stages|<stage>" or "m|agents|<agent>"
+const AGENT_HELP = { "product-owner": "Writes the Product section of a spec.", "ux-designer": "Writes the UX section and checks the screens in validation.", "qa-engineer": "Writes the acceptance tests before the code.", engineer: "Implements a layer that names no agent of its own.", cybersec: "Writes the Security section and reviews the diff." };
+const setWas = (k) => k === "hours" ? hoursText(SET.data) : k.startsWith("p|") ? knobOf(k).value : k.startsWith("m|") ? modelOf(k).value : k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : k === "every_min" ? SET.data.dispatcher.every_min : SET.data.machine[k];
 const setVal = (k) => k in SET.draft ? SET.draft[k] : setWas(k);
 // How often the dispatcher looks for work: the choices as the page words them, and the reason shown when the machine has no task to set.
 const EVERY = { 1: "1 minute", 3: "3 minutes", 5: "5 minutes", 10: "10 minutes" };
@@ -1335,7 +1339,7 @@ function renderSettings() {
     ${dp ? `<label class="sfl">Looks for work every ${dp.can_set ? pace : `<span class="sknob">${pace}<small>${esc(dp.why || NO_TASK)}</small></span>`}</label>` : ""}
     <label class="sfl hrs">Working hours<input type="text" id="hours-in" class="${"hours" in SET.draft ? "dirty" : ""}" value="${esc(hv)}" placeholder="always" spellcheck="false" autocomplete="off" title="${helper}" aria-describedby="hours-help"${bad ? ' aria-invalid="true"' : ""}></label><span class="vh" id="hours-help">${helper}</span>
     <label class="sfl">Pause the factory${sw("", d.paused, "Pause the factory")}</label>`) && field) { const n = $("hours-in"); n.focus({ preventScroll: true }); n.setSelectionRange(...caret); }  // the rewrite took the focus and the caret with it
-  const secs = [["sessions", "Sessions", "how much runs at once"], ["projects", "Projects", d.projects.map((p) => p.slug).join(", ") || "none yet"], ["costs", "Costs", "the prices behind the estimate"], ["themes", "Themes", "how this dashboard looks"]];
+  const secs = [["sessions", "Sessions", "how much runs at once"], ["models", "Agents and models", "which model runs each role"], ["projects", "Projects", d.projects.map((p) => p.slug).join(", ") || "none yet"], ["costs", "Costs", "the prices behind the estimate"], ["themes", "Themes", "how this dashboard looks"]];
   setHTML($("set-nav"), secs.map(([id, name, sub]) => `<button data-setsec="${id}" aria-current="${SET.sec === id}">${name}<small>${esc(sub)}</small></button>`).join(""));
   let body = "";
   if (SET.sec === "sessions") {
@@ -1351,6 +1355,23 @@ function renderSettings() {
       <div class="sgroup panel"><h2>Run environments <code>config.yml · stacks</code></h2>
         ${row("Local stacks at once", `Each e2e test run takes one, on its own ports.${S.overview?.stacks ? ` Now: ${S.overview.stacks.filter((x) => x.state !== "free").length} of ${S.overview.stacks.length} in use.` : ""}`, stepper("stacks", 1, 16))}
         ${row("Minutes to wait for a free stack", "A run that cannot get one in time is blocked as infrastructure and retried once.", stepper("stack_wait", 5, 240, 5))}</div>`;
+  } else if (SET.sec === "models") {
+    const m = d.models, cap = (x) => x[0].toUpperCase() + x.slice(1), priced = (x) => Object.keys(d.prices || {}).some((p) => p.startsWith(`claude-${x}-`));
+    const pick = (group, name, html, text, def, more = "") => {
+      const k = `m|${group}|${name}`, v = setVal(k), x = m[group][name], mine = k in SET.draft;
+      const bad = !mine && m.problems.find((p) => p.key === `models.${group}.${name}` && p.why === "model");
+      return row(html, text, `<span class="sknob"><select data-model="${esc(k)}"${mine ? ' class="dirty"' : ""} aria-label="Model for ${esc(group === "stages" ? STAGE_NAME[name] : name)}"><option value="">Default (${def})</option>${m.choices.map((c) => `<option value="${c}"${c === v ? " selected" : ""}>${cap(c)}</option>`).join("")}</select>
+        ${v ? `<small>default is ${def}</small>` : ""}${more}${v && !(mine ? priced(v) : x.priced) ? `<small class="warn">No price for ${cap(v)} in prices.yml: its cost cannot be estimated.</small>` : ""}${bad ? `<small class="warn">config.yml says "${esc(bad.value)}", which the factory does not know. Runs use the default until you pick a model.</small>` : ""}</span>`);
+    };
+    const own = Object.entries(m.agents).filter(([, a]) => a.projects.length).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+    body = `<h1 class="g">Agents and models</h1><p class="lead">Which model each stage's session and each agent runs on. Default keeps the model the plugin ships with. A change takes effect on the dispatcher's next cycle; sessions already running keep their model.</p>
+      ${m.problems.filter((p) => p.why === "name").map((p) => `<p class="note warn">config.yml names ${esc(p.key)}, which is not a stage or an agent here. It is ignored.</p>`).join("")}
+      <div class="sgroup panel"><h2>Stages <code>config.yml · models.stages</code></h2>
+        ${Object.entries(m.stages).map(([st, x]) => pick("stages", st, STAGE_NAME[st], STAGE_HELP[st], x.default ? cap(x.default) : "Claude Code's",
+          `<small>${x.cost.avg == null ? "No priced run in the last 7 days." : `<span class="coin num gold">${x.cost.avg.toFixed(2)}</span>${EST}<span> per card · ${plural(x.cost.cards, "card")}, last 7 days</span>`}</small>`)).join("")}</div>
+      <div class="sgroup panel"><h2>Agents <code>config.yml · models.agents</code></h2>
+        ${[...Object.entries(m.agents).filter(([, a]) => !a.projects.length), ...own].map(([name, a]) => pick("agents", name, `<code>${esc(name)}</code>`,
+          a.projects.length ? esc(a.projects.map((x) => `Project agent · ${x.project}, layer ${x.layer}`).join(" / ")) : AGENT_HELP[name] || "", a.default ? cap(a.default) : "the session's")).join("")}</div>`;
   } else if (SET.sec === "projects") {
     const list = (v) => Array.isArray(v) ? v.join(", ") : v || "";
     body = `<h1 class="g">Projects</h1><p class="lead">The repositories this factory works on. How the factory operates on a project (the pause and the four limits with steppers) is decided here, for this machine. What a project is (its files, layers and commands) is part of its repository and is shown as last read.</p>
@@ -1393,6 +1414,12 @@ function setStep(t) {
   if (n === setWas(k)) delete SET.draft[k]; else SET.draft[k] = n;
   SET.err = ""; renderSettings();
 }
+function setModel(t) {
+  const k = t.dataset.model, v = t.value || null;  // Default is no key
+  if (v === setWas(k)) delete SET.draft[k]; else SET.draft[k] = v;
+  SET.err = ""; renderSettings();
+  [...document.querySelectorAll("[data-model]")].find((x) => x.dataset.model === k)?.focus();  // the rewrite took the focus with it
+}
 function setHours(input) {  // typing is the draft; the server alone judges whether it is a valid window
   const v = input.value;
   if (v === setWas("hours")) delete SET.draft.hours; else SET.draft.hours = v;
@@ -1404,6 +1431,7 @@ async function setSave() {
   const body = { stages: {} }, per = {};  // this machine's limits in one request, then each project's overrides
   for (const [k, v] of Object.entries(SET.draft)) {
     if (k === "hours") body.hours = v.trim() ? v.split(",").map((w) => w.trim()) : null;  // an empty field clears it
+    else if (k.startsWith("m|")) { const [, group, name] = k.split("|"); ((body.models ||= { stages: {}, agents: {} })[group])[name] = v; }
     else if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = v === knobOf(k).repo ? null : v; }
     else if (k.startsWith("stages.")) body.stages[k.slice(7)] = v; else if (k === "every_min") body.dispatcher = { every_min: v }; else body[k] = k === "stack_wait" ? v * 60 : v;
   }
@@ -1543,6 +1571,7 @@ document.addEventListener("keydown", (e) => { if (e.target.id === "hours-in" && 
 document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "changes") syncDecide(); if (e.target.id === "inote") renderInbox(); });
 document.addEventListener("change", (e) => {
   if (e.target.matches?.("[data-pause]")) setPause(e.target);
+  if (e.target.matches?.("[data-model]")) setModel(e.target);
   if (e.target.id === "every") {  // a draft like a stepper's: Save applies it, picking the saved value again drops it
     if (+e.target.value === setWas("every_min")) delete SET.draft.every_min; else SET.draft.every_min = +e.target.value;
     SET.err = ""; renderSettings(); $("every")?.focus();

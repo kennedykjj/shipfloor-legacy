@@ -30,6 +30,16 @@ stages: {refine: 2, develop: 2, validate: 2, deploy: 1}
 
 `shipfloor pool` shows it and the runs in progress; `shipfloor pool set 6` and `shipfloor pool stage validate 3` change it. A project runs one deploy at a time (merges into main are serial); its `limits.<stage>.wip` in `factory.yml` caps the cards waiting in Spec Review (refine, default 2) and in Coding + Validation (develop, default 4).
 
+The same file picks the model each stage's session and each agent runs on, in two optional maps:
+
+```yaml
+models:
+  stages: {develop: sonnet}   # refine, develop, validate, deploy
+  agents: {engineer: haiku}   # a plugin agent, or the agent a project's layer names
+```
+
+A model is `opus`, `sonnet`, `haiku` or `fable`. A stage or agent left out keeps the model the plugin ships with (validate and deploy on Sonnet, refine and develop on Claude Code's default, each agent on its frontmatter model). A bad model or name does not stop the factory: `shipfloor doctor` warns about it, the run uses the shipped model, and the dashboard's Settings section "Agents and models" edits it, with the average cost per card of the last 7 days next to each stage.
+
 ## Working hours
 
 `hours` in `~/.shipfloor/config.yml` lists the windows (local time, 24-hour `HH:MM-HH:MM`, start included, end excluded) in which the dispatcher starts runs. Outside them it does everything else (board snapshot, reaping, retries) but starts nothing; runs in progress finish. A window whose end is before its start crosses midnight. Unset or `[]` means all hours; a malformed value is reported by `machine validate` and ignored.
