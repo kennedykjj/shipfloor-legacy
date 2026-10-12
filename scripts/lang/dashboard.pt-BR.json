@@ -436,6 +436,14 @@
       "Pausar $1"
     ],
     [
+      "^Minimize more themes$",
+      "Minimizar mais temas"
+    ],
+    [
+      "^Expand more themes$",
+      "Expandir mais temas"
+    ],
+    [
       "^Minimize (\\S+)$",
       "Minimizar $1"
     ],

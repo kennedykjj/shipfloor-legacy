@@ -737,7 +737,7 @@ function renderSum(p) {
   const el = $("sum"), o = S.overview; el.hidden = S.show.today || !p || !o;
   if (el.hidden) return;
   const hs = p.hours || [], failed = hs.reduce((n, h) => n + h.failed, 0), runs = hs.reduce((n, h) => n + h.ok + h.failed, 0), spent = hs.reduce((n, h) => n + h.cost, 0);
-  setHTML(el, `Pool <b>${o.pool.used} / ${o.pool.size}</b> in use · <span title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml"><b>$${spent.toFixed(2)}</b> est. spent today</span> · <b>${runs} runs today</b>${failed ? ` · <span class="bad"><b>${failed}</b> failed</span>` : ""}`);
+  setHTML(el, `Pool <b>${o.pool.used} / ${o.pool.size}</b> in use · <span title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml"><b>$${spent.toFixed(2)}</b> est. spent today</span> · <b>${plural(runs, "run")} today</b>${failed ? ` · <span class="bad"><b>${failed}</b> failed</span>` : ""}`);
 }
 // A control on the first row opens or closes its panel where it sits. Focus stays on the button.
 function show(which, on) {
