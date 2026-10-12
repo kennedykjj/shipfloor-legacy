@@ -346,6 +346,8 @@ class Factory:
         if not projects:
             return [], 0
         p = projects[0]
+        if not self.pdir(p).is_dir():
+            return [], 0  # no home directory yet (a cycle creates it): no slots to report, and nothing to cache
         env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)),
                    SHIPFLOOR_HOME=str(self.home))
         r = subprocess.run([bash(), (HERE / "gate.sh").as_posix(), "stack", "status"], env=env, cwd=str(self.pdir(p)),
