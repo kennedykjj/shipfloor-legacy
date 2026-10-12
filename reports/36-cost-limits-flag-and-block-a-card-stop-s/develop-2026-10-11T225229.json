@@ -1,0 +1,23 @@
+{
+  "issue": 36,
+  "slug": "cost-limits-flag-and-block-a-card-stop-s",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T21:30:00-03:00",
+  "finished_at": "2026-10-11T22:52:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 162486, "duration_s": 701},
+    {"role": "engineer (T1 config and estimate)", "tokens": 111198, "duration_s": 745},
+    {"role": "qa-engineer (amend)", "tokens": 24758, "duration_s": 32},
+    {"role": "engineer (T2 dispatcher and health)", "tokens": 56040, "duration_s": 425},
+    {"role": "engineer (T3 dashboard API)", "tokens": 89108, "duration_s": 349},
+    {"role": "engineer (T4 dashboard screen)", "tokens": 126872, "duration_s": 828}
+  ],
+  "rounds": {"plan": 1, "acceptance_tests": 1, "qa_amend": 1, "T1": 1, "T2": 1, "T3": 1, "T4": 1, "last_gates": 1},
+  "gates_failed": ["build (after T1, T2 and T3: only acceptance assertions of the tasks still to come; pass after T4)"],
+  "flaky": [],
+  "amendments": [
+    {"file": "scripts/test/dispatch-cost.test.sh", "commit": "ce91fd5", "reason": "seven calls of the helper tx passed the project `other` in the model's position; no assertion changed"}
+  ],
+  "manual_edit": false
+}
