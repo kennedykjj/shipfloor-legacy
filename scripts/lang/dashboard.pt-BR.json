@@ -303,9 +303,38 @@
     "files": "arquivos",
     "board on GitHub": "quadro no GitHub",
     "The settings were not saved.": "As configurações não foram salvas.",
-    "The pause did not go through.": "A pausa não foi aplicada."
+    "The pause did not go through.": "A pausa não foi aplicada.",
+    "Language": "Idioma",
+    "the page and what the factory writes": "a página e o que a fábrica escreve",
+    "The language of this dashboard, and the language the factory writes in for each project. The text a product shows its own users is not a factory setting: it is set in the files that project's agents read.": "O idioma deste dashboard e o idioma em que a fábrica escreve em cada projeto. O texto que um produto mostra aos próprios usuários não é uma configuração da fábrica: ele é definido nos arquivos que os agentes daquele projeto leem.",
+    "This dashboard": "Este dashboard",
+    "Language of this dashboard": "Idioma deste dashboard",
+    "The dashboard's own text. What the agents wrote is shown as written. Applied when the page is reloaded.": "O texto do próprio dashboard. O que os agentes escreveram aparece como foi escrito. Vale quando a página é recarregada.",
+    "The language shows after a reload.": "O idioma aparece depois de recarregar.",
+    "What the factory writes": "O que a fábrica escreve",
+    "Read-only here: a project's language is part of its repository. To change it, edit": "Somente leitura aqui: o idioma de um projeto faz parte do repositório dele. Para mudar, edite",
+    "in its": "no",
+    ". The dispatcher reads it again on every cycle.": ". O dispatcher lê o arquivo de novo a cada ciclo.",
+    "English": "Inglês",
+    "Brazilian Portuguese": "Português do Brasil"
   },
   "rx": [
+    [
+      "^Saved as (.*)\\. Reload the page to see it\\.$",
+      "Salvo como $1. Recarregue a página para ver."
+    ],
+    [
+      "^The language was not changed: (.*)\\. This dashboard stays in (.*)\\.$",
+      "O idioma não foi alterado: $1. Este dashboard continua em $2."
+    ],
+    [
+      "language must be one of ([A-Za-z, -]+)",
+      "language deve ser um de $1"
+    ],
+    [
+      "· no language key, the factory default",
+      "· sem a chave language, o padrão da fábrica"
+    ],
     [
       "Running · last cycle (\\S+) ago",
       "Rodando · último ciclo há $1"
