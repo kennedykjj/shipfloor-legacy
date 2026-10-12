@@ -1,0 +1,16 @@
+{
+  "issue": 34,
+  "slug": "models-per-stage-and-per-agent-are-confi",
+  "pipeline": "refine",
+  "started_at": "2026-10-11T21:12:18-03:00",
+  "finished_at": "2026-10-11T21:16:03-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 35008, "duration_s": 40},
+    {"role": "ux-designer", "tokens": 48275, "duration_s": 81}
+  ],
+  "rounds": {"product-owner": 1, "ux-designer": 1, "test-plan": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "manual_edit": null
+}
