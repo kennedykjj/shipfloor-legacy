@@ -472,9 +472,10 @@ def model_problems(raw, project_agents=()):
     if not isinstance(models, dict):
         return [{"key": "models", "value": models, "why": "shape"}]
     out = []
-    for group, names in (("stages", STAGES), ("agents", (*PLUGIN_AGENTS, *project_agents))):
-        entries = models.get(group)
-        if entries is None:
+    known = {"stages": STAGES, "agents": (*PLUGIN_AGENTS, *project_agents)}
+    for group, entries in models.items():  # in the file's order
+        names = known.get(group)
+        if names is None or entries is None:
             continue
         if not isinstance(entries, dict):
             out.append({"key": f"models.{group}", "value": entries, "why": "shape"}); continue
