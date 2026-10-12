@@ -86,7 +86,8 @@ def snapshot(home, seconds, code, overlap):
         for col in columns.values():
             counts[col] = counts.get(col, 0) + 1
         projects[p] = {"paused": (f.pdir(p) / "PAUSE").exists(), "skipped": bool(f.skipped(p)), "board_age_s": age,
-                       "columns": counts, "blocked": sum(n in columns for n in blocked), "stages": stages}
+                       "columns": counts, "blocked": sum(n in columns for n in blocked), "blocked_cards": sorted(n for n, kind in blocked.items() if kind == "owner" and n in columns),
+                       "stages": stages}
     stacks, queue = f.stacks()
     return {"ts": datetime.now().astimezone().isoformat(timespec="seconds"),
             "cycle": {"s": seconds, "exit": code, "overlap": overlap},

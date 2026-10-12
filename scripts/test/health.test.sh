@@ -39,6 +39,7 @@ run develop 1; run develop 2; run validate 3; run validate 4
 health record; assert_contains "$(last 'd["idle"]')" "[]"
 setup; printf '7\tReady for Dev\tI7\n' > "$P/board.tsv"  # the fake gh says card 7 is blocked
 health record; assert_contains "$(last 'd["idle"], d["projects"]["shop"]["blocked"]')" "[] 1"
+assert_contains "$(last 'd["projects"]["shop"]["blocked_cards"]')" "[7]"
 setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"; touch "$H/PAUSE"
 health record; assert_contains "$(last 'd["idle"], d["paused"]')" "[] True"
 
