@@ -156,6 +156,41 @@ check("AC-6 every sidecar typography entry is in the front matter", not badt, "n
 gen = str(sidecar.get("generatedAt", ""))[:10]
 check("AC-6 generatedAt is on or after 2026-10-11", gen >= "2026-10-11", f"generatedAt is {gen or 'missing'}")
 
+# AC-8 (#117): the caption is 12px / 0.1em, no 11px or 11.5px role is left, the 24x24px target, the switch's word
+cap = typo.get("caption") if isinstance(typo.get("caption"), dict) else {}
+check("AC-8 front matter Caption is 12px with 0.1em tracking",
+      norm(str(cap.get("fontSize", ""))) == "12px" and str(cap.get("letterSpacing", "")).replace("0.1em", ".1em") == ".1em",
+      "typography.caption is %s / %s, want 12px / 0.1em" % (cap.get("fontSize", "missing"), cap.get("letterSpacing", "missing")))
+cline = next((l for l in design.splitlines() if re.match(r"\s*-\s*\*\*Caption\*\*", l)), "")
+check("AC-8 Hierarchy gives Caption as 12px and 0.1em",
+      "12px" in cline and "0.1em" in cline and "11px" not in cline and "0.14em" not in cline,
+      "the Caption line of Hierarchy is: " + (cline or "missing"))
+small = sorted({k for k, t in typo.items() if isinstance(t, dict) and norm(str(t.get("fontSize", ""))) in ("11px", "11.5px")})
+check("AC-8 the type ramp has no 11px or 11.5px role", not small and "note" not in typo,
+      "typography still has " + ", ".join(small or ["note"]))
+check("AC-8 DESIGN.md names no 11px or 11.5px size", re.search(r"(?<![\d.])11(\.5)?px", design) is None,
+      "DESIGN.md still mentions " + ", ".join(sorted(set(re.findall(r"(?<![\d.])11(?:\.5)?px", design)))))
+check("AC-8 Meta is named Meta (12px), with no separate note role", "Meta (12px)" in design and re.search(r"Meta\*\* and \*\*note", design) is None,
+      "Hierarchy does not read \"Meta (12px)\" or still has \"Meta and note\"")
+btn = re.search(r"^#+[ \t]*Buttons[ \t]*\n(.*?)(?=^#{1,3}[ \t]|\Z)", design, flags=re.S | re.M)
+check("AC-8 Buttons names the 24x24px minimum target", bool(btn) and re.search(r"24\s*x\s*24\s*px", btn.group(1)) is not None
+      and re.search(r"Target", btn.group(1)) is not None,
+      "the Buttons section has no \"Target\" rule of at least 24x24px")
+check("AC-8 says a Settings switch shows its state as a word",
+      any("switch" in l.lower() and re.search(r"\bwords?\b", l) and re.search(r"\bstate\b", l) for l in design.splitlines()),
+      "no line of DESIGN.md says a switch shows its state as a word")
+check("AC-8 Today says the chart labels are 12px", re.search(r"Chart labels are 12px", design) is not None,
+      "Today does not read \"Chart labels are 12px\"")
+dscap = next((c.get("css", "") for c in (sidecar.get("components") or []) if isinstance(c, dict) and ".ds-cap{" in str(c.get("css", ""))), "")
+if not dscap:
+    m2 = re.search(r"\.ds-cap\{[^}]*\}", sidecar_text)
+    dscap = m2.group(0) if m2 else ""
+check("AC-8 the sidecar agrees on the caption size",
+      bool(dscap) and "12px" in dscap and ".1em" in dscap and "11px" not in dscap and ".14em" not in dscap,
+      "the sidecar's .ds-cap is: " + (dscap[:120] or "missing"))
+check("AC-8 the sidecar has no 11px or 11.5px size", re.search(r"(?<![\d.])11(\.5)?px", sidecar_text) is None,
+      "the sidecar still mentions 11px or 11.5px")
+
 print("\n".join(res))
 PY
 )"
