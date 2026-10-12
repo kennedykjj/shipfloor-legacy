@@ -3,7 +3,7 @@
 Exit codes: 0 ok, 1 negative answer (invalid config on validate, missing key, no owner layer),
 2 unusable (missing or invalid config, unknown layer or role, bad usage). Read-only.
 """
-import json, os, re, sys, warnings
+import json, math, os, re, sys, warnings
 
 warnings.simplefilter("ignore")  # ERE classes like [[:space:]] make Python's re warn
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
@@ -452,12 +452,32 @@ MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develo
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
 
 
+COST_KEYS = ("card_warn", "card_block", "day_stop")
+
+
+def cost_problems(costs):
+    """The machine's costs: optional limits in US$, each a number > 0, card_warn <= card_block, no other key."""
+    if costs is None:
+        return []
+    if not isinstance(costs, dict):
+        return ["costs must be a mapping of limit: US$"]
+    errs = [f"costs.{k}: unknown limit (use {', '.join(COST_KEYS)})" for k in costs if k not in COST_KEYS]
+    for k in COST_KEYS:
+        v = costs.get(k)
+        if k in costs and (isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0):
+            errs.append(f"costs.{k} must be a number above 0")
+    if not errs and "card_warn" in costs and "card_block" in costs and costs["card_warn"] > costs["card_block"]:
+        errs.append(f"costs.card_warn ({costs['card_warn']}) is above costs.card_block ({costs['card_block']})")
+    return errs
+
+
 def machine_problems(raw):
     if not isinstance(raw, dict):
         return ["the file is not a YAML mapping"]
     errs = []
     if raw.get("language", "en") not in LANGS:
         errs.append(f"language must be one of {', '.join(LANGS)}")
+    errs += cost_problems(raw.get("costs"))
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
     if not isinstance(pool, int) or isinstance(pool, bool) or pool < 1:
         errs.append("pool must be an integer >= 1")
