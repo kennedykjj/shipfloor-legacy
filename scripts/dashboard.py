@@ -74,6 +74,10 @@ OWNER_MOVES = {"Spec Review": {"approve": "Ready for Dev", "request-changes": "R
                "Staged": {"approve": "Ready for Prod", "request-changes": "Coding"}}
 
 
+def number(s):  # ASCII digits only: str.isdigit() also accepts "²" and the like, which int() rejects
+    return bool(re.fullmatch(r"[0-9]+", s))
+
+
 def read_yaml(path):
     try:
         with open(path, encoding="utf-8") as f:
@@ -202,7 +206,7 @@ class Factory:
         self.read_board(p, at)
         if at is None:
             return {}, None
-        return {int(c[0]): c[1] for c in (l.split("\t") for l in lines) if len(c) > 1 and c[0].isdigit()}, round(time.time() - at)
+        return {int(c[0]): c[1] for c in (l.split("\t") for l in lines) if len(c) > 1 and number(c[0])}, round(time.time() - at)
 
     def read_board(self, p, at):
         """The dispatcher's snapshot is as old as its last cycle, and a card the owner moves on GitHub shows only then.
@@ -278,8 +282,8 @@ class Factory:
         for line in r.stdout.splitlines():
             f = line.split("\t")
             if f[0] == "queue":
-                queue = int(f[1]) if f[1].isdigit() else 0
-            elif len(f) >= 4 and f[0].isdigit():
+                queue = int(f[1]) if number(f[1]) else 0
+            elif len(f) >= 4 and number(f[0]):
                 slots.append({"slot": int(f[0]), "state": f[1], "owner": f[2], "held_s": int(f[3] or 0),
                               "reason": f[4] if len(f) > 4 else ""})
         self._stacks = (time.time(), slots, queue)
@@ -818,6 +822,8 @@ class Handler(BaseHTTPRequestHandler):
         q, parts = parse_qs(url.query), [unquote(x) for x in url.path.strip("/").split("/")]
         if url.path == "/":
             return self.send(200, (HERE / "dashboard.html").read_bytes(), "text/html; charset=utf-8")
+        if url.path == "/favicon.ico":  # the browser asks without a token; nothing to show
+            return self.send(204, b"")
         if not self.allowed(q if parts[0] == "review" else None):
             return self.send(403, {"error": "missing or wrong token"})
         f = self.factory
@@ -831,18 +837,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, f.settings())
             if parts == ["api", "feed"]:
                 return self.send(200, f.feed())
-            if known and len(parts) == 4 and parts[:2] == ["api", "card"] and parts[3].isdigit():
+            if known and len(parts) == 4 and parts[:2] == ["api", "card"] and number(parts[3]):
                 return self.send(200, f.card(parts[2], int(parts[3])))
-            if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and parts[3].isdigit():
+            if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and number(parts[3]):
                 return self.send(200, f.decide(parts[2], int(parts[3])))
-            if known and len(parts) == 4 and parts[:2] == ["api", "live"] and parts[3].isdigit():
+            if known and len(parts) == 4 and parts[:2] == ["api", "live"] and number(parts[3]):
                 return self.send(200, f.session(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "log"]:
                 start = q.get("from", ["-1"])[0]
-                body = f.log(parts[2], parts[3], int(start) if start.lstrip("-").isdigit() else -1)
+                body = f.log(parts[2], parts[3], int(start) if re.fullmatch(r"-?[0-9]+", start) else -1)
                 if body:
                     return self.send(200, body)
-            if len(parts) == 3 and parts[0] == "review" and parts[1] in f.projects() and parts[2].isdigit():
+            if len(parts) == 3 and parts[0] == "review" and parts[1] in f.projects() and number(parts[2]):
                 page = f.pdir(parts[1]) / "reviews" / f"{parts[2]}.html"
                 if page.is_file():
                     html = page.read_bytes()
@@ -873,7 +879,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and parts[3].isdigit() and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
