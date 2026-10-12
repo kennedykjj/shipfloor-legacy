@@ -458,20 +458,51 @@ class Factory:
         return {"problem": problem, "criteria": [{"id": k, "text": t} for k, t in criteria],
                 "questions": items("open questions", "dúvidas")}
 
+    def cost_mark(self, p, n, reason):
+        """(the cost marker, its baseline, the card's total) when the note opens with COST_BLOCK and the marker
+        (cost/<n>.json) is readable; else None: an ordinary block."""
+        if not reason.lstrip().startswith(COST_BLOCK):  # the newest note must still be this block's
+            return None
+        try:
+            mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
+            return mark, float(mark.get("baseline") or 0), float(mark["total"])
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return None
+
+    def block_line(self, p, n):
+        """One plain line of the block note for the card: the owner's call without its label, else the failed
+        gate, else "" (also for a cost block). Only the note's own words."""
+        src = self.block_reason(p, n)
+        if src.lstrip().startswith(COST_BLOCK):
+            return ""
+        plain = lambda s: re.sub(r"\s+", " ", re.sub(r"^\s*[-*]\s*", "", s.replace("**", "").replace("`", ""))).strip()
+        call = next((l for l in src.splitlines() if re.search(r"must decide|owner must|needs? you to", l, re.I)), "")
+        decide = re.sub(r"^[^:]*(must decide|owner must|needs? you to)[^:]*:\s*", "", plain(call), flags=re.I)
+        if decide:
+            return (decide[0].upper() + decide[1:])[:500]
+        gate = (re.search(r"failed gates?:\**\s*([^.\n]+)", src, re.I) or [None, ""])[1]
+        gate = plain(gate)
+        return f"Failed gate: {gate}"[:500] if gate else ""
+
+    def block_cost(self, p, n):
+        """The three figures of a cost block, in dollars, or None when the card's block is not one."""
+        figures = self.cost_mark(p, n, self.block_reason(p, n))
+        if not figures:
+            return None
+        mark, before, whole = figures
+        return {"total": round(whole - before, 4), "limit": mark.get("limit"), "baseline": before}
+
     def block(self, p, n):
         """A block told in parts: the stage and step it stopped at, why, what was tried, how many times, and for
         acceptance-intact the test files as they changed."""
         reason = self.block_reason(p, n)
         blocked = [r for r in self.reports(p, n) if r["outcome"] == "blocked"]
-        if reason.lstrip().startswith(COST_BLOCK):  # the marker tells the figures; the newest note must still be this block's
-            try:
-                mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
-                before, whole = float(mark.get("baseline") or 0), float(mark["total"])
-                return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
-                        "times": len(blocked), "gate": "", "diff": "", "limit": mark.get("limit"), "total": round(whole - before, 4),
-                        "baseline": before, "card_total": whole, "stages": mark.get("stages") or {}}
-            except (OSError, ValueError, KeyError, TypeError, AttributeError):
-                pass  # no usable marker: an ordinary block
+        figures = self.cost_mark(p, n, reason)
+        if figures:
+            mark, before, whole = figures
+            return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
+                    "times": len(blocked), "gate": "", "diff": "", "limit": mark.get("limit"), "total": round(whole - before, 4),
+                    "baseline": before, "card_total": whole, "stages": mark.get("stages") or {}}
         m = BLOCK_LINE.search(reason)
         stage, step = (m.group(1).lower(), int(m.group(2))) if m else (None, None)
         if not stage:  # a report tells the block: it names its stage, not a step
@@ -894,7 +925,9 @@ class Factory:
                                         "spent": None if per_card.get(n, 0.0) is None else per_card.get(n, 0.0) - base.get(n, 0.0),
                                         "running": running.get(n), "awaiting": col in OWNER_MOVES,
                                         "review": col in OWNER_MOVES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
-                                        "blocked": blocked.get(n)}
+                                        "blocked": blocked.get(n),
+                                        "block_line": self.block_line(p, n) if blocked.get(n) == "owner" else "",
+                                        "block_cost": self.block_cost(p, n) if blocked.get(n) == "owner" else None}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
