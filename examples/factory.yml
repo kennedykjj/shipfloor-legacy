@@ -13,6 +13,8 @@ board: {owner: acme, number: 3}   # GitHub Project v2 (user or organization); `s
 context: [PRODUCT.md, CLAUDE.md]  # what PO, UX, Cybersec and the Tech Lead read about the product
 # review_criteria: .shipfloor/review-criteria.md   # default: the plugin's generic criteria
 # forbidden: [docs/engineering/]               # extra paths agents may never change
+# trusted_commenters: [alice, bob]             # whose issue comments the agents read, besides the factory's own GitHub user
+#                                              # (default: nobody else; ['*'] is anyone: only for a private repository)
 # acceptance_assertions: 'assert|expect\('   # let through edits to acceptance tests that touch no assertion line (default: every edit blocks)
 # paths: {specs: docs/superpowers/specs/, plans: docs/superpowers/plans/}
 # limits:                                      # cards in the WIP columns
