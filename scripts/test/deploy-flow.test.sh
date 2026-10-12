@@ -9,7 +9,7 @@ assert_contains "$(cat "$FG/comments")" "Deployed: merge"
 git --git-dir="$remote" show main:api/A.kt >/dev/null 2>&1 && pass "squashed into main" || fail "not on main"
 
 # behind main: merges main into the PR, pushes, records deploy-merge, then deploys
-setup; main_commit web/other.ts x; code="$(run 7)"; [ "$code" = 0 ] && pass "deploy after updating" || fail "exit $code: $(cat "$T/out")"
+scene behind; code="$(run 7)"; [ "$code" = 0 ] && pass "deploy after updating" || fail "exit $code: $(cat "$T/out")"
 assert_contains "$(cat "$FG/comments")" "deploy-merge: "
 
 # failed health check after merge → revert PR, reopened, blocked
@@ -23,7 +23,7 @@ git --git-dir="$remote" rev-parse -q --verify refs/heads/revert/7 >/dev/null && 
 setup; echo feat/7-tests-at-last > "$FG/branch"; git -C "$repo" push -q origin feat/7-x:feat/7-tests-at-last
 code="$(run 7)"; [ "$code" = 0 ] && pass "branch name with t deploys" || fail "exit $code: $(cat "$T/out")"
 # language: the log line and the card comment come out in the project's language; markers stay as they are
-setup; echo "language: pt-BR" >> "$FACTORY_CONFIG"; main_commit web/other.ts x; code="$(run 7)"
+scene behind; echo "language: pt-BR" >> "$FACTORY_CONFIG"; code="$(run 7)"
 [ "$code" = 0 ] && pass "pt-BR deploy done" || fail "exit $code: $(cat "$T/out")"
 assert_contains "$(cat "$T/out")" "main mesclada no PR"
 assert_contains "$(cat "$FG/comments")" "Deploy feito: merge"

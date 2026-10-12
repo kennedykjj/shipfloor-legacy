@@ -3,9 +3,15 @@
 # report.json schema: {"issue","slug","pipeline","started_at","finished_at","outcome":"ok|blocked|infra",
 #   "agents":[{"role","tokens","duration_s"}],"rounds":{step:n},"gates_failed":[...],"flaky":["<layer> <selector>"],"manual_edit":true|false|null}
 set -euo pipefail
+usage() {
+  echo "usage: report.sh <issue> <slug> <pipeline> <report.json> <report.md>"
+  echo "  pipeline: refine | develop | validate | deploy; the two files are the ones the run wrote in its tmp folder"
+  echo "  run it from the project's control checkout, as every other factory script"
+}
+case "${1:-}" in -h|--help|help) usage; exit 0 ;; esac
+[ $# -eq 5 ] || { usage >&2; exit 2; }
 source "$(dirname "$0")/lib/project.sh"
 shipfloor_resolve . || exit 2
-[ $# -eq 5 ] || { echo "usage: report.sh <issue> <slug> <pipeline> <report.json> <report.md>" >&2; exit 2; }
 issue="$1" slug="$2" pipeline="$3" json="$4" md="$5"
 HOME_DIR="$FACTORY_HOME"
 REPO="${FACTORY_REPO:-$(git rev-parse --show-toplevel)}"
