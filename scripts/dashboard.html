@@ -319,7 +319,6 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .tip-stats .total dd { font-size: 20px; line-height: 1.1; }
 .tip-stats .report dd { font: 500 13px var(--sans); padding-top: 3px; }
 .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--edge); flex: none; }
-.feed { overflow: auto; min-width: 0; min-height: 0; }
 /* settings: the dispatcher on top of every section, the sections on the left, and a bar while something is unsaved */
 .settings { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; } .settings[hidden], .set-save[hidden] { display: none; }
 .disp { padding: 14px 20px; display: flex; gap: 12px 26px; flex-wrap: wrap; align-items: center; border-color: var(--edge-hi); background: var(--panel); }
@@ -368,19 +367,41 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .thp .s { position: absolute; right: 19px; bottom: 19px; display: flex; gap: 4px; } .thp .s i { width: 7px; height: 7px; border-radius: 50%; background: var(--k); }
 .thp.two { display: grid; grid-template-columns: 1fr 1fr; padding: 0; background: none; } .thp.two > span { position: relative; padding: 11px 7px; background: var(--ground); } .thp.two .s { right: 13px; }
 @media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow .sv { text-align: left; } }
-.ev { display: grid; grid-template-columns: 12ch 11ch 1fr; gap: 0 12px; }
-.ev button { all: unset; cursor: pointer; text-decoration: underline; }
-.ev.run b { color: var(--text); } .ev b { font-weight: 500; }
-.ev-more { margin: 4px 0 10px calc(23ch + 24px); padding: 2px 0 2px 12px; border-left: 2px solid var(--edge-hi); display: flex; flex-direction: column; gap: 8px; }
-.ev-more pre { margin: 0; font: inherit; color: var(--soft); white-space: pre-wrap; word-break: break-word; }
-.ev-more .acts, .peek .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-family: var(--sans); }
+/* feed: every project's runs and the dispatcher's own lines, newest first; a run's line opens its card on that run's log */
+.feed { overflow: auto; min-width: 0; min-height: 0; padding: 14px clamp(14px, 2.2vw, 28px) 28px; scrollbar-color: var(--edge-hi) transparent; }
+.ftools { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.ftools div { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.ftools button { border: 0; border-bottom: 1px solid transparent; background: none; padding: 4px 0; cursor: pointer; color: var(--muted); font-size: 13px; }
+.ftools button b { font-weight: 500; color: var(--faint); margin-left: 5px; }
+.ftools button[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--text); } .ftools button:hover { color: var(--text); }
+.flist { list-style: none; margin: 0; padding: 0; }
+.fday { display: flex; gap: 12px; align-items: center; margin-top: 18px; padding-bottom: 2px; } .fday::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+.fday:first-child { margin-top: 8px; }
+.fev { display: grid; grid-template-columns: 5ch 9px minmax(0, 1fr) auto 8ch; gap: 0 14px; align-items: start; padding: 6px 4px 7px; border-top: 1px solid var(--hair); }
+.fday + .fev { border-top: 0; }
+.fev[data-full] { cursor: pointer; } .fev[data-full]:hover { background: color-mix(in srgb, var(--ov) 3.5%, transparent); }
+.ftime { font: 12px/1.9 var(--mono); color: var(--muted); }
+.fhead { margin: 0; display: flex; align-items: baseline; gap: 0 10px; min-width: 0; } .fhead b { font-weight: 600; flex: none; }
+.fsrc { color: var(--muted); font-size: 13px; flex: none; }
+.ftitle { all: unset; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftitle:focus-visible { outline: 2px solid var(--sand); outline-offset: 2px; border-radius: 4px; }
+.fyou { color: var(--sand); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.fleft { margin: 0; color: var(--soft); font-size: 13.5px; overflow-wrap: anywhere; }
+.fside { font-size: 13px; color: var(--muted); white-space: nowrap; text-align: right; }
+/* the mark: its shape carries the state, the colour repeats it */
+.fdot { width: 9px; height: 9px; border-radius: 50%; margin-top: 7px; background: var(--ok); }
+.f-bad .fdot { background: var(--bad); border-radius: 1px; transform: rotate(45deg); } .f-bad .fhead b { color: var(--bad); } .f-bad .fleft { color: var(--text); }
+.f-run .fdot { background: none; box-shadow: inset 0 0 0 2px var(--sand); }
+.f-sys .fdot { height: 2px; border-radius: 0; background: var(--faint); margin-top: 11px; }
+.f-sys .fhead { color: var(--soft); font-size: 13.5px; align-items: start; } .f-sys .fraw { overflow-wrap: anywhere; }
+@media (max-width: 1180px) { .fev { grid-template-columns: 5ch 9px minmax(0, 1fr); } .fside { grid-column: 3; text-align: left; } .fside:empty { display: none; } .ftitle { white-space: normal; } .fhead { flex-wrap: wrap; } }
+.peek .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-family: var(--sans); }
 /* the peek: a card's summary, anchored to its dot on the line */
 .peek { position: fixed; z-index: 2; width: min(340px, calc(100vw - 24px)); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 8px; box-shadow: var(--shadow); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .peek[hidden] { display: none; }
 .peek::before { content: ""; position: absolute; top: -6px; left: var(--tip, 40px); width: 10px; height: 10px; background: var(--panel-hi); border-left: 1px solid var(--edge-hi); border-top: 1px solid var(--edge-hi); transform: rotate(45deg); }
 .peek h3 { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.3; text-wrap: balance; } .peek h3 .num { color: var(--muted); font-weight: 500; margin-right: 7px; }
 .peek .meta { margin: 0; font-size: 12.5px; color: var(--muted); } .peek .acts a { font-size: 13px; color: var(--soft); margin-left: 2px; }
-.ev button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 10px 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
 .tabs button .b { margin-left: 5px; font-size: 11px; color: var(--faint); }
@@ -520,7 +541,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
         <p class="cap" id="wfoot" style="padding-top:12px;margin:auto 0 0" title="The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card."></p></section>
     </div>
   </section>
-  <section class="feed log panel" id="feed" aria-label="Feed" tabindex="0" hidden></section>
+  <section class="feed panel" id="feed" aria-label="Feed" tabindex="0" hidden></section>
   <div class="peek" id="peek" role="dialog" aria-label="Card summary" hidden></div>
   <section class="settings" id="settings" aria-label="Settings" hidden>
     <div class="disp panel" id="disp"></div>
@@ -571,7 +592,7 @@ function setHTML(el, html) { if (el._html === html) return false; el._html = htm
 // text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
 // 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
 const LANG = { exact: {}, rx: [] };
-const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .ev > span, iframe, textarea, code";
+const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
 function loc(s) {
   const t = s.trim(); if (!t || !/[A-Za-z]{2}/.test(t)) return s;
   if (Object.hasOwn(LANG.exact, t)) return s.replace(t, LANG.exact[t]);
@@ -1416,32 +1437,36 @@ async function loadFeed() {
   if (S.view !== "feed") return;
   const { status, body } = await api("/api/feed");
   if (status !== 200) return;
-  S.feed = body.events; renderFeed(); feedTail();
+  S.feed = body.events; renderFeed();
 }
 const evId = (e) => `${e.source}/${e.log}/${e.start}`;
+const FEED_IS = { all: () => true, you: (e) => e.you, bad: (e) => e.issue && e.end && e.exit !== 0, run: (e) => e.issue && !e.end && !e.lost, sys: (e) => !e.issue };
+const FEED_NAMES = { all: "All", you: "Waits for you", bad: "Failures", run: "Running", sys: "Dispatcher" };
+const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
+function feedLeft(e) {  // what a run left behind, each piece from its source: the log, the report, the board, the run's lock
+  return [e.last && `<span class="fraw">${esc(e.last)}</span>`, e.pr && `PR #${e.pr}`,
+    e.failed && `<span>gates failed</span>: <span class="fraw">${esc(e.failed.join(", "))}</span>`,
+    e.column && `<span>now in</span> <span>${esc(e.column)}</span>`,
+    e.step && `Step ${e.step.i} of ${e.step.of}: <span>${esc(e.step.label)}</span>`].filter(Boolean).join(" · ");
+}
 function renderFeed() {
-  const el = $("feed"); const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40, had = document.activeElement?.dataset?.ev;
-  const html = (S.feed || []).map((e) => {
-    const head = `<span class="muted" title="${esc(e.ts)}">${e.ts ? when(e.ts) : ""}</span><span class="muted">${esc(e.source)}</span>`;
-    if (!e.issue) return `<div class="ev">${head}<span>${esc(e.text)}</span></div>`;
-    const id = esc(evId(e)), open = S.feedOpen === evId(e), k = `${esc(e.source)}/${e.issue}`;
-    const more = open ? `<div class="ev-more"><pre>${esc(S.feedTail ?? "Reading the log…")}</pre>
-      <div class="acts"><button class="btn" data-full="${k}" data-go="log" data-log="${esc(e.log)}">Whole log</button><button class="btn ghost" data-full="${k}">Open card</button></div></div>` : "";
-    return `<div class="ev ${e.end ? (e.exit === 0 ? "ok" : "bad") : "run"}">${head}<span><button data-ev="${id}" aria-expanded="${open}">${esc(e.text)}</button> <span class="muted">· ${e.end ? dur(e.start, e.end) : `${mins(e.start)}m`} ·</span> <b data-t>${e.end ? (e.exit === 0 ? "ok" : `exit ${e.exit}`) : "running"}</b></span></div>${more}`;
+  const el = $("feed"), all = S.feed || [], f = S.feedFilter || "all", many = (S.overview?.projects.length || 0) > 1;
+  const had = document.activeElement?.closest?.("#feed [data-ev], #feed [data-feed]"), again = had && (had.dataset.ev ? `[data-ev="${CSS.escape(had.dataset.ev)}"]` : `[data-feed="${had.dataset.feed}"]`);
+  let day = "";
+  const rows = all.filter(FEED_IS[f]).reverse().map((e) => {  // newest first, a heading where the day changes
+    const d = e.ts ? new Date(e.ts).toDateString() : day, head = d === day ? "" : `<li class="fday cap">${new Date(e.ts).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</li>`;
+    day = d;
+    const time = `<time class="ftime" title="${esc(e.ts)}">${hhmm(e.ts)}</time><i class="fdot" aria-hidden="true"></i>`;
+    if (!e.issue) return `${head}<li class="fev f-sys">${time}<p class="fhead"><b>${esc(e.source)}</b><span class="fraw">${esc(e.text)}</span></p><span class="fside">${e.n > 1 ? `${e.n}× <span>since</span> ${hhmm(e.since)}` : ""}</span></li>`;
+    const open = `data-full="${esc(e.source)}/${e.issue}" data-go="log" data-log="${esc(e.log)}"`, left = feedLeft(e);
+    return `${head}<li class="fev f-${e.end ? (e.exit === 0 ? "ok" : "bad") : e.lost ? "sys" : "run"}" ${open}>${time}
+      <div><p class="fhead">${many ? `<span class="fsrc">${esc(e.source)}</span>` : ""}<b>${esc(e.stage)}</b><button class="ftitle fraw" ${open} data-ev="${esc(evId(e))}">#${e.issue} ${esc(e.title)}</button>${e.you ? '<span class="fyou">waits for you</span>' : ""}</p>${left ? `<p class="fleft">${left}</p>` : ""}</div>
+      <span class="fside">${e.end ? dur(e.start, e.end) : e.lost ? "<span>no end logged</span>" : `<span>running</span> ${mins(e.start)}m`}${e.end && e.exit ? ` · exit ${e.exit}` : ""}</span><span class="fside num">${"cost" in e ? money(e.cost) + EST : ""}</span></li>`;
   }).join("");
-  if (!setHTML(el, html || '<p class="placeholder">Nothing logged yet.</p>')) return;
-  if (had) el.querySelector(`[data-ev="${CSS.escape(had)}"]`)?.focus({ preventScroll: true });
-  if (atEnd && !S.feedOpen) el.scrollTop = el.scrollHeight;
+  const tools = `<div class="ftools"><div role="group" aria-label="Filter the feed">${Object.keys(FEED_IS).map((k) => `<button data-feed="${k}" aria-pressed="${f === k}">${FEED_NAMES[k]}<b>${all.filter(FEED_IS[k]).length}</b></button>`).join("")}</div><span class="cap">Newest first</span></div>`;
+  if (!setHTML(el, tools + (rows ? `<ol class="flist">${rows}</ol>` : `<p class="placeholder">${all.length ? "Nothing here." : "Nothing logged yet."}</p>`))) return;
+  if (again) el.querySelector(again)?.focus({ preventScroll: true });
 }
-async function feedTail() {  // the last lines of the open run's log; read again on every feed refresh, so a running one moves
-  const id = S.feedOpen, e = id && (S.feed || []).find((x) => x.issue && evId(x) === id);
-  if (!e) return;
-  const { status, body } = await api(`/api/log/${encodeURIComponent(e.source)}/${encodeURIComponent(e.log)}?from=-1`);
-  if (S.feedOpen !== id) return;
-  S.feedTail = status === 200 ? body.text.split("\n").filter((l) => l.trim()).slice(-12).join("\n") || "(empty)" : "The log could not be read.";
-  renderFeed();
-}
-function toggleEv(id) { S.feedOpen = S.feedOpen === id ? null : id; S.feedTail = null; renderFeed(); feedTail(); }
 
 let tailing = false;
 async function unblock() {
@@ -1475,7 +1500,7 @@ function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog
 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
-  const t = e.target.closest("[data-step],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-step],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.dataset.step) setStep(t);
   else if (t.dataset.themePick) { theme(t.dataset.themePick); renderSettings(); themeReview(); }
@@ -1494,7 +1519,7 @@ document.addEventListener("click", (e) => {
   else if (t.hasAttribute("data-max")) maximize(t.parentElement, !t.parentElement.classList.contains("maxed"));
   else if (t.hasAttribute("data-dmax")) grow($("drawer"), () => { S.full = !S.full; renderDrawer(); });
   else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, t.dataset.go); if (t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; } }, t.closest(".tile"));  // a card in progress opens maximized, 90% of the screen: the side drawer would cover its own tile
-  else if (t.dataset.ev) toggleEv(t.dataset.ev);
+  else if (t.dataset.feed) { S.feedFilter = t.dataset.feed; renderFeed(); }
   else if (t.dataset.peek) peek(t.dataset.peek);
   else if (t.dataset.q) quick(t.dataset.q, t.closest("[data-key]").dataset.key);
   else if (t.dataset.open && t.dataset.log) { openCard(t.dataset.open, "log"); S.log = t.dataset.log; S.logNext = -1; S.logText = ""; }  // a feed line opens its own run's log

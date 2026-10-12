@@ -48,10 +48,17 @@ assert_contains "$got" "Seven owner **Validate blocked (infrastructure)**: stack
 
 # the feed is one timeline: dispatcher lines and one line per run by time, an untimed line after the timed one above it
 D="$(date +%F)"; mkdir -p "$H/logs"
-printf '%sT10:00:00-03:00 shipfloor: shop: first\nmv: stderr\n%sT10:10:00-03:00 shipfloor: shop: last\n' "$D" "$D" > "$H/logs/dispatcher.log"
-printf '== start /sf:develop 7 %sT10:05:00-03:00 pid=1\n== end /sf:develop 7 exit=4 %sT10:06:00-03:00\n' "$D" "$D" > "$P/logs/$D-7-develop.log"
+printf '%sT10:00:00-03:00 shipfloor: shop: first\nmv: stderr\n%sT10:10:00-03:00 shipfloor: shop: last\n%sT10:20:00-03:00 shipfloor: shop: again\n%sT10:23:00-03:00 shipfloor: shop: again\n' "$D" "$D" "$D" "$D" > "$H/logs/dispatcher.log"
+printf '== start /sf:develop 7 %sT10:05:00-03:00 pid=1\ngate build: 2 tests failed\n\n== end /sf:develop 7 exit=4 %sT10:06:00-03:00\n' "$D" "$D" > "$P/logs/$D-7-develop.log"
 got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print(" | ".join(e["text"] + (" exit=%s" % e["exit"] if e.get("issue") else "") for e in json.load(sys.stdin)["events"]))')"
-assert_contains "$got" "shipfloor: shop: first | mv: stderr | develop #7 exit=4 | shipfloor: shop: last"
+assert_contains "$got" "shipfloor: shop: first | mv: stderr | develop #7 exit=4 | shipfloor: shop: last | shipfloor: shop: again"
+# a line repeated in a row is one event, and a run says what it left behind: the card's title, and its last words when it failed
+got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; ev=json.load(sys.stdin)["events"]; a=ev[-1]; r=[e for e in ev if e.get("issue")][0]; print(a["n"], a["since"][11:16], a["ts"][11:16], "|", r["stage"], r["title"], "|", r["last"])')"
+assert_contains "$got" "2 10:20 10:23 | develop Seven | gate build: 2 tests failed"
+# a run with no end and no lock is not running: its end was lost
+printf '== start /sf:refine 7 %sT09:00:00-03:00 pid=1\n' "$D" > "$P/logs/$D-7-refine.log"
+got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print([e.get("lost") for e in json.load(sys.stdin)["events"] if e.get("stage") == "refine"])')"
+assert_contains "$got" "[True]"; rm -f "$P/logs/$D-7-refine.log"
 [ "$(code "$base/api/feed")" = 403 ] && pass "no token, no feed" || fail "served the feed without the token"
 # the page's language is the machine's: English sends no catalog, pt-BR sends its own
 lang() { curl -s -H "$H_TOK" "$base/api/lang" | $PY -c 'import json,sys; d=json.load(sys.stdin); print(d["language"], len(d["exact"]) > 50, len(d["rx"]) > 20, d["exact"].get("Close", ""))'; }

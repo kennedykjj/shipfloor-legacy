@@ -865,8 +865,9 @@ class Factory:
         return {"language": code, "exact": cat.get("exact", {}), "rx": cat.get("rx", [])}
 
     def feed(self, limit=400):
-        """One timeline: the dispatcher's and the stacks' log lines, and one line per run, at the time it
-        ended (or started, while it still runs)."""
+        """One timeline: the dispatcher's and the stacks' log lines, and one event per run, at the time it ended
+        (or started, while it still runs), with what is known of what it left behind. A log line repeated in a
+        row is one event: how many times ("n") and since when ("since")."""
         out = []
         for source in ("dispatcher", "stacks"):
             f = self.home / "logs" / f"{source}.log"
@@ -881,15 +882,17 @@ class Factory:
             for line in lines:
                 m = FEED_LINE.match(line)
                 ts, text = m.groups() if m else (ts, line)
-                if text.strip():
-                    out.append({"ts": ts, "source": source, "text": text})
+                if not text.strip():
+                    continue
+                if m and out and out[-1]["source"] == source and out[-1]["text"] == text:
+                    out[-1].update(n=out[-1]["n"] + 1, ts=ts)
+                else:
+                    out.append({"ts": ts, "source": source, "text": text, "n": 1, "since": ts})
         today = datetime.now().date()
         for p in self.projects():
-            for day in (today - timedelta(days=1), today):
-                for r in self.runs(p, day=day.isoformat()):
-                    out.append({"source": p, "issue": r["issue"], "log": r["log"], "start": r["start"], "end": r["end"],
-                                "exit": r["exit"] if r["end"] else None, "ts": r["end"] or r["start"],
-                                "text": f"{r['stage']} #{r['issue']}"})
+            runs = [r for day in (today - timedelta(days=1), today) for r in self.runs(p, day=day.isoformat())]
+            if runs:
+                out.extend(self.feed_runs(p, runs))
 
         def at(e):
             try:
@@ -897,6 +900,72 @@ class Factory:
             except (ValueError, TypeError):
                 return 0.0
         return {"events": sorted(out, key=at)[-limit:]}  # the sort is stable: untimed lines keep their place
+
+    def feed_runs(self, p, runs):
+        """A feed event per run, with what each one left behind, every piece from its own source: the card's
+        title, the estimated cost of the run's sessions, the pull request and the failed gates its report names,
+        the last line of a run that failed and, on a card's newest run, the column the card is in now. A run with
+        no end is running only while its lock is there, and then it carries its step; otherwise its end was lost."""
+        prices, (columns, _) = self.prices(), self.board(p)
+        titles = self.titles(p, sorted({*columns, *(r["issue"] for r in runs)}))
+        began = lambda x: parse_ts(x["start"]).timestamp()
+        spent, reports, newest = {}, {}, {}
+        live = {(x["stage"], x["issue"]): x for x in self.live(p) if not x["orphan"]}
+        for s in self.sessions(p):  # a session belongs to a run the way a card's Sessions tab pairs them
+            mine = [r for r in runs if r["issue"] == s["issue"] and r["stage"] == s["stage"] and began(r) <= began(s) + 120]
+            if mine:
+                key, c = (mine[-1]["log"], mine[-1]["start"]), self.session_cost(s, prices)
+                spent[key] = None if c is None or spent.get(key, 0) is None else spent.get(key, 0) + c
+        for r in runs:
+            if r["issue"] not in newest or began(r) > began(newest[r["issue"]]):
+                newest[r["issue"]] = r
+
+        def report(r):  # the report this run wrote: its stage, and a file name stamped inside the run
+            if r["issue"] not in reports:
+                reports[r["issue"]] = self.reports(p, r["issue"])
+            stamp = lambda ts: ts[:19].replace(":", "")
+            mine = [x for x in reports[r["issue"]] if x["file"].startswith(r["stage"] + "-")
+                    and stamp(r["start"]) <= x["file"][len(r["stage"]) + 1:-5] <= stamp(r["end"])]
+            return mine[-1] if mine else {}
+
+        def last_line(r):  # what a failed run said last
+            said = ""
+            try:
+                with open(self.pdir(p) / "logs" / r["log"], encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        m = RUN_LINE.match(line)
+                        if m and m.group(1) == "end" and m.group(5) == r["end"]:
+                            return said[:300]
+                        said = "" if m else line.strip() or said
+            except OSError:
+                pass
+            return ""
+
+        out = []
+        for r in runs:
+            n, key = r["issue"], (r["log"], r["start"])
+            e = {"source": p, "issue": n, "stage": r["stage"], "title": titles.get(n, ""), "log": r["log"], "start": r["start"],
+                 "end": r["end"], "exit": r["exit"] if r["end"] else None, "ts": r["end"] or r["start"], "text": f"{r['stage']} #{n}"}
+            if key in spent:
+                e["cost"] = None if spent[key] is None else round(spent[key], 2)
+            if r["end"]:
+                rep = report(r)
+                if isinstance(rep.get("pr"), int):
+                    e["pr"] = rep["pr"]
+                if isinstance(rep.get("failed_gates"), list) and rep["failed_gates"]:
+                    e["failed"] = [str(g) for g in rep["failed_gates"]]
+                if r["exit"]:
+                    e["last"] = last_line(r)
+                if newest[n] is r and columns.get(n):
+                    e.update(column=columns[n], you=columns[n] in OWNER_MOVES)
+            else:
+                now = live.get((r["stage"], n)) if newest[n] is r else None
+                if now is None:
+                    e["lost"] = True
+                elif now["step"]:
+                    e["step"] = {"i": now["step"]["i"], "of": now["steps"], "label": now["step"]["label"]}
+            out.append(e)
+        return out
 
 
 class Handler(BaseHTTPRequestHandler):
