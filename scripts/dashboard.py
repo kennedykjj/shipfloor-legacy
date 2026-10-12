@@ -373,6 +373,13 @@ class Factory:
             return None
         return {"since": since, "reason": why} if since else None
 
+    def me(self):
+        """This factory's GitHub login, read once; None while it cannot be read."""
+        if not getattr(self, "_me", None):
+            user, _ = gh_json("api", "user")
+            self._me = user.get("login") if isinstance(user, dict) else None
+        return self._me
+
     def block_reason(self, p, n):
         """The factory's note about the block (the skills write the step, the output and what was tried there):
         among the issue's last comments, the newest that tells of a block or a failure, a stage's own note before
@@ -381,8 +388,9 @@ class Factory:
         if time.time() - at > 60:
             repo = shipfloor_config.dotted(self.config(p), "project.repo")
             pages, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100", "--paginate", "--slurp")
+            me = self.me()  # anyone can comment on a public repository: the note is one this factory's user wrote
             bodies = [c.get("body") or "" for page in pages or [] for c in (page if isinstance(page, list) else [page])
-                      if isinstance(c, dict)]  # GitHub lists an issue's comments oldest first
+                      if isinstance(c, dict) and (not me or (c.get("user") or {}).get("login", me) == me)]  # oldest first
             told = [b for b in reversed(bodies[-4:]) if re.search(r"\b(blocked|failed)\b", b, re.I)]
             reason = next((b for b in told if "Factory report" not in b[:40]), told[0] if told else "")[:4000]
             self._reasons[(p, n)] = (time.time(), reason)
