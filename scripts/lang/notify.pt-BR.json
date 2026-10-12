@@ -1,0 +1,30 @@
+{
+  "_": "pt-BR for the notifications (shipfloor_notify.py), same shape as dashboard.pt-BR.json: 'exact' replaces a whole text, written in English in the script, and keeps its {placeholders}. Text with no entry stays in English. Card titles are never translated.",
+  "exact": {
+    "{project} · #{n} waits for you": "{project} · #{n} espera você",
+    "{project} · #{n} is blocked": "{project} · #{n} está bloqueado",
+    "{project} · #{n} still waits for you": "{project} · #{n} ainda espera você",
+    "{project} · #{n} reached production": "{project} · #{n} chegou em produção",
+    "Stopped in {stage}": "Parou em {stage}",
+    "blocked in {stage}": "bloqueado em {stage}",
+    "Spec Review": "Revisão da spec",
+    "Staged": "Pronto para aprovar",
+    "spec to review": "spec para revisar",
+    "ready to ship": "pronto para publicar",
+    "refine": "refinamento",
+    "develop": "desenvolvimento",
+    "validate": "validação",
+    "deploy": "deploy",
+    "Shipfloor · the factory is stuck": "Shipfloor · a fábrica travou",
+    "{project} · the factory is stuck": "{project} · a fábrica travou",
+    "The Claude usage limit was hit. New runs wait for it to reset.": "O limite de uso do Claude foi atingido. Novas execuções esperam ele voltar.",
+    "The dispatcher skips this project. The dashboard says why.": "O dispatcher está pulando este projeto. O dashboard diz por quê.",
+    "No card moved for an hour and nothing is paused.": "Nenhum card andou em uma hora e nada está pausado.",
+    "usage limit hit": "limite de uso atingido",
+    "project skipped": "projeto pulado",
+    "no card moved for an hour": "nenhum card andou em uma hora",
+    "Shipfloor · 1 card needs you": "Shipfloor · 1 card precisa de você",
+    "Shipfloor · {n} cards need you": "Shipfloor · {n} cards precisam de você",
+    "and {n} more": "e mais {n}"
+  }
+}
