@@ -1,0 +1,15 @@
+{
+  "issue": 115,
+  "slug": "dashboard-the-accent-marks-a-queue-and-a",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T11:04:00-03:00",
+  "finished_at": "2026-10-12T11:07:00-03:00",
+  "outcome": "ok",
+  "agents": [],
+  "rounds": {"acceptance tests": 0, "implementation": 0, "last gates": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [],
+  "manual_edit": false
+}
