@@ -1,0 +1,13 @@
+{
+  "issue": 78,
+  "slug": "shipfloor-install-replaces-each-script-i",
+  "pipeline": "validate",
+  "outcome": "staged",
+  "agents": [],
+  "rounds": 0,
+  "failed_gates": [],
+  "flaky": ["factory scripts/test/install-atomic.test.sh"],
+  "amendments": [],
+  "pr": "https://github.com/kennedykjj/shipfloor/pull/91",
+  "staged_head": "f2e23c1cd1b63a5a3480b6be34fe672fc8ce666d"
+}
