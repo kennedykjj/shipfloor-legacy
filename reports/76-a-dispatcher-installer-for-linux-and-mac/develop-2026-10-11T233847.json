@@ -1,0 +1,20 @@
+{
+  "issue": 76,
+  "slug": "a-dispatcher-installer-for-linux-and-mac",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T22:46:00-03:00",
+  "finished_at": "2026-10-11T23:39:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 78014, "duration_s": 583},
+    {"role": "engineer", "tokens": 118462, "duration_s": 901}
+  ],
+  "rounds": {"plan": 1, "acceptance_tests": 1, "implementation": 4, "last_gates": 1},
+  "gates_failed": [
+    "green scripts/test/shipfloor-dispatch.test.sh (task 1, round 1: no health line on an overlap exit; fixed in round 2)",
+    "build, twice (gate-stack.test.sh, 3 FAIL under load; not touched by this card, green alone and on the third run)"
+  ],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
