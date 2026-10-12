@@ -624,7 +624,7 @@ const EST = '<span class="est" title="Estimated from the run transcripts\' token
 const UNTITLED = '<span class="untitled" title="The dashboard could not read the issue titles from GitHub (gh).">Title not loaded</span>';
 const outcome = (o) => { const v = String(o || "").toLowerCase(); return OK_OUTCOMES.has(v) ? "ok" : BAD_OUTCOMES.has(v) ? "bad" : "muted"; };
 function tok(n) { if (!n) return "–"; if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
-const clock = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+const timeOf = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 function day(iso) {  // the Feed's day row: Today, Yesterday, else the weekday and date as when() writes dates
   const d = new Date(iso), n = new Date(); const ago = Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
   return ago === 0 ? "Today" : ago === 1 ? "Yesterday" : d.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -1414,8 +1414,8 @@ function renderFeed() {
   const el = $("feed"); const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40, had = document.activeElement?.dataset?.ev;
   let last = "";  // the local calendar day of the last timed event; one without a time stays under the day above
   const html = (S.feed || []).map((e) => {
-    const k = e.ts ? new Date(e.ts).toDateString() : last, row = k !== last ? `<h2 class="ev-day">${esc(day(e.ts))}</h2>` : ""; last = k;
-    const head = `<span class="muted" title="${esc(e.ts)}">${e.ts ? clock(e.ts) : ""}</span><span class="muted">${esc(e.source)}</span>`;
+    const dk = e.ts ? new Date(e.ts).toDateString() : last, row = dk !== last ? `<h2 class="ev-day">${esc(day(e.ts))}</h2>` : ""; last = dk;
+    const head = `<span class="muted" title="${esc(e.ts)}">${e.ts ? timeOf(e.ts) : ""}</span><span class="muted">${esc(e.source)}</span>`;
     if (!e.issue) return `${row}<div class="ev">${head}<span>${esc(e.text)}</span></div>`;
     const id = esc(evId(e)), open = S.feedOpen === evId(e), k = `${esc(e.source)}/${e.issue}`;
     const more = open ? `<div class="ev-more"><pre>${esc(S.feedTail ?? "Reading the log…")}</pre>
@@ -1564,7 +1564,7 @@ document.querySelectorAll("[data-maxable]").forEach((el) => el.insertAdjacentHTM
 $("d-max").innerHTML = MAX;
 $("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
 loadLang().finally(loadOverview);
-setTimeout(() => { if (!S.overview) { $("msg").removeAttribute("role"); setHTML($("msg"),'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); } }, 6000);
+setTimeout(() => { if (!S.overview) { $("msg").removeAttribute("role"); setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); } }, 6000);
 setInterval(loadOverview, 2000);
 setInterval(loadFeed, 5000);
 setInterval(() => { if (S.view === "settings") loadSettings(); }, 10000);
