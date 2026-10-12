@@ -365,6 +365,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .thp .s { position: absolute; right: 19px; bottom: 19px; display: flex; gap: 4px; } .thp .s i { width: 7px; height: 7px; border-radius: 50%; background: var(--k); }
 .thp.two { display: grid; grid-template-columns: 1fr 1fr; padding: 0; background: none; } .thp.two > span { position: relative; padding: 11px 7px; background: var(--ground); } .thp.two .s { right: 13px; }
 @media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow .sv { text-align: left; } }
+.ev-day { margin: 10px 0 0; padding: 0 0 4px; font: 600 12px var(--mono); color: var(--muted); border-bottom: 1px solid var(--edge); } .ev-day:first-child { margin-top: 0; }
 .ev { display: grid; grid-template-columns: 12ch 11ch 1fr; gap: 0 12px; }
 .ev button { all: unset; cursor: pointer; text-decoration: underline; }
 .ev.run b { color: var(--text); } .ev b { font-weight: 500; }
@@ -455,7 +456,7 @@ textarea::placeholder { color: var(--faint); }
 .notice { font-size: 12.5px; color: var(--bad); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .notice:empty { display: none; }
 .notice.good { color: var(--ok); }
-.notice .btn { color: var(--text); }
+.notice .btn, .alerts .btn { color: var(--text); } .alerts .btn:disabled { color: var(--faint); } .alerts .btn { margin-left: 10px; vertical-align: middle; }
 iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
 .review { display: flex; flex-direction: column; height: 100%; }
 .review .none { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
@@ -556,7 +557,7 @@ const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged"
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
 const S = { view: "board", overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "",
-  expanded: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {} };
+  expanded: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {}, resuming: null, resumeErr: null };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
@@ -623,6 +624,11 @@ const EST = '<span class="est" title="Estimated from the run transcripts\' token
 const UNTITLED = '<span class="untitled" title="The dashboard could not read the issue titles from GitHub (gh).">Title not loaded</span>';
 const outcome = (o) => { const v = String(o || "").toLowerCase(); return OK_OUTCOMES.has(v) ? "ok" : BAD_OUTCOMES.has(v) ? "bad" : "muted"; };
 function tok(n) { if (!n) return "–"; if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
+const clock = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+function day(iso) {  // the Feed's day row: Today, Yesterday, else the weekday and date as when() writes dates
+  const d = new Date(iso), n = new Date(); const ago = Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  return ago === 0 ? "Today" : ago === 1 ? "Yesterday" : d.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
+}
 function when(iso) { if (!iso) return "–"; const d = new Date(iso); const t = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }) + " " + t; }
 function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
 const liveRun = (p, n, stage) => S.overview?.runs.find((r) => r.project === p && r.issue === n && r.stage === stage && !r.orphan)?.started || null;
@@ -640,7 +646,7 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 /* overview */
 async function loadOverview() {
   const { status, body } = await api("/api/overview");
-  if (status === 403) { $("band").hidden = $("cols").hidden = true; $("msg").hidden = false; setHTML($("msg"), 'This link belongs to an earlier run of the dashboard. Open the URL that <code>shipfloor dashboard</code> printed.'); return; }
+  if (status === 403) { $("band").hidden = $("cols").hidden = true; $("msg").hidden = false; $("msg").setAttribute("role", "alert"); setHTML($("msg"), 'This link belongs to an earlier run of the dashboard. Open the URL that <code>shipfloor dashboard</code> printed.'); return; }
   if (status !== 200) { if (status) setError(body.error || `the overview answered ${status}`); return; }
   setError("");
   S.overview = body;
@@ -673,11 +679,11 @@ function renderStrip() {
 // The alerts line exists only while something is wrong.
 function renderFlags() {
   const o = S.overview, p = project(), f = [];
-  const add = (k, b, text) => f.push(`<span class="${k}"><b>${b}</b>${text}</span>`);
+  const add = (k, b, text, rs) => f.push(`<span class="${k}"><b>${b}</b>${rs && S.resumeErr === rs.to ? "Still paused: the resume did not go through." : text}${rs ? `<button class="btn ghost" data-resume="${esc(rs.to)}" aria-label="${esc(rs.label)}"${S.resuming === rs.to ? " disabled" : ""}>Resume</button>` : ""}</span>`);
   if (S.offline) add("bad", "Offline", "The dashboard server is not answering. Is <code>shipfloor dashboard</code> still running?");
   else if (S.error) add("bad", "Not updating", esc(S.error));
-  if (o?.paused) add("bad", "Factory paused", "No new run starts. <code>shipfloor resume</code> continues.");
-  if (p?.paused) add("warn", `${esc(p.slug)} paused`, `<code>shipfloor resume ${esc(p.slug)}</code> continues.`);
+  if (o?.paused) add("bad", "Factory paused", "No new run starts. Running sessions finish.", { to: "", label: "Resume the factory" });
+  if (p?.paused) add("warn", `${esc(p.slug)} paused`, "No new run starts there. Running sessions finish.", { to: p.slug, label: `Resume ${p.slug}` });
   if (o?.usage_limited) add("bad", "Usage limit hit", "Agents wait for the limit to reset.");
   for (const x of o?.projects || []) if (x.skipped) add("bad", `${esc(x.slug)} skipped since ${when(x.skipped.since)}`, `${esc(x.skipped.reason)}. Nothing moves there until this is fixed; the Feed has the dispatcher's log.`);
   for (const a of o?.alerts || []) add("warn", "Health", `${esc(a)}. History in <code>~/.shipfloor/logs/health-*.jsonl</code>.`);
@@ -686,6 +692,15 @@ function renderFlags() {
   if ((o?.stacks || []).some((x) => x.state === "stuck")) add("warn", "Stack stuck", "A run environment did not come back; hover Stacks for the slot.");
   if (p && stale(p)) add("warn", `Board ${Math.round(p.board_age_s / 60)} min old`, "Columns may be out of date. Approve and Request changes still read the live board before they move a card.");
   setHTML($("alerts"), f.join(""));
+}
+async function resume(target) {  // the Resume button of a paused alert: "" is the factory, else a project slug
+  if (S.resuming !== null) return;
+  S.resuming = target; S.resumeErr = null; renderFlags();
+  const r = await api("/api/settings/pause", { method: "POST", body: JSON.stringify({ project: target || null, paused: false }) });
+  if (r.status === 200) { if (SET.data) { SET.data = r.body; renderSettings(); } await loadOverview(); } else S.resumeErr = target;
+  S.resuming = null; renderFlags();
+  if (r.status === 200) document.querySelector('[data-view][aria-pressed="true"]')?.focus();
+  else [...document.querySelectorAll("[data-resume]")].find((b) => b.dataset.resume === target)?.focus();
 }
 
 // A panel, or the card drawer, grows out of the place it had (or out of `from`) and shrinks back into it.
@@ -709,7 +724,7 @@ const stale = (p) => p?.board_age_s != null && p.board_age_s > STALE_S;
 const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" ? "stop" : c.blocked === "infra" ? "infra" : c.running ? "run" : c.awaiting ? "you" : "wait";
 function renderBoard() {
   const p = project();
-  $("band").hidden = $("cols").hidden = !p; $("msg").hidden = !!p;
+  $("band").hidden = $("cols").hidden = !p; $("msg").hidden = !!p; $("msg").removeAttribute("role");
   if (!p) { if (S.overview) setHTML($("msg"), 'No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.'); return; }
   const key = (c) => `${p.slug}/${c.issue}`, by = Object.fromEntries(COLS.map((c) => [c.name, []])), now = Date.now();
   for (const c of p.cards) {
@@ -1022,7 +1037,7 @@ function renderDrawer() {
   const d = $("drawer");
   const [op, on] = (S.open || "/").split("/"); const col = S.card?.column || cardOf(op, +on)?.column;
   d.className = "drawer" + (S.open ? " open" : "") + (S.open && (OWNER[col] || S.tab === "review") ? " wide" : "") + (S.busy ? " busy" : "") + (S.open && S.full ? " full" : "");
-  d.inert = !S.open; syncDim();
+  d.inert = !S.open; d.setAttribute("aria-modal", String(!!(S.open && S.full))); syncDim();
   if (!S.open) { ["d-head", "d-decide", "d-tabs", "pane"].forEach((id) => setHTML($(id), "")); return; }
   const c = S.card; const [p, n] = S.open.split("/"); const ov = cardOf(p, +n);
   const column = c?.column || ov?.column || "";
@@ -1397,13 +1412,15 @@ async function loadFeed() {
 const evId = (e) => `${e.source}/${e.log}/${e.start}`;
 function renderFeed() {
   const el = $("feed"); const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40, had = document.activeElement?.dataset?.ev;
+  let last = "";  // the local calendar day of the last timed event; one without a time stays under the day above
   const html = (S.feed || []).map((e) => {
-    const head = `<span class="muted" title="${esc(e.ts)}">${e.ts ? when(e.ts) : ""}</span><span class="muted">${esc(e.source)}</span>`;
-    if (!e.issue) return `<div class="ev">${head}<span>${esc(e.text)}</span></div>`;
+    const k = e.ts ? new Date(e.ts).toDateString() : last, row = k !== last ? `<h2 class="ev-day">${esc(day(e.ts))}</h2>` : ""; last = k;
+    const head = `<span class="muted" title="${esc(e.ts)}">${e.ts ? clock(e.ts) : ""}</span><span class="muted">${esc(e.source)}</span>`;
+    if (!e.issue) return `${row}<div class="ev">${head}<span>${esc(e.text)}</span></div>`;
     const id = esc(evId(e)), open = S.feedOpen === evId(e), k = `${esc(e.source)}/${e.issue}`;
     const more = open ? `<div class="ev-more"><pre>${esc(S.feedTail ?? "Reading the log…")}</pre>
       <div class="acts"><button class="btn" data-full="${k}" data-go="log" data-log="${esc(e.log)}">Whole log</button><button class="btn ghost" data-full="${k}">Open card</button></div></div>` : "";
-    return `<div class="ev ${e.end ? (e.exit === 0 ? "ok" : "bad") : "run"}">${head}<span><button data-ev="${id}" aria-expanded="${open}">${esc(e.text)}</button> <span class="muted">· ${e.end ? dur(e.start, e.end) : `${mins(e.start)}m`} ·</span> <b data-t>${e.end ? (e.exit === 0 ? "ok" : `exit ${e.exit}`) : "running"}</b></span></div>${more}`;
+    return `${row}<div class="ev ${e.end ? (e.exit === 0 ? "ok" : "bad") : "run"}">${head}<span><button data-ev="${id}" aria-expanded="${open}">${esc(e.text)}</button> <span class="muted">· ${e.end ? dur(e.start, e.end) : `${mins(e.start)}m`} ·</span> <b data-t>${e.end ? (e.exit === 0 ? "ok" : `exit ${e.exit}`) : "running"}</b></span></div>${more}`;
   }).join("");
   if (!setHTML(el, html || '<p class="placeholder">Nothing logged yet.</p>')) return;
   if (had) el.querySelector(`[data-ev="${CSS.escape(had)}"]`)?.focus({ preventScroll: true });
@@ -1451,9 +1468,10 @@ function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog
 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
-  const t = e.target.closest("[data-step],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-resume],[data-step],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
-  if (t.dataset.step) setStep(t);
+  if (t.hasAttribute("data-resume")) resume(t.dataset.resume);
+  else if (t.dataset.step) setStep(t);
   else if (t.dataset.themePick) { theme(t.dataset.themePick); renderSettings(); themeReview(); }
   else if (t.dataset.setsec) { SET.sec = t.dataset.setsec; renderSettings(); }
   else if (t.dataset.fold) {
@@ -1499,6 +1517,14 @@ document.addEventListener("change", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   const typing = e.target.closest?.("textarea, input, select");
+  if (e.key === "Tab" && S.open && S.full && !e.ctrlKey && !e.metaKey && !e.altKey) {  // the maximized drawer is modal: Tab cycles inside it; the side drawer leaves to the board
+    const dr = $("drawer"), f = [...dr.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')].filter((x) => !x.disabled && x.tabIndex >= 0 && x.getClientRects().length);
+    const a = document.activeElement, i = f.indexOf(a);
+    if (!f.length) e.preventDefault();
+    else if (!dr.contains(a)) { e.preventDefault(); f[0].focus(); }
+    else if (e.shiftKey ? i <= 0 : i === f.length - 1) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
+    return;
+  }
   if (e.key === "Escape" && S.peek && !S.open) { peek(S.peek); return; }
   if (!typing && inboxOn() && /^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); document.querySelector(`[data-io="${+e.key - 1}"]`)?.click(); return; }
   if (e.key === "Escape" && !typing && maxed()) { maximize(maxed(), false); return; }
@@ -1538,7 +1564,7 @@ document.querySelectorAll("[data-maxable]").forEach((el) => el.insertAdjacentHTM
 $("d-max").innerHTML = MAX;
 $("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
 loadLang().finally(loadOverview);
-setTimeout(() => { if (!S.overview) setHTML($("msg"), 'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); }, 6000);
+setTimeout(() => { if (!S.overview) { $("msg").removeAttribute("role"); setHTML($("msg"),'Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.'); } }, 6000);
 setInterval(loadOverview, 2000);
 setInterval(loadFeed, 5000);
 setInterval(() => { if (S.view === "settings") loadSettings(); }, 10000);
