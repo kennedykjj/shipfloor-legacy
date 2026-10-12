@@ -200,7 +200,7 @@
     "Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.": "Ainda lendo a fábrica. A primeira leitura processa a transcrição de cada execução e pede ao GitHub os títulos das issues, então pode levar alguns segundos.",
     "Title not loaded": "Título não carregado",
     "The dashboard could not read the issue titles from GitHub (gh).": "O dashboard não conseguiu ler os títulos das issues no GitHub (gh).",
-    "A model in this card has no price. Add it to ~/.shipfloor/prices.yml.": "Um modelo deste card não tem preço. Adicione em ~/.shipfloor/prices.yml.",
+    "A model in this card has no price, so its cost is unknown and the cost limits skip it. Add it to ~/.shipfloor/prices.yml.": "Um modelo deste card não tem preço, então o custo é desconhecido e os limites de custo não o contam. Adicione em ~/.shipfloor/prices.yml.",
     "Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml": "Estimado pelos tokens das transcrições e por ~/.shipfloor/prices.yml",
     "Cache read plus cache written; hover a row for the split": "Cache lido mais cache escrito; passe o mouse numa linha para ver a divisão",
     "Sessions running now, out of the pool size": "Sessões rodando agora, sobre o tamanho do pool",
@@ -242,7 +242,7 @@
     "how much runs at once": "quanto roda ao mesmo tempo",
     "Projects": "Projetos",
     "Costs": "Custos",
-    "the prices behind the estimate": "os preços por trás da estimativa",
+    "limits and the prices behind the estimate": "limites e os preços por trás da estimativa",
     "Themes": "Temas",
     "how this dashboard looks": "a aparência deste dashboard",
     "How this dashboard looks. The choice is kept in this browser and changes nothing in the factory.": "A aparência deste dashboard. A escolha fica neste navegador e não muda nada na fábrica.",
@@ -314,6 +314,21 @@
     "board on GitHub": "quadro no GitHub",
     "The settings were not saved.": "As configurações não foram salvas.",
     "The pause did not go through.": "A pausa não foi aplicada.",
+    "This card's estimate passed the warning set in Settings, Costs. Nothing stops until the block limit.": "A estimativa deste card passou do aviso definido em Configurações, Custos. Nada para até o limite de bloqueio.",
+    ", over the cost warning": ", acima do aviso de custo",
+    "Runs stopped for today": "Execuções paradas por hoje",
+    "Stopped for today by the cost limit": "Parado por hoje pelo limite de custo",
+    "A card reached its cost limit": "Um card chegou ao limite de custo",
+    "cost limit": "limite de custo",
+    "est. cost": "custo est.",
+    "Limits": "Limites",
+    "Warn on a card": "Avisar em um card",
+    "Flags a card whose estimate passes this. Nothing stops.": "Marca o card cuja estimativa passa disto. Nada para.",
+    "Block a card": "Bloquear um card",
+    "Its next run does not start and the card waits for your call. Unblocking grants the same amount again.": "A próxima execução não começa e o card espera sua decisão. Desbloquear libera o mesmo valor de novo.",
+    "Stop the day": "Parar o dia",
+    "Past this, across every project, no new run starts until tomorrow. Sessions already running finish.": "Acima disto, somando todos os projetos, nenhuma execução começa até amanhã. As sessões em andamento terminam.",
+    "Enter an amount above 0, or leave it empty for no limit.": "Informe um valor acima de 0, ou deixe vazio para sem limite.",
     "Notifications": "Notificações",
     "when the factory needs you": "quando a fábrica precisa de você",
     "The factory tells you when it waits for you or stops by itself. These settings are this machine's, for every project. A change applies from the dispatcher's next cycle.": "A fábrica avisa quando espera você ou para sozinha. Estas configurações são desta máquina, para todos os projetos. Uma mudança vale a partir do próximo ciclo do dispatcher.",
@@ -414,6 +429,54 @@
     [
       "starts again at (\\d\\d:\\d\\d)",
       "volta a iniciar às $1"
+    ],
+    [
+      "Blocked · cost limit",
+      "Bloqueado · limite de custo"
+    ],
+    [
+      "over \\$(\\d+)\\.(\\d+) est\\.",
+      "acima de $$$1,$2 est."
+    ],
+    [
+      "over \\$(\\d+) est\\.",
+      "acima de $$$1 est."
+    ],
+    [
+      "Today's estimate, \\$(\\d+)\\.(\\d+), passed the day limit of \\$(\\d+)\\.(\\d+)\\. Sessions already running finish; runs start again tomorrow\\. The limit is in Settings, Costs\\.",
+      "A estimativa de hoje, $$$1,$2, passou do limite do dia de $$$3,$4. As sessões em andamento terminam; as execuções voltam amanhã. O limite fica em Configurações, Custos."
+    ],
+    [
+      "Spent \\$(\\d+)\\.(\\d+) est\\. since it was last unblocked; the limit for a card is \\$(\\d+)\\.(\\d+)\\.",
+      "Gastou $$$1,$2 est. desde o último desbloqueio; o limite por card é $$$3,$4."
+    ],
+    [
+      "Spent \\$(\\d+)\\.(\\d+) est\\. since Inbox; the limit for a card is \\$(\\d+)\\.(\\d+)\\.",
+      "Gastou $$$1,$2 est. desde o Inbox; o limite por card é $$$3,$4."
+    ],
+    [
+      "\\$(\\d+)\\.(\\d+) est\\. since Inbox\\.",
+      "$$$1,$2 est. desde o Inbox."
+    ],
+    [
+      "Unblocking lets it spend up to \\$(\\d+)\\.(\\d+) more, counted from now\\.",
+      "Desbloquear deixa o card gastar até mais $$$1,$2, contados a partir de agora."
+    ],
+    [
+      "The warning cannot be above the block \\(\\$(\\d+)\\.(\\d+)\\)\\.",
+      "O aviso não pode ficar acima do bloqueio ($$$1,$2)."
+    ],
+    [
+      "The warning cannot be above the block \\(\\$(\\d+)\\)\\.",
+      "O aviso não pode ficar acima do bloqueio ($$$1)."
+    ],
+    [
+      "(\\d+) cards ran on a model with no price\\. The limits do not count them\\.",
+      "$1 cards rodaram em um modelo sem preço. Os limites não os contam."
+    ],
+    [
+      "(\\d+) card ran on a model with no price\\. The limits do not count it\\.",
+      "$1 card rodou em um modelo sem preço. Os limites não o contam."
     ],
     [
       "Running · last cycle (\\S+) ago",
