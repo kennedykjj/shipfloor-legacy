@@ -109,3 +109,13 @@ def cost(tokens, prices):
 
 def rounded(usd):
     return None if usd is None else round(usd, 2)
+
+
+def per_card(runs):
+    """The mean cost of a card from [(card, US$ or None)], one entry per session: a card's cost is the sum of its
+    sessions, and a card with an unpriced session is left out. Never a zero for nothing: avg is None with 0 cards."""
+    sums = {}
+    for card, usd in runs:
+        sums[card] = None if usd is None or sums.get(card, 0) is None else sums.get(card, 0) + usd
+    priced = [v for v in sums.values() if v is not None]
+    return {"avg": rounded(sum(priced) / len(priced)) if priced else None, "cards": len(priced)}
