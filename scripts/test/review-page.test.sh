@@ -65,4 +65,26 @@ assert_exit 0 bash "$GEN" "$d/legacy.md" 26 feat/26-x "$d/out/26.html"
 data="$(ids "$d/out/26.html")"
 assert_contains "$data" "d-vidas=False;produto=True"
 assert_exit 2 bash "$GEN" "$d/missing.md" 25 feat/25-x "$d/out/x.html"
+
+# AC-8: the page served without embed=1 is the standalone page: it carries no dashboard marks, even when marks are stored
+nat() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
+PY=python3; $PY -c '' 2>/dev/null || PY=python
+H="$SHIPFLOOR_HOME"; P="$H/projects/shop"; mkdir -p "$P/logs" "$P/locks" "$P/reviews"
+printf 'shop\t/x/shop\t/x/wt\tmain\n' > "$H/registry.tsv"
+cp "$FACTORY_DIR/test/fixture/factory.yml" "$P/factory.yml"
+cp "$d/out/25.html" "$P/reviews/25.html"
+rev="$($PY -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest()[:16])' "$(nat "$P/reviews/25.html")")"
+printf '{"rev":"%s","marks":{"product":{"s":"chg","n":"a stored note"}}}' "$rev" > "$P/reviews/25.marks.json"
+export FAKE_GH_DIR="$d" FACTORY_GH="$FACTORY_DIR/test/fake-gh" FAKE_GH_NO_JQ=1 CLAUDE_CONFIG_DIR="$(nat "$d")"
+$PY -I "$(nat "$FACTORY_DIR/dashboard.py")" --home "$(nat "$H")" --port 0 --no-open > "$d/dash-out" 2>&1 &
+srv=$!; trap 'kill $srv 2>/dev/null' EXIT
+for _ in $(seq 1 50); do grep -qs 'http://' "$d/dash-out" && break; sleep 0.1; done
+url="$(grep -o 'http://[^ ]*' "$d/dash-out" | tr -d '\r')"; base="${url%%/?t=*}"; tok="${url##*t=}"
+# not vacuous: the same stored marks do reach the embedded page
+case "$(curl -s "$base/review/shop/25?embed=1&t=$tok")" in *'"a stored note"'*) pass "AC-8 precondition: stored marks reach the embedded page" ;; *) fail "AC-8 precondition: stored marks do not reach the embedded page" ;; esac
+plain="$(curl -s "$base/review/shop/25?t=$tok")"
+assert_contains "$plain" "Spec review #25"
+case "$plain" in *__shipfloorMarks*) fail "AC-8 the page without embed=1 carries __shipfloorMarks" ;; *) pass "AC-8 the page without embed=1 carries no __shipfloorMarks" ;; esac
+case "$plain" in *"a stored note"*) fail "AC-8 the page without embed=1 carries stored marks" ;; *) pass "AC-8 the page without embed=1 carries no stored marks" ;; esac
+[ "$plain" = "$(cat "$P/reviews/25.html")" ] && pass "AC-8 the page without embed=1 is served as it is on disk" || fail "AC-8 the page without embed=1 differs from the file"
 finish
