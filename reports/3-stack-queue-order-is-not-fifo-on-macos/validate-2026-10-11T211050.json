@@ -1,0 +1,1 @@
+{"outcome": "staged", "pipeline": "validate", "issue": 3, "agents": ["engineer (merge conflict in scripts/lib/stack.sh)"], "rounds": 0, "failed_gates": [], "flaky": [], "amendments": [], "pr": "https://github.com/kennedykjj/shipfloor/pull/69"}
