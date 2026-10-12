@@ -27,6 +27,8 @@ DEFAULTS = {
     # cards in the WIP columns; runs at once are the machine's (pool and stage slots), and deploy is serial per project
     "limits": {"refine": {"wip": 2}, "develop": {"wip": 4}, "validate": {"wip": 0}, "deploy": {"wip": 0}},
     "context": [], "forbidden": [], "review_criteria": "",
+    # whose issue comments the agents read besides the factory's own GitHub user: logins, or "*" for anyone
+    "trusted_commenters": [],
     # acceptance-intact lets through an edit to an acceptance test that adds or removes no line matching this. "" = every edit blocks.
     "acceptance_assertions": "",
 }
@@ -114,6 +116,9 @@ def problems(cfg):
     for key in ("context", "forbidden"):
         if key in cfg and not is_str_list(cfg[key]):
             errs.append(f"{key} must be a list of strings")
+    who = cfg.get("trusted_commenters", [])
+    if not is_str_list(who) or any(w != "*" and not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\[bot\])?", w) for w in who):
+        errs.append('trusted_commenters must be a list of GitHub logins, or ["*"] for anyone')
     if not isinstance(cfg.get("review_criteria", ""), str):
         errs.append("review_criteria must be a path")
     if cfg.get("language", "en") not in LANGS:
