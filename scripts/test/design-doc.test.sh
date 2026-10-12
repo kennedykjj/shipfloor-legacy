@@ -156,6 +156,31 @@ check("AC-6 every sidecar typography entry is in the front matter", not badt, "n
 gen = str(sidecar.get("generatedAt", ""))[:10]
 check("AC-6 generatedAt is on or after 2026-10-11", gen >= "2026-10-11", f"generatedAt is {gen or 'missing'}")
 
+# AC-7: the waiting tile and the pool bar are described as the page draws them (#115)
+def section(title, level):
+    s = re.search(r"^#{%d}[ \t]*%s[ \t]*\n(.*?)(?=^#{1,%d}[ \t]|\Z)" % (level, re.escape(title), level), design, flags=re.S | re.M)
+    return s.group(1) if s else ""
+prog = section("In Progress", 3)
+sett = section("Settings", 3)
+check("AC-7 DESIGN.md no longer says a tile \"says why in the accent\"", "says why in the accent" not in design,
+      "DESIGN.md still says \"says why in the accent\"")
+miss = [w for w, ok_ in (("a section \"In Progress\"", bool(prog)),
+                         ("hollow", re.search(r"hollow", prog, flags=re.I) is not None),
+                         ("`muted`", "`muted`" in prog), ("`soft`", "`soft`" in prog), ("`warn`", "`warn`" in prog),
+                         ("infrastructure", re.search(r"infrastructure", prog, flags=re.I) is not None),
+                         ("the accent only on a tile that waits for the owner", re.search(r"accent[^.]*\bowner\b|\bowner\b[^.]*accent", prog) is not None),
+                         ("the cost staying in the accent as money", re.search(r"cost[^.]*money|money[^.]*cost", prog) is not None)) if not ok_]
+check("AC-7 the In Progress paragraph describes the waiting tile's ring and reason (muted, soft, warn, accent only for the owner)", not miss,
+      "the In Progress section does not mention " + ", ".join(miss))
+pb = re.search(r"[^.\n]*pool bar[^\n]*", sett)
+check("AC-7 the Settings pool bar sentence names validate", bool(pb) and "`validate`" in pb.group(0),
+      "the Settings pool bar sentence does not name `validate`" if pb else "the Settings section has no pool bar sentence")
+check("AC-7 the Settings pool bar sentence names the hue of every stage (refine, text, validate, ok)",
+      bool(pb) and all(t in pb.group(0) for t in ("`refine`", "`text`", "`validate`", "`ok`")),
+      "the Settings pool bar sentence misses one of `refine`, `text`, `validate`, `ok`")
+check("AC-7 the Themes token list ends with refine, validate", re.search(r"`refine`,\s*`validate`", tsec) is not None,
+      "the Themes section's token list does not end with `refine`, `validate`")
+
 print("\n".join(res))
 PY
 )"
