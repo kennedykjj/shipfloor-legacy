@@ -62,12 +62,14 @@ up() {
   down || exit 1
   mkdir -p "$STATE/user" || exit 1
   "$PY" -I "$(nat "$HERE/demo_home.py")" "$(nat "$STATE")" || fail "cannot build the sample"
+  # an LF copy of the stand-in: a checkout with core.autocrlf gives demo-gh CRLF, which breaks its shebang and its split
+  tr -d '\r' < "$HERE/demo-gh" > "$STATE/gh/demo-gh" && chmod +x "$STATE/gh/demo-gh" || fail "cannot copy the gh stand-in"
   bash_n="$(nat "$(command -v bash)")"; state_n="$(nat "$STATE")"
   (
     for v in $(compgen -v FACTORY_; compgen -v SHIPFLOOR_; compgen -v AGHANIM_); do unset "$v"; done
     export HOME="$STATE/user" USERPROFILE="$state_n/user"
     export SHIPFLOOR_HOME="$state_n/home" CLAUDE_CONFIG_DIR="$state_n/claude" SHIPFLOOR_BASH="$bash_n"
-    export FACTORY_GH="$HERE/demo-gh" SHIPFLOOR_DEMO_GH="$state_n/gh" SHIPFLOOR_DEMO_STATE="$state_n"
+    export FACTORY_GH="$STATE/gh/demo-gh" SHIPFLOOR_DEMO_GH="$state_n/gh" SHIPFLOOR_DEMO_STATE="$state_n"
     export SHIPFLOOR_SCHEDULER="\"$bash_n\" -c 'echo \"\$1\" >> \"\$SHIPFLOOR_DEMO_STATE/scheduler.log\"' stub"
     exec "$PY" -I "$(nat "$HERE/../dashboard.py")" --home "$state_n/home" --port "$PORT" --token "$TOKEN" --no-open
   ) > "$STATE/server.log" 2>&1 < /dev/null &
