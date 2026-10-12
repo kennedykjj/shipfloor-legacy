@@ -54,14 +54,17 @@ cmd_install() {
   mkdir -p "$INSTALLED/templates"
   # drop what the plugin no longer ships (e.g. the legacy aghanim scripts carried over by migrate-home): scripts, then templates
   while IFS= read -r f; do
-    [ -f "$src/scripts/$f" ] || { rm -f "$INSTALLED/$f" && ndel=$((ndel+1)); }
+    [ -f "$src/scripts/$f" ] || { if rm -f "$INSTALLED/$f" && [ ! -e "$INSTALLED/$f" ]; then ndel=$((ndel+1)); else nbad=$((nbad+1)); echo "shipfloor: could not replace ${f#./}" >&2; fi; }
   done < <(cd "$INSTALLED" && find . -type f ! -name .source ! -name '.*.install-tmp' ! -path './templates/*' -print)
   while IFS= read -r f; do
-    [ -f "$src/templates/$f" ] || { rm -f "$INSTALLED/templates/$f" && ndel=$((ndel+1)); }
+    [ -f "$src/templates/$f" ] || { if rm -f "$INSTALLED/templates/$f" && [ ! -e "$INSTALLED/templates/$f" ]; then ndel=$((ndel+1)); else nbad=$((nbad+1)); echo "shipfloor: could not replace templates/${f#./}" >&2; fi; }
   done < <(cd "$INSTALLED/templates" && find . -type f ! -name '.*.install-tmp' -print)
   while IFS= read -r d; do rmdir "$d" 2>/dev/null; done < <(find "$INSTALLED" -mindepth 1 -depth -type d ! -path "$INSTALLED/templates")  # only the empty ones go
   # .source last and only when all is in place: doctor then never says "matches" for a half copy
-  if [ "$nbad" = 0 ] && [ "$(cat "$INSTALLED/.source" 2>/dev/null)" != "$src" ]; then echo "$src" > "$INSTALLED/.source"; fi
+  if [ "$nbad" = 0 ]; then  # by rename too: other commands read it while an install runs
+    echo "$src" > "$SHIPFLOOR_HOME/.source.new"; put_file "$SHIPFLOOR_HOME/.source.new" "$INSTALLED/.source"; rm -f "$SHIPFLOOR_HOME/.source.new"
+    [ "$PUT" = failed ] && { nbad=$((nbad+1)); echo "shipfloor: could not replace .source" >&2; }
+  fi
   echo "installed $src → $INSTALLED: $nrep replaced, $nadd added, $ndel removed"
   echo "next: shipfloor add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
   [ "$nbad" = 0 ]
