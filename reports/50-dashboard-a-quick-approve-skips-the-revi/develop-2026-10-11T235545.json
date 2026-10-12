@@ -1,0 +1,17 @@
+{
+  "issue": 50,
+  "slug": "dashboard-a-quick-approve-skips-the-revi",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T02:38:00Z",
+  "finished_at": "2026-10-12T02:56:00Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 64391, "duration_s": 443},
+    {"role": "engineer", "tokens": 70478, "duration_s": 158}
+  ],
+  "rounds": {"3": 0, "4": 0},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
