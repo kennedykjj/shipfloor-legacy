@@ -1,0 +1,26 @@
+{
+  "issue": 37,
+  "slug": "settings-a-language-section-for-the-page",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T02:21:00Z",
+  "finished_at": "2026-10-12T02:38:00Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 44094, "duration_s": 83},
+    {"role": "engineer (T1 dashboard server)", "tokens": 23612, "duration_s": 62},
+    {"role": "qa-engineer (amend 1, AC-6 fixture)", "tokens": 16285, "duration_s": 28},
+    {"role": "engineer (T2 Settings view, catalog, README)", "tokens": 53291, "duration_s": 207},
+    {"role": "qa-engineer (amend 2, jget encoding)", "tokens": 16232, "duration_s": 24}
+  ],
+  "rounds": {"plan": 1, "acceptance_tests": 1, "T1": 1, "T2": 1, "qa_amend": 2, "last_gates": 1},
+  "gates_failed": [
+    "build after T1 (expected: only the page and catalog checks of the acceptance test, which are T2)",
+    "green after T2 (2 AC-1 checks garbled by the test helper's encoding on Windows; amended by QA)"
+  ],
+  "flaky": [],
+  "amendments": [
+    "scripts/test/dashboard-language.test.sh: the AC-6 fixture wrote stacks as a mapping, an invalid config.yml; now stacks: 2. No assertion changed.",
+    "scripts/test/dashboard-language.test.sh: the jget helper runs Python with -X utf8, so non-ASCII catalog values compare equal on Windows too. No assertion changed."
+  ],
+  "manual_edit": false
+}
