@@ -1059,7 +1059,7 @@ class Factory:
     def feed_runs(self, p, runs):
         """A feed event per run, with what each one left behind, every piece from its own source: the card's
         title, the estimated cost of the run's sessions, the pull request and the failed gates its report names,
-        the last line of a run that failed and, on a card's newest run, the column the card is in now. A run with
+        and, on a card's newest run, the column the card is in now. A run with
         no end is running only while its lock is there, and then it carries its step; otherwise its end was lost."""
         prices, (columns, _) = self.prices(), self.board(p)
         titles = self.titles(p, sorted({*columns, *(r["issue"] for r in runs)}))
@@ -1083,19 +1083,6 @@ class Factory:
                     and stamp(r["start"]) <= x["file"][len(r["stage"]) + 1:-5] <= stamp(r["end"])]
             return mine[-1] if mine else {}
 
-        def last_line(r):  # what a failed run said last
-            said = ""
-            try:
-                with open(self.pdir(p) / "logs" / r["log"], encoding="utf-8", errors="replace") as f:
-                    for line in f:
-                        m = RUN_LINE.match(line)
-                        if m and m.group(1) == "end" and m.group(5) == r["end"]:
-                            return said[:300]
-                        said = "" if m else line.strip() or said
-            except OSError:
-                pass
-            return ""
-
         out = []
         for r in runs:
             n, key = r["issue"], (r["log"], r["start"])
@@ -1109,8 +1096,6 @@ class Factory:
                     e["pr"] = rep["pr"]
                 if isinstance(rep.get("failed_gates"), list) and rep["failed_gates"]:
                     e["failed"] = [str(g) for g in rep["failed_gates"]]
-                if r["exit"]:
-                    e["last"] = last_line(r)
                 if newest[n] is r and columns.get(n):
                     e.update(column=columns[n], you=columns[n] in OWNER_MOVES)
             else:
