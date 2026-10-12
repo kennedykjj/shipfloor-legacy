@@ -49,7 +49,7 @@ On deploy, what breaks on top of `main` is repaired in place. Conflicts are reso
 ```bash
 claude plugin marketplace add <path or URL of this repo>
 claude plugin install sf@shipfloor
-bash <plugin>/scripts/shipfloor install     # copies scripts and templates to ~/.shipfloor/factory
+bash <plugin>/scripts/shipfloor install     # copies scripts and templates to ~/.shipfloor/factory; refuses a clone that is not a clean, up-to-date main (--force installs anyway and says so)
 alias shipfloor='bash ~/.shipfloor/factory/shipfloor'
 shipfloor doctor
 ```

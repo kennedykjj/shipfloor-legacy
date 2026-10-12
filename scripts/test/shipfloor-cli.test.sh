@@ -13,7 +13,7 @@ with_config() {  # with_config <yaml>: a repo whose origin/main carries that con
 }
 
 # install copies the scripts and templates to a fixed place, without the tests
-assert_exit 0 bash "$M" install
+assert_exit 0 bash "$(plugin_copy)/scripts/shipfloor" install
 for f in gate.sh board.sh dispatch.sh shipfloor-dispatch.sh shipfloor-config.sh shipfloor_config.py lib/project.sh shipfloor templates/spec-template.md; do
   [ -f "$SHIPFLOOR_HOME/factory/$f" ] && pass "installed $f" || fail "missing $f"
 done

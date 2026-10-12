@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shipfloor: installs the factory scripts and manages the projects the dispatcher serves.
-#   install                       copy scripts and templates to ~/.shipfloor/factory
+#   install [--force]             copy scripts and templates to ~/.shipfloor/factory
 #   doctor                        check tools, the installed copy and every project's config
 #   add <repo> [--worktrees DIR]  register a local clone whose origin/main has .shipfloor/factory.yml
 #   remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>
@@ -26,21 +26,63 @@ source_dir() {  # the plugin checkout this copy came from
   if [ -f "$HERE/.source" ]; then cat "$HERE/.source"; else (cd "$HERE/.." && pwd); fi
 }
 
+main_of() {  # main_of <clone>: its main branch, as cmd_add reads it
+  local m; m="$(git -C "$1" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null)"; m="${m#origin/}"; echo "${m:-main}"
+}
+SRC_REASONS=()
+source_state() {  # source_state <src>: why the clone is not a clean, current main (SRC_REASONS: "reason<TAB>what to do"), and what it read
+  local src="$1" ahead behind n=0 f list="" tab=$'\t'
+  SRC_GIT=0; SRC_REASONS=(); [ -e "$src/.git" ] || return 0  # -e: in a worktree .git is a file
+  SRC_GIT=1
+  SRC_MAIN="$(main_of "$src")"
+  SRC_COMMIT="$(git -C "$src" rev-parse HEAD)"; SRC_BRANCH="$(git -C "$src" symbolic-ref -q --short HEAD)"
+  if [ -z "$SRC_BRANCH" ]; then SRC_REASONS+=("on a detached HEAD at $(git -C "$src" rev-parse --short HEAD), not $SRC_MAIN${tab}git -C $src checkout $SRC_MAIN")
+  elif [ "$SRC_BRANCH" != "$SRC_MAIN" ]; then SRC_REASONS+=("on branch $SRC_BRANCH, not $SRC_MAIN${tab}git -C $src checkout $SRC_MAIN"); fi
+  while IFS= read -r f; do
+    n=$((n+1)); [ "$n" -le 10 ] && list="${list:+$list, }${f:3}"
+  done < <(git -C "$src" -c core.quotePath=false status --porcelain --untracked-files=no)
+  [ "$n" -gt 10 ] && list="$list, and $((n-10)) more"
+  [ "$n" -gt 0 ] && SRC_REASONS+=("$n tracked file(s) with uncommitted changes: $list${tab}commit or stash them")
+  if GIT_TERMINAL_PROMPT=0 git -C "$src" fetch -q origin "$SRC_MAIN" 2>/dev/null; then
+    read -r ahead behind < <(git -C "$src" rev-list --left-right --count "HEAD...origin/$SRC_MAIN")
+    [ "$behind" -gt 0 ] && SRC_REASONS+=("$behind commit(s) behind origin/$SRC_MAIN${tab}git -C $src pull")
+    [ "$ahead" -gt 0 ] && SRC_REASONS+=("$ahead commit(s) ahead of origin/$SRC_MAIN${tab}they are not merged; push and merge them first")
+  else SRC_REASONS+=("could not check the remote (git fetch origin $SRC_MAIN failed)${tab}check the network and the origin remote"); fi
+  return 0
+}
+
 cmd_install() {
-  local src; src="$(source_dir)"
+  local src force=0 r kind=verified; src="$(source_dir)"
+  while [ $# -gt 0 ]; do
+    case "$1" in --force) force=1; shift ;; *) die "usage: shipfloor install [--force]" 2 ;; esac
+  done
   [ -f "$src/scripts/gate.sh" ] || die "cannot find the plugin at $src"
+  source_state "$src"
+  if [ ${#SRC_REASONS[@]} -gt 0 ]; then
+    if [ "$force" = 0 ]; then
+      echo "shipfloor: not installing from $src:" >&2
+      for r in "${SRC_REASONS[@]}"; do echo "  ${r%%$'\t'*}: ${r#*$'\t'}" >&2; done
+      echo "install anyway: shipfloor install --force" >&2; exit 1
+    fi
+    kind=forced
+  fi
   mkdir -p "$INSTALLED" "$SHIPFLOOR_HOME/projects" "$SHIPFLOOR_HOME/logs"
   (cd "$src/scripts" && find . -path ./test -prune -o -type f -print) | while IFS= read -r f; do
     mkdir -p "$INSTALLED/$(dirname "$f")"; cp "$src/scripts/$f" "$INSTALLED/$f"
   done
   # drop what the plugin no longer ships (e.g. the legacy aghanim scripts carried over by migrate-home)
-  (cd "$INSTALLED" && find . -type f ! -name .source ! -path './templates/*' -print) | while IFS= read -r f; do
+  (cd "$INSTALLED" && find . -type f ! -name .source ! -name .origin ! -path './templates/*' -print) | while IFS= read -r f; do
     [ -f "$src/scripts/$f" ] || rm -f "$INSTALLED/$f"
   done
   rm -rf "$INSTALLED/templates"; cp -r "$src/templates" "$INSTALLED/templates"
   echo "$src" > "$INSTALLED/.source"
+  if [ "$SRC_GIT" = 1 ]; then printf '%s\t%s\t%s\n' "$SRC_COMMIT" "${SRC_BRANCH:-detached}" "$kind" > "$INSTALLED/.origin"; else rm -f "$INSTALLED/.origin"; fi
   echo "installed $src → $INSTALLED"
   echo "next: shipfloor add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
+  if [ "$kind" = forced ]; then
+    local why=""; for r in "${SRC_REASONS[@]}"; do why="${why:+$why; }${r%%$'\t'*}"; done
+    echo "WARN installed copy is not a verified $SRC_MAIN: branch ${SRC_BRANCH:-detached}, commit $(git -C "$src" rev-parse --short HEAD) ($why)"
+  fi
 }
 
 cmd_doctor() {
@@ -53,9 +95,17 @@ cmd_doctor() {
   fi
   src="$(source_dir)"
   if [ ! -d "$INSTALLED" ]; then echo "FAIL not installed (shipfloor install)"; bad=1
-  elif diff -rq -x test -x .source "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
+  elif diff -rq -x test -x .source -x .origin "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
   else echo "WARN installed copy differs from $src (shipfloor install)"; fi
+  if [ -d "$INSTALLED" ]; then
+    local oc="" ob="" ov=""; IFS=$'\t' read -r oc ob ov 2>/dev/null < "$INSTALLED/.origin"
+    case "$ov" in
+      verified) echo "ok   installed from $ob at ${oc:0:7}" ;;
+      forced) echo "WARN installed copy was forced from branch $ob at ${oc:0:7}, not a verified $(main_of "$src") (shipfloor install from a clean main)" ;;
+      *) echo "WARN installed copy has no recorded commit (not a git clone, or installed before this check)" ;;
+    esac
+  fi
   local alert
   while IFS= read -r alert; do
     [ -n "$alert" ] && echo "WARN health: $alert (~/.shipfloor/logs/health-*.jsonl)"
@@ -226,7 +276,7 @@ cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
-  install) cmd_install ;;
+  install) cmd_install "$@" ;;
   doctor) cmd_doctor ;;
   add) cmd_add "$@" ;;
   remove) cmd_remove "$@" ;;
