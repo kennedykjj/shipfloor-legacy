@@ -1,0 +1,14 @@
+{
+  "issue": 52,
+  "slug": "dashboard-a-link-from-an-earlier-run-is",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T01:27:00-03:00",
+  "finished_at": "2026-10-12T01:33:00-03:00",
+  "outcome": "infra",
+  "agents": [],
+  "rounds": {"5": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
