@@ -1,0 +1,14 @@
+{
+  "issue": 72,
+  "slug": "a-demo-stack-the-dashboard-served-with-s",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T02:24:00-03:00",
+  "finished_at": "2026-10-12T02:30:00-03:00",
+  "outcome": "infra",
+  "agents": [],
+  "rounds": {"last_gates": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
