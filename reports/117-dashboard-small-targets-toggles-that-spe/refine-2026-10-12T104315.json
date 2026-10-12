@@ -1,0 +1,17 @@
+{
+  "issue": 117,
+  "slug": "dashboard-small-targets-toggles-that-spe",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T10:39:03",
+  "finished_at": "2026-10-12T10:43:02",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 34543, "duration_s": 37},
+    {"role": "ux-designer", "tokens": 62681, "duration_s": 96}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
