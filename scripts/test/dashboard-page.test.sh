@@ -71,11 +71,12 @@ check("AC-3",
   None if 'aria-modal="false"' in static else 'the static #drawer markup lost aria-modal="false"',
   None if guard else "the Tab trap is not limited to the maximized drawer: the side drawer must leave to the board")
 
-# AC-4
-l403 = next((l for l in h.split("\n") if "status === 403" in l), "")
-role = re.search(r"""setAttribute\(\s*["']role["']\s*,\s*["']alert["']\s*\)|\.role\s*=\s*["']alert["']""", l403)
+# AC-4: since #52 a 403 is answered by refuse(), which writes the message. Amended with the owner's approval (2026-10-12):
+# the check reads that function, where it read the line that tested the status.
+rf = func("refuse")
+role = re.search(r"""setAttribute\(\s*["']role["']\s*,\s*["']alert["']\s*\)|\.role\s*=\s*["']alert["']""", rf)
 check("AC-4",
-  None if role and role.start() < l403.find("setHTML") else 'the 403 branch does not set role="alert" on #msg before writing its text',
+  None if role and 0 <= role.start() < rf.find("setHTML(m") else 'refuse() does not set role="alert" on #msg before writing its text',
   None if 'id="msg"' in h and not re.search(r'<p[^>]*id="msg"[^>]*role=|<p[^>]*role=[^>]*id="msg"', h) else 'the static #msg paragraph must stay without role',
   None if re.search(r"""removeAttribute\(\s*["']role["']\s*\)""", h) else 'no other writer of #msg removes the role="alert"')
 
