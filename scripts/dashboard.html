@@ -983,7 +983,7 @@ function costWhy(b) {
 // changed, what the factory already tried.
 function readHtml(c, d) {
   const tag = (text, k = "") => text ? `<span class="tag ${k}">${text}</span>` : "", sec = (h, body, cls = "body") => body ? `<div class="isec"><h3>${h}</h3><div class="${cls}">${body}</div></div>` : "";
-  const stop = c.blocked === "owner", b = d?.block, s = d?.spec, pr = d?.pr, k = esc(c.key), cost = tag(c.cost ? `$${c.cost.toFixed(2)} so far` : ""), cb = stop && b?.kind === "cost";
+  const stop = c.blocked === "owner", b = d?.block, s = d?.spec, pr = d?.pr, k = esc(c.key), cost = tag(c.cost ? `$${c.cost.toFixed(2)} est. so far` : ""), cb = stop && b?.kind === "cost";
   const facts = cb ? tag(`blocked${c.since ? ` ${dur(c.since, new Date())} ago` : ""}`, "bad") + tag("cost limit", "bad") + cost
     : stop ? tag(`blocked${c.since ? ` ${dur(c.since, new Date())} ago` : ""}`, "bad") + tag(b?.stage ? esc(b.stage) : "") + tag(b?.times > 1 ? `stopped ${b.times} times` : "", "warn") + tag(b?.gate ? `gate: ${esc(b.gate)}` : "", "bad") + cost
     : c.column === "Spec Review" ? tag(s ? `${s.criteria.length} acceptance ${s.criteria.length === 1 ? "criterion" : "criteria"}` : "") + tag(s?.questions.length ? `${plural(s.questions.length, "question")} for you` : "", "warn") + cost
@@ -998,7 +998,9 @@ function readHtml(c, d) {
     + sec("What the factory already tried", b.tried ? mdLite(b.tried) : "") : "") + (b?.why ? "" : '<p class="empty">The factory left no note about this block. The log has what the run did.</p>');
   const ask = s?.questions.length ? `<div class="iask"><span class="cap">The spec asks you</span>${s.questions.map((q) => `<p>${esc(q)}</p>`).join("")}</div>` : "";
   if (c.column === "Spec Review") return head + (s ? ask + sec("Problem", esc(s.problem), "plain") + criteria : '<p class="empty">This card has no review page yet.</p>');
-  return head + sec("What the validation said", d.report?.notes ? mdLite(d.report.notes) : "") + criteria + (pr || d.report || s ? "" : '<p class="empty">No validation report for this card yet.</p>');
+  const gates = c.column === "Staged" && !c.review ? sec("Gates", d.report?.gates && Object.keys(d.report.gates).length ? `<div class="gate-list">${gateChips(d.report)}</div>` : "") : "";  // the review page is where the gates would show
+  return head + gates + sec("What the validation said", d.report?.notes ? mdLite(d.report.notes) : "") + criteria
+    + (pr || d.report || s || c.cost ? "" : `<p class="empty">Nothing is recorded for this card yet. <button class="lnk" data-open="${k}" data-go="log">Open the log</button></p>`);
 }
 async function loadDecide(key) {
   if (INB.loading === key) return; INB.loading = key; const [p, n] = key.split("/");
@@ -1154,9 +1156,18 @@ async function post(k, action, text, keep) {
 }
 
 /* drawer */
+// The tab a card opens on when none is asked for (or Review is, and the card has no page): a card waiting for the owner
+// opens on Review, or on Gates when it has no review page; loadCard() moves an automatic Gates to Sessions when there is no report.
+function landing(ov, ask) {
+  if (ov && OWNER[ov.column]) return ov.review ? "review" : "gates";
+  return ask === "review" && ov && !ov.review ? "gates" : "sessions";
+}
 async function openCard(key, tab) {
   const same = S.open === key; const [p, n] = key.split("/"); const ov = cardOf(p, +n);
-  S.tab = tab || (same && S.tab) || (ov && OWNER[ov.column] ? "review" : "sessions");
+  const asked = tab && !(tab === "review" && ov && !ov.review) ? tab : "", keep = !asked && same && S.tab, was = S.open && S.tab;
+  S.tab = asked || keep || landing(ov, tab);
+  if (!keep) S.auto = !asked;
+  if (S.tab === "live" && (!same || was !== "live")) S.liveSince = Date.now();
   if (maxed()) maximize(maxed(), false);  // the drawer opens over the board, not under a maximized panel
   if (!same) { S.liveHtml = ""; S.card = null; S.log = null; S.logNext = -1; S.logText = ""; S.armed = null; S.unseen = null; }
   S.open = key;
@@ -1174,6 +1185,7 @@ async function loadCard() {
   const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}`);
   if (status !== 200 || S.open !== `${p}/${n}`) return;
   S.card = body;
+  if (S.auto && S.tab === "gates" && !body.reports.length) S.tab = "sessions";  // an automatic choice yields; a tab the owner picked stays
   if (!S.log) S.log = [...body.runs].reverse()[0]?.log || null;
   renderDrawer();
 }
@@ -1341,8 +1353,11 @@ function liveEvent(e, waiting) {
 function paintLive(fresh) {
   const box = $("live"); if (!box) return;
   const atEnd = fresh || box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
-  if (setHTML(box, S.liveHtml || '<p class="placeholder">Reading the session…</p>') && atEnd) box.scrollTop = box.scrollHeight;
+  const waiting = Date.now() - S.liveSince >= LIVE_WAIT;
+  const idle = waiting ? '<p class="placeholder">Nothing to show yet. The <button class="lnk" data-tab="log">Log tab</button> has what the run wrote.</p>' : '<p class="placeholder">Reading the session…</p>';
+  if (setHTML(box, S.liveHtml || idle) && atEnd) box.scrollTop = box.scrollHeight;
 }
+const LIVE_WAIT = 10000;  // how long the Live tab says it is reading before it says there is nothing to show yet
 let living = false;
 async function followLive() {
   if (living || !S.open || S.tab !== "live") return;
@@ -1350,8 +1365,9 @@ async function followLive() {
   living = true;
   const { status, body } = await api(`/api/live/${encodeURIComponent(p)}/${n}`).finally(() => { living = false; });
   if (status !== 200 || key !== S.open) return;
+  const nothingYet = !body.events.length && !!cardOf(p, +n)?.running;  // a run is working: paintLive says reading, then nothing to show yet
   S.liveHtml = [...body.events.map((e) => liveEvent(e)), ...body.pending.map((e) => liveEvent({ ...e, kind: "owner" }, true))].join("")
-    || '<p class="placeholder">No factory session for this card yet.</p>';
+    || (nothingYet ? "" : '<p class="placeholder">No factory session for this card yet.</p>');
   paintLive();
 }
 async function say() {
@@ -1371,20 +1387,29 @@ function logPane(c) {
   return `<div class="logwrap"><div class="logbar">Log <select id="logsel" aria-label="Log file">${logs.map((l) => `<option ${l === S.log ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><span>follows while open</span></div>
     <pre class="log" id="log" tabindex="0"></pre></div>`;
 }
+const gateChips = (r) => { const failed = new Set(r?.failed_gates || []); return Object.entries(r?.gates || {}).map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`).join(""); };
 function gatesPane(c) {
   if (!c.reports.length) return '<p class="placeholder">No report yet. Each stage writes one when it ends.</p>';
   return [...c.reports].reverse().map((r) => {
-    const gates = Object.entries(r.gates || {});
-    const failed = new Set(r.failed_gates || []);
-    const list = gates.map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`).join("");
+    const list = gateChips(r);
     return `<div class="gate-run"><div class="h"><b>${esc(r.pipeline)}</b><span class="${outcome(r.outcome)}">${esc(r.outcome)}</span></div>
       ${list ? `<div class="gate-list">${list}</div>` : r.notes ? "" : '<div class="notes">No gates for this stage.</div>'}
       ${r.notes ? `<div class="notes">${esc(r.notes)}</div>` : ""}</div>`;
   }).join("");
 }
+// What is true when a card has no review page, by column: only Spec Review is waiting for the page to be built.
+function noReview(column, c) {
+  if (column === "Staged") {
+    const pr = [...(c.reports || [])].reverse().map((r) => r.pr).find((x) => Number.isInteger(x));
+    const pull = pr && c.repo ? `<a href="https://github.com/${esc(c.repo)}/pull/${pr}" target="_blank" rel="noopener">pull request${EXT}</a>` : "pull request";
+    return `<p class="placeholder">No review page for this pull request. The <button class="lnk" data-tab="gates">Gates tab</button> has what validation checked; the changes are in the ${pull}.</p>`;
+  }
+  if (column === "Spec Review") return '<p class="placeholder">No review page yet. Refine has not built it for this spec.</p>';
+  return '<p class="placeholder">No review page for this card.</p>';
+}
 function reviewPane(c, p, n, column) {
   const none = OWNER[column] ? "" : `<p class="none">Nothing to decide: the card is in ${esc(column || "no column")}. Approval opens in Spec Review and Staged.</p>`;
-  const page = c.review ? `<iframe title="Review page for #${esc(n)}" sandbox="allow-scripts" src="/review/${encodeURIComponent(p)}/${n}?embed=1&t=${encodeURIComponent(token)}"></iframe>` : '<p class="placeholder">No review page for this card. Refine builds it when the spec is ready.</p>';
+  const page = c.review ? `<iframe title="Review page for #${esc(n)}" sandbox="allow-scripts" src="/review/${encodeURIComponent(p)}/${n}?embed=1&t=${encodeURIComponent(token)}"></iframe>` : noReview(column, c);
   return `<div class="review">${none}${page}</div>`;
 }
 
@@ -1732,7 +1757,7 @@ async function followLog() {
   } else if (pre && !S.logText) pre.textContent = "(empty)";
   S.logNext = body.next;
 }
-function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog(); if (id === "live") followLive(); }
+function selectTab(id) { S.auto = false; if (id === "live" && S.tab !== "live") S.liveSince = Date.now(); S.tab = id; renderDrawer(); if (id === "log") followLog(); if (id === "live") followLive(); }
 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
@@ -1765,7 +1790,7 @@ document.addEventListener("click", (e) => {
   else if (t.dataset.open) openCard(t.dataset.open, t.dataset.go);
   else if (t.dataset.view) setView(t.dataset.view);
   else if (t.hasAttribute("data-close")) closeCard();
-  else if (t.dataset.tab) selectTab(t.dataset.tab);
+  else if (t.dataset.tab) { selectTab(t.dataset.tab); if (!t.closest("#d-tabs")) $(`tab-${t.dataset.tab}`)?.focus(); }  // a link in the text moves the focus to the tab, as a click on it would
   else if (t.dataset.sub) { e.stopPropagation(); S.expanded[t.dataset.sub] = !S.expanded[t.dataset.sub]; renderDrawer(); }
   else if (t.dataset.act) act(t.dataset.act);
   else if (t.dataset.retry) act(t.dataset.retry, true);
@@ -1862,7 +1887,7 @@ setInterval(() => { if (S.view === "settings") loadSettings(); }, 10000);
 setInterval(() => { if (S.open && S.tab !== "log") loadCard(); }, 5000);
 setInterval(followLog, 2000);
 setInterval(followLive, 2000);
-setInterval(() => tick(), 1000);
+setInterval(() => { tick(); if (S.open && S.tab === "live") paintLive(); }, 1000);  // the Live pane changes its message with no reply from the server
 </script>
 </body>
 </html>
