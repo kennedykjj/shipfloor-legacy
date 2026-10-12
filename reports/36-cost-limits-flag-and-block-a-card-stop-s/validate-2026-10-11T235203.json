@@ -1,0 +1,3 @@
+{"issue": 36, "slug": "cost-limits-flag-and-block-a-card-stop-s", "pipeline": "validate", "started_at": "2026-10-11T00:00:00Z", "finished_at": "2026-10-11T00:00:00Z", "outcome": "ok",
+ "agents": [{"role": "engineer", "tokens": 225432, "duration_s": 1176}],
+ "rounds": {"4": 3}, "gates_failed": [], "flaky": [], "manual_edit": false, "amendments": []}
