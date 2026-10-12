@@ -29,6 +29,7 @@ if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
         i=$((i+1)); printf '%s{"name":"%s","id":"opt%s"}' "$sep" "$s" "$i"; sep=","; done
       printf ']}]}\n'; exit 0 ;;
     "api repos/acme/shop/issues?labels="*) echo '[{"number":7}]'; exit 0 ;;
+    "api user") echo '{"login":"factory"}'; exit 0 ;;
     "api repos/acme/shop/issues/"*"/comments"*) [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
   esac
 fi
@@ -51,6 +52,11 @@ case "$args" in
   "api repos/acme/shop/issues/"*)
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
+  "api user"*) echo factory ;;
+  "issue view"*"--json number,title,body,comments"*)
+    n="$(echo "$args" | awk '{print $3}')"; cat "$d/issue-$n.json" ;;
+  "issue list"*)
+    echo '[{"number":7,"title":"Seven"},{"number":9,"title":"Nine"}]' ;;
   "issue view"*)
     case "$args" in *"--repo acme/shop"*) ;; *) echo "failed to run git: fatal: not a git repository" >&2; exit 1 ;; esac
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }

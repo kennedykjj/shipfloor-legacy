@@ -97,8 +97,28 @@ move() {
   "$GH" project item-edit --project-id "$PROJECT_ID" --id "$id" --field-id "$FIELD_ID" --single-select-option-id "$opt" >/dev/null
 }
 
+issue() {  # issue <n>: the issue as an agent may read it: title, body and the comments of the people it listens to.
+  # Anyone can comment on a public repository, and to an agent a comment is an instruction. It listens to this factory's
+  # GitHub user and to the project's trusted_commenters ("*" is anyone); the other comments are left out.
+  local n="${1:-}" me who
+  [[ "$n" =~ ^[0-9]+$ ]] || { echo "issue: <n> must be a number" >&2; return 2; }
+  me="$("$GH" api user --jq .login)" && [ -n "$me" ] || { echo "issue: cannot read the GitHub user" >&2; return 1; }
+  who="$(shipfloor_cfg get trusted_commenters 2>/dev/null)"
+  "$GH" issue view "$n" --repo "$REPO" --json number,title,body,comments | ME="$me" WHO="$who" shipfloor_python -c '
+import json, os, sys
+d, me = json.load(sys.stdin), os.environ["ME"]
+who = set(os.environ["WHO"].split()) | {me}
+mine = [c for c in d.get("comments") or [] if "*" in who or (c.get("author") or {}).get("login") in who]
+print("#%s %s\n\n%s" % (d["number"], d["title"], d.get("body") or ""))
+for c in mine:
+    print("\n--- comment by %s, %s\n%s" % ((c.get("author") or {}).get("login", "?"), c.get("createdAt", ""), c.get("body") or ""))
+left = len(d.get("comments") or []) - len(mine)
+if left:
+    print("\n(%d comment%s by other people not shown)" % (left, "" if left == 1 else "s"))'
+}
+
 cmd="${1:-}"; shift || true
 case "$cmd" in
-  items|status|count|first|eligible|move|snapshot|infra|label) "$cmd" "$@" ;;
-  *) echo "usage: board.sh items|status <n>|count <status>...|first <status>|move <n> <status>|infra|label <n> add|remove <label>" >&2; exit 2 ;;
+  items|status|count|first|eligible|move|snapshot|infra|label|issue) "$cmd" "$@" ;;
+  *) echo "usage: board.sh items|status <n>|count <status>...|first <status>|move <n> <status>|infra|label <n> add|remove <label>|issue <n>" >&2; exit 2 ;;
 esac

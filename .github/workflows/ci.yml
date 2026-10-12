@@ -1,11 +1,10 @@
 name: CI
 
-# The whole test suite, on every pull request and on main. The factory's deploy waits for this
-# workflow by name (deploy.ci_workflow in .shipfloor/factory.yml).
+# The whole test suite, on every pull request. The factory's deploy merges only with this job green on
+# the PR's head (deploy.required_checks in .shipfloor/factory.yml), and that head already contains main:
+# a second run on main after the merge would test the same tree, and every job costs a minute at least.
 on:
   pull_request:
-  push:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}

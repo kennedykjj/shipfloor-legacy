@@ -23,5 +23,6 @@ layers:
     assertions: '^ +FAIL '
     tests: ['scripts/test/*.test.sh']
 # no stack: nothing here needs a running app yet (a card with the ui label gets no screen check)
-# The deploy merges only with the CI job green on the PR, then waits for CI on main; red there opens a revert PR.
-deploy: {ci_workflow: CI, required_checks: [test]}
+# The deploy merges only with the CI job green on the PR's head, which already contains main. No run on main
+# after the merge: it would repeat that one, and a CI that cannot start (no Actions minutes) reverted good merges.
+deploy: {required_checks: [test]}

@@ -13,7 +13,8 @@ sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
 import shipfloor_health
-from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, rounded
+import dashboard_cost
+from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, per_card, rounded
 import yaml
 
 # The steps a run announces with `shipfloor-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
@@ -34,6 +35,7 @@ ACCEPTANCE_DIFF = """qa="$(bash "$1" -C "$2" qa-commit "$3" 2>/dev/null)"; [ -n 
 mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
 [ "${#files[@]}" -gt 0 ] && git -C "$2" -c core.quotePath=false diff --no-color -U1 "$qa" HEAD -- "${files[@]}"
 """
+COST_BLOCK = "Cost limit: blocked."  # how the dispatcher opens the note of a block by cost
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:sf|aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy aghanim, legacy mylos
@@ -52,6 +54,14 @@ section h2{font-size:17px;line-height:1.3}
 button{background:transparent;color:var(--ink);border-color:var(--rule)}
 </style>
 <script>
+/* the dashboard's theme: listening and "ready" come first, while the page parses, so the colors land before it paints;
+   "themed" says they were applied, and the dashboard shows the frame then; sends them again when the owner changes theme */
+addEventListener("message",function(e){
+ var m=e.data,r=document.documentElement;if(e.source!==parent||!m||m.shipfloor!=="theme")return;
+ for(var k in m.vars)if(/^[a-z-]+$/.test(k))r.style.setProperty("--"+k,m.vars[k]);
+ r.style.colorScheme=m.light?"light":"dark";
+ parent.postMessage({shipfloor:"themed"},"*")});
+parent.postMessage({shipfloor:"ready"},"*");
 /* tells the dashboard how far the review went, so its Approve can say so (the page itself is sandboxed) */
 addEventListener("load",function(){
  function send(){
@@ -67,17 +77,15 @@ addEventListener("load",function(){
  var last="",sv=window.__shipfloorMarks;
  try{if(sv&&sv.marks&&Object.keys(sv.marks).length&&typeof st!=="undefined"&&typeof render==="function"){st=sv.marks;render()}
   if(typeof st!=="undefined")last=JSON.stringify(st)}catch(e){}
- /* the dashboard's theme: it answers "ready" with its colors, and sends them again when the owner changes theme */
- addEventListener("message",function(e){
-  var m=e.data,r=document.documentElement;if(e.source!==parent||!m||m.shipfloor!=="theme")return;
-  for(var k in m.vars)if(/^[a-z-]+$/.test(k))r.style.setProperty("--"+k,m.vars[k]);
-  r.style.colorScheme=m.light?"light":"dark"});
- parent.postMessage({shipfloor:"ready"},"*");
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
 OWNER_MOVES = {"Spec Review": {"approve": "Ready for Dev", "request-changes": "Ready for Refinement"},
                "Staged": {"approve": "Ready for Prod", "request-changes": "Coding"}}
+
+
+def number(s):  # ASCII digits only: str.isdigit() also accepts "²" and the like, which int() rejects
+    return bool(re.fullmatch(r"[0-9]+", s))
 
 
 def read_yaml(path):
@@ -237,11 +245,15 @@ class Factory:
         return hit[1]
 
     def prices(self):
-        # the installed copy keeps templates/ next to the scripts; the plugin checkout, one level up
-        for f in (self.home / "prices.yml", HERE / "templates" / "prices.yml", HERE.parent / "templates" / "prices.yml"):
-            if f.is_file():
-                return read_yaml(f)
-        return {}
+        return dashboard_cost.load_prices(self.home)
+
+    def costs(self):
+        """The machine's cost limits in US$ (config.yml), None for a limit that is absent or not a valid number."""
+        raw = read_yaml(self.home / "config.yml")
+        raw = raw.get("costs") if isinstance(raw, dict) else None
+        raw = raw if isinstance(raw, dict) else {}
+        return {k: raw[k] if k in raw and not shipfloor_config.cost_problems({k: raw[k]}) else None
+                for k in shipfloor_config.COST_KEYS}
 
     def transcript(self, path, parse=parse_transcript):
         st = path.stat()
@@ -264,10 +276,6 @@ class Factory:
                     subs = [self.transcript(a) for a in sorted((d / f.stem / "subagents").glob("*.jsonl"))]
                     out.append(dict(s, id=f.stem, subagents=subs, path=f))
         return sorted(out, key=lambda s: s["start"] or "")
-
-    def session_cost(self, s, prices):
-        parts = [cost(s["tokens"], prices)] + [cost(a["tokens"], prices) for a in s["subagents"]]
-        return None if None in parts else sum(parts)
 
     def runs(self, p, issue=None, day=None):
         """Runs as the dispatcher logged them: == start / == end lines."""
@@ -303,7 +311,7 @@ class Factory:
         self.read_board(p, at)
         if at is None:
             return {}, None
-        return {int(c[0]): c[1] for c in (l.split("\t") for l in lines) if len(c) > 1 and c[0].isdigit()}, round(time.time() - at)
+        return {int(c[0]): c[1] for c in (l.split("\t") for l in lines) if len(c) > 1 and number(c[0])}, round(time.time() - at)
 
     def read_board(self, p, at):
         """The dispatcher's snapshot is as old as its last cycle, and a card the owner moves on GitHub shows only then.
@@ -388,6 +396,8 @@ class Factory:
         if not projects:
             return [], 0
         p = projects[0]
+        if not self.pdir(p).is_dir():
+            return [], 0  # no home directory yet (a cycle creates it): no slots to report, and nothing to cache
         env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)),
                    SHIPFLOOR_HOME=str(self.home))
         r = subprocess.run([bash(), (HERE / "gate.sh").as_posix(), "stack", "status"], env=env, cwd=str(self.pdir(p)),
@@ -396,8 +406,8 @@ class Factory:
         for line in r.stdout.splitlines():
             f = line.split("\t")
             if f[0] == "queue":
-                queue = int(f[1]) if f[1].isdigit() else 0
-            elif len(f) >= 4 and f[0].isdigit():
+                queue = int(f[1]) if number(f[1]) else 0
+            elif len(f) >= 4 and number(f[0]):
                 slots.append({"slot": int(f[0]), "state": f[1], "owner": f[2], "held_s": int(f[3] or 0),
                               "reason": f[4] if len(f) > 4 else ""})
         self._stacks = (time.time(), slots, queue)
@@ -411,6 +421,13 @@ class Factory:
             return None
         return {"since": since, "reason": why} if since else None
 
+    def me(self):
+        """This factory's GitHub login, read once; None while it cannot be read."""
+        if not getattr(self, "_me", None):
+            user, _ = gh_json("api", "user")
+            self._me = user.get("login") if isinstance(user, dict) else None
+        return self._me
+
     def block_reason(self, p, n):
         """The factory's note about the block (the skills write the step, the output and what was tried there):
         among the issue's last comments, the newest that tells of a block or a failure, a stage's own note before
@@ -419,8 +436,10 @@ class Factory:
         if time.time() - at > 60:
             repo = shipfloor_config.dotted(self.config(p), "project.repo")
             pages, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100", "--paginate", "--slurp")
+            # anyone can comment on a public repository: the note is one the factory's user or a trusted commenter wrote
+            me, who = self.me(), set(shipfloor_config.dotted(self.config(p), "trusted_commenters") or [])
             bodies = [c.get("body") or "" for page in pages or [] for c in (page if isinstance(page, list) else [page])
-                      if isinstance(c, dict)]  # GitHub lists an issue's comments oldest first
+                      if isinstance(c, dict) and (not me or "*" in who or (c.get("user") or {}).get("login", me) in who | {me})]  # oldest first
             told = [b for b in reversed(bodies[-4:]) if re.search(r"\b(blocked|failed)\b", b, re.I)]
             reason = next((b for b in told if "Factory report" not in b[:40]), told[0] if told else "")[:4000]
             self._reasons[(p, n)] = (time.time(), reason)
@@ -444,6 +463,15 @@ class Factory:
         acceptance-intact the test files as they changed."""
         reason = self.block_reason(p, n)
         blocked = [r for r in self.reports(p, n) if r["outcome"] == "blocked"]
+        if reason.lstrip().startswith(COST_BLOCK):  # the marker tells the figures; the newest note must still be this block's
+            try:
+                mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
+                before, whole = float(mark.get("baseline") or 0), float(mark["total"])
+                return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
+                        "times": len(blocked), "gate": "", "diff": "", "limit": mark.get("limit"), "total": round(whole - before, 4),
+                        "baseline": before, "card_total": whole, "stages": mark.get("stages") or {}}
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                pass  # no usable marker: an ordinary block
         m = BLOCK_LINE.search(reason)
         stage, step = (m.group(1).lower(), int(m.group(2))) if m else (None, None)
         if not stage:  # a report tells the block: it names its stage, not a step
@@ -452,7 +480,7 @@ class Factory:
         why, _, tried = text.partition("Tried:")
         intact = re.search(r"acceptance-intact\W{0,4}(?:gate\W+)?fail|fail\w*[^.\n]{0,60}acceptance-intact", reason, re.I)
         gate = "acceptance-intact" if intact or any("acceptance-intact" in str(r["failed_gates"]) for r in blocked[-1:]) else ""
-        return {"stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
+        return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
                 "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": gate,
                 "diff": self.acceptance_diff(p, n) if gate else ""}
 
@@ -520,22 +548,22 @@ class Factory:
 
     def card(self, p, n):
         prices, runs = self.prices(), self.runs(p, issue=n)
-        sessions = []
-        for s in self.sessions(p, n):
+        sessions, found = [], self.sessions(p, n)
+        for s in found:
             start = parse_ts(s["start"])
             run = next((r for r in reversed(runs) if r["stage"] == s["stage"]
                         and parse_ts(r["start"]).timestamp() <= start.timestamp() + 120), None)
-            c = self.session_cost(s, prices)
+            c = dashboard_cost.session_cost(s, prices)
             sessions.append({"id": s["id"], "stage": s["stage"], "start": s["start"], "end": s["end"],
                              "tokens": s["tokens"], "cost": None if c is None else round(c, 4),
                              "subagents": [{"tokens": a["tokens"], "cost": cost(a["tokens"], prices)} for a in s["subagents"]],
                              "exit": run and run["exit"], "log": run and run["log"]})
-        costs = [s["cost"] for s in sessions]
+        total = dashboard_cost.spend(found, prices, datetime.now().date().isoformat())["cards"].get(n, {"total": 0.0})["total"]
         columns, _ = self.board(p)
         reports = self.reports(p, n)
         return {"project": p, "issue": n, "title": self.titles(p, [*columns, n]).get(n, ""), "column": columns.get(n),
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
-                "total": None if None in costs else round(sum(costs), 2), "sessions": sessions, "runs": runs,
+                "total": rounded(total), "baseline": dashboard_cost.baselines(self.pdir(p)).get(n, 0.0), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                 "blocked": self.blocked(p).get(n),
                 "block_reason": self.block_reason(p, n) if self.blocked(p).get(n) else ""}
@@ -543,6 +571,15 @@ class Factory:
     def pool(self):
         m = shipfloor_config.merged(read_yaml(self.home / "config.yml"), shipfloor_config.MACHINE_DEFAULTS)
         return m["pool"], m["stages"]
+
+    def hours(self):
+        """The working hours as hours_state reads them now. Malformed, the windows are the value as written, one text each."""
+        raw = read_yaml(self.home / "config.yml")
+        state = shipfloor_config.hours_state(raw, shipfloor_config.now())
+        if state["error"]:
+            value = raw["hours"]
+            state["windows"] = [str(w) for w in value] if isinstance(value, list) else [str(value)]
+        return state
 
     def settings(self):
         """What the Settings view shows: this machine's limits (config.yml), the pauses, the dispatcher's last
@@ -556,8 +593,11 @@ class Factory:
         except (OSError, ValueError, IndexError):
             pass
         registry = {c[0]: c for c in (l.split("\t") for l in self.registry()) if c[0]}
-        projects = []
+        projects, unpriced, today = [], 0, datetime.now().date().isoformat()
         for p in self.projects():
+            columns, _ = self.board(p)
+            known = dashboard_cost.spend(self.sessions(p), self.prices(), today)["cards"]
+            unpriced += sum(1 for n in columns if n in known and known[n]["total"] is None)
             repo, row = self.config(p), registry.get(p, [])
             cfg, _ = shipfloor_config.with_overrides(repo, shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml")))
             knob = lambda c, k: next((v for v in [shipfloor_config.dotted(c, k)] if v is not None), KNOBS[k])
@@ -565,6 +605,8 @@ class Factory:
                              "repo": shipfloor_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
                              "knobs": {k: {"value": knob(cfg, k), "repo": knob(repo, k)} for k in KNOBS}, "context": cfg.get("context") or [],
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
+                             "language": {"code": cfg.get("language") or "en", "set": cfg.get("language") is not None,
+                                          "file": ".shipfloor/factory.yml"},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
         every = shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml"))
@@ -576,9 +618,40 @@ class Factory:
         if cycle:
             cycle.setdefault("next_at", None)
         command, why = scheduler()
-        return {"machine": {k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, "paused": (self.home / "PAUSE").exists(),
+        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "language": m.get("language") or "en", "costs": self.costs()},
+                "languages": shipfloor_config.LANGS, "paused": (self.home / "PAUSE").exists(),
                 "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
-                "cycle": cycle, "projects": projects, "prices": self.prices()}
+                "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours(), "unpriced": unpriced}
+
+    def project_agents(self):
+        """{agent: [{project, layer}]} for every agent a registered project's layer names."""
+        out = {}
+        for p in self.projects():
+            for l in self.config(p).get("layers") or []:
+                if isinstance(l, dict) and isinstance(l.get("agent"), str):
+                    out.setdefault(l["agent"], []).append({"project": p, "layer": l.get("name")})
+        return out
+
+    def models(self):
+        """The Settings rows for the models: each stage and agent with its configured model, today's model, whether
+        the model has a price, and (stages) the mean cost per card of the last 7 days."""
+        raw, agents, prices = read_yaml(self.home / "config.yml"), self.project_agents(), self.prices()
+        problems = shipfloor_config.model_problems(raw, agents)
+        bad, configured = {p["key"] for p in problems}, raw.get("models") if isinstance(raw.get("models"), dict) else {}
+        def row(group, name, default):
+            entries = configured.get(group) if isinstance(configured.get(group), dict) else {}
+            value = None if f"models.{group}.{name}" in bad else entries.get(name)
+            return {"value": value, "default": default, "priced": value is None or any(k.startswith(f"claude-{value}-") for k in prices)}
+        since, runs = datetime.now(timezone.utc) - timedelta(days=7), {s: [] for s in shipfloor_config.STAGES}
+        for p in self.projects():
+            for s in self.sessions(p):
+                if s["stage"] in runs and parse_ts(s["start"]) >= since:
+                    runs[s["stage"]].append(((p, s["issue"]), dashboard_cost.session_cost(s, prices)))
+        return {"choices": list(shipfloor_config.MODELS),
+                "stages": {st: dict(row("stages", st, shipfloor_config.STAGE_MODELS[st]), cost=per_card(runs[st])) for st in shipfloor_config.STAGES},
+                "agents": {**{a: dict(row("agents", a, d), projects=[]) for a, d in shipfloor_config.PLUGIN_AGENTS.items()},
+                           **{a: dict(row("agents", a, None), projects=ps) for a, ps in agents.items() if a not in shipfloor_config.PLUGIN_AGENTS}},
+                "problems": problems}
 
     def registry(self):
         try:
@@ -589,17 +662,58 @@ class Factory:
     def set_machine(self, changes):
         """The owner's new limits for this machine, all at once so a pool and its stages are checked together.
         Whatever else config.yml holds stays as it is. The dispatcher reads the file on its next cycle."""
-        path, new = self.home / "config.yml", json.loads(json.dumps(read_yaml(self.home / "config.yml")))
+        path, old = self.home / "config.yml", read_yaml(self.home / "config.yml")
+        new = json.loads(json.dumps(old))
         if not isinstance(new, dict) or not isinstance(changes, dict):
             return 400, {"error": "config.yml is not a YAML mapping; fix it by hand"}
-        for k in ("pool", "stacks", "stack_wait"):
+        for k in ("pool", "stacks", "stack_wait", "language"):
             if k in changes:
                 new[k] = changes[k]
         if isinstance(changes.get("stages"), dict):
             new["stages"] = dict(new["stages"] if isinstance(new.get("stages"), dict) else {}, **changes["stages"])
+        if "costs" in changes:  # {limit: number}; null clears a limit, and an empty costs is left out of the file
+            if not isinstance(changes["costs"], dict):
+                return 400, {"error": "costs must be a mapping of limit: US$"}
+            costs = dict(new["costs"]) if isinstance(new.get("costs"), dict) else {}
+            for k, v in changes["costs"].items():
+                if v is None:
+                    costs.pop(k, None)
+                else:
+                    costs[k] = v
+            if costs:
+                new["costs"] = costs
+            else:
+                new.pop("costs", None)
+        if "notify" in changes:
+            had, ch = new.get("notify") or {}, changes["notify"]
+            if isinstance(had, dict) and isinstance(ch, dict):  # key by key; events and channels too
+                had = {**had, **{k: {**(had.get(k) if isinstance(had.get(k), dict) else {}), **v} if k in ("events", "channels") and isinstance(v, dict) else v for k, v in ch.items()}}
+            new["notify"] = had if isinstance(ch, dict) and isinstance(had, dict) else ch
+        if "hours" in changes:  # a list of windows sets it; null or [] goes back to always
+            if changes["hours"] in (None, []):
+                new.pop("hours", None)
+            else:
+                new["hours"] = changes["hours"]
         if isinstance(changes.get("dispatcher"), dict) and "every_min" in changes["dispatcher"]:
             new["dispatcher"] = dict(new["dispatcher"] if isinstance(new.get("dispatcher"), dict) else {}, every_min=changes["dispatcher"]["every_min"])
-        errs = shipfloor_config.machine_problems(new)
+        if "language" in changes and not isinstance(changes["language"], str):
+            return 400, {"error": f"language must be one of {', '.join(shipfloor_config.LANGS)}"}
+        errs =shipfloor_config.machine_problems(new) + (shipfloor_config.hours_problems(new) if "hours" in changes else [])
+        if isinstance(changes.get("models"), dict):
+            models = new["models"] if isinstance(new.get("models"), dict) else {}
+            for group in ("stages", "agents"):
+                if isinstance(changes["models"].get(group), dict):
+                    rows = dict(models[group] if isinstance(models.get(group), dict) else {}, **changes["models"][group])
+                    models[group] = {n: m for n, m in rows.items() if m is not None}
+            new["models"] = {g: rows for g, rows in models.items() if rows != {}}
+            if not new["models"]:
+                del new["models"]
+            agents = self.project_agents()
+            before = shipfloor_config.model_problems(old, agents)
+            errs += [f"{p['key']}: not a stage or an agent here. Nothing was saved." if p["why"] == "name"
+                     else f"{p['key']}: must be a mapping. Nothing was saved." if p["why"] == "shape"
+                     else f"{p['key']}: \"{p['value']}\" is not a model the factory knows. Nothing was saved."
+                     for p in shipfloor_config.model_problems(new, agents) if p not in before]
         if errs:
             return 400, {"error": "; ".join(errs)}
         every = shipfloor_config.dispatcher_every(new)
@@ -728,21 +842,23 @@ class Factory:
 
     def overview(self):
         size, slots = self.pool()
-        prices, today = self.prices(), datetime.now().date().isoformat()
+        prices, today, limits = self.prices(), datetime.now().date().isoformat(), self.costs()
         live, projects, finished, today_cost = [], [], [], 0.0
         for p in self.projects():
             runs = self.live(p)
             live += runs
-            per_card, doing, hours = {}, {}, {}
+            doing, hours = {}, {}
             hour = lambda ts: parse_ts(ts).astimezone().hour
             all_runs, spent = self.runs(p), {}  # spent: what each of today's runs cost, by (log, start)
-            for s in self.sessions(p):
+            sessions = self.sessions(p)
+            estimate, base = dashboard_cost.spend(sessions, prices, today), dashboard_cost.baselines(self.pdir(p))
+            per_card = {n: c["total"] for n, c in estimate["cards"].items()}
+            warned = dashboard_cost.over(estimate, limits, base)["warn"]
+            today_cost += estimate["today"]
+            for s in sessions:
                 doing[(s["issue"], s["stage"])] = s["activity"]  # sessions come oldest first: the latest wins
-                c = self.session_cost(s, prices)
-                prev = per_card.get(s["issue"], 0.0)
-                per_card[s["issue"]] = None if c is None or prev is None else prev + c
+                c = dashboard_cost.session_cost(s, prices)
                 if c and parse_ts(s["start"]).astimezone().date().isoformat() == today:
-                    today_cost += c
                     # as in card(): a session belongs to the last run of its stage that started before it
                     run = next((r for r in reversed(all_runs) if r["issue"] == s["issue"] and r["stage"] == s["stage"]
                                 and parse_ts(r["start"]).timestamp() <= parse_ts(s["start"]).timestamp() + 120), None)
@@ -774,19 +890,24 @@ class Factory:
                              "repo": (self.config(p).get("project") or {}).get("repo"), "board_url": self.board_url(p),
                              "cards": [{"issue": n, "title": titles.get(n, ""), "column": col, "since": since.get(n),
                                         "cost": rounded(per_card.get(n, 0.0)),
+                                        "over": "warn" if n in warned else None,
+                                        "spent": None if per_card.get(n, 0.0) is None else per_card.get(n, 0.0) - base.get(n, 0.0),
                                         "running": running.get(n), "awaiting": col in OWNER_MOVES,
+                                        "review": col in OWNER_MOVES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                                         "blocked": blocked.get(n)}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
         stacks, queue = self.stacks()
+        day_stopped = dashboard_cost.over({"cards": {}, "today": today_cost}, limits, {})["day_stop"]
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
-                "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(),
+                "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
                 "alerts": shipfloor_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
-                          "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)}}
+                          "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)},
+                "costs": dict(limits, day_stopped=day_stopped)}
 
     def board_row(self, p, n):
         """(the card's row on the live board: number, column, item id; or None), or (None, error)."""
@@ -899,8 +1020,9 @@ class Factory:
         return {"language": code, "exact": cat.get("exact", {}), "rx": cat.get("rx", [])}
 
     def feed(self, limit=400):
-        """One timeline: the dispatcher's and the stacks' log lines, and one line per run, at the time it
-        ended (or started, while it still runs)."""
+        """One timeline: the dispatcher's and the stacks' log lines, and one event per run, at the time it ended
+        (or started, while it still runs), with what is known of what it left behind. A log line repeated in a
+        row is one event: how many times ("n") and since when ("since")."""
         out = []
         for source in ("dispatcher", "stacks"):
             f = self.home / "logs" / f"{source}.log"
@@ -915,15 +1037,17 @@ class Factory:
             for line in lines:
                 m = FEED_LINE.match(line)
                 ts, text = m.groups() if m else (ts, line)
-                if text.strip():
-                    out.append({"ts": ts, "source": source, "text": text})
+                if not text.strip():
+                    continue
+                if m and out and out[-1]["source"] == source and out[-1]["text"] == text:
+                    out[-1].update(n=out[-1]["n"] + 1, ts=ts)
+                else:
+                    out.append({"ts": ts, "source": source, "text": text, "n": 1, "since": ts})
         today = datetime.now().date()
         for p in self.projects():
-            for day in (today - timedelta(days=1), today):
-                for r in self.runs(p, day=day.isoformat()):
-                    out.append({"source": p, "issue": r["issue"], "log": r["log"], "start": r["start"], "end": r["end"],
-                                "exit": r["exit"] if r["end"] else None, "ts": r["end"] or r["start"],
-                                "text": f"{r['stage']} #{r['issue']}"})
+            runs = [r for day in (today - timedelta(days=1), today) for r in self.runs(p, day=day.isoformat())]
+            if runs:
+                out.extend(self.feed_runs(p, runs))
 
         def at(e):
             try:
@@ -931,6 +1055,72 @@ class Factory:
             except (ValueError, TypeError):
                 return 0.0
         return {"events": sorted(out, key=at)[-limit:]}  # the sort is stable: untimed lines keep their place
+
+    def feed_runs(self, p, runs):
+        """A feed event per run, with what each one left behind, every piece from its own source: the card's
+        title, the estimated cost of the run's sessions, the pull request and the failed gates its report names,
+        the last line of a run that failed and, on a card's newest run, the column the card is in now. A run with
+        no end is running only while its lock is there, and then it carries its step; otherwise its end was lost."""
+        prices, (columns, _) = self.prices(), self.board(p)
+        titles = self.titles(p, sorted({*columns, *(r["issue"] for r in runs)}))
+        began = lambda x: parse_ts(x["start"]).timestamp()
+        spent, reports, newest = {}, {}, {}
+        live = {(x["stage"], x["issue"]): x for x in self.live(p) if not x["orphan"]}
+        for s in self.sessions(p):  # a session belongs to a run the way a card's Sessions tab pairs them
+            mine = [r for r in runs if r["issue"] == s["issue"] and r["stage"] == s["stage"] and began(r) <= began(s) + 120]
+            if mine:
+                key, c = (mine[-1]["log"], mine[-1]["start"]), dashboard_cost.session_cost(s, prices)
+                spent[key] = None if c is None or spent.get(key, 0) is None else spent.get(key, 0) + c
+        for r in runs:
+            if r["issue"] not in newest or began(r) > began(newest[r["issue"]]):
+                newest[r["issue"]] = r
+
+        def report(r):  # the report this run wrote: its stage, and a file name stamped inside the run
+            if r["issue"] not in reports:
+                reports[r["issue"]] = self.reports(p, r["issue"])
+            stamp = lambda ts: ts[:19].replace(":", "")
+            mine = [x for x in reports[r["issue"]] if x["file"].startswith(r["stage"] + "-")
+                    and stamp(r["start"]) <= x["file"][len(r["stage"]) + 1:-5] <= stamp(r["end"])]
+            return mine[-1] if mine else {}
+
+        def last_line(r):  # what a failed run said last
+            said = ""
+            try:
+                with open(self.pdir(p) / "logs" / r["log"], encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        m = RUN_LINE.match(line)
+                        if m and m.group(1) == "end" and m.group(5) == r["end"]:
+                            return said[:300]
+                        said = "" if m else line.strip() or said
+            except OSError:
+                pass
+            return ""
+
+        out = []
+        for r in runs:
+            n, key = r["issue"], (r["log"], r["start"])
+            e = {"source": p, "issue": n, "stage": r["stage"], "title": titles.get(n, ""), "log": r["log"], "start": r["start"],
+                 "end": r["end"], "exit": r["exit"] if r["end"] else None, "ts": r["end"] or r["start"], "text": f"{r['stage']} #{n}"}
+            if key in spent:
+                e["cost"] = None if spent[key] is None else round(spent[key], 2)
+            if r["end"]:
+                rep = report(r)
+                if isinstance(rep.get("pr"), int):
+                    e["pr"] = rep["pr"]
+                if isinstance(rep.get("failed_gates"), list) and rep["failed_gates"]:
+                    e["failed"] = [str(g) for g in rep["failed_gates"]]
+                if r["exit"]:
+                    e["last"] = last_line(r)
+                if newest[n] is r and columns.get(n):
+                    e.update(column=columns[n], you=columns[n] in OWNER_MOVES)
+            else:
+                now = live.get((r["stage"], n)) if newest[n] is r else None
+                if now is None:
+                    e["lost"] = True
+                elif now["step"]:
+                    e["step"] = {"i": now["step"]["i"], "of": now["steps"], "label": now["step"]["label"]}
+            out.append(e)
+        return out
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -941,14 +1131,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def send(self, code, body, kind="application/json", headers=()):
         data = body if isinstance(body, bytes) else json.dumps(body).encode()
-        self.send_response(code)
-        for k, v in headers:
-            self.send_header(k, v)
-        self.send_header("Content-Type", kind)
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(code)
+            for k, v in headers:
+                self.send_header(k, v)
+            self.send_header("Content-Type", kind)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+        except ConnectionError:
+            pass  # the tab closed before the answer: the action already ran, nobody is left to tell
 
     def allowed(self, query=None):
         """The API wants the token in a header, which a page cannot send cross-origin without a preflight
@@ -962,6 +1155,8 @@ class Handler(BaseHTTPRequestHandler):
         q, parts = parse_qs(url.query), [unquote(x) for x in url.path.strip("/").split("/")]
         if url.path == "/":
             return self.send(200, (HERE / "dashboard.html").read_bytes(), "text/html; charset=utf-8")
+        if url.path == "/favicon.ico":  # the browser asks without a token; nothing to show
+            return self.send(204, b"")
         if not self.allowed(q if parts[0] == "review" else None):
             return self.send(403, {"error": "missing or wrong token"})
         f = self.factory
@@ -975,18 +1170,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, f.settings())
             if parts == ["api", "feed"]:
                 return self.send(200, f.feed())
-            if known and len(parts) == 4 and parts[:2] == ["api", "card"] and parts[3].isdigit():
+            if known and len(parts) == 4 and parts[:2] == ["api", "card"] and number(parts[3]):
                 return self.send(200, f.card(parts[2], int(parts[3])))
-            if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and parts[3].isdigit():
+            if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and number(parts[3]):
                 return self.send(200, f.decide(parts[2], int(parts[3])))
-            if known and len(parts) == 4 and parts[:2] == ["api", "live"] and parts[3].isdigit():
+            if known and len(parts) == 4 and parts[:2] == ["api", "live"] and number(parts[3]):
                 return self.send(200, f.session(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "log"]:
                 start = q.get("from", ["-1"])[0]
-                body = f.log(parts[2], parts[3], int(start) if start.lstrip("-").isdigit() else -1)
+                body = f.log(parts[2], parts[3], int(start) if re.fullmatch(r"-?[0-9]+", start) else -1)
                 if body:
                     return self.send(200, body)
-            if len(parts) == 3 and parts[0] == "review" and parts[1] in f.projects() and parts[2].isdigit():
+            if len(parts) == 3 and parts[0] == "review" and parts[1] in f.projects() and number(parts[2]):
                 page = f.pdir(parts[1]) / "reviews" / f"{parts[2]}.html"
                 if page.is_file():
                     html = page.read_bytes()
@@ -1030,7 +1225,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and parts[3].isdigit() and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -1054,15 +1249,42 @@ class Server(ThreadingHTTPServer):
     allow_reuse_address = os.name != "nt"  # on Windows SO_REUSEADDR lets a second server share the port
 
 
+def link_token(home):
+    """The link's secret, kept in <home>/dashboard.token so a link survives a restart.
+    A missing or damaged file is replaced by a new token; an unwritable home keeps it in memory."""
+    path = Path(home) / "dashboard.token"
+    try:
+        saved = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        saved = ""
+    if re.fullmatch(r"[A-Za-z0-9_-]{22}", saved):
+        return saved
+    token = secrets.token_urlsafe(16)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(token + "\n")
+        os.replace(tmp, path)
+    except OSError:
+        print("shipfloor dashboard: could not save the link's secret; this link will not survive a restart", file=sys.stderr, flush=True)
+    return token
+
+
 def main():
     a = argparse.ArgumentParser(prog="shipfloor dashboard")
     a.add_argument("--home", required=True)
     a.add_argument("--port", type=int, default=7717)
     a.add_argument("--no-open", action="store_true")
+    a.add_argument("--token", default="")  # a fixed token for a demo on sample data; empty keeps the random one
     args = a.parse_args()
     bash()
     Handler.factory = Factory(args.home, os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    Handler.token = secrets.token_urlsafe(16)
+    Handler.token = args.token or link_token(args.home)
     server = None
     for port in [0] if args.port == 0 else range(args.port, args.port + 10):
         try:

@@ -4,7 +4,7 @@ Date: 2026-10-10. Status: approved by the owner in conversation (sections 1 to 4
 
 ## Why
 
-On the night of 2026-10-09 seven Pickio cards were blocked. One label (`blocked`) covered four different things: a bug in a gate (#83), a decision only the owner can take (#100, #39, #86), an outside cause that fixed itself (#80) and forgotten state (#40, a label on a Done card). The owner's words: too many blocks reach me, I cannot see the specific reason easily, most reasons are easy to resolve, and I do not find out a card is blocked.
+On the night of 2026-10-09 seven Shop cards were blocked. One label (`blocked`) covered four different things: a bug in a gate (#83), a decision only the owner can take (#100, #39, #86), an outside cause that fixed itself (#80) and forgotten state (#40, a label on a Done card). The owner's words: too many blocks reach me, I cannot see the specific reason easily, most reasons are easy to resolve, and I do not find out a card is blocked.
 
 Today a block is a label plus a long agent comment; an unblock removes the label and the factory repeats the same stage, knowing nothing new.
 
@@ -86,7 +86,7 @@ When the same kind and gate was resolved by the same action 3 times in a row, `a
 
 `aghanim metrics` gains: blocks per week, resolved by script, by the agent, by the owner, and mean time blocked.
 
-Seed: the seven blocks of 2026-10-09/10 are written as the first lines of Pickio's history from their issue comments.
+Seed: the seven blocks of 2026-10-09/10 are written as the first lines of Shop's history from their issue comments.
 
 ## 4. What the owner sees
 
