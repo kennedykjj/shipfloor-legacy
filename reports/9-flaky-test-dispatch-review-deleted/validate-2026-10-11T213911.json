@@ -1,0 +1,1 @@
+{"outcome": "blocked", "stage": "validate", "issue": 9, "pr": 81, "rounds": 0, "failed_gates": ["CI test (log unreadable)"], "flaky": [], "amendments": [], "agents": []}
