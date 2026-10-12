@@ -13,18 +13,18 @@ Scripts: `board.sh`, `gate.sh`, `report.sh` and `shipfloor-config.sh` always mea
 
 Progress: as you begin each numbered step below, run `shipfloor-config.sh step <number>` with that step's number (the dashboard shows which step a run is on; the failure rule is not a step).
 
-Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and run builds and tests only through the gates. Avoid pipes after these commands; redirect long output to a file inside `<tmp>`, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. Shell variables do not survive between commands: write revisions (`qa`, `mb`) as literal SHAs. Never write under `~/.claude`.
+Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and run builds and tests only through the gates. Avoid pipes after these commands; redirect long output to a file inside `<tmp>`, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. A command with a `$` in it is refused too: no shell variables (`W=...`, `$W`, `$HOME`), no `$(...)`, no `for` or `while`, no `; echo $?`. Write every path and SHA out in full and run one gate per call: a command that fails is reported with its exit code, and every gate ends with `gate <name>: pass` or `FAIL`. Read, search and list files with Read, Grep and Glob, not `cat`, `grep`, `ls`, `head` or `sed`. Create and change files with Write and Edit, never from the shell: `cat > file <<EOF`, `printf ... > file` and a script fed by a heredoc (`python - <<EOF`) are refused. `gate.sh --help` and `report.sh --help` say how each is called. Give `gh` its text with `--body-file <file in tmp>`, never `--body "..."`. Below, `qa`, `mb` name revisions: write each as its literal SHA. Never write under `~/.claude`.
 
 Owner of a file: `shipfloor-config.sh layer-of <repo-relative path>` names its layer; that layer's agent (from describe) fixes it. A file with no layer is yours.
 
 ## 1. Pick the card
 - Issue given → use it, but only if `board.sh status <n>` is `Validation`; else stop.
-- Else `n=$(board.sh first Validation)`; empty → stop.
+- Else `n` = what `board.sh first Validation` prints; empty → stop.
 - Worktree `<worktrees>/<n>` on `feat/<n>-<slug>` (reuse it; else create it from `origin/feat/<n>-<slug>`). Spec = the `<specs>*-<slug>-design.md` on the branch. `qa` = the QA commit: `gate.sh -C <wt> qa-commit <n>`; the acceptance selectors come from the files it added.
 
 ## 2. Gates
 The branch is not merged with main here: the deploy does that, once, on the approved head.
-- `git -C <wt> fetch origin`; `mb=$(git -C <wt> merge-base HEAD origin/<main>)`. Gates (all with `-C <wt>`): `forbidden <mb>`, `migration <mb> <spec>`, `acceptance-intact <qa>`, `build <mb>` and every `green <layer> <selector>`. A failure goes to the file's owner agent with the gate output (max 2 rounds), then the failure rule.
+- `git -C <wt> fetch origin`; `mb` = what `git -C <wt> merge-base HEAD origin/<main>` prints. Gates (all with `-C <wt>`): `forbidden <mb>`, `migration <mb> <spec>`, `acceptance-intact <qa>`, `build <mb>` and every `green <layer> <selector>`. A failure goes to the file's owner agent with the gate output (max 2 rounds), then the failure rule.
 - An acceptance test that turns out wrong goes to QA, never to its implementer and not yet to the owner. When an engineer answers `test-wrong`, or `acceptance-intact` fails on the card's own edit: call `qa-engineer` with `mode=amend`, the spec, `qa` and `findings` (the engineer's note, or the gate output with `git -C <wt> diff <qa> HEAD -- <file>`). QA answers `amended` (it corrected its test) or `kept` (the test was right and is back as it was: the engineer fixes the code, with QA's note as `findings`). After either, `gate.sh -C <wt> qa-amend <n>`, then `qa` again from `gate.sh -C <wt> qa-commit <n>`, `acceptance-intact <qa>` and the `green` gates. On `amended`, comment on the issue "Acceptance tests amended by QA" with each file and QA's reason, and list it under `amendments` in the report: the owner reads it there, without being asked. `qa-amend` failing, or the same test disputed a second time, is the failure rule.
 
 ## 3. Review

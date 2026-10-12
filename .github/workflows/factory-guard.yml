@@ -1,0 +1,32 @@
+name: factory-guard
+
+# Runs the version of this file on main (pull_request_target), so a factory PR cannot edit its own guard.
+# It never checks out PR code; it only lists the PR's files through the API.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject factory changes to protected paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD: ${{ github.event.pull_request.head.ref }}
+        run: |
+          case "$HEAD" in feat/[0-9]*-*) ;; *) echo "not a factory branch: $HEAD"; exit 0 ;; esac
+          files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')"
+          bad="$(printf '%s\n' "$files" | grep -E '^(\.github/|\.githooks/|\.claude/|\.shipfloor/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env' || true)"
+          if [ -n "$bad" ]; then
+            echo "::error::Factory PR touches protected paths:"
+            printf '%s\n' "$bad"
+            exit 1
+          fi
+          echo "factory PR clean"

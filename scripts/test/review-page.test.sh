@@ -42,7 +42,7 @@ assert_contains "$html" "AC-1 · web · command: pnpm list"
 assert_contains "$html" "Target versions: use the latest patch?"
 case "$html" in *__DATA__*|*__ISSUE__*) fail "placeholders left" ;; *) pass "no placeholders left" ;; esac
 case "$html" in *'"t": "UX"'*|*'"t":"UX"'*|*'"t": "Security"'*) fail "empty section included" ;; *) pass "n/a sections skipped" ;; esac
-ids() { python -I -c "import re,sys,json;h=open(sys.argv[1],encoding='utf-8').read();d=json.loads(re.search(r'const S=(\[.*?\]);',h,re.S).group(1));print(';'.join(x['id']+'='+str(x['ro']) for x in d))" "$(cygpath -w "$1" 2>/dev/null || echo "$1")"; }
+ids() { "$FACTORY_PYTHON" -I -c "import re,sys,json;h=open(sys.argv[1],encoding='utf-8').read();d=json.loads(re.search(r'const S=(\[.*?\]);',h,re.S).group(1));print(';'.join(x['id']+'='+str(x['ro']) for x in d))" "$(cygpath -w "$1" 2>/dev/null || echo "$1")"; }
 data="$(ids "$d/out/25.html")"
 assert_contains "$data" "open-questions=False;product=True"
 assert_contains "$data" "test-plan=True"

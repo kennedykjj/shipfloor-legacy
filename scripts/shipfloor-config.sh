@@ -8,6 +8,7 @@ if [ "${1:-}" = step ]; then
 fi
 HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
+if [ "${1:-}" = machine ]; then shift; shipfloor_machine "$@"; exit $?; fi  # the machine's own file: needs no project (the installer asks from anywhere)
 shipfloor_resolve || exit 2
 if [ "${1:-}" = validate ]; then shipfloor_validate; exit $?; fi
 shipfloor_cfg "$@"

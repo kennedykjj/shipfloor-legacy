@@ -16,6 +16,14 @@ case "$(cat "$bin/calls")" in *pnpm*) fail "pnpm ran without web changes" ;; *) 
 
 fake mvn 1 "Tests run: 3, Failures: 1"
 assert_exit 1 env FACTORY_MVN="$bin/mvn" FACTORY_PNPM="$bin/pnpm" bash "$GATE" build "$base"
+# a gate says its verdict last, on stderr: no caller needs `; echo $?`, and stdout stays what callers read
+assert_contains "$(env FACTORY_MVN="$bin/mvn" FACTORY_PNPM="$bin/pnpm" bash "$GATE" build "$base" 2>&1 >/dev/null | tail -1)" "gate build: FAIL (exit 1)"
+fake mvn 0 "BUILD SUCCESS"
+assert_contains "$(env FACTORY_MVN="$bin/mvn" FACTORY_PNPM="$bin/pnpm" bash "$GATE" build "$base" 2>&1 >/dev/null | tail -1)" "gate build: pass"
+assert_exit 0 bash "$GATE" --help
+assert_contains "$(bash "$GATE" --help)" "green <layer> <selector>"
+assert_exit 2 bash "$GATE" nonsense
+assert_exit 0 bash "$FACTORY_DIR/report.sh" --help
 
 # red: assertion failure passes the gate
 fake mvn 1 "org.opentest4j.AssertionFailedError: expected: <429> but was: <200>"
