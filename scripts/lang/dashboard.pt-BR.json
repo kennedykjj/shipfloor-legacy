@@ -809,6 +809,22 @@
       "Maximizar hoje"
     ],
     [
+      "^Minimize the lifecycle$",
+      "Minimizar o ciclo de vida"
+    ],
+    [
+      "^Minimize today$",
+      "Minimizar hoje"
+    ],
+    [
+      "^Expand the lifecycle$",
+      "Expandir o ciclo de vida"
+    ],
+    [
+      "^Expand today$",
+      "Expandir hoje"
+    ],
+    [
       "^Restore what waits for you$",
       "Restaurar o que espera você"
     ],
