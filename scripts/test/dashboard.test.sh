@@ -196,4 +196,104 @@ printf '== start /sf:refine 12 %sT08:00:00-03:00 pid=1
 mkdir -p "$P/locks/deploysh-11.lock"; echo "1 $(date +%s) 11" > "$P/locks/deploysh-11.lock/info"
 got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; o=json.load(sys.stdin); print([(r["issue"], r["stage"], r["exit"], r["cost"]) for r in o["projects"][0]["ended"]], sorted({r["stage"] for r in o["runs"]}))')"
 assert_contains "$got" "[(12, 'refine', 3, None), (12, 'refine', 0, None)] ['develop']"
+
+# working hours: the overview and the settings carry `hours`, and Settings writes it. The dashboard reads the clock in its own
+# process, so each clock is a server of its own: one at 23:30 (outside 08:00-23:00) and one at 12:00 (inside)
+SRVS=""
+start_at() {  # start_at <HH:MM> <out file>: a dashboard whose clock says <HH:MM>
+  SHIPFLOOR_NOW="$1" $PY -I "$(nat "$FACTORY_DIR/dashboard.py")" --home "$(nat "$H")" --port 0 --no-open > "$2" 2>&1 &
+  SRVS="$SRVS $!"
+  for _ in $(seq 1 50); do grep -qs 'http://' "$2" && break; sleep 0.1; done
+}
+trap 'kill $srv $srv2 $SRVS 2>/dev/null' EXIT
+start_at 23:30 "$FAKE_GH_DIR/out-late"; url_late="$(grep -o 'http://[^ ]*' "$FAKE_GH_DIR/out-late")"; base_late="${url_late%%/?t=*}"; H_LATE="X-Shipfloor-Token: ${url_late##*t=}"
+start_at 12:00 "$FAKE_GH_DIR/out-noon"; url_noon="$(grep -o 'http://[^ ]*' "$FAKE_GH_DIR/out-noon")"; base_noon="${url_noon%%/?t=*}"; H_NOON="X-Shipfloor-Token: ${url_noon##*t=}"
+hours_of() {  # hours_of <base> <token header> <overview|settings>: the hours object as the API gives it
+  curl -s -H "$2" "$1/api/$3" | $PY -c 'import json,sys; h=(json.load(sys.stdin).get("hours") or {}); print(h.get("windows"), h.get("open"), h.get("next"), h.get("error") is not None)' 2>&1
+}
+cfg_hours() { $PY -I -c 'import json,sys,yaml; d=yaml.safe_load(open(sys.argv[1])) or {}; print(json.dumps(d.get("hours", "<unset>")))' "$(nat "$H/config.yml")" | tr -d '\r'; }
+cfg_other() { $PY -I -c 'import json,sys,yaml; d=yaml.safe_load(open(sys.argv[1])) or {}; d.pop("hours", None); print(json.dumps(d, sort_keys=True))' "$(nat "$H/config.yml")" | tr -d '\r'; }
+
+# AC-4 the overview and the settings say whether the factory is outside its hours and when the next window starts
+printf 'hours: ["08:00-23:00"]\n' > "$H/config.yml"
+assert_contains "$(hours_of "$base_late" "$H_LATE" overview)" "['08:00-23:00'] False 08:00 False"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "['08:00-23:00'] False 08:00 False"
+assert_contains "$(hours_of "$base_noon" "$H_NOON" overview)" "['08:00-23:00'] True None False"
+assert_contains "$(hours_of "$base_noon" "$H_NOON" settings)" "['08:00-23:00'] True None False"
+printf 'hours: ["08:00-23:00", "20:00-04:00"]\n' > "$H/config.yml"
+assert_contains "$(hours_of "$base_late" "$H_LATE" overview)" "['08:00-23:00', '20:00-04:00'] True None False"
+# AC-8 unset: always open, no message
+rm "$H/config.yml"
+assert_contains "$(hours_of "$base_late" "$H_LATE" overview)" "[] True None False"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "[] True None False"
+# AC-5 malformed in config.yml: open at all hours, the error and the value as written go to the page
+printf 'hours: ["8-23"]\n' > "$H/config.yml"
+assert_contains "$(hours_of "$base_late" "$H_LATE" overview)" "['8-23'] True None True"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "['8-23'] True None True"
+rm "$H/config.yml"
+
+# AC-7 Settings sets, changes and clears the window; the rest of config.yml stays; a malformed value is refused and writes nothing
+printf 'pool: 6\nlanguage: pt-BR\nstages:\n  develop: 3\n' > "$H/config.yml"
+rest_before="$(cfg_other)"
+mpost() { curl -s -o "$FAKE_GH_DIR/mbody" -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "$H_LATE" -d "$1" "$base_late/api/settings/machine"; }
+got="$(mpost '{"hours":["08:00-23:00","20:00-04:00"]}')"
+[ "$got" = 200 ] && pass "AC-7 setting hours is accepted" || fail "AC-7 setting hours answered $got: $(cat "$FAKE_GH_DIR/mbody")"
+[ "$(cfg_hours)" = '["08:00-23:00", "20:00-04:00"]' ] && pass "AC-7 config.yml holds exactly the windows set" || fail "AC-7 hours in config.yml: $(cfg_hours)"
+[ "$(cfg_other)" = "$rest_before" ] && pass "AC-7 the other keys of config.yml keep their values" || fail "AC-7 config.yml changed elsewhere: $(cfg_other), was $rest_before"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "['08:00-23:00', '20:00-04:00'] True None False"
+got="$(mpost '{"hours":["09:00-17:00"]}')"
+[ "$got" = 200 ] && [ "$(cfg_hours)" = '["09:00-17:00"]' ] && pass "AC-7 changing hours replaces the windows" || fail "AC-7 change answered $got, hours in config.yml: $(cfg_hours)"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "['09:00-17:00'] False 09:00 False"
+assert_contains "$(SHIPFLOOR_NOW=23:30 bash -c "source '$FACTORY_DIR/lib/project.sh'; shipfloor_machine hours" | tr -d '\r')" "closed 09:00"
+cp "$H/config.yml" "$FAKE_GH_DIR/config.saved"
+for badv in '["25:00-26:00"]' '["8-23"]' '["08:00-08:00"]' '["08:00-23:00", ""]' '["09:00-17:00", "nine-five"]'; do
+  got="$(mpost "{\"hours\":$badv}")"
+  [ "$got" = 400 ] && pass "AC-7 $badv is refused with 400" || fail "AC-7 $badv answered $got, want 400"
+  assert_contains "$(cat "$FAKE_GH_DIR/mbody")" '"error"'
+  assert_contains "$(cat "$FAKE_GH_DIR/mbody")" "hours"
+  cmp -s "$H/config.yml" "$FAKE_GH_DIR/config.saved" && pass "AC-7 $badv writes nothing" || fail "AC-7 $badv changed config.yml"
+done
+[ "$(post -d '{"hours":["01:00-02:00"]}' "$base_late/api/settings/machine")" = 403 ] && cmp -s "$H/config.yml" "$FAKE_GH_DIR/config.saved" && pass "AC-7 no token, no change of hours" || fail "AC-7 hours changed without the token"
+got="$(mpost '{"hours":null}')"
+[ "$got" = 200 ] && [ "$(cfg_hours)" = '"<unset>"' ] && pass "AC-7 null clears hours: the key is removed" || fail "AC-7 null answered $got, hours in config.yml: $(cfg_hours)"
+[ "$(cfg_other)" = "$rest_before" ] && pass "AC-7 clearing keeps the other keys" || fail "AC-7 clearing changed config.yml elsewhere: $(cfg_other)"
+assert_contains "$(hours_of "$base_late" "$H_LATE" settings)" "[] True None False"
+mpost '{"hours":["09:00-17:00"]}' >/dev/null
+got="$(mpost '{"hours":[]}')"
+[ "$got" = 200 ] && [ "$(cfg_hours)" = '"<unset>"' ] && pass "AC-7 an empty list clears hours: the key is removed" || fail "AC-7 [] answered $got, hours in config.yml: $(cfg_hours)"
+got="$(mpost '{"pool":7}')"
+[ "$got" = 200 ] && assert_contains "$(cfg_other)" '"pool": 7' && [ "$(cfg_hours)" = '"<unset>"' ] || fail "AC-7 saving only the pool answered $got: $(cat "$FAKE_GH_DIR/mbody")"
+printf 'pool: 6\nhours: ["09:00-17:00"]\n' > "$H/config.yml"
+got="$(mpost '{"pool":7}')"
+[ "$got" = 200 ] && [ "$(cfg_hours)" = '["09:00-17:00"]' ] && pass "AC-7 saving the pool leaves hours as it was" || fail "AC-7 saving the pool answered $got and left hours at $(cfg_hours)"
+rm "$H/config.yml"
+
+# AC-4 / AC-7 the page: the copy and the control are in dashboard.html, the translations in dashboard.pt-BR.json
+html="$FACTORY_DIR/dashboard.html"
+for s in 'Outside working hours:' 'starts again at' 'Working hours' 'placeholder="always"' 'spellcheck="false"' 'autocomplete="off"' 'aria-invalid' \
+         'Windows like 08:00-23:00, separated by commas. Empty means always.' \
+         'Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.' \
+         'The hours in config.yml are not valid, so the dispatcher runs at all hours.' '.disp.idle .sdot'; do
+  grep -qF -- "$s" "$html" && pass "AC-4/AC-7 dashboard.html has '$s'" || fail "AC-4/AC-7 dashboard.html lacks '$s'"
+done
+cat > "$FAKE_GH_DIR/catalog.py" <<'EOP'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+ex, rx = d.get("exact", {}), [tuple(x) for x in d.get("rx", [])]
+want = {
+    "Outside working hours:": "Fora do hor\u00e1rio de trabalho:",
+    "Working hours": "Hor\u00e1rio de trabalho",
+    "always": "sempre",
+    "Windows like 08:00-23:00, separated by commas. Empty means always.": "Janelas como 08:00-23:00, separadas por v\u00edrgula. Vazio significa sempre.",
+    "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.": "Hor\u00e1rio de trabalho n\u00e3o salvo: escreva cada janela como HH:MM-HH:MM, separadas por v\u00edrgula.",
+    "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O hor\u00e1rio em config.yml n\u00e3o \u00e9 v\u00e1lido, ent\u00e3o o dispatcher roda a qualquer hora.",
+}
+for k, v in want.items():
+    print("ok" if ex.get(k) == v else "MISSING exact: " + k.encode("ascii", "replace").decode())
+print("ok" if (r"starts again at (\d\d:\d\d)", "volta a iniciar \u00e0s $1") in rx else "MISSING rx: starts again at (\\d\\d:\\d\\d)")
+EOP
+while IFS= read -r line; do
+  line="${line%$'\r'}"
+  [ "$line" = ok ] && pass "AC-4/AC-7 pt-BR catalog entry" || fail "AC-4/AC-7 dashboard.pt-BR.json: $line"
+done < <($PY -I "$(nat "$FAKE_GH_DIR/catalog.py")" "$(nat "$FACTORY_DIR/lang/dashboard.pt-BR.json")" 2>&1)
 finish
