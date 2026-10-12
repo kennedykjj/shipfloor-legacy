@@ -91,7 +91,7 @@ page_has 'id="lang"' "AC-1"
 
 # --- AC-6: only language changes in config.yml
 fresh_home
-printf 'language: en\npool: 6\nstages:\n  refine: 3\n  develop: 1\nstacks:\n  api: 2\nstack_wait: 90\ndispatcher:\n  every_min: 5\n' > "$H/config.yml"
+printf 'language: en\npool: 6\nstages:\n  refine: 3\n  develop: 1\nstacks: 2\nstack_wait: 90\ndispatcher:\n  every_min: 5\n' > "$H/config.yml"
 before="$(cfgrest)"; start_dash d "$OK_CMD"
 resp="$(post '{"language":"pt-BR"}')"; code="${resp##*$'\n'}"
 [ "$code" = 200 ] && pass "AC-6 saving a language answers 200" || fail "AC-6 saving a language answered $code: $resp"
