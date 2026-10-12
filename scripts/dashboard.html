@@ -462,8 +462,8 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
 /* a refused link: the page stops at the header and one message */
 body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #peek, body.refused #drawer, body.refused #dim { display: none !important; }
 #msg.refusal { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 20px; max-width: 64ch; color: var(--muted); outline: none; }
-#msg.refusal strong { color: var(--text); font-size: 17px; font-weight: 600; }
-#msg.refusal code { font: 14px var(--mono); color: var(--text); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 8px; padding: 8px 12px; user-select: all; }
+#msg.refusal strong { color: var(--text); font-size: 14px; font-weight: 600; }
+#msg.refusal code { font: 13px var(--mono); color: var(--text); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 4px; padding: 2px 7px; white-space: nowrap; user-select: all; }
 .skeleton { height: 14px; margin: 14px 20px; border-radius: 4px; background: linear-gradient(90deg, var(--edge), var(--panel-hi), var(--edge)); background-size: 200% 100%; animation: shimmer 1.2s ease infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
@@ -612,7 +612,7 @@ async function api(path, opts = {}) {
   if (S.refused) return { status: 403, body: {} };
   try {
     const r = await fetch(path, { ...opts, headers: { "X-Shipfloor-Token": token, "Content-Type": "application/json", ...(opts.headers || {}) } });
-    if (r.status === 403) { S.refused = true; refuse(); return { status: 403, body: {} }; }
+    if (r.status === 403) { if (!S.refused) { S.refused = true; refuse(); } return { status: 403, body: {} }; }
     const body = await r.json().catch(() => ({}));
     setOffline(false);
     return { status: r.status, body };
