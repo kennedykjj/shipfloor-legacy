@@ -30,6 +30,20 @@ stages: {refine: 2, develop: 2, validate: 2, deploy: 1}
 
 `shipfloor pool` shows it and the runs in progress; `shipfloor pool set 6` and `shipfloor pool stage validate 3` change it. A project runs one deploy at a time (merges into main are serial); its `limits.<stage>.wip` in `factory.yml` caps the cards waiting in Spec Review (refine, default 2) and in Coding + Validation (develop, default 4).
 
+## Cost limits
+
+The same `~/.shipfloor/config.yml` can cap what a card and a day spend. All three keys are optional, in US$, and a key you leave out does nothing:
+
+```yaml
+costs: {card_warn: 20, card_block: 40, day_stop: 80}
+```
+
+- `card_warn`: a card whose estimate passes it is flagged on the dashboard. Nothing stops.
+- `card_block`: past it, the card's next run does not start. The card gets the `blocked` label and a comment with the estimated total and the estimate per stage, and waits for your call. Unblocking it grants one more `card_block`, counted from the unblock.
+- `day_stop`: when today's estimate across every project passes it, no new run starts and the dashboard says so. Sessions already running finish. Runs start again on their own when the machine's local day changes.
+
+The figures are an estimate, from the tokens of the runs and `~/.shipfloor/prices.yml`, not a bill. A card that ran on a model with no price has an unknown estimate: no card limit flags or blocks it, its runs add nothing to the day, and the dashboard says the price is missing. The dashboard's Settings, Costs section sets the three values (an empty field removes one; `card_warn` cannot be above `card_block`), and a change applies from the next dispatcher cycle.
+
 The same file picks the model each stage's session and each agent runs on, in two optional maps:
 
 ```yaml
@@ -92,7 +106,7 @@ On deploy, what breaks on top of `main` is repaired in place. Conflicts are reso
 ```bash
 claude plugin marketplace add <path or URL of this repo>
 claude plugin install sf@shipfloor
-bash <plugin>/scripts/shipfloor install     # copies scripts and templates to ~/.shipfloor/factory
+bash <plugin>/scripts/shipfloor install     # copies scripts and templates to ~/.shipfloor/factory, each file by rename (safe while runs are in progress) and says how many it replaced, added and removed
 alias shipfloor='bash ~/.shipfloor/factory/shipfloor'
 shipfloor doctor
 ```
@@ -106,6 +120,11 @@ For each repository:
 5. Permissions for the headless pipelines in the project's `.claude/settings.json`: `Bash(bash ~/.shipfloor/factory/gate.sh:*)`, `Bash(bash ~/.shipfloor/factory/board.sh:*)`, `Bash(bash ~/.shipfloor/factory/shipfloor-config.sh:*)`, `Bash(bash ~/.shipfloor/factory/report.sh:*)`, `Bash(bash ~/.shipfloor/factory/review-page.sh:*)`, plus `git` and `gh`.
 
 Dispatcher on Windows: `powershell -File <plugin>/installer/install-dispatcher.ps1` registers the `ShipfloorDispatcher` task. It runs every 3 minutes unless you choose 1, 5 or 10: pick it in Settings in the dashboard ("Looks for work every"), or pass `-EveryMin` to `installer/install-dispatcher.ps1`. The value lives in `~/.shipfloor/config.yml` as `dispatcher.every_min`.
+
+Dispatcher on Linux and macOS: `bash <plugin>/installer/install-dispatcher.sh` registers it. On Linux it is a systemd user timer when there is a systemd user session, else a crontab line. On macOS it is a launchd user agent. To remove it, run `bash <plugin>/installer/install-dispatcher.sh --uninstall`.
+- On systemd the dispatcher stops at logout unless lingering is on (`loginctl enable-linger <user>`); the installer says which.
+- The pace comes from `--every-min` or `dispatcher.every_min`. To change it, run the installer again. The dashboard's pace control is Windows only.
+- The installer records your shell's `PATH` for the timer. Run it again after PATH changes.
 
 ## Upgrading from Aghanim's Anvil <!-- legacy aghanim -->
 
