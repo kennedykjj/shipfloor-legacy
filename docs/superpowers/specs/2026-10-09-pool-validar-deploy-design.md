@@ -4,7 +4,7 @@
 
 ## Contexto
 
-No Pickio, #74 e #70 foram desenvolvidos em paralelo a partir do mesmo `main`, cada um criou uma `V27` e entraram com 2 minutos de diferença: o `main` ficou vermelho e nenhum deploy subiu até o #75 renumerar. Cada PR passou no CI sozinho; nenhum foi testado em cima do outro. Além disso, o `/deployar` devolvia o card para Coding em qualquer conflito de merge.
+No Shop, #74 e #70 foram desenvolvidos em paralelo a partir do mesmo `main`, cada um criou uma `V27` e entraram com 2 minutos de diferença: o `main` ficou vermelho e nenhum deploy subiu até o #75 renumerar. Cada PR passou no CI sozinho; nenhum foi testado em cima do outro. Além disso, o `/deployar` devolvia o card para Coding em qualquer conflito de merge.
 
 ## Objetivos
 
@@ -62,4 +62,4 @@ Ao atualizar com o `main`:
 - Dispatcher: limite por etapa somando projetos; `pool` global; `validar` lança da fila Validation; `desenvolver` não trata Validation como órfão.
 - Gate `migration`: versão repetida (inclusive vinda do `main` após o merge) e migration nova com versão menor que uma existente → bloqueia; caso normal passa; regex de versão configurável.
 - CLI: `mylos pool`, `pool set`, `pool stage`.
-- Higiene: a skill `validar` existe e nada cita Pickio.
+- Higiene: a skill `validar` existe e nada cita Shop.

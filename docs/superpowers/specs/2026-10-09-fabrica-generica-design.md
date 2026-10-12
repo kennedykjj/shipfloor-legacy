@@ -4,11 +4,11 @@
 
 ## Objetivo
 
-O mylos-factory foi importado do Pickio com tudo fixo: board `kennedykjj/2`, repo `kennedykjj/pickio`, caminhos `~/git/pickio*`, `~/.pickio-factory`, camadas `api/` (Maven) e `web/` (pnpm) e domínio do Pickio dentro dos agentes. O objetivo é que o plugin `mylos` sirva a **qualquer repositório** que declare uma config, sem mudar o fluxo do board nem enfraquecer os gates.
+O mylos-factory foi importado do Shop com tudo fixo: board `acme/2`, repo `acme/shop`, caminhos `~/git/shop*`, `~/.shop-factory`, camadas `api/` (Maven) e `web/` (pnpm) e domínio do Shop dentro dos agentes. O objetivo é que o plugin `mylos` sirva a **qualquer repositório** que declare uma config, sem mudar o fluxo do board nem enfraquecer os gates.
 
-**Sucesso:** um repo-fixture com camadas arbitrárias (nomes, caminhos e comandos diferentes de api/web) passa por todos os gates e pelo dispatcher nos testes; nenhum arquivo do plugin cita Pickio, `kennedykjj` ou caminhos da máquina.
+**Sucesso:** um repo-fixture com camadas arbitrárias (nomes, caminhos e comandos diferentes de api/web) passa por todos os gates e pelo dispatcher nos testes; nenhum arquivo do plugin cita Shop, `acme` ou caminhos da máquina.
 
-**Fora de escopo:** migrar o Pickio (próximo passo); publicar no marketplace; rodar em Linux/macOS além do que já funciona (o installer continua Windows).
+**Fora de escopo:** migrar o Shop (próximo passo); publicar no marketplace; rodar em Linux/macOS além do que já funciona (o installer continua Windows).
 
 ## Decisões (da conversa)
 
@@ -19,7 +19,7 @@ O mylos-factory foi importado do Pickio com tudo fixo: board `kennedykjj/2`, rep
 | Vários projetos | Um dispatcher por máquina percorre um registro; locks/logs/PAUSE por projeto; limite global de runs |
 | Config | YAML em `.mylos/factory.yml` no repo alvo, lida por helper Python com PyYAML (pré-requisito, checado por `mylos doctor`) |
 | Gates | Continuam em bash; constantes viram consultas ao helper `mylos_config.py` |
-| Pickio | Fora desta entrega |
+| Shop | Fora desta entrega |
 
 ## Arquitetura
 
@@ -131,9 +131,9 @@ Colunas e regras de dono continuam fixas (são o fluxo da fábrica). Owner, núm
 
 ## Skills e agentes
 
-- Skills (`refinar`, `desenvolver`, `deployar`) começam rodando `bash ~/.mylos/factory/mylos-config.sh describe` e usam dali repo, worktrees, tmp, specs, plans, camadas e deploy. Nenhuma cita Pickio, api/web, mvn ou pnpm; rotas por camada ("arquivo → dono") usam `layer-of`. `deployar` pula a espera de CI/deploy quando a config não tem `ci_workflow`/`environment`.
-- Agentes genéricos: `engineer` (recebe `layer`, `path`, `stack`, `build`, `test` na chamada e segue `CLAUDE.md` + código vizinho), `qa-engineer` (testes só nos globs `tests` da camada do plano), `product-owner`, `ux-designer` e `cybersec` (domínio vem dos arquivos de `context`). `backend-engineer` e `frontend-engineer` saem do plugin (viram override do Pickio na migração).
-- Templates: `spec-template.md` sem termos do Pickio; `review-criteria.md` genérico (sem Kotlin/R2/Asaas); `factory-guard.yml` com `.mylos/` no lugar de `scripts/factory/`; chave do review page = `<projeto>-spec-<n>-review`.
+- Skills (`refinar`, `desenvolver`, `deployar`) começam rodando `bash ~/.mylos/factory/mylos-config.sh describe` e usam dali repo, worktrees, tmp, specs, plans, camadas e deploy. Nenhuma cita Shop, api/web, mvn ou pnpm; rotas por camada ("arquivo → dono") usam `layer-of`. `deployar` pula a espera de CI/deploy quando a config não tem `ci_workflow`/`environment`.
+- Agentes genéricos: `engineer` (recebe `layer`, `path`, `stack`, `build`, `test` na chamada e segue `CLAUDE.md` + código vizinho), `qa-engineer` (testes só nos globs `tests` da camada do plano), `product-owner`, `ux-designer` e `cybersec` (domínio vem dos arquivos de `context`). `backend-engineer` e `frontend-engineer` saem do plugin (viram override do Shop na migração).
+- Templates: `spec-template.md` sem termos do Shop; `review-criteria.md` genérico (sem Kotlin/R2/Asaas); `factory-guard.yml` com `.mylos/` no lugar de `scripts/factory/`; chave do review page = `<projeto>-spec-<n>-review`.
 
 ## Erros
 
@@ -145,4 +145,4 @@ Colunas e regras de dono continuam fixas (são o fluxo da fábrica). Owner, núm
 
 - `lib.sh` exporta `FACTORY_CONFIG` de `scripts/test/fixture/factory.yml` (camadas `api`, `web`, `e2e` com comandos `${FACTORY_MVN:-mvn}`/`${FACTORY_PNPM:-pnpm}`), preservando as suítes atuais com papéis renomeados (`backend`→`api`, `frontend`→`web`).
 - Novos: `config.test.sh` (validate, get, regex, layer-of, describe, glob→ERE), `gate-layers.test.sh` (fixture com 3 camadas fora do padrão api/web: scope, build, red/green, migration), `project-resolve.test.sh` (registro → config do controle), `mylos-dispatch.test.sh` (vários projetos, PAUSE global e por projeto, limite global, config inválida pula só aquele projeto), `mylos-cli.test.sh` (add/list/remove/pause).
-- Teste de higiene: `grep` em `skills/ agents/ scripts/ templates/ installer/` (fora de `scripts/test/`) não encontra `pickio`, `kennedykjj` nem `/c/Users`.
+- Teste de higiene: `grep` em `skills/ agents/ scripts/ templates/ installer/` (fora de `scripts/test/`) não encontra `shop`, `acme` nem `/c/Users`.

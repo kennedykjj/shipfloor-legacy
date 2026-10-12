@@ -373,6 +373,13 @@ class Factory:
             return None
         return {"since": since, "reason": why} if since else None
 
+    def me(self):
+        """This factory's GitHub login, read once; None while it cannot be read."""
+        if not getattr(self, "_me", None):
+            user, _ = gh_json("api", "user")
+            self._me = user.get("login") if isinstance(user, dict) else None
+        return self._me
+
     def block_reason(self, p, n):
         """The factory's note about the block (the skills write the step, the output and what was tried there):
         among the issue's last comments, the newest that tells of a block or a failure, a stage's own note before
@@ -381,8 +388,10 @@ class Factory:
         if time.time() - at > 60:
             repo = shipfloor_config.dotted(self.config(p), "project.repo")
             pages, _ = gh_json("api", f"repos/{repo}/issues/{n}/comments?per_page=100", "--paginate", "--slurp")
+            # anyone can comment on a public repository: the note is one the factory's user or a trusted commenter wrote
+            me, who = self.me(), set(shipfloor_config.dotted(self.config(p), "trusted_commenters") or [])
             bodies = [c.get("body") or "" for page in pages or [] for c in (page if isinstance(page, list) else [page])
-                      if isinstance(c, dict)]  # GitHub lists an issue's comments oldest first
+                      if isinstance(c, dict) and (not me or "*" in who or (c.get("user") or {}).get("login", me) in who | {me})]  # oldest first
             told = [b for b in reversed(bodies[-4:]) if re.search(r"\b(blocked|failed)\b", b, re.I)]
             reason = next((b for b in told if "Factory report" not in b[:40]), told[0] if told else "")[:4000]
             self._reasons[(p, n)] = (time.time(), reason)
@@ -1171,6 +1180,32 @@ class Server(ThreadingHTTPServer):
     allow_reuse_address = os.name != "nt"  # on Windows SO_REUSEADDR lets a second server share the port
 
 
+def link_token(home):
+    """The link's secret, kept in <home>/dashboard.token so a link survives a restart.
+    A missing or damaged file is replaced by a new token; an unwritable home keeps it in memory."""
+    path = Path(home) / "dashboard.token"
+    try:
+        saved = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        saved = ""
+    if re.fullmatch(r"[A-Za-z0-9_-]{22}", saved):
+        return saved
+    token = secrets.token_urlsafe(16)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(token + "\n")
+        os.replace(tmp, path)
+    except OSError:
+        print("shipfloor dashboard: could not save the link's secret; this link will not survive a restart", file=sys.stderr, flush=True)
+    return token
+
+
 def main():
     a = argparse.ArgumentParser(prog="shipfloor dashboard")
     a.add_argument("--home", required=True)
@@ -1179,7 +1214,7 @@ def main():
     args = a.parse_args()
     bash()
     Handler.factory = Factory(args.home, os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    Handler.token = secrets.token_urlsafe(16)
+    Handler.token = link_token(args.home)
     server = None
     for port in [0] if args.port == 0 else range(args.port, args.port + 10):
         try:
