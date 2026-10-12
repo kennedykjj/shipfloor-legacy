@@ -1,0 +1,19 @@
+{
+  "issue": 11,
+  "slug": "dashboard-review-marks-are-lost-when-the",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T21:29:00-03:00",
+  "finished_at": "2026-10-11T21:43:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 59880, "duration_s": 269},
+    {"role": "qa-engineer", "tokens": 23786, "duration_s": 39},
+    {"role": "engineer", "tokens": 35209, "duration_s": 68},
+    {"role": "engineer", "tokens": 25916, "duration_s": 75}
+  ],
+  "rounds": {"2": 1, "3": 2, "4": 1, "5": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": null
+}
