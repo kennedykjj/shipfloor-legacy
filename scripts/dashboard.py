@@ -13,7 +13,7 @@ sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
 import shipfloor_health
-from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, rounded
+from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, per_card, rounded
 import yaml
 
 # The steps a run announces with `shipfloor-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
@@ -545,7 +545,37 @@ class Factory:
         command, why = scheduler()
         return {"machine": {k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, "paused": (self.home / "PAUSE").exists(),
                 "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
-                "cycle": cycle, "projects": projects, "prices": self.prices(), "hours": self.hours()}
+                "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours()}
+
+    def project_agents(self):
+        """{agent: [{project, layer}]} for every agent a registered project's layer names."""
+        out = {}
+        for p in self.projects():
+            for l in self.config(p).get("layers") or []:
+                if isinstance(l, dict) and isinstance(l.get("agent"), str):
+                    out.setdefault(l["agent"], []).append({"project": p, "layer": l.get("name")})
+        return out
+
+    def models(self):
+        """The Settings rows for the models: each stage and agent with its configured model, today's model, whether
+        the model has a price, and (stages) the mean cost per card of the last 7 days."""
+        raw, agents, prices = read_yaml(self.home / "config.yml"), self.project_agents(), self.prices()
+        problems = shipfloor_config.model_problems(raw, agents)
+        bad, configured = {p["key"] for p in problems}, raw.get("models") if isinstance(raw.get("models"), dict) else {}
+        def row(group, name, default):
+            entries = configured.get(group) if isinstance(configured.get(group), dict) else {}
+            value = None if f"models.{group}.{name}" in bad else entries.get(name)
+            return {"value": value, "default": default, "priced": value is None or any(k.startswith(f"claude-{value}-") for k in prices)}
+        since, runs = datetime.now(timezone.utc) - timedelta(days=7), {s: [] for s in shipfloor_config.STAGES}
+        for p in self.projects():
+            for s in self.sessions(p):
+                if s["stage"] in runs and parse_ts(s["start"]) >= since:
+                    runs[s["stage"]].append(((p, s["issue"]), self.session_cost(s, prices)))
+        return {"choices": list(shipfloor_config.MODELS),
+                "stages": {st: dict(row("stages", st, shipfloor_config.STAGE_MODELS[st]), cost=per_card(runs[st])) for st in shipfloor_config.STAGES},
+                "agents": {**{a: dict(row("agents", a, d), projects=[]) for a, d in shipfloor_config.PLUGIN_AGENTS.items()},
+                           **{a: dict(row("agents", a, None), projects=ps) for a, ps in agents.items() if a not in shipfloor_config.PLUGIN_AGENTS}},
+                "problems": problems}
 
     def registry(self):
         try:
@@ -556,7 +586,8 @@ class Factory:
     def set_machine(self, changes):
         """The owner's new limits for this machine, all at once so a pool and its stages are checked together.
         Whatever else config.yml holds stays as it is. The dispatcher reads the file on its next cycle."""
-        path, new = self.home / "config.yml", json.loads(json.dumps(read_yaml(self.home / "config.yml")))
+        path, old = self.home / "config.yml", read_yaml(self.home / "config.yml")
+        new = json.loads(json.dumps(old))
         if not isinstance(new, dict) or not isinstance(changes, dict):
             return 400, {"error": "config.yml is not a YAML mapping; fix it by hand"}
         for k in ("pool", "stacks", "stack_wait"):
@@ -572,6 +603,21 @@ class Factory:
         if isinstance(changes.get("dispatcher"), dict) and "every_min" in changes["dispatcher"]:
             new["dispatcher"] = dict(new["dispatcher"] if isinstance(new.get("dispatcher"), dict) else {}, every_min=changes["dispatcher"]["every_min"])
         errs = shipfloor_config.machine_problems(new) + (shipfloor_config.hours_problems(new) if "hours" in changes else [])
+        if isinstance(changes.get("models"), dict):
+            models = new["models"] if isinstance(new.get("models"), dict) else {}
+            for group in ("stages", "agents"):
+                if isinstance(changes["models"].get(group), dict):
+                    rows = dict(models[group] if isinstance(models.get(group), dict) else {}, **changes["models"][group])
+                    models[group] = {n: m for n, m in rows.items() if m is not None}
+            new["models"] = {g: rows for g, rows in models.items() if rows != {}}
+            if not new["models"]:
+                del new["models"]
+            agents = self.project_agents()
+            before = shipfloor_config.model_problems(old, agents)
+            errs += [f"{p['key']}: not a stage or an agent here. Nothing was saved." if p["why"] == "name"
+                     else f"{p['key']}: must be a mapping. Nothing was saved." if p["why"] == "shape"
+                     else f"{p['key']}: \"{p['value']}\" is not a model the factory knows. Nothing was saved."
+                     for p in shipfloor_config.model_problems(new, agents) if p not in before]
         if errs:
             return 400, {"error": "; ".join(errs)}
         every = shipfloor_config.dispatcher_every(new)
