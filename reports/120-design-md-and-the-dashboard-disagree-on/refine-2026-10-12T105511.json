@@ -1,0 +1,17 @@
+{
+  "issue": 120,
+  "slug": "design-md-and-the-dashboard-disagree-on",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T10:51:24-03:00",
+  "finished_at": "2026-10-12T10:54:49-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 30364, "duration_s": 29},
+    {"role": "ux-designer", "tokens": 41169, "duration_s": 79}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
