@@ -1,0 +1,19 @@
+{
+  "issue": 116,
+  "slug": "dashboard-empty-states-say-the-wrong-thi",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T10:53:00-0300",
+  "finished_at": "2026-10-12T11:04:00-0300",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 41011, "duration_s": 74},
+    {"role": "engineer", "tokens": 68438, "duration_s": 243},
+    {"role": "engineer", "tokens": 15555, "duration_s": 82}
+  ],
+  "rounds": {"3": 1, "4": 2},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": ["build"],
+  "amendments": [],
+  "manual_edit": false
+}
