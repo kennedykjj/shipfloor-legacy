@@ -1,0 +1,16 @@
+{
+  "issue": 52,
+  "slug": "dashboard-a-link-from-an-earlier-run-is",
+  "pipeline": "refine",
+  "started_at": "2026-10-11T22:12:27-03:00",
+  "finished_at": "2026-10-11T22:16:04-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 22398, "duration_s": 39},
+    {"role": "ux-designer", "tokens": 54285, "duration_s": 92}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "manual_edit": null
+}
