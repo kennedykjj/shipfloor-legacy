@@ -1,8 +1,83 @@
 # Shipfloor
 
-**A software factory for Claude Code.** Turns GitHub issues into shipped PRs: agents refine, build and validate; deterministic gates they can't edit decide what passes. It works in any repository that declares a `.shipfloor/factory.yml`.
+**A software factory for Claude Code.** You write a GitHub issue. Agents refine it into a spec, build it against failing acceptance tests, review it and open the pull request. You approve twice, and it ships. What passes is decided by deterministic gates the agents cannot edit, not by an agent saying it is done.
 
 > The shop floor is where a factory's work gets done. This one ships software: the agents build; the gates hold.
+
+Shipfloor is a Claude Code plugin and a set of Bash and Python scripts. It runs on your own machine, with your own Claude Code and GitHub accounts, against any repository that declares a `.shipfloor/factory.yml`. A local dashboard shows what waits for you, what is running, each run's log and what every card cost.
+
+> [!NOTE]
+> Nothing is hosted: the factory is a scheduled task on your machine that starts Claude Code sessions. It runs on Windows (Git Bash), macOS and Linux.
+
+**In this README:** [A card's way to production](#a-cards-way-to-production) · [Architecture](#architecture) · [How it works](#how-it-works) · [Install](#install) · [Agent pool](#agent-pool) · [Cost limits](#cost-limits) · [Notifications](#notifications) · [Working hours](#working-hours) · [Parallel work](#parallel-work) · [Operation](#operation) · [Language](#language) · [Security](#security) · [Development](#development)
+
+## A card's way to production
+
+The board is a GitHub Project with ten fixed columns. You own the yellow ones: you move a card into them, or the factory leaves a card there for your decision. The factory works the dark ones.
+
+```mermaid
+flowchart LR
+  inbox([Inbox]) -->|you pick it| rr([Ready for Refinement])
+  rr -->|refine| tr[Technical Refinement]
+  tr --> sr([Spec Review])
+  sr -->|you approve the spec| rd([Ready for Dev])
+  rd -->|develop| co[Coding]
+  co --> va[Validation]
+  va -->|validate| st([Staged])
+  st -->|you approve the PR| rp([Ready for Prod])
+  rp -->|deploy| done[Done]
+  sr -.->|you ask for changes| rr
+  st -.->|you ask for changes| co
+  classDef owner fill:#f2c230,stroke:#8a6d00,color:#1a1a1a
+  classDef factory fill:#22303f,stroke:#4d6177,color:#eef3f7
+  class inbox,rr,sr,rd,st,rp owner
+  class tr,co,va,done factory
+```
+
+You decide two things per card: whether the spec is what you want built, and whether the pull request ships. Everything between those two decisions runs without you.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  you(["You"])
+
+  subgraph machine["Your machine"]
+    direction TB
+    dash["Dashboard<br/>a local page"]
+    disp["Dispatcher<br/>scheduled, every 3 minutes"]
+    subgraph runs["Pipelines"]
+      direction LR
+      refine["refine<br/>spec"] --> develop["develop<br/>tests, then code"] --> validate["validate<br/>review, pull request"]
+    end
+    gates{{"Gates<br/>scripts the agents cannot edit"}}
+    deploy["Deploy script<br/>merges what you approved"]
+    disp -->|starts| runs
+    runs -->|must pass| gates
+    disp -->|starts, once you approve| deploy
+  end
+
+  subgraph github["GitHub"]
+    direction TB
+    board["Issues and the Project board"]
+    prs["Pull requests"]
+    ci["Actions: the test suite"]
+    prs --> ci
+  end
+
+  you -->|writes issues, picks cards| board
+  you -->|approves or asks for changes| dash
+  dash -->|moves your cards| board
+  disp -->|reads| board
+  validate -->|opens| prs
+  deploy -->|waits for CI, merges| prs
+```
+
+- **Dispatcher.** A scheduled task that reads the board of every registered project and starts a pipeline for each card that is ready, within the machine's pool of sessions. It keeps no state of its own: the board is the source of truth.
+- **Pipelines.** `refine`, `develop` and `validate` are Claude Code sessions started with `claude -p`. Each is a tech lead that calls role agents (product owner, UX, security, QA, engineers) and works in the card's own git worktree.
+- **Gates.** Scripts that decide what passes: who may touch which files, that the acceptance tests failed before the code existed and pass after, that nobody edited them in between, that the build is green. They run from an installed copy outside every worktree and read the project's config from `origin/main`, so an agent cannot change the rules that judge it.
+- **Deploy.** A script, not an agent. It brings the branch up to date with `main`, waits for CI on the head you approved and merges. An agent is called only to resolve a conflict or fix what broke on top of `main`, within small limits.
+- **Dashboard.** A page served on `127.0.0.1`: what waits for you, live runs and their logs, the cost of each card from the tokens of its runs, and the review pages where you approve.
 
 ## How it works
 
@@ -93,6 +168,7 @@ Cards built at the same time do not break `main`:
 - the `migration` gate refuses a version used twice and a migration older than the base's or `main`'s;
 - only `deploy` merges `origin/main`, once, on the head the owner approved (`validate` does it only when the PR conflicts with main, so CI can run); the PR's CI already tests the branch merged with main;
 - `deploy` merges only a head that contains the current `main` and passed CI; with `deploy.refresh_staged: true` the dispatcher also keeps Staged PRs on top of `main` (faster approvals, but every refresh reruns CI: leave it off when Actions minutes are tight);
+- a project with no CI on GitHub (or no Actions minutes to spend) sets `deploy.local_ci` to a command: the deploy runs it in the card's worktree on the head merged with main, where it would wait for GitHub's checks. Red gets the same fix rounds as red CI, and `deploy.timeout_min` bounds it. With it set, `deploy.required_checks` is not read and validation does not wait for checks;
 - to close the race with merges made by hand, enable branch protection on the main branch with "Require branches to be up to date before merging" and required CI; `/sf:deploy` reports when it is missing.
 
 On deploy, what breaks on top of `main` is repaired in place. Conflicts are resolved by an agent, which may touch only the conflicted files. A migration whose version `main` took is renumbered above main's newest. A gate or CI that goes red after the merge gets up to two agent rounds: a fix within `deploy.fix_max_files` / `fix_max_lines` (3 files, 40 lines) that touches no acceptance test ships with the approved head, recorded on the issue as `deploy-fix`; a larger one goes back to Staged for a new approval. A CI run on `main` that fails has its failed jobs run once more before the revert. The card goes back to Coding only when a migration file itself conflicts, when the conflict is large (`deploy.conflict_max_files` / `conflict_max_hunks`), or when the two rounds do not turn it green.
