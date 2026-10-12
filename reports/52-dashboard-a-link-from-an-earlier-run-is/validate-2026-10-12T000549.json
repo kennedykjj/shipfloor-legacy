@@ -1,0 +1,1 @@
+{"issue": 52, "slug": "dashboard-a-link-from-an-earlier-run-is", "stage": "validate", "outcome": "staged", "pr": 97, "head": "e8cd3022fe6109ac4ae33ac4ac000f3a440bf1cd", "rounds": 0, "failed_gates": [], "flaky": [], "amendments": [], "agents": [], "findings": {"red": 0, "yellow": 0, "nit": 0}}
