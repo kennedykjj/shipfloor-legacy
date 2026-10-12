@@ -116,6 +116,7 @@ check("AC-8",
   None if "color: var(--soft)" in lane.replace("  ", " ") and "var(--sand)" not in lane else f".lane color is not var(--soft) (rule: {lane.strip()})",
   None if "color: var(--muted)" in rule(".lane small") else ".lane small is no longer --muted")
 
+sys.stdout.reconfigure(encoding="ascii", errors="backslashreplace")  # the red/green output stays plain text
 for ac in sorted(res):
     print(ac + ": " + ("ok" if not res[ac] else "FAIL " + "; ".join(res[ac])))
 PY
