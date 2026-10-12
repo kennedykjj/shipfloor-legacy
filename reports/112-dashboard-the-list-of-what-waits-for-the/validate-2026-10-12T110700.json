@@ -1,0 +1,1 @@
+{"issue": 112, "pipeline": "validate", "outcome": "staged", "rounds": 0, "failed_gates": [], "flaky": [], "gates_reused": ["build", "green factory scripts/test/dashboard-short.test.sh"], "amendments": [], "agents": []}

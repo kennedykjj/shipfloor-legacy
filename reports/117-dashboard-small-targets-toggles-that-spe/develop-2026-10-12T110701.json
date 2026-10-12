@@ -1,0 +1,23 @@
+{
+  "issue": 117,
+  "slug": "dashboard-small-targets-toggles-that-spe",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T10:56:00-03:00",
+  "finished_at": "2026-10-12T11:07:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 55392, "duration_s": 153},
+    {"role": "engineer", "tokens": 76430, "duration_s": 220}
+  ],
+  "rounds": {"acceptance-tests": 1, "implementation": 1},
+  "gates_failed": [],
+  "gates_reused": [
+    "build",
+    "green factory scripts/test/dashboard-targets.test.sh",
+    "green factory scripts/test/design-doc.test.sh",
+    "green factory scripts/test/theme.test.sh"
+  ],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
