@@ -11,16 +11,19 @@ REGISTRY="$SHIPFLOOR_HOME/registry.tsv"
 
 # One line of history per cycle, however it ends (logs/health-<month>.jsonl); it never fails the cycle.
 START="$(date +%s)"; CYCLE="$SHIPFLOOR_HOME/dispatch.pid"; OVERLAP=
-# shortcut: a pid reused after a cycle died reads as a second cycle, once; use a lock dir if overlaps must also be prevented
-if kill -0 "$(cat "$CYCLE" 2>/dev/null)" 2>/dev/null; then OVERLAP=--overlap; else echo $$ > "$CYCLE"; fi
+# a live pid in a dispatch.pid younger than SHIPFLOOR_CYCLE_STALE_MIN is another cycle: this one records the overlap and stops; an older file was left behind and is taken over
+if kill -0 "$(cat "$CYCLE" 2>/dev/null)" 2>/dev/null && [ -z "$(find "$CYCLE" -mmin +"${SHIPFLOOR_CYCLE_STALE_MIN:-30}" 2>/dev/null)" ]; then OVERLAP=--overlap; else echo $$ > "$CYCLE"; fi
 health() {
   local rc=$?
   [ -n "$OVERLAP" ] || rm -f "$CYCLE"
-  local p=("$BASH" "$HERE/shipfloor_health.py" "$SHIPFLOOR_HOME")  # one cygpath start for the three
+  local p=("$BASH" "$HERE/shipfloor_health.py" "$SHIPFLOOR_HOME" "$HERE/shipfloor_notify.py")  # one cygpath start for the four
   if command -v cygpath >/dev/null; then mapfile -t p < <(cygpath -m "${p[@]}"); fi
   SHIPFLOOR_BASH="${p[0]}" shipfloor_python "${p[1]}" record     --home "${p[2]}" --seconds $(( $(date +%s) - START )) --exit "$rc" $OVERLAP >/dev/null 2>&1 || true
+  # what waits for the owner is told after the health line is written; its failures are lines in this log, never the cycle's
+  SHIPFLOOR_BASH="${p[0]}" shipfloor_python "${p[3]}" cycle --home "${p[2]}" >/dev/null || true
 }
 trap health EXIT
+[ -z "$OVERLAP" ] || exit 0
 [ -e "$SHIPFLOOR_HOME/PAUSE" ] && exit 0
 
 usage_limited() {  # the Claude usage limit is per account: a recent hit in any project pauses all
