@@ -52,7 +52,6 @@ section h2{font-size:17px;line-height:1.3}
 button{background:transparent;color:var(--ink);border-color:var(--rule)}
 </style>
 <script>
-/* tells the dashboard how far the review went, so its Approve can say so (the page itself is sandboxed) */
 /* the dashboard's theme: listening and "ready" come first, while the page parses, so the colors land before it paints;
    "themed" says they were applied, and the dashboard shows the frame then; sends them again when the owner changes theme */
 addEventListener("message",function(e){
@@ -61,6 +60,7 @@ addEventListener("message",function(e){
  r.style.colorScheme=m.light?"light":"dark";
  parent.postMessage({shipfloor:"themed"},"*")});
 parent.postMessage({shipfloor:"ready"},"*");
+/* tells the dashboard how far the review went, so its Approve can say so (the page itself is sandboxed) */
 addEventListener("load",function(){
  function send(){
   var c=document.getElementById("count");if(!c)return;

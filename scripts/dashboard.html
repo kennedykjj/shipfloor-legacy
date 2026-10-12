@@ -286,6 +286,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
   .drawer { transition: none; }
   .dot, .dot.run i::before, .bar i, .steps li.now { animation: none; transition: none !important; }
   .skeleton { animation: none; }
+  #pane .themed, #pane .plain { transition: none; }
 }
 
 /* drawer: the item tooltip */
@@ -452,7 +453,9 @@ textarea::placeholder { color: var(--faint); }
 .notice:empty { display: none; }
 .notice.good { color: var(--ok); }
 .notice .btn { color: var(--text); }
-iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
+iframe { flex: 1; width: 100%; border: 0; background: var(--panel); min-height: 0; visibility: hidden; opacity: 0; transition: opacity 150ms ease-out; }  /* hidden until the page has the theme (.themed), or is known not to take it (.plain) */
+iframe.themed { visibility: visible; opacity: 1; }
+iframe.plain { visibility: visible; opacity: 1; background: #fff; }
 .review { display: flex; flex-direction: column; height: 100%; }
 .review .none { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
 .placeholder { padding: 20px; color: var(--muted); max-width: 64ch; }
@@ -1486,11 +1489,14 @@ function themeReview() {  // the review page is sandboxed: it gets the theme's c
 }
 window.addEventListener("message", (e) => {
   const f = document.querySelector("#pane iframe"); const m = e.data;
-  if (f && e.source === f.contentWindow && m && m.shipfloor === "ready") themeReview();
+  if (f && e.source === f.contentWindow && m && m.shipfloor === "ready") { themeReview(); f.heard = true; f.classList.remove("plain"); }
+  if (f && e.source === f.contentWindow && m && m.shipfloor === "themed") f.classList.add("themed");
   if (!f || e.source !== f.contentWindow || !S.open || !m || m.shipfloor !== "review-progress") return;
   S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
   syncDecide();
 });
+// a page that never says "ready" does not take the theme: show it plain; one that did is never left hidden
+$("pane").addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
 $("list").addEventListener("scroll", fade); window.addEventListener("resize", fade);
 window.addEventListener("resize", renderPeek); document.addEventListener("scroll", () => { if (S.peek) renderPeek(); }, true);
 // a card's pass, its row and its dot light up together
