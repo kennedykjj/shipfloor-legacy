@@ -472,7 +472,9 @@ iframe { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
   .block-note .btn { grid-column: 1; grid-row: auto; justify-self: start; }
 }
 @media (max-width: 1180px) {
-  body { height: auto; min-height: 100%; overflow: auto; grid-template-rows: auto auto auto; }
+  body { height: auto; min-height: 100%; overflow: auto; grid-template-rows: auto auto auto; grid-template-columns: minmax(0, 1fr); align-content: start; }
+  main, .board, .band, .cols { min-width: 0; }
+  .yours, .work, .telem { min-width: 0; }
   header { flex-wrap: wrap; padding: 12px 0; position: static; } .stats { margin-left: 0; flex-wrap: wrap; row-gap: 8px; }
   .board { grid-template-rows: auto auto; }
   .cols { grid-template-columns: minmax(0, 1fr); } .side { display: contents; }
