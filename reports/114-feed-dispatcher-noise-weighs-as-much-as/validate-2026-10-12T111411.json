@@ -1,0 +1,1 @@
+{"issue": 114, "slug": "feed-dispatcher-noise-weighs-as-much-as", "stage": "validate", "outcome": "staged", "agents": [], "rounds": 0, "failed_gates": [], "flaky": [], "gates_reused": ["green factory scripts/test/dashboard-feed.test.sh"], "amendments": [], "pr": 132, "head": "1b077e1c231cb964c19f03138525dcc644645279"}
