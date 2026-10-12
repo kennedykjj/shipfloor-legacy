@@ -1,0 +1,16 @@
+{
+  "issue": 51,
+  "slug": "dashboard-below-1180px-the-panels-overla",
+  "pipeline": "refine",
+  "started_at": "2026-10-11T22:09:47-03:00",
+  "finished_at": "2026-10-11T22:12:47-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 35772, "duration_s": 35},
+    {"role": "ux-designer", "tokens": 53303, "duration_s": 59}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "manual_edit": null
+}
