@@ -196,4 +196,132 @@ printf '== start /sf:refine 12 %sT08:00:00-03:00 pid=1
 mkdir -p "$P/locks/deploysh-11.lock"; echo "1 $(date +%s) 11" > "$P/locks/deploysh-11.lock/info"
 got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; o=json.load(sys.stdin); print([(r["issue"], r["stage"], r["exit"], r["cost"]) for r in o["projects"][0]["ended"]], sorted({r["stage"] for r in o["runs"]}))')"
 assert_contains "$got" "[(12, 'refine', 3, None), (12, 'refine', 0, None)] ['develop']"
+
+# --- small hardening (#7): favicon, card numbers that are digits only in ASCII, contrast of the text tokens ---
+# AC-1: a browser asks for the favicon without a token; the answer is empty and carries no data
+got="$(curl -s -w '|%{http_code}' "$base/favicon.ico")"
+[ "$got" = "|204" ] && pass "AC-1 /favicon.ico without a token answers 204 with an empty body" || fail "AC-1 /favicon.ico without a token should answer 204 and nothing else, got '$got'"
+
+# AC-7 (and the base for AC-3/AC-4): card 12 is served for plain ASCII 12 on every route that takes a number
+echo '<p>spec 12</p>' > "$P/reviews/12.html"
+for r in api/card api/decide api/live; do
+  got="$(curl -s -o /dev/null -w '%{http_code}' -H "$H_TOK" "$base/$r/shop/12")"
+  [ "$got" = 200 ] && pass "AC-7 /$r/shop/12 still serves card 12" || fail "AC-7 /$r/shop/12 should answer 200, got $got"
+done
+got="$(curl -s -o /dev/null -w '%{http_code}' -H "$H_TOK" "$base/review/shop/12?t=$tok")"
+[ "$got" = 200 ] && pass "AC-7 /review/shop/12 still serves its page" || fail "AC-7 /review/shop/12 should answer 200, got $got"
+got="$(curl -s -H "$H_TOK" "$base/api/card/shop/12" | $PY -c 'import json,sys; print(json.load(sys.stdin)["issue"])')"
+[ "$got" = 12 ] && pass "AC-7 /api/card/shop/12 returns card 12" || fail "AC-7 /api/card/shop/12 should return issue 12, got '$got'"
+
+# AC-3: Arabic-Indic 12 (percent-encoded) is not card 12
+got="$(curl -s -w '|%{http_code}' -H "$H_TOK" "$base/api/card/shop/%D9%A1%D9%A2")"
+case "$got" in *'"issue"'*) fail "AC-3 /api/card/shop/١٢ returned card data: $got" ;; *"|404") pass "AC-3 /api/card/shop/١٢ answers 404 with no card data" ;; *) fail "AC-3 /api/card/shop/١٢ should answer 404, got: $got" ;; esac
+
+# AC-4: a segment that passes isdigit() but is not [0-9]+ is a 404 on every GET route that takes a number
+for seg in %C2%B2 %D9%A1%D9%A2; do
+  for r in api/card api/decide api/live review; do
+    got="$(curl -s -o /dev/null -w '%{http_code}' -H "$H_TOK" "$base/$r/shop/$seg?t=$tok")"
+    [ "$got" = 404 ] && pass "AC-4 GET /$r/shop/$seg answers 404" || fail "AC-4 GET /$r/shop/$seg should answer 404, got $got"
+  done
+done
+
+# AC-5: /api/log with a from that is not [0-9]+ answers as a non-numeric from does
+printf '0123456789abcdefghijklmnopqrstuvwxyz0123456789\n' > "$P/logs/ac5.log"
+logget() { curl -s -w '|%{http_code}' -H "$H_TOK" "$base/api/log/shop/ac5.log?from=$1"; }
+want="$(logget abc)"
+case "$want" in *"|200") pass "AC-5 from=abc answers 200 (the reference)" ;; *) fail "AC-5 from=abc should answer 200, got: $want" ;; esac
+for v in %C2%B2 %D9%A1%D9%A2; do
+  got="$(logget "$v")"
+  [ "$got" = "$want" ] && pass "AC-5 /api/log?from=$v answers as from=abc" || fail "AC-5 /api/log?from=$v should answer as from=abc ($want), got: $got"
+done
+rm "$P/logs/ac5.log"
+
+# AC-6: a POST with a card number that is not [0-9]+ gets a 404 (not a dropped connection) and moves nothing.
+# The path is sent byte by byte (~b2 stands for the raw Latin-1 byte 0xB2), since curl would rewrite it.
+rawpost() {  # rawpost <card segment, ~b2 for the raw byte 0xB2>: the status code, or "dropped" when no answer comes back
+  $PY -I - "$base" "$tok" "$1" <<'EOF'
+import socket, sys
+base, tok, seg = sys.argv[1:4]
+host, port = base.rsplit("//", 1)[1].split(":")
+raw = b"/api/card/shop/" + seg.replace("~b2", "\xb2").encode("latin-1") + b"/approve"
+body = b'{"column":"Spec Review"}'
+req = (b"POST " + raw + b" HTTP/1.1\r\nHost: 127.0.0.1:" + port.encode() + b"\r\nContent-Type: application/json\r\nX-Shipfloor-Token: " + tok.encode()
+       + b"\r\nContent-Length: " + str(len(body)).encode() + b"\r\nConnection: close\r\n\r\n" + body)
+try:
+    s = socket.create_connection((host, int(port)), timeout=5)
+    s.sendall(req)
+    data = b""
+    while True:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+except OSError:
+    pass
+print(data.split(b" ")[1].decode() if data.startswith(b"HTTP/") else "dropped")
+EOF
+}
+before="$(wc -l < "$FAKE_GH_DIR/calls")"
+for seg in '%C2%B2' '~b2' '%D9%A1%D9%A2'; do
+  got="$(rawpost "$seg" | tr -d '\r')"
+  case "$got" in
+    404) pass "AC-6 POST /api/card/shop/$seg/approve answers 404" ;;
+    dropped) fail "AC-6 POST /api/card/shop/$seg/approve dropped the connection, it should answer 404" ;;
+    *) fail "AC-6 POST /api/card/shop/$seg/approve should answer 404, got $got" ;;
+  esac
+done
+after="$(wc -l < "$FAKE_GH_DIR/calls")"
+[ "$before" = "$after" ] && pass "AC-6 no board call for a card number that is not [0-9]+" || fail "AC-6 a wrong card number reached the board ($before -> $after calls)"
+
+# AC-8: --soft, --muted and --faint keep 4.5:1 on --panel and --ground in every theme (12 of them).
+# A theme inherits what it does not redeclare from :root. Takes the HTML as its argument.
+contrast() {
+  $PY -I - "$1" <<'EOF'
+import re, sys
+css = re.sub(r"/\*.*?\*/", "", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
+base, themes = {}, {}
+for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+    m = re.fullmatch(r'\s*(:root\s*,\s*)?(?:\[data-theme="([\w-]+)"\])?\s*', sel)
+    if not m or not (m.group(1) or m.group(2)) or "--ground" not in body:
+        continue
+    toks = dict(re.findall(r"(--[\w-]+)\s*:\s*([^;]+?)\s*(?:;|$)", body))
+    if m.group(1):
+        base.update(toks)
+    if m.group(2):
+        themes[m.group(2)] = toks
+def lum(h):
+    h = h.lstrip("#")
+    h = "".join(c * 2 for c in h) if len(h) == 3 else h[:6]
+    c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+def ratio(a, b):
+    x, y = sorted((lum(a), lum(b)), reverse=True)
+    return (x + 0.05) / (y + 0.05)
+for name, t in sorted(themes.items()):
+    v = dict(base, **t)
+    for tok in ("--soft", "--muted", "--faint"):
+        for bg in ("--panel", "--ground"):
+            try:
+                r = ratio(v[tok], v[bg])
+            except (KeyError, ValueError):
+                print("FAIL AC-8 %s %s on %s: cannot read the colors (%s, %s)" % (name, tok, bg, v.get(tok), v.get(bg)))
+                continue
+            print("%s AC-8 %s %s on %s is %.2f:1 (needs 4.5)" % ("ok" if r >= 4.5 else "FAIL", name, tok, bg, r))
+print("%s AC-8 found %d themes (needs 12)" % ("ok" if len(themes) == 12 else "FAIL", len(themes)))
+EOF
+}
+while IFS= read -r line; do
+  line="${line%$'\r'}"
+  case "$line" in ok*) pass "${line#ok }" ;; *) fail "${line#FAIL }" ;; esac
+done <<< "$(contrast "$FACTORY_DIR/dashboard.html")"
+# the check is real: on a copy (never the repository's file) with a token lowered, or a theme gone, it prints FAIL
+M="$(mktemp -d)"
+sed 's/--faint: #93928a/--faint: #6a6a6a/' "$FACTORY_DIR/dashboard.html" > "$M/low.html"
+assert_contains "$(contrast "$M/low.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 tape --faint on --panel is"
+sed 's/--muted: #5c5040/--muted: #8a8a8a/' "$FACTORY_DIR/dashboard.html" > "$M/low-light.html"
+assert_contains "$(contrast "$M/low-light.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 kraft --muted on --ground is"
+grep -v '^\[data-theme="paper"\]' "$FACTORY_DIR/dashboard.html" > "$M/eleven.html"
+assert_contains "$(contrast "$M/eleven.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 found 11 themes (needs 12)"
+rm -r "$M"
 finish
