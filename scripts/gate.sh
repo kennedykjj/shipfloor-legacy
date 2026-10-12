@@ -14,6 +14,26 @@ if [ "${1:-}" = "-C" ]; then
   shift 2
 fi
 
+usage() {
+  cat <<'EOF'
+usage: gate.sh [-C <worktree>] <gate> ...
+  test-plan <spec>                         every AC of the spec has a test its layer's runner can run
+  scope <po|ux|techlead|qa|layer> <base>   only that role's files changed since <base>
+  qa-commit <n> [--head]                   prints card <n>'s QA commit; --head: it must be the last commit
+  qa-amend <n>                             QA's amendment of its own acceptance tests is honest
+  acceptance-intact <qa>                   the acceptance tests are as QA committed them
+  forbidden <base>                         no forbidden file changed since <base>
+  migration <base> <spec>                  applied migrations untouched, destructive ones have a rollback
+  build <base>                             each layer changed since <base> builds
+  red <layer> <selector>                   the tests fail on an assertion (before the implementation)
+  green <layer> <selector>                 the tests ran and pass
+  stack up <owner> | down <owner> | status
+<base> and <qa> are commits. Exit: 0 pass, 1 blocked, 2 bad usage or revision, 3 infrastructure.
+A gate's last line on stderr is its verdict: "gate <name>: pass", "FAIL (exit 1)" or "INFRA (exit 3)".
+EOF
+}
+case "${1:-}" in -h|--help|help) usage; exit 0 ;; "") usage >&2; exit 2 ;; esac
+
 # Paths, layers and commands come from the project's config (its control checkout), never from
 # the worktree under test. No project or a broken config is exit 2, never a pass.
 shipfloor_resolve . || exit 2
@@ -317,12 +337,16 @@ gate_build() {  # each implementer layer with changes runs its build from its ow
   require_rev "${1:-}"
   local files layer; files="$(changed_files "$1")"
   for layer in $IMPLEMENTERS; do
-    layer_fields "$layer" _path_re path build install || exit 2
+    layer_fields "$layer" _path_re path build install retry || exit 2
     [ -z "${LF[2]}" ] && continue
     printf '%s
 ' "$files" | grep -Eq -- "${LF[0]}" || continue
     ensure_deps "${LF[1]}" "${LF[3]}" || exit 3
-    (cd "$(root)/${LF[1]}" && bash -c "${LF[2]}") || { echo "build: $layer build failed" >&2; return 1; }
+    (cd "$(root)/${LF[1]}" && bash -c "${LF[2]}") && continue
+    # a layer with retry: 1 builds once more, as green does: a build that passes the second time broke on the machine
+    # (a database that was slow to start, a worker that did not come up), not on the code
+    if [ "${LF[4]:-0}" -ge 1 ] && (cd "$(root)/${LF[1]}" && bash -c "${LF[2]}"); then echo "flaky: $layer build"; continue; fi
+    echo "build: $layer build failed" >&2; return 1
   done
 }
 
@@ -455,12 +479,14 @@ run() {
     green)             gate_green "$@" ;;
     test-plan)         gate_test_plan "$@" ;;
     stack)             gate_stack "$@" ;;
-    *) echo "usage: gate.sh scope|forbidden|acceptance-intact|qa-commit|qa-amend|migration|build|red|green|test-plan|stack ..." >&2; exit 2 ;;
+    *) usage >&2; exit 2 ;;
   esac
 }
 # what a gate says on stderr goes out in the project's language; stdout is read by callers and stays as it is
 # shortcut: the key is read straight from the YAML (a top-level scalar the config check already validated), not through
 # shipfloor_cfg: one more python start per gate call is what every pipeline step would pay
+# A gate says its own verdict last, so a caller never needs `; echo $?` (headless runs refuse a `$` in a command).
+case "$cmd" in acceptance-own|stack) ;; *) trap 'rc=$?; case $rc in 0) echo "gate $cmd: pass" >&2 ;; 3) echo "gate $cmd: INFRA (exit 3)" >&2 ;; *) echo "gate $cmd: FAIL (exit $rc)" >&2 ;; esac' EXIT ;; esac
 GLANG=""; LANG_RE='^language:[[:space:]]*["'"'"']?([A-Za-z-]*)'
 while IFS= read -r GLINE; do [[ "$GLINE" =~ $LANG_RE ]] && { GLANG="${BASH_REMATCH[1]}"; break; }; done 2>/dev/null < "$FACTORY_CONFIG"
 if [ "${GLANG:-en}" = en ]; then run "$@"; exit; fi
