@@ -24,6 +24,14 @@
     "est.": "est.",
     "Lifecycle": "Ciclo de vida",
     "Today": "Hoje",
+    "Yesterday": "Ontem",
+    "No new run starts. Running sessions finish.": "Nenhuma execução nova começa. As sessões que já rodam terminam.",
+    "No new run starts there. Running sessions finish.": "Nenhuma execução nova começa nele. As sessões que já rodam terminam.",
+    "Resume": "Retomar",
+    "Resume the factory": "Retomar a fábrica",
+    "Still paused: the resume did not go through.": "Continua pausado: a retomada não foi aplicada.",
+    "choose": "escolher",
+    "close": "fechar",
     "Inbox": "Entrada",
     "Ready for Refinement": "Pronto para refinar",
     "Technical Refinement": "Refinamento técnico",
@@ -593,6 +601,10 @@
     [
       "^Pause (\\S+)$",
       "Pausar $1"
+    ],
+    [
+      "^Resume (\\S+)$",
+      "Retomar $1"
     ],
     [
       "^Minimize (\\S+)$",
