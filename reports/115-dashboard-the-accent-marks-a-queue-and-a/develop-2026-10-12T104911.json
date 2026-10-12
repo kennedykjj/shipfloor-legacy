@@ -1,0 +1,18 @@
+{
+  "issue": 115,
+  "slug": "dashboard-the-accent-marks-a-queue-and-a",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T10:38:00-03:00",
+  "finished_at": "2026-10-12T10:49:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 61630, "duration_s": 131},
+    {"role": "engineer", "tokens": 38677, "duration_s": 134}
+  ],
+  "rounds": {"acceptance-tests": 1, "implementation": 1},
+  "gates_failed": [],
+  "gates_reused": ["build"],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": false
+}
