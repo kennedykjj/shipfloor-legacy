@@ -78,9 +78,16 @@ slot_reclaim() {  # slot_reclaim <k> <reason>
   slot_down "$1"; slot_release "$1" "$2"
 }
 
+queue_ticket() {  # queue_ticket <owner>: write the owner's ticket, named by the next sequence taken under a mkdir lock; prints its path
+  local q="$STACK_LOCKS/stack-queue" tries=0 f n max=0 t
+  until mkdir "$q/.lock" 2>/dev/null; do tries=$(( tries + 1 )); [ "$tries" -ge 50 ] && { rmdir "$q/.lock" 2>/dev/null; tries=0; }; sleep 0.1; done
+  for f in "$q"/*; do [ -e "$f" ] || continue; n="${f##*/}"; n="${n%%-*}"; n="${n//[!0-9]/}"; [ -n "$n" ] && [ $(( 10#$n )) -gt "$max" ] && max=$(( 10#$n )); done
+  t="$q/$(printf '%019d' $(( max + 1 )))-$1"; echo "$$ ${SHIPFLOOR_RUN_LOCK:--}" > "$t"; rmdir "$q/.lock"; echo "$t"
+}
+
 stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order, up to WAIT seconds on the clock; 3 = gave up
   local q="$STACK_LOCKS/stack-queue" t f pid run k st deadline=$(( SECONDS + WAIT )) note=$SECONDS
-  t="$q/$(date +%s%N)-$1"; echo "$$ ${SHIPFLOOR_RUN_LOCK:--}" > "$t"
+  t="$(queue_ticket "$1")"
   trap 'rm -f "$t"' EXIT INT TERM
   while :; do
     for f in "$q"/*; do  # tickets of waiters or runs that are gone leave the queue
