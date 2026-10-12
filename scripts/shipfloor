@@ -40,7 +40,10 @@ cmd_install() {
   rm -rf "$INSTALLED/templates"; cp -r "$src/templates" "$INSTALLED/templates"
   echo "$src" > "$INSTALLED/.source"
   echo "installed $src → $INSTALLED"
-  echo "next: shipfloor add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\""
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) echo "next: shipfloor add <repo>; then (Windows) powershell -File \"$src/installer/install-dispatcher.ps1\"" ;;
+    *) echo "next: shipfloor add <repo>; then bash \"$src/installer/install-dispatcher.sh\"" ;;
+  esac
 }
 
 cmd_doctor() {
@@ -56,6 +59,12 @@ cmd_doctor() {
   elif diff -rq -x test -x .source "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
   else echo "WARN installed copy differs from $src (shipfloor install)"; fi
+  local dst dkind
+  dkind="$(bash "$src/installer/install-dispatcher.sh" --status 2>/dev/null)"; dst=$?
+  case $dst in
+    0) echo "ok   dispatcher registered (${dkind#registered: })" ;;
+    1) echo "WARN no dispatcher registered; run: bash $src/installer/install-dispatcher.sh" ;;
+  esac
   local alert
   while IFS= read -r alert; do
     [ -n "$alert" ] && echo "WARN health: $alert (~/.shipfloor/logs/health-*.jsonl)"
