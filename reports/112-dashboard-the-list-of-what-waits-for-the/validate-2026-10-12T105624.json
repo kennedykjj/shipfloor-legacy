@@ -1,0 +1,1 @@
+{"outcome": "infra", "agents": [], "rounds": 0, "failed_gates": [], "flaky": [], "gates_reused": ["green factory scripts/test/dashboard-short.test.sh"], "amendments": [], "pr": 124, "note": "CI test and guard failed in 2s each; logs unreadable in this run"}
