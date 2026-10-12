@@ -448,7 +448,17 @@ DEFAULT_VERSION = r"^[A-Za-z]*([0-9]+(?:[._][0-9]+)*)"  # V27__x.sql, 000027_x.u
 STAGES = ("refine", "develop", "validate", "deploy")
 MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
                     "stacks": 3, "ports": {"base": 20000, "span": 20},
-                    "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700}
+                    "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3}}
+DISPATCHER_EVERY = (1, 3, 5, 10)  # minutes between dispatcher cycles; the installer's trigger reads it
+
+
+def dispatcher_every(raw):
+    """The pace a raw machine config sets (minutes between cycles), or the default when it sets none or a bad one."""
+    disp = raw.get("dispatcher") if isinstance(raw, dict) else None
+    every = disp.get("every_min") if isinstance(disp, dict) else None
+    return every if type(every) is int and every in DISPATCHER_EVERY else MACHINE_DEFAULTS["dispatcher"]["every_min"]
+
+
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
 
 
@@ -489,6 +499,13 @@ def machine_problems(raw):
         errs.append("ports.base and ports.span must be integers >= 1")
     elif isinstance(stacks, int) and not 1024 <= base <= base + span * stacks <= 65535:
         errs.append("ports: base .. base + span * stacks must fit in 1024..65535")
+    disp = raw.get("dispatcher", {})
+    if not isinstance(disp, dict):
+        errs.append("dispatcher must be a mapping {every_min}")
+    else:
+        every = disp.get("every_min", MACHINE_DEFAULTS["dispatcher"]["every_min"])
+        if type(every) is not int or every not in DISPATCHER_EVERY:  # True == 1: the type is checked too
+            errs.append("dispatcher.every_min must be 1, 3, 5 or 10")
     return errs
 
 

@@ -79,5 +79,23 @@ printf 'pool: 6\nhours: ["8-23"]\n' > "$SHIPFLOOR_HOME/config.yml"
 printf 'pool: 0\nhours: ["8-23"]\n' > "$SHIPFLOOR_HOME/config.yml"
 out="$(m validate 2>&1)"; rc=$?
 [ "$rc" = 1 ] && pass "AC-5 another problem next to a bad hours still exits 1" || fail "AC-5 validate exited $rc with pool: 0 and a bad hours: $out"
+# the dispatcher's pace: 1, 3, 5 or 10 minutes, 3 when missing; anything else is a machine problem naming the key and the values
+rm -f "$SHIPFLOOR_HOME/config.yml"
+[ "$(m values dispatcher.every_min | tr '\0' ' ')" = "3 " ] && pass "AC-5 dispatcher.every_min defaults to 3" || fail "AC-5 default every_min: $(m values dispatcher.every_min | tr '\0' ' ')"
+for v in 1 3 5 10; do
+  printf 'dispatcher: {every_min: %s}\n' "$v" > "$SHIPFLOOR_HOME/config.yml"
+  assert_exit 0 m validate
+  [ "$(m values dispatcher.every_min | tr '\0' ' ')" = "$v " ] && pass "AC-5 every_min $v is read back" || fail "AC-5 every_min $v read as: $(m values dispatcher.every_min | tr '\0' ' ')"
+done
+for v in 0 2 7 15 true '"5"' 3.5; do
+  printf 'dispatcher: {every_min: %s}\n' "$v" > "$SHIPFLOOR_HOME/config.yml"
+  out="$(m validate 2>&1)"; rc=$?
+  [ "$rc" -eq 1 ] && pass "AC-5 every_min $v is a machine problem" || fail "AC-5 every_min $v validated (exit $rc): $out"
+  case "$out" in *"dispatcher.every_min must be 1, 3, 5 or 10"*) pass "AC-5 every_min $v names the key and the allowed values" ;; *) fail "AC-5 every_min $v: message was '$out' (want 'dispatcher.every_min must be 1, 3, 5 or 10')" ;; esac
+done
+printf 'dispatcher: 5\n' > "$SHIPFLOOR_HOME/config.yml"
+out="$(m validate 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && pass "AC-5 dispatcher that is not a mapping is a machine problem" || fail "AC-5 dispatcher: 5 validated (exit $rc): $out"
+case "$out" in *"dispatcher must be a mapping"*) pass "AC-5 dispatcher: 5 says it must be a mapping" ;; *) fail "AC-5 dispatcher: 5 message was '$out' (want 'dispatcher must be a mapping')" ;; esac
 rm -f "$SHIPFLOOR_HOME/config.yml"
 finish
