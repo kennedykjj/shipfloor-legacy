@@ -25,7 +25,7 @@ case "$args" in
   "api repos/acme/shop/issues?labels=blocked&"*) cat "$d/owner" ;;
   "api repos/acme/shop/issues/"*"/comments"*)
     n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/comments.*#\1#')"
-    printf '[[%s]]\n' "$(cat "$d/comments-$n" 2>/dev/null)" ;;
+    printf '[%s]\n' "$(cat "$d/comments-$n" 2>/dev/null)" ;;
   *) echo "gh stand-in: unexpected: $args" >&2; exit 9 ;;
 esac
 EOF
