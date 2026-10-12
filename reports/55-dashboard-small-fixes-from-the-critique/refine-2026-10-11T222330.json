@@ -1,0 +1,16 @@
+{
+  "issue": 55,
+  "slug": "dashboard-small-fixes-from-the-critique",
+  "pipeline": "refine",
+  "started_at": "2026-10-11T22:18:21",
+  "finished_at": "2026-10-11T22:23:16",
+  "outcome": "ok",
+  "agents": [
+    {"role": "product-owner", "tokens": 46926, "duration_s": 66},
+    {"role": "ux-designer", "tokens": 70567, "duration_s": 118}
+  ],
+  "rounds": {"3": 1, "4": 1, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "manual_edit": null
+}
