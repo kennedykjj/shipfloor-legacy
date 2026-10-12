@@ -1,0 +1,25 @@
+{
+  "issue": 34,
+  "slug": "models-per-stage-and-per-agent-are-confi",
+  "pipeline": "develop",
+  "started_at": "2026-10-11T21:42:00-03:00",
+  "finished_at": "2026-10-11T22:30:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 148020, "duration_s": 560},
+    {"role": "engineer", "tokens": 72748, "duration_s": 467},
+    {"role": "engineer", "tokens": 47647, "duration_s": 101},
+    {"role": "engineer", "tokens": 80202, "duration_s": 595},
+    {"role": "qa-engineer", "tokens": 14947, "duration_s": 23}
+  ],
+  "rounds": {"2": 1, "3": 1, "4": 1, "5": 1},
+  "gates_failed": [
+    "build (after task 1 of 3: only scripts/test/dashboard-models.test.sh was red, 47 assertions that tasks 2 and 3 deliver; not run after task 2, where 17 page and catalog assertions of task 3 were still red; passed after task 3 with 27 files, 683 ok, 0 FAIL)",
+    "green factory scripts/test/dashboard-models.test.sh (after task 3: 6 lines 'FAIL AC-6 pt-BR catalog: ok', a carriage return in the test's own comparison; the engineer answered test-wrong, QA amended the test, then it passed)"
+  ],
+  "flaky": [],
+  "amendments": [
+    "scripts/test/dashboard-models.test.sh: the 'pt-BR catalog entry' loop compared each line of a Python check's output with 'ok'; on Windows the lines end in CRLF and read -r kept the carriage return, so six passing entries were printed as FAIL; QA strips the trailing carriage return before comparing, no assertion changed (commit 03cdc46, qa-amend pass, 0 assertion lines replaced)"
+  ],
+  "manual_edit": null
+}
