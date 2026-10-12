@@ -1,0 +1,6 @@
+{"issue": 128, "slug": "the-owner-orders-the-queues-and-the-disp", "pipeline": "refine",
+ "started_at": "2026-10-12T11:06:27-0300", "finished_at": "2026-10-12T11:11:07-0300", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 26907, "duration_s": 40},
+            {"role": "product-owner", "tokens": 28869, "duration_s": 14},
+            {"role": "ux-designer", "tokens": 51397, "duration_s": 85}],
+ "rounds": {"3": 2, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": null}
