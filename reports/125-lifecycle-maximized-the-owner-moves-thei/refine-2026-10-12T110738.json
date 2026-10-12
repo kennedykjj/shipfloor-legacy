@@ -1,0 +1,14 @@
+{
+  "issue": 125,
+  "slug": "lifecycle-maximized-the-owner-moves-thei",
+  "pipeline": "refine",
+  "started_at": "2026-10-12T11:06:02-03:00",
+  "finished_at": "2026-10-12T11:07:25-03:00",
+  "outcome": "ok",
+  "agents": [],
+  "rounds": {"1": 1, "2": 1, "3": 0, "4": 0, "5": 0, "6": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": null
+}
