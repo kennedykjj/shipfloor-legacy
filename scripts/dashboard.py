@@ -13,6 +13,7 @@ sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
 import shipfloor_health
+import dashboard_cost
 from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, per_card, rounded
 import yaml
 
@@ -34,6 +35,7 @@ ACCEPTANCE_DIFF = """qa="$(bash "$1" -C "$2" qa-commit "$3" 2>/dev/null)"; [ -n 
 mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
 [ "${#files[@]}" -gt 0 ] && git -C "$2" -c core.quotePath=false diff --no-color -U1 "$qa" HEAD -- "${files[@]}"
 """
+COST_BLOCK = "Cost limit: blocked."  # how the dispatcher opens the note of a block by cost
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:sf|aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy aghanim, legacy mylos
@@ -195,11 +197,15 @@ class Factory:
         return hit[1]
 
     def prices(self):
-        # the installed copy keeps templates/ next to the scripts; the plugin checkout, one level up
-        for f in (self.home / "prices.yml", HERE / "templates" / "prices.yml", HERE.parent / "templates" / "prices.yml"):
-            if f.is_file():
-                return read_yaml(f)
-        return {}
+        return dashboard_cost.load_prices(self.home)
+
+    def costs(self):
+        """The machine's cost limits in US$ (config.yml), None for a limit that is absent or not a valid number."""
+        raw = read_yaml(self.home / "config.yml")
+        raw = raw.get("costs") if isinstance(raw, dict) else None
+        raw = raw if isinstance(raw, dict) else {}
+        return {k: raw[k] if k in raw and not shipfloor_config.cost_problems({k: raw[k]}) else None
+                for k in shipfloor_config.COST_KEYS}
 
     def transcript(self, path, parse=parse_transcript):
         st = path.stat()
@@ -222,10 +228,6 @@ class Factory:
                     subs = [self.transcript(a) for a in sorted((d / f.stem / "subagents").glob("*.jsonl"))]
                     out.append(dict(s, id=f.stem, subagents=subs, path=f))
         return sorted(out, key=lambda s: s["start"] or "")
-
-    def session_cost(self, s, prices):
-        parts = [cost(s["tokens"], prices)] + [cost(a["tokens"], prices) for a in s["subagents"]]
-        return None if None in parts else sum(parts)
 
     def runs(self, p, issue=None, day=None):
         """Runs as the dispatcher logged them: == start / == end lines."""
@@ -346,6 +348,8 @@ class Factory:
         if not projects:
             return [], 0
         p = projects[0]
+        if not self.pdir(p).is_dir():
+            return [], 0  # no home directory yet (a cycle creates it): no slots to report, and nothing to cache
         env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)),
                    SHIPFLOOR_HOME=str(self.home))
         r = subprocess.run([bash(), (HERE / "gate.sh").as_posix(), "stack", "status"], env=env, cwd=str(self.pdir(p)),
@@ -402,6 +406,15 @@ class Factory:
         acceptance-intact the test files as they changed."""
         reason = self.block_reason(p, n)
         blocked = [r for r in self.reports(p, n) if r["outcome"] == "blocked"]
+        if reason.lstrip().startswith(COST_BLOCK):  # the marker tells the figures; the newest note must still be this block's
+            try:
+                mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
+                before, whole = float(mark.get("baseline") or 0), float(mark["total"])
+                return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
+                        "times": len(blocked), "gate": "", "diff": "", "limit": mark.get("limit"), "total": round(whole - before, 4),
+                        "baseline": before, "card_total": whole, "stages": mark.get("stages") or {}}
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                pass  # no usable marker: an ordinary block
         m = BLOCK_LINE.search(reason)
         stage, step = (m.group(1).lower(), int(m.group(2))) if m else (None, None)
         if not stage:  # a report tells the block: it names its stage, not a step
@@ -410,7 +423,7 @@ class Factory:
         why, _, tried = text.partition("Tried:")
         intact = re.search(r"acceptance-intact\W{0,4}(?:gate\W+)?fail|fail\w*[^.\n]{0,60}acceptance-intact", reason, re.I)
         gate = "acceptance-intact" if intact or any("acceptance-intact" in str(r["failed_gates"]) for r in blocked[-1:]) else ""
-        return {"stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
+        return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
                 "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": gate,
                 "diff": self.acceptance_diff(p, n) if gate else ""}
 
@@ -478,22 +491,22 @@ class Factory:
 
     def card(self, p, n):
         prices, runs = self.prices(), self.runs(p, issue=n)
-        sessions = []
-        for s in self.sessions(p, n):
+        sessions, found = [], self.sessions(p, n)
+        for s in found:
             start = parse_ts(s["start"])
             run = next((r for r in reversed(runs) if r["stage"] == s["stage"]
                         and parse_ts(r["start"]).timestamp() <= start.timestamp() + 120), None)
-            c = self.session_cost(s, prices)
+            c = dashboard_cost.session_cost(s, prices)
             sessions.append({"id": s["id"], "stage": s["stage"], "start": s["start"], "end": s["end"],
                              "tokens": s["tokens"], "cost": None if c is None else round(c, 4),
                              "subagents": [{"tokens": a["tokens"], "cost": cost(a["tokens"], prices)} for a in s["subagents"]],
                              "exit": run and run["exit"], "log": run and run["log"]})
-        costs = [s["cost"] for s in sessions]
+        total = dashboard_cost.spend(found, prices, datetime.now().date().isoformat())["cards"].get(n, {"total": 0.0})["total"]
         columns, _ = self.board(p)
         reports = self.reports(p, n)
         return {"project": p, "issue": n, "title": self.titles(p, [*columns, n]).get(n, ""), "column": columns.get(n),
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
-                "total": None if None in costs else round(sum(costs), 2), "sessions": sessions, "runs": runs,
+                "total": rounded(total), "baseline": dashboard_cost.baselines(self.pdir(p)).get(n, 0.0), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                 "blocked": self.blocked(p).get(n),
                 "block_reason": self.block_reason(p, n) if self.blocked(p).get(n) else ""}
@@ -523,8 +536,11 @@ class Factory:
         except (OSError, ValueError, IndexError):
             pass
         registry = {c[0]: c for c in (l.split("\t") for l in self.registry()) if c[0]}
-        projects = []
+        projects, unpriced, today = [], 0, datetime.now().date().isoformat()
         for p in self.projects():
+            columns, _ = self.board(p)
+            known = dashboard_cost.spend(self.sessions(p), self.prices(), today)["cards"]
+            unpriced += sum(1 for n in columns if n in known and known[n]["total"] is None)
             repo, row = self.config(p), registry.get(p, [])
             cfg, _ = shipfloor_config.with_overrides(repo, shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml")))
             knob = lambda c, k: next((v for v in [shipfloor_config.dotted(c, k)] if v is not None), KNOBS[k])
@@ -543,9 +559,10 @@ class Factory:
         if cycle:
             cycle.setdefault("next_at", None)
         command, why = scheduler()
-        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt"}, "paused": (self.home / "PAUSE").exists(),
+        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "costs": self.costs()},
+                "paused": (self.home / "PAUSE").exists(),
                 "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
-                "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours()}
+                "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours(), "unpriced": unpriced}
 
     def project_agents(self):
         """{agent: [{project, layer}]} for every agent a registered project's layer names."""
@@ -570,7 +587,7 @@ class Factory:
         for p in self.projects():
             for s in self.sessions(p):
                 if s["stage"] in runs and parse_ts(s["start"]) >= since:
-                    runs[s["stage"]].append(((p, s["issue"]), self.session_cost(s, prices)))
+                    runs[s["stage"]].append(((p, s["issue"]), dashboard_cost.session_cost(s, prices)))
         return {"choices": list(shipfloor_config.MODELS),
                 "stages": {st: dict(row("stages", st, shipfloor_config.STAGE_MODELS[st]), cost=per_card(runs[st])) for st in shipfloor_config.STAGES},
                 "agents": {**{a: dict(row("agents", a, d), projects=[]) for a, d in shipfloor_config.PLUGIN_AGENTS.items()},
@@ -595,6 +612,19 @@ class Factory:
                 new[k] = changes[k]
         if isinstance(changes.get("stages"), dict):
             new["stages"] = dict(new["stages"] if isinstance(new.get("stages"), dict) else {}, **changes["stages"])
+        if "costs" in changes:  # {limit: number}; null clears a limit, and an empty costs is left out of the file
+            if not isinstance(changes["costs"], dict):
+                return 400, {"error": "costs must be a mapping of limit: US$"}
+            costs = dict(new["costs"]) if isinstance(new.get("costs"), dict) else {}
+            for k, v in changes["costs"].items():
+                if v is None:
+                    costs.pop(k, None)
+                else:
+                    costs[k] = v
+            if costs:
+                new["costs"] = costs
+            else:
+                new.pop("costs", None)
         if "notify" in changes:
             had, ch = new.get("notify") or {}, changes["notify"]
             if isinstance(had, dict) and isinstance(ch, dict):  # key by key; events and channels too
@@ -751,21 +781,23 @@ class Factory:
 
     def overview(self):
         size, slots = self.pool()
-        prices, today = self.prices(), datetime.now().date().isoformat()
+        prices, today, limits = self.prices(), datetime.now().date().isoformat(), self.costs()
         live, projects, finished, today_cost = [], [], [], 0.0
         for p in self.projects():
             runs = self.live(p)
             live += runs
-            per_card, doing, hours = {}, {}, {}
+            doing, hours = {}, {}
             hour = lambda ts: parse_ts(ts).astimezone().hour
             all_runs, spent = self.runs(p), {}  # spent: what each of today's runs cost, by (log, start)
-            for s in self.sessions(p):
+            sessions = self.sessions(p)
+            estimate, base = dashboard_cost.spend(sessions, prices, today), dashboard_cost.baselines(self.pdir(p))
+            per_card = {n: c["total"] for n, c in estimate["cards"].items()}
+            warned = dashboard_cost.over(estimate, limits, base)["warn"]
+            today_cost += estimate["today"]
+            for s in sessions:
                 doing[(s["issue"], s["stage"])] = s["activity"]  # sessions come oldest first: the latest wins
-                c = self.session_cost(s, prices)
-                prev = per_card.get(s["issue"], 0.0)
-                per_card[s["issue"]] = None if c is None or prev is None else prev + c
+                c = dashboard_cost.session_cost(s, prices)
                 if c and parse_ts(s["start"]).astimezone().date().isoformat() == today:
-                    today_cost += c
                     # as in card(): a session belongs to the last run of its stage that started before it
                     run = next((r for r in reversed(all_runs) if r["issue"] == s["issue"] and r["stage"] == s["stage"]
                                 and parse_ts(r["start"]).timestamp() <= parse_ts(s["start"]).timestamp() + 120), None)
@@ -797,19 +829,23 @@ class Factory:
                              "repo": (self.config(p).get("project") or {}).get("repo"), "board_url": self.board_url(p),
                              "cards": [{"issue": n, "title": titles.get(n, ""), "column": col, "since": since.get(n),
                                         "cost": rounded(per_card.get(n, 0.0)),
+                                        "over": "warn" if n in warned else None,
+                                        "spent": None if per_card.get(n, 0.0) is None else per_card.get(n, 0.0) - base.get(n, 0.0),
                                         "running": running.get(n), "awaiting": col in OWNER_MOVES,
                                         "blocked": blocked.get(n)}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
         stacks, queue = self.stacks()
+        day_stopped = dashboard_cost.over({"cards": {}, "today": today_cost}, limits, {})["day_stop"]
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
                 "alerts": shipfloor_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
-                          "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)}}
+                          "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)},
+                "costs": dict(limits, day_stopped=day_stopped)}
 
     def board_row(self, p, n):
         """(the card's row on the live board: number, column, item id; or None), or (None, error)."""
@@ -971,7 +1007,7 @@ class Factory:
         for s in self.sessions(p):  # a session belongs to a run the way a card's Sessions tab pairs them
             mine = [r for r in runs if r["issue"] == s["issue"] and r["stage"] == s["stage"] and began(r) <= began(s) + 120]
             if mine:
-                key, c = (mine[-1]["log"], mine[-1]["start"]), self.session_cost(s, prices)
+                key, c = (mine[-1]["log"], mine[-1]["start"]), dashboard_cost.session_cost(s, prices)
                 spent[key] = None if c is None or spent.get(key, 0) is None else spent.get(key, 0) + c
         for r in runs:
             if r["issue"] not in newest or began(r) > began(newest[r["issue"]]):
