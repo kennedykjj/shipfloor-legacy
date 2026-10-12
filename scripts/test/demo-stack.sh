@@ -25,9 +25,17 @@ ours() {  # ours <pid>: a pid file can outlive its server; where /proc says so, 
 }
 
 stop() {  # stop <pid> and wait until it is gone
-  local i
-  if command -v taskkill >/dev/null 2>&1; then taskkill //PID "$1" //F //T >/dev/null 2>&1; else kill "$1" 2>/dev/null; fi
-  for i in $(seq 1 50); do alive "$1" || return 0; [ "$i" -eq 25 ] && kill -9 "$1" 2>/dev/null; sleep 0.2; done
+  local i win=0  # in Git Bash the pid is a Windows one: only taskkill knows it, kill would read it as an msys pid
+  command -v taskkill >/dev/null 2>&1 && win=1
+  for i in $(seq 1 50); do
+    if [ "$i" -eq 1 ] || [ "$i" -eq 25 ]; then
+      if [ "$win" -eq 1 ]; then taskkill //PID "$1" //F //T >/dev/null 2>&1
+      elif [ "$i" -eq 1 ]; then kill "$1" 2>/dev/null
+      else kill -9 "$1" 2>/dev/null; fi
+    fi
+    alive "$1" || return 0
+    sleep 0.2
+  done
   return 1
 }
 
