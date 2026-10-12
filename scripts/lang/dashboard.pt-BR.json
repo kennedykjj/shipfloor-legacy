@@ -60,12 +60,9 @@
     "Nothing waits for you. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.": "Nada espera você. Os cards aparecem aqui quando uma spec ou um PR pronto precisa da sua decisão, ou quando uma execução bloqueia.",
     "The factory moves on its own. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.": "A fábrica anda sozinha. Os cards aparecem aqui quando uma spec ou um PR pronto precisa da sua decisão, ou quando uma execução bloqueia.",
     "Nothing is in progress.": "Nada em andamento.",
-    "Review spec": "Revisar spec",
     "Review": "Revisão",
     "Request changes": "Pedir mudanças",
     "Approve": "Aprovar",
-    "Approve and ship": "Aprovar e publicar",
-    "Approve the spec": "Aprovar a spec",
     "Unblock & retry": "Desbloquear e tentar de novo",
     "Unblock and retry": "Desbloquear e tentar de novo",
     "Details": "Detalhes",
@@ -180,13 +177,10 @@
     "A pull request is ready to ship": "Um pull request está pronto para publicar",
     "A run stopped and needs you": "Uma execução parou e precisa de você",
     "Build this spec?": "Construir esta spec?",
-    "Build it": "Construir",
     "Ship it to production?": "Publicar em produção?",
     "How should this run continue?": "Como esta execução deve continuar?",
     "It needs rework": "Precisa de retrabalho",
-    "Rewrite it": "Reescrever",
     "Just try again": "Só tentar de novo",
-    "Not yet": "Ainda não",
     "Send back to Coding": "Devolver para Coding",
     "Accept the tests and continue": "Aceitar os testes e continuar",
     "The edits are right": "As edições estão certas",
@@ -749,14 +743,6 @@
     [
       "(\\d+) clean\\b",
       "$1 limpas"
-    ],
-    [
-      "^Approve → ",
-      "Aprovar → "
-    ],
-    [
-      "^Request changes → ",
-      "Pedir mudanças → "
     ],
     [
       "^Approve with (.*)$",
