@@ -44,7 +44,7 @@ Not covered by tests (Windows process and Docker behavior the suite cannot fake)
 - Modify `skills/refine|develop|validate/SKILL.md` — infra label rule, UX check via `stack up/down`, flaky lines.
 - Modify `scripts/dashboard.py`, `scripts/dashboard.html` — blocked state/reason/unblock, stacks cell.
 - Tests: rewrite `scripts/test/gate-stack.test.sh`, trim `scripts/test/stack-lock.test.sh`, extend `dispatch-resilience.test.sh`, `machine.test.sh`, `aghanim-cli.test.sh`, `dashboard.test.sh`, `fake-gh`.
-- Pickio (manual PR): `docker-compose.yml`, `web/playwright.config.ts`, `.aghanim/factory.yml`.
+- Shop (manual PR): `docker-compose.yml`, `web/playwright.config.ts`, `.aghanim/factory.yml`.
 
 ---
 
@@ -574,19 +574,19 @@ assert_contains "$(cat "$FAKE_GH_DIR/calls")" "api -X DELETE repos/acme/shop/iss
 
 ---
 
-### Task 7: Pickio — stack per slot (manual PR, owner approves the merge)
+### Task 7: Shop — stack per slot (manual PR, owner approves the merge)
 
-**Files (Pickio repo, branch off `main`):** `docker-compose.yml`, `web/playwright.config.ts`, `.aghanim/factory.yml`.
+**Files (Shop repo, branch off `main`):** `docker-compose.yml`, `web/playwright.config.ts`, `.aghanim/factory.yml`.
 
 - [ ] **Step 1:** In `docker-compose.yml`, every published port takes its variable with today's port as default: `"${AGHANIM_PORT_API:-8080}:8080"`, `"${AGHANIM_PORT_WEB:-3000}:3000"`, `"${AGHANIM_PORT_DB:-5432}:5432"`, `"${AGHANIM_PORT_S3:-9000}:9000"`, `"${AGHANIM_PORT_S3CONSOLE:-9001}:9001"`, `"${AGHANIM_PORT_SMTP:-1025}:1025"`, `"${AGHANIM_PORT_MAIL:-8025}:8025"` (match the file's actual services and ports). Browser-facing values (web's API base URL, API CORS origin, MinIO public endpoint) take the same variables with today's values as defaults; service-to-service URLs keep compose names. Read the file first and keep every other line as is.
 - [ ] **Step 2:** `web/playwright.config.ts`: `baseURL: process.env.AGHANIM_STACK_URL ?? 'http://localhost:3000'`; `webServer: process.env.AGHANIM_STACK_URL ? undefined : { command: 'pnpm dev', port: 3000, reuseExistingServer: !process.env.CI }`.
 - [ ] **Step 3:** `.aghanim/factory.yml`: the `stack:` block from the spec, with `ports` in the order of Step 1.
-- [ ] **Step 4:** Check by hand: `AGHANIM_PORT_WEB=21000 … docker compose -p aghanim-pickio-0 up -d --build --wait`, open `http://localhost:21000`, `down -v`; plain `docker compose up` still serves on 3000.
-- [ ] **Step 5:** PR in Portuguese per Pickio conventions; owner merges; then `aghanim add C:/Users/Kj/git/pickio` (refresh), `gh issue edit 86 --remove-label blocked`.
+- [ ] **Step 4:** Check by hand: `AGHANIM_PORT_WEB=21000 … docker compose -p aghanim-shop-0 up -d --build --wait`, open `http://localhost:21000`, `down -v`; plain `docker compose up` still serves on 3000.
+- [ ] **Step 5:** PR in Portuguese per Shop conventions; owner merges; then `aghanim add ~/git/shop` (refresh), `gh issue edit 86 --remove-label blocked`.
 
 ---
 
 ## Self-review notes
 
-- Spec coverage: slots/queue/states (T2), machine/project config (T1), exit 3 (T2), infra labels and retry (T4, T5), cleanup by ownership and `aghanim clean`/doctor (T4, T5), flaky retry (T3, T5), dashboard (T6), Pickio (T7).
+- Spec coverage: slots/queue/states (T2), machine/project config (T1), exit 3 (T2), infra labels and retry (T4, T5), cleanup by ownership and `aghanim clean`/doctor (T4, T5), flaky retry (T3, T5), dashboard (T6), Shop (T7).
 - Deviations, to be ledgered as rulings at execution: the retry marker is a file `$FACTORY_HOME/infra/<n>` instead of the spec's report field `infra_retry` (simpler, cleared when the retried run ends); the retry applies to `green` only (`acceptance-intact` checks file integrity and runs no tests); a project without `stack.up` gets one slot.

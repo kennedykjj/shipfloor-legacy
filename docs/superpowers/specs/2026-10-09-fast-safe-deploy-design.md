@@ -11,10 +11,10 @@ The first deploys on the generic factory took ~10 minutes of which ~5 were a loc
 1. **Deterministic deploy.** `scripts/deploy.sh <n>` runs the whole deploy and is launched by the dispatcher directly (no agent, no tool timeout). Only when it exits 3 (conflicts) does the dispatcher call the `/mylos:deploy` agent to resolve them, then runs `deploy.sh <n> --continue`, which verifies the resolution (merge of the approved head and main, only conflicted files changed).
 2. **No duplicate tests in the deploy.** The script runs the fast deterministic gates (`forbidden`, `migration`, `acceptance-intact`); build and tests are CI's job on the exact head that will be merged.
 3. **Staged cards stay up to date.** Each dispatcher cycle refreshes cards in Staged and Ready for Prod whose PR is behind main: `deploy.sh <n> --refresh` merges main (only when it merges cleanly), runs the fast gates, pushes and records `deploy-merge`. When the owner approves, the head is usually ready and the deploy is only CI + merge + production.
-4. **Faster CI (Pickio):** pull requests run only the jobs of the layers they change; pushes to main run all.
+4. **Faster CI (Shop):** pull requests run only the jobs of the layers they change; pushes to main run all.
 5. **Up-to-date enforcement on GitHub:** branch protection and merge queues need GitHub Pro on private repositories (`403`). The factory enforces "head contains current main" itself; `mylos doctor` reports whether `strict` protection is on. Remaining risk: a hand merge between the deploy's last check and its merge (caught by main CI + automatic revert).
 6. **Health check after deploy.** `deploy.healthcheck: [url, …]` in `factory.yml`; after the platform reports success, each URL must answer 2xx (5 tries, 15 s apart). Failure triggers the existing revert flow.
-7. **Migration upgrade check (Pickio CI):** on pull requests, a job applies main's migrations to a fresh PostgreSQL, then the PR's; Flyway's validation fails on duplicate versions, out-of-order versions and edited applied migrations — the upgrade path production takes.
+7. **Migration upgrade check (Shop CI):** on pull requests, a job applies main's migrations to a fresh PostgreSQL, then the PR's; Flyway's validation fails on duplicate versions, out-of-order versions and edited applied migrations — the upgrade path production takes.
 8. **English output.** Every skill states that comments, reports, PR texts and specs are written in English.
 
 ## `deploy.sh`
