@@ -31,7 +31,7 @@ The GitHub Project board is the source of truth for card columns; the dashboard 
 - Columns, in order: Inbox, Ready for Refinement, Technical Refinement, Spec Review, Ready for Dev, Coding, Validation, Staged, Ready for Prod, Done. Stages: refine, develop, validate, deploy.
 - Owner-only actions: approve and request changes on Spec Review and Staged cards.
 - Cost is an estimate from a price table (`~/.shipfloor/prices.yml`), always labeled as such.
-- Local only (127.0.0.1); no remote or phone access.
+- The dashboard stays local (127.0.0.1, no remote access); the one thing that leaves the machine is the optional one-way phone push through ntfy, off until the owner sets a topic and carrying only the project and a card's number, title and state.
 
 ## Brand Commitments
 

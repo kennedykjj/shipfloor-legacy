@@ -40,6 +40,31 @@ models:
 
 A model is `opus`, `sonnet`, `haiku` or `fable`. A stage or agent left out keeps the model the plugin ships with (validate and deploy on Sonnet, refine and develop on Claude Code's default, each agent on its frontmatter model). A bad model or name does not stop the factory: `shipfloor doctor` warns about it, the run uses the shipped model, and the dashboard's Settings section "Agents and models" edits it, with the average cost per card of the last 7 days next to each stage.
 
+## Notifications
+
+The factory tells the owner when it needs them, so the dashboard does not have to be open. At the end of each dispatcher cycle it sends, once per wait:
+
+- a card waits in Spec Review or Staged;
+- a run is blocked (the message says the stage it stopped in);
+- one reminder for a wait that lasts `reminder_min` minutes, and no more;
+- the factory is stuck: the Claude usage limit was hit, a project is skipped, or no card moved for an hour in a project with cards at work and nothing paused;
+- optionally (`done`, off by default), a card reached production.
+
+A card that leaves its state and comes back waits anew and is told again. There are two channels: a Windows toast on this machine, and a phone push through [ntfy.sh](https://ntfy.sh), which is off until a topic is set. A message that one channel delivered counts as told. Quiet hours hold what is new; when they end, one notification lists what still waits. While `config.yml` is invalid, nothing is sent.
+
+Set it in the dashboard's Settings > Notifications, or by hand in the `notify` block of `~/.shipfloor/config.yml` (these are the defaults):
+
+```yaml
+notify:
+  events: {waiting: true, blocked: true, reminder: true, stuck: true, done: false}
+  channels: {toast: true, ntfy: false}
+  ntfy_topic: ""        # letters, digits, - and _, up to 64
+  reminder_min: 60      # 15 to 720
+  quiet: ""             # "HH:MM-HH:MM", for example "22:00-07:00"; the two times differ
+```
+
+To get the push, pick a topic that is long and random: anyone who knows the topic can read its notifications. Put it in `ntfy_topic`, turn `channels.ntfy` on, and subscribe to the same topic in the ntfy app on the phone. The push carries only the project and the card's number, title and state.
+
 ## Working hours
 
 `hours` in `~/.shipfloor/config.yml` lists the windows (local time, 24-hour `HH:MM-HH:MM`, start included, end excluded) in which the dispatcher starts runs. Outside them it does everything else (board snapshot, reaping, retries) but starts nothing; runs in progress finish. A window whose end is before its start crosses midnight. Unset or `[]` means all hours; a malformed value is reported by `machine validate` and ignored.
