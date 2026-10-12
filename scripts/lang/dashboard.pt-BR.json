@@ -307,6 +307,18 @@
   },
   "rx": [
     [
+      "\\bin use\\b",
+      "em uso"
+    ],
+    [
+      "est\\. spent today",
+      "est. gastos hoje"
+    ],
+    [
+      "(\\d+) runs? today",
+      "$1 execuções hoje"
+    ],
+    [
       "Running · last cycle (\\S+) ago",
       "Rodando · último ciclo há $1"
     ],

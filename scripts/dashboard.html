@@ -112,8 +112,16 @@ kbd { font: inherit; border: 1px solid var(--faint); border-radius: 4px; padding
 .alerts span::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--k); margin-right: 9px; }
 .alerts b { font-weight: 600; margin-right: 6px; color: var(--k); } .alerts code { font: 12.5px var(--mono); }
 main { min-height: 0; display: grid; }
-.board { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 16px; min-height: 0; }
-.board[hidden], .feed[hidden], .band[hidden], .cols[hidden], #msg[hidden] { display: none; }
+.board { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 0; min-height: 0; }
+.board[hidden], .feed[hidden], .band[hidden], .cols[hidden], .telem[hidden], .sumline[hidden], #sum[hidden], #msg[hidden] { display: none; }
+/* the first row: the closed faces of the lifecycle band and "Today", and the day in one sentence */
+.sumline { grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
+.sumline button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px 6px; margin: 0 -14px 0 -6px; border-radius: 6px; color: var(--muted); font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
+.sumline button:hover, .sumline button[aria-expanded="true"] { color: var(--text); }
+.sumline button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; } .sumline button[aria-expanded="false"] svg { transform: rotate(180deg); }
+#sum b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; } #sum .bad, #sum .bad b { color: var(--bad); }
+@media (min-width: 1181px) { .sumline { height: 36px; margin-bottom: 12px; } }
+.board > .band { grid-row: 2; margin-bottom: 16px; } .board > .cols { grid-row: 3; }
 .untitled { color: var(--faint); font-style: italic; }
 .dial {
   width: 13px; height: 13px; border-radius: 50%; flex: none; display: inline-block;
@@ -177,12 +185,12 @@ main { min-height: 0; display: grid; }
 /* below the line: what waits for the owner, and what the factory is doing */
 .cols { display: grid; grid-template-columns: minmax(320px, 410px) minmax(0, 1fr); gap: 20px; min-height: 0; }
 .side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
-.yours, .work, .telem { padding: 18px 20px 14px; display: flex; flex-direction: column; min-height: 0; } .yours { flex: 0 1 auto; max-height: 62%; } .telem { flex: 1 0 150px; overflow-y: auto; }
+.yours, .work, .telem { padding: 18px 20px 14px; display: flex; flex-direction: column; min-height: 0; } .yours { flex: 0 1 auto; } .telem { flex: 0 0 auto; max-height: 60%; min-height: 292px; overflow-y: auto; }  /* min-height: its heading and both charts whole */
 .side h1 { font-size: 26px; }
 h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-weight: 500; }
 #list { list-style: none; margin: 12px -6px 0; overflow-y: auto; min-height: 0; padding: 0 6px; }
 /* what waits for you, maximized: a decision inbox. The queue, what to read, and the decision as options that each say what happens next */
-.inbox, .yours.maxed #list, .yours.maxed .foot, .iconf[hidden], .itoast[hidden] { display: none; }
+.inbox, .yours.maxed #list, .yours.maxed .foot, .foot[hidden], .iconf[hidden], .itoast[hidden] { display: none; }
 .yours.maxed .inbox { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 350px; margin-top: 12px; border-top: 1px solid var(--edge); }
 .ique { border-right: 1px solid var(--edge); overflow-y: auto; }
 .ique button { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--edge); border-left: 3px solid transparent; padding: 10px 12px; cursor: pointer; }
@@ -499,6 +507,10 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <main>
   <section class="board" id="board" aria-label="Factory">
     <p class="placeholder" id="msg">Reading the factory…</p>
+    <div class="sumline" id="sumline" hidden>
+      <button class="cap" data-show="band" aria-controls="band" aria-expanded="false">Lifecycle<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
+      <button class="cap" data-show="today" aria-controls="today" aria-expanded="false">Today<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
+      <span id="sum"></span></div>
     <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
       <div class="legend"><span><i></i>running, on the step it reported (1 to N)</span><span class="o"><i></i>queued</span><span style="--k:var(--sand)"><i></i>waits for you</span><span style="--k:var(--bad)"><i></i>blocked</span><span>+N: more cards than fit</span></div></nav>
     <div class="cols" id="cols" hidden>
@@ -509,7 +521,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
               <div class="iconf" id="ic" hidden><textarea id="inote" aria-label="Your note"></textarea><button class="btn approve" id="igo"></button><p class="ihint" id="ihint"></p></div>
               <div class="itoast" id="itoast" role="status" hidden><span id="imsg"></span><button id="iundo">Undo</button></div><p class="pnote" id="ierr" role="status"></p></aside></div>
           <p class="foot cap"><span><kbd>N</kbd>next</span><span><kbd>A</kbd>approve</span><span><kbd>R</kbd>review</span><span><kbd>L</kbd>log</span></p></section>
-        <section class="telem panel" data-maxable="today" aria-labelledby="ht"><h1 class="g" id="ht">Today</h1><div id="telem"></div></section>
+        <section class="telem panel" id="today" data-maxable="today" aria-labelledby="ht" hidden><h1 class="g" id="ht">Today</h1><div id="telem"></div></section>
       </div>
       <section class="work panel" data-maxable="what is in progress" aria-labelledby="hw"><h1 class="g" id="hw"></h1><div class="tiles" id="tiles"></div>
         <p class="cap" id="wfoot" style="padding-top:12px;margin:auto 0 0" title="The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card."></p></section>
@@ -555,7 +567,8 @@ const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged"
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
 const S = { view: "board", overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "",
-  expanded: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {} };
+  expanded: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {},
+  show: { band: false, today: false } };  // what the owner opened on the Factory view: in memory only, closed at every load
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
@@ -639,7 +652,7 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 /* overview */
 async function loadOverview() {
   const { status, body } = await api("/api/overview");
-  if (status === 403) { $("band").hidden = $("cols").hidden = true; $("msg").hidden = false; setHTML($("msg"), 'This link belongs to an earlier run of the dashboard. Open the URL that <code>shipfloor dashboard</code> printed.'); return; }
+  if (status === 403) { $("band").hidden = $("cols").hidden = $("sumline").hidden = true; $("msg").hidden = false; setHTML($("msg"), 'This link belongs to an earlier run of the dashboard. Open the URL that <code>shipfloor dashboard</code> printed.'); return; }
   if (status !== 200) { if (status) setError(body.error || `the overview answered ${status}`); return; }
   setError("");
   S.overview = body;
@@ -654,7 +667,8 @@ const project = () => S.overview?.projects.find((p) => p.slug === S.project);
 const cardOf = (p, n) => S.overview?.projects.find((x) => x.slug === p)?.cards.find((c) => c.issue === n);
 // what waits for the owner in the project on screen: the other projects' cards stay with their own board
 const waiting = () => (project()?.cards || []).map((c) => ({ ...c, key: `${S.project}/${c.issue}` }))
-  .filter((c) => (c.awaiting || c.blocked === "owner") && !(c.key in S.moving));
+  .filter((c) => (c.awaiting || c.blocked === "owner") && !(c.key in S.moving))
+  .sort((a, b) => (a.since || "~") < (b.since || "~") ? -1 : 1);  // the oldest wait first; a card with no date goes last
 
 function renderStrip() {
   const o = S.overview; if (!o) return;
@@ -708,7 +722,7 @@ const stale = (p) => p?.board_age_s != null && p.board_age_s > STALE_S;
 const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" ? "stop" : c.blocked === "infra" ? "infra" : c.running ? "run" : c.awaiting ? "you" : "wait";
 function renderBoard() {
   const p = project();
-  $("band").hidden = $("cols").hidden = !p; $("msg").hidden = !!p;
+  $("cols").hidden = $("sumline").hidden = !p; $("band").hidden = !p || !S.show.band; $("today").hidden = !p || !S.show.today; $("msg").hidden = !!p;  // the line follows #cols; the band and Today open on demand
   if (!p) { if (S.overview) setHTML($("msg"), 'No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.'); return; }
   const key = (c) => `${p.slug}/${c.issue}`, by = Object.fromEntries(COLS.map((c) => [c.name, []])), now = Date.now();
   for (const c of p.cards) {
@@ -716,7 +730,22 @@ function renderBoard() {
     const sig = `${c.column}|${c.running || ""}`, k = key(c);  // a card that changed column or stage since the last read is fresh for a while
     if (!S.seen[k]) S.seen[k] = { sig, at: 0 }; else if (S.seen[k].sig !== sig) S.seen[k] = { sig, at: now };
   }
-  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p);
+  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p); renderSum(p);
+}
+// The day in one sentence, the closed face of "Today": it hides while "Today" is open, whose headings carry the same figures.
+function renderSum(p) {
+  const el = $("sum"), o = S.overview; el.hidden = S.show.today || !p || !o;
+  if (el.hidden) return;
+  const hs = p.hours || [], failed = hs.reduce((n, h) => n + h.failed, 0), runs = hs.reduce((n, h) => n + h.ok + h.failed, 0), spent = hs.reduce((n, h) => n + h.cost, 0);
+  setHTML(el, `Pool <b>${o.pool.used} / ${o.pool.size}</b> in use · <span title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml"><b>$${spent.toFixed(2)}</b> est. spent today</span> · <b>${runs} runs today</b>${failed ? ` · <span class="bad"><b>${failed}</b> failed</span>` : ""}`);
+}
+// A control on the first row opens or closes its panel where it sits. Focus stays on the button.
+function show(which, on) {
+  const el = $(which === "band" ? "band" : "today"), btn = document.querySelector(`[data-show="${which}"]`);
+  if (!on && el.classList.contains("maxed")) maximize(el, false);  // restored first, then closed
+  if (!on && which === "band" && S.peek) { S.peek = null; $("peek").hidden = true; }  // the peek hangs from a dot of the band
+  S.show[which] = on; el.hidden = !on; btn.setAttribute("aria-expanded", on);
+  if (on) renderBoard(); else renderSum(project());  // opening draws what the closed panel skipped
 }
 // A running card sits on the step it reported; with no step yet, further right the longer it runs against the usual.
 function progress(p, c) {
@@ -797,7 +826,8 @@ function renderYours() {
   const w = waiting();
   $("hy").textContent = w.length ? `${w.length} wait${w.length === 1 ? "s" : ""} for you` : "Nothing waits for you";
   const text = $("qc")?.value, at = document.activeElement, held = at?.closest?.(".pass")?.dataset.key, onText = at?.id === "qc";
-  const html = w.length ? w.map(passHtml).join("") : '<li class="empty">The factory moves on its own. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.</li>';
+  const html = w.length ? w.map(passHtml).join("") : "";  // nothing waits: the heading says so and the panel is that line alone
+  document.querySelector(".yours .foot").hidden = !w.length;
   if (setHTML($("list"), html)) {
     if ($("qc") && text != null) $("qc").value = text;
     if (held) (onText ? $("qc") : document.querySelector(`.pass[data-key="${CSS.escape(held)}"] .ptitle`))?.focus({ preventScroll: true });
@@ -809,7 +839,7 @@ function renderYours() {
 // card in focus, and the decision as options that each say when to choose them and what happens next.
 const INB = { cur: null, pick: null, data: {}, gone: {}, hold: null, loading: null, err: "" };
 const inboxOn = () => document.querySelector(".yours").classList.contains("maxed");
-const inboxCards = () => waiting().filter((c) => !(Date.now() - INB.gone[c.key] < 30000)).sort((a, b) => (a.since || "~") < (b.since || "~") ? -1 : 1);
+const inboxCards = () => waiting().filter((c) => !(Date.now() - INB.gone[c.key] < 30000));
 const asks = (c) => c.blocked === "owner" ? "How should this run continue?" : c.column === "Spec Review" ? "Build this spec?" : "Ship it to production?";
 function room(slug, column) {  // what awaits a card that moves to a factory column
   const st = STAGE_OF[column], s = S.overview.pool.stages[st]; if (!s) return "";
@@ -955,8 +985,9 @@ function renderWork(p, key, fresh) {
 }
 // Today by the hour: runs that ended (clean or failed) and what the sessions cost, then how long a stage usually takes.
 function renderTelem(p) {
+  if (!S.show.today) return;  // closed: the summary line carries the day
   const big = $("telem").parentElement.classList.contains("maxed");  // maximized: charts at full width, and the day's runs one by one
-  const hs = p.hours || [], W = big ? 1100 : 360, H = big ? 170 : 62, top = 4, floor = H - 16, band = W / Math.max(hs.length, 6), bw = Math.min(big ? 64 : 18, band - 4);
+  const hs = p.hours || [], W = big ? 1100 : 360, H = big ? Math.round(Math.min(170, innerHeight * .2)) : 62, top = 4, floor = H - 16, band = W / Math.max(hs.length, 6), bw = Math.min(big ? 64 : 18, band - 4);
   const chart = (label, max, marks) => `<svg class="chart" style="height:${H}px" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}"><defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="color-mix(in srgb, var(--bad) 22.0%, transparent)"/><rect width="2" height="4" fill="var(--bad)"/></pattern></defs><line class="base" x1="0" x2="${W}" y1="${floor + .5}" y2="${floor + .5}"/>${hs.map((h, i) => {
     const x = i * band + (band - bw) / 2, sc = (v) => v / max * (floor - top);
     return `<g>${marks(h, x, sc)}${big || i === 0 || i === hs.length - 1 || h.h % 3 === 0 ? `<text x="${x + bw / 2}" y="${H - 3}" text-anchor="middle">${h.h}h</text>` : ""}</g>`; }).join("")}</svg>`;
@@ -1450,9 +1481,10 @@ function selectTab(id) { S.tab = id; renderDrawer(); if (id === "log") followLog
 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
-  const t = e.target.closest("[data-step],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-ev],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.dataset.step) setStep(t);
+  else if (t.dataset.show) show(t.dataset.show, !S.show[t.dataset.show]);
   else if (t.dataset.themePick) { theme(t.dataset.themePick); renderSettings(); themeReview(); }
   else if (t.dataset.setsec) { SET.sec = t.dataset.setsec; renderSettings(); }
   else if (t.dataset.fold) {
