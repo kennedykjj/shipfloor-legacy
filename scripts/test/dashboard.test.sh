@@ -19,6 +19,8 @@ U='{"input_tokens":1000000,"output_tokens":100000,"cache_read_input_tokens":1000
 ast a1 claude-sonnet-5-5 '{"input_tokens":0,"output_tokens":1000000}' > "$T/s1/subagents/agent-a.jsonl"
 { cmd '[{"type":"text","text":"<command-name>/mylos:refinar</command-name>\n<command-args>7</command-args>"}]'
   ast m2 claude-haiku-5-5 '{"input_tokens":1000000,"output_tokens":0}'; } > "$T/s2.jsonl"
+{ cmd '[{"type":"text","text":"<command-name>/aghanim:desenvolver</command-name>\n<command-args>14</command-args>"}]'
+  ast m4 claude-haiku-5-5 '{"input_tokens":1000000,"output_tokens":0}'; } > "$T/s5.jsonl"
 { cmd '"hello"'; ast m3 claude-opus-5-5 '{"input_tokens":1000000,"output_tokens":0}'; } > "$T/s3.jsonl"
 
 export CLAUDE_CONFIG_DIR="$(nat "$C")" SHIPFLOOR_BASH="$(nat "$(command -v bash)")" FACTORY_GH="$FACTORY_DIR/test/fake-gh" FAKE_GH_NO_JQ=1
@@ -40,6 +42,9 @@ kill $srv2 2>/dev/null
 H_TOK="X-Shipfloor-Token: $tok"
 got="$(curl -s -H "$H_TOK" "$base/api/card/shop/7" | $PY -c 'import json,sys; c=json.load(sys.stdin); print(c["total"], len(c["sessions"]), ",".join(sorted(s["stage"] for s in c["sessions"])))')"
 assert_contains "$got" "24.3 2 develop,refine"
+# AC-6: a run logged as /aghanim:* (like /mylos:* above) is still attributed to its stage and card: haiku 1M input $0.10
+got="$(curl -s -H "$H_TOK" "$base/api/card/shop/14" | $PY -c 'import json,sys; c=json.load(sys.stdin); print(c["total"], len(c["sessions"]), ",".join(sorted(s["stage"] for s in c["sessions"])))')"
+assert_contains "$got" "0.1 1 develop"
 # titles and block labels come from JSON (no --jq): #7 is "Seven" and blocked
 got="$(curl -s -H "$H_TOK" "$base/api/card/shop/7" | $PY -c 'import json,sys; c=json.load(sys.stdin); print(c["title"], c["blocked"], c["block_reason"])')"
 assert_contains "$got" "Seven owner **Validate blocked (infrastructure)**: stack down"
