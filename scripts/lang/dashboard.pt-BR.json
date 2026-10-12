@@ -139,6 +139,7 @@
     "What should change in the spec?": "O que deve mudar na spec?",
     "What should be done instead?": "O que deve ser feito em vez disso?",
     "Click again to move it anyway.": "Clique de novo para mover mesmo assim.",
+    "Nothing was approved: look at the review first.": "Nada foi aprovado: veja a revisão primeiro.",
     "Write the note first: it goes with the decision.": "Escreva a nota primeiro: ela vai junto com a decisão.",
     "You can undo for a few seconds after confirming.": "Dá para desfazer por alguns segundos depois de confirmar.",
     "Retry the move": "Tentar mover de novo",
@@ -633,6 +634,14 @@
     [
       "^Use the review's ",
       "Usar as da revisão: "
+    ],
+    [
+      "^(#\\d+) was not approved: the decision did not go through\\.$",
+      "$1 não foi aprovado: a decisão não foi aplicada."
+    ],
+    [
+      "^(#\\d+) was not approved: ",
+      "$1 não foi aprovado: "
     ],
     [
       "^(#\\d+) (.*) in a few seconds\\.$",

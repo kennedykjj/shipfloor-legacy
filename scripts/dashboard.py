@@ -727,6 +727,7 @@ class Factory:
                              "cards": [{"issue": n, "title": titles.get(n, ""), "column": col, "since": since.get(n),
                                         "cost": rounded(per_card.get(n, 0.0)),
                                         "running": running.get(n), "awaiting": col in OWNER_MOVES,
+                                        "review": col in OWNER_MOVES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                                         "blocked": blocked.get(n)}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
@@ -893,14 +894,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def send(self, code, body, kind="application/json", headers=()):
         data = body if isinstance(body, bytes) else json.dumps(body).encode()
-        self.send_response(code)
-        for k, v in headers:
-            self.send_header(k, v)
-        self.send_header("Content-Type", kind)
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(code)
+            for k, v in headers:
+                self.send_header(k, v)
+            self.send_header("Content-Type", kind)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+        except ConnectionError:
+            pass  # the tab closed before the answer: the action already ran, nobody is left to tell
 
     def allowed(self, query=None):
         """The API wants the token in a header, which a page cannot send cross-origin without a preflight
