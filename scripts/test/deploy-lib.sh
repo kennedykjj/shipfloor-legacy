@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Shared setup for the deploy.sh tests (deploy-*.test.sh): one base repo per file, a private copy per case.
+# Shared setup for the deploy.sh tests (deploy-*.test.sh): one base repo per suite run (run.sh builds it and
+# hands it over in DEPLOY_BASE; a file run on its own builds its own), a private copy per case.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-source "$(dirname "$0")/lib.sh"
 DEP="$FACTORY_DIR/deploy.sh"
 M=api/src/main/resources/db/migration
 
-build_base() {  # once per file: remote + clone with main and the staged card #7 on feat/7-x
+build_base() {  # remote + clone with main and the staged card #7 on feat/7-x
   BASE="$(mktemp -d)"; git init -q --bare "$BASE/remote.git"
   local r="$BASE/repo"; git init -q -b main "$r"
   git -C "$r" config user.email t@t; git -C "$r" config user.name t; git -C "$r" config core.autocrlf false
@@ -30,7 +30,7 @@ five
   git -C "$r" push -q origin feat/7-x; git -C "$r" checkout -q main
   STAGED="$(git -C "$r" rev-parse feat/7-x)"
 }
-build_base
+if [ -d "${DEPLOY_BASE:-}/repo" ]; then BASE="$DEPLOY_BASE"; STAGED="$(git -C "$BASE/repo" rev-parse feat/7-x)"; else build_base; fi
 
 setup() {  # each case: a private copy of the base (no git work), plus fresh fakes
   T="$(mktemp -d)"; cp -r "$BASE/remote.git" "$BASE/repo" "$T/"; point
@@ -56,16 +56,20 @@ point() {  # the case lives in $T: where its remote, repo, fakes and factory hom
   export FACTORY_HOME="$T/home" FACTORY_WT_ROOT="$T/wt" FACTORY_REPO="$repo" FACTORY_GH="$FACTORY_DIR/test/fake-gh-deploy"
   export FACTORY_BOARD="$T/board" FACTORY_CURL="$T/curl" FACTORY_POLL=0
 }
-red_round() {  # a deploy that met red CI on top of main and handed the card to a fix round ($code: its exit, 3)
-  # The deploy runs once per file; later calls put a copy of that state back in the same place, because
-  # git worktrees hold absolute paths.
-  if [ -z "${RED:-}" ]; then
-    setup; main_commit web/other.ts x; echo "api=FAILURE" > "$FG/ci"; code="$(run 7)"
-    RED="$(mktemp -d)"; RED_T="$T"; cp -r "$T/." "$RED/"
+scene() {  # scene <name>: a state several cases start from, built once per file by scene_<name> (after setup)
+  # Later calls put a copy of that state back in the same place, because git worktrees hold absolute paths.
+  local dir="SCENE_$1" at="SCENE_T_$1" was="SCENE_CODE_$1"
+  if [ -z "${!dir:-}" ]; then
+    setup; "scene_$1"
+    printf -v "$dir" %s "$(mktemp -d)"; printf -v "$at" %s "$T"; printf -v "$was" %s "${code:-}"; cp -r "$T/." "${!dir}/"
   else
-    T="$RED_T"; rm -rf "$T"; mkdir "$T"; cp -r "$RED/." "$T/"; point
+    T="${!at}"; rm -rf "$T"; mkdir "$T"; cp -r "${!dir}/." "$T/"; point; code="${!was}"
   fi
 }
+scene_behind() { main_commit web/other.ts x; }  # another card landed on main: the PR is behind
+scene_red() { scene_behind; echo "api=FAILURE" > "$FG/ci"; code="$(run 7)"; }
+red_round() { scene red; }  # a deploy that met red CI on top of main and handed the card to a fix round ($code: its exit, 3)
+scene_conflict() { on_branch shared.txt card; main_commit shared.txt main; code="$(run 7)"; }  # a small conflict, handed over ($code: 3)
 main_commit() {  # main_commit <file> <content>: another card lands on main
   local w; w="$(mktemp -d)"; git clone -q "$remote" "$w"; git -C "$w" config user.email t@t; git -C "$w" config user.name t
   mkdir -p "$w/$(dirname "$1")"; printf '%s\n' "$2" > "$w/$1"; git -C "$w" add -A; git -C "$w" commit -qm "main: $1"; git -C "$w" push -q origin main

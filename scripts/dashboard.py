@@ -1,7 +1,7 @@
 """Local dashboard: one page and a JSON API over ~/.shipfloor and the Claude Code transcripts of the
 factory's runs. Read-only, except the owner's decisions on a card that waits, messages to a running card and this machine's
 settings (the pool and the pauses)."""
-import argparse, json, os, re, secrets, statistics, subprocess, sys, threading, time, webbrowser
+import argparse, json, os, re, secrets, shlex, statistics, subprocess, sys, threading, time, webbrowser
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -84,6 +84,31 @@ def read_yaml(path):
 
 def bash():
     return os.environ.get("SHIPFLOOR_BASH", "bash")
+
+
+NO_SCHEDULER = ("Windows only: this machine has no ShipfloorDispatcher scheduled task. "
+                "Its pace is set by whatever schedules the dispatcher here.")
+
+
+def scheduler():
+    """(the command that sets the dispatcher's pace, None) or (None, why there is none). The minutes go last.
+    SHIPFLOOR_SCHEDULER (split like a command line) overrides; "none" says there is no scheduler; else the
+    installer script re-registers the Windows task."""
+    given = os.environ.get("SHIPFLOOR_SCHEDULER")
+    if given is not None:
+        try:
+            parts = [] if given.strip() == "none" else shlex.split(given)
+        except ValueError:
+            parts = []
+        return (parts, None) if parts else (None, NO_SCHEDULER)
+    if os.name != "nt":
+        return None, NO_SCHEDULER
+    try:  # the installed copy records the checkout it came from; a checkout is its own source
+        source = (HERE / ".source").read_text(encoding="utf-8").strip() or str(HERE.parent)
+    except OSError:
+        source = str(HERE.parent)
+    return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+            str(Path(source) / "installer" / "install-dispatcher.ps1"), "-EveryMin"], None
 
 
 def gh(*args, input=None):  # through bash, so FACTORY_GH can be a script on Windows too
@@ -466,7 +491,17 @@ class Factory:
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
+        every = shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml"))
+        if cycle and cycle["at"] and cycle["took_s"] is not None:  # the next one starts `every` minutes after the last one started
+            try:
+                cycle["next_at"] = (parse_ts(cycle["at"]) - timedelta(seconds=cycle["took_s"]) + timedelta(minutes=every)).isoformat()
+            except (ValueError, TypeError, AttributeError):
+                pass
+        if cycle:
+            cycle.setdefault("next_at", None)
+        command, why = scheduler()
         return {"machine": {k: m[k] for k in ("pool", "stages", "stacks", "stack_wait")}, "paused": (self.home / "PAUSE").exists(),
+                "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
                 "cycle": cycle, "projects": projects, "prices": self.prices()}
 
     def registry(self):
@@ -486,9 +521,25 @@ class Factory:
                 new[k] = changes[k]
         if isinstance(changes.get("stages"), dict):
             new["stages"] = dict(new["stages"] if isinstance(new.get("stages"), dict) else {}, **changes["stages"])
+        if isinstance(changes.get("dispatcher"), dict) and "every_min" in changes["dispatcher"]:
+            new["dispatcher"] = dict(new["dispatcher"] if isinstance(new.get("dispatcher"), dict) else {}, every_min=changes["dispatcher"]["every_min"])
         errs = shipfloor_config.machine_problems(new)
         if errs:
             return 400, {"error": "; ".join(errs)}
+        every = shipfloor_config.dispatcher_every(new)
+        if every != shipfloor_config.dispatcher_every(read_yaml(path)):  # the task is told first: if it refuses, nothing is saved
+            command, why = scheduler()
+            if not command:
+                return 409, {"error": why}
+            try:
+                r = subprocess.run([*command, str(every)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+                lines = [l.strip() for l in (r.stdout + "\n" + r.stderr).splitlines() if l.strip()]
+                if r.returncode != 0:
+                    return 409, {"error": (lines or [f"the scheduler exited {r.returncode}"])[-1]}
+            except subprocess.TimeoutExpired:
+                return 409, {"error": "the scheduler did not answer in 60 seconds"}
+            except OSError as e:
+                return 409, {"error": f"the scheduler could not start: {e}"}
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write("# shipfloor machine config: runs at once on this machine (pool) and per stage\n")
             yaml.safe_dump(new, f, sort_keys=False)
