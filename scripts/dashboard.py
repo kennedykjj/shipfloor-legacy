@@ -249,9 +249,9 @@ class Factory:
         read, ok = {}, bool(ask)
         for i in range(0, len(ask), 100):
             batch = ask[i:i + 100]
-            fields = " ".join(f'n{n}: issueOrPullRequest(number: {n}) {{ ... on Issue {{ title }} ... on PullRequest {{ title }} }}' for n in batch)
-            query = f'query {{ repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) {{ {fields} }} }}'
-            r = gh("api", "graphql", "-f", f"query={query}")
+            fields = " ".join(f'i{int(n)}: issueOrPullRequest(number: {int(n)}) {{ ... on Issue {{ title }} ... on PullRequest {{ title }} }}' for n in batch)
+            query = f'query($owner: String!, $name: String!) {{ repository(owner: $owner, name: $name) {{ {fields} }} }}'
+            r = gh("api", "graphql", "-f", f"query={query}", "-f", f"owner={owner}", "-f", f"name={name}")
             try:  # a number GitHub does not know makes gh exit 1 but the others are still printed
                 repo = ((json.loads(r.stdout or "null") or {}).get("data") or {}).get("repository")
             except (ValueError, AttributeError):
@@ -259,10 +259,10 @@ class Factory:
             if not isinstance(repo, dict):
                 ok = False
                 break
-            read.update({n: ((repo.get(f"n{n}") or {}).get("title") or "") for n in batch})
+            read.update({n: ((repo.get(f"i{n}") or {}).get("title") or "") for n in batch})
         if ok:
-            known = read if stale else {**known, **read}
-            self._titles[p] = (time.time() if stale else at or time.time(), known)
+            known = {**known, **read}
+            self._titles[p] = (time.time() if stale else at, known)
         return known
 
     def blocked(self, p):
@@ -432,7 +432,7 @@ class Factory:
         costs = [s["cost"] for s in sessions]
         columns, _ = self.board(p)
         reports = self.reports(p, n)
-        return {"project": p, "issue": n, "title": self.titles(p, [n]).get(n, ""), "column": columns.get(n),
+        return {"project": p, "issue": n, "title": self.titles(p, [*columns, n]).get(n, ""), "column": columns.get(n),
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
                 "total": None if None in costs else round(sum(costs), 2), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
