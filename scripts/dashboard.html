@@ -1838,7 +1838,7 @@ window.addEventListener("message", (e) => {
   S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
   syncDecide();
 });
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushMarks(); }); window.addEventListener("pagehide", flushMarks);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushMarks(); }); window.addEventListener("pagehide", flushMarks);  // flushMarks sends with keepalive, which outlives the page
 // a page that never says "ready" does not take the theme: show it plain; one that did is never left hidden
 $("pane").addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
 $("list").addEventListener("scroll", fade); window.addEventListener("resize", fade);
