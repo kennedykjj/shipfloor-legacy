@@ -1,0 +1,1 @@
+{"issue": 53, "pipeline": "validate", "outcome": "staged", "agents": ["engineer"], "rounds": 0, "failed_gates": [], "flaky": [], "amendments": [], "pr": 99, "head": "be28a89b05f063b02ac65d117a4b1c1bf93beffb"}
