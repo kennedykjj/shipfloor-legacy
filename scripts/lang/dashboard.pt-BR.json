@@ -3,6 +3,16 @@
   "exact": {
     "Factory": "Fábrica",
     "Feed": "Feed",
+    "All": "Tudo",
+    "Waits for you": "Espera você",
+    "Failures": "Falhas",
+    "Newest first": "Mais recente em cima",
+    "Filter the feed": "Filtrar o feed",
+    "Nothing here.": "Nada aqui.",
+    "since": "desde",
+    "no end logged": "sem fim registrado",
+    "now in": "agora em",
+    "gates failed": "gates que falharam",
     "Board on GitHub": "Quadro no GitHub",
     "Pool": "Pool",
     "Stacks": "Stacks",
@@ -337,9 +347,19 @@
     "Every event is off: nothing is sent.": "Todos os eventos estão desligados: nada é enviado.",
     "The topic takes letters, digits, - and _, up to 64.": "O tópico aceita letras, dígitos, - e _, até 64.",
     "Quiet hours need both times, and they cannot be the same.": "O horário de silêncio precisa dos dois horários, e eles não podem ser iguais.",
-    "The reminder takes 15 to 720 minutes.": "O lembrete aceita de 15 a 720 minutos."
+    "The reminder takes 15 to 720 minutes.": "O lembrete aceita de 15 a 720 minutos.",
+    "Outside working hours:": "Fora do horário de trabalho:",
+    "Working hours": "Horário de trabalho",
+    "always": "sempre",
+    "Windows like 08:00-23:00, separated by commas. Empty means always.": "Janelas como 08:00-23:00, separadas por vírgula. Vazio significa sempre.",
+    "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.": "Horário de trabalho não salvo: escreva cada janela como HH:MM-HH:MM, separadas por vírgula.",
+    "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora."
   },
   "rx": [
+    [
+      "starts again at (\\d\\d:\\d\\d)",
+      "volta a iniciar às $1"
+    ],
     [
       "Running · last cycle (\\S+) ago",
       "Rodando · último ciclo há $1"
