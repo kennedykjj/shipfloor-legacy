@@ -55,3 +55,5 @@ layers:
 
 stack: {url: "http://localhost:3000"}                  # a local stack the e2e tests and UX checks share
 deploy: {ci_workflow: CI, environment: production, timeout_min: 30, conflict_max_files: 5, conflict_max_hunks: 20, fix_max_files: 3, fix_max_lines: 40, refresh_staged: false}   # omit ci/environment to finish at the merge
+# deploy: {local_ci: 'npm test'}   # no CI on GitHub: the deploy runs this command in the card's worktree, on the head merged
+#                                  # with main, where it would wait for GitHub's checks (red: the same fix rounds; deploy.timeout_min applies)
