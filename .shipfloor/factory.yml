@@ -15,7 +15,9 @@ layers:
   - name: factory
     path: ./
     stack: Bash and Python 3 (stdlib + PyYAML); the dashboard is one HTML file, no build; tests print "ok" / "FAIL" lines
-    build: TEST_JOBS=4 bash scripts/test/run.sh   # the whole suite; 4 jobs, since other runs share the machine
+    # The tests tied to what the card changed against main (a shared helper runs them all). The whole suite is CI's:
+    # it runs on the PR and deploy.required_checks waits for it. Here it took 4 minutes a build; there, one.
+    build: TEST_JOBS=4 bash scripts/test/run.sh --changed origin/main
     test: 's={selector}; bash scripts/test/run.sh "${s##*/}"'   # selector: a test file, with or without its path
     ran: '^ +ok '
     assertions: '^ +FAIL '
