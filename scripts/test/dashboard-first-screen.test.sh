@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The Factory view's first screen: one summary line, the lifecycle band and "Today" closed until opened, "Yours" alone on top.
+# The Factory view's first screen: the lifecycle band and "Today" open, each minimized by a button of its own; one summary line while "Today" is minimized.
 # AC-1 and AC-4 are pixel measures, checked by UX/UI in validation; the rest is read from the page's text.
 source "$(dirname "$0")/lib.sh"
 out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" "$FACTORY_DIR/lang/dashboard.pt-BR.json" <<'PY'
@@ -29,16 +29,18 @@ sumline = tag("id", "sumline")
 btn_band = [t for t in tag("data-show", "band") if t.startswith("<button")]
 btn_today = [t for t in tag("data-show", "today") if t.startswith("<button")]
 
-# AC-2: the view opens with the band and "Today" closed and one summary line
+# AC-2: the view opens with the band and "Today" open, each with its fold button inside
 check("AC-2 the lifecycle band is hidden in the static markup", bool(band) and has(band[0], "hidden"), "nav#band is not hidden")
 check("AC-2 Today is a hidden section with id=today", bool(today) and has(today[0], "hidden") and "telem" in today[0], 'section.telem has no id="today" with hidden')
 check("AC-2 a summary line #sumline sits in #board before .cols", bool(sumline) and 0 <= h.find('id="sumline"') < h.find('id="cols"') and h.find('id="board"') < h.find('id="sumline"'), "div#sumline is not the first row of #board before #cols")
 check("AC-2 the summary line is hidden until the first read", bool(sumline) and has(sumline[0], "hidden"), "#sumline is not hidden in the static markup")
 check("AC-2 span#sum holds the sentence", bool(tag("id", "sum")), 'no element with id="sum"')
 for nm, bt, ctl in (("band", btn_band, "band"), ("today", btn_today, "today")):
-    check(f"AC-2 the {nm} button is closed and controls #{ctl}", bool(bt) and 'aria-expanded="false"' in bt[0] and f'aria-controls="{ctl}"' in bt[0], f'no button[data-show="{nm}"] with aria-expanded="false" and aria-controls="{ctl}"')
-check("AC-2 the buttons say Lifecycle and Today", bool(re.search(r'<button[^>]*data-show="band"[^>]*>\s*(?:<[^>]+>\s*)*Lifecycle', h)) and bool(re.search(r'<button[^>]*data-show="today"[^>]*>\s*(?:<[^>]+>\s*)*Today', h)), "the two buttons do not read Lifecycle and Today")
-check("AC-2 the state starts as S.show = {band: false, today: false}", bool(re.search(r"show\s*:\s*\{\s*band\s*:\s*false\s*,\s*today\s*:\s*false\s*\}", h)), "S.show is not declared closed")
+    check(f"AC-2 the {nm} button starts open", bool(bt) and 'aria-expanded="true"' in bt[0] and "aria-controls=" in bt[0] and "aria-label=" in bt[0], f'no button[data-show="{nm}"] with aria-expanded="true", aria-controls and aria-label')
+    at, start = h.find(f'data-show="{nm}"'), h.find(f'id="{ctl}"')
+    check(f"AC-2 the {nm} button sits inside #{ctl}", 0 <= start < at < h.find("</nav>" if nm == "band" else "</section>", start), f'button[data-show="{nm}"] is not inside #{ctl}')
+check("AC-2 the summary line holds no button", "<button" not in h[h.find('id="sumline"'):h.find('id="band"')], "#sumline still carries a button")
+check("AC-2 the state starts as S.show = {band: true, today: true}", bool(re.search(r"show\s*:\s*\{\s*band\s*:\s*true\s*,\s*today\s*:\s*true\s*\}", h)), "S.show is not declared open")
 rs = src("function renderSum")
 check("AC-2 renderSum writes #sum through setHTML", "setHTML" in rs and ('$("sum")' in rs or "getElementById(\"sum\")" in rs), "function renderSum(p) writing #sum is missing")
 check("AC-2 the sentence has pool, est. spent, runs and failed", all(w in rs for w in ("pool", "est.", "runs", "failed")), "renderSum lacks pool / est. / runs / failed")
@@ -46,7 +48,10 @@ check("AC-2 the failed part is left out at zero", bool(re.search(r"failed", rs))
 check("AC-2 the sentence hides while Today is open", "S.show.today" in rs and "hidden" in rs, "renderSum does not hide #sum while Today is open")
 rb = src("function renderBoard")
 check("AC-2 renderBoard draws the summary", "renderSum" in rb, "renderBoard does not call renderSum")
-check("AC-2 renderBoard takes the panels' hidden from S.show", "S.show.band" in rb and "S.show.today" in rb, "renderBoard does not read S.show.band and S.show.today")
+check("AC-2 a refresh leaves the fold alone", "S.show" not in rb and ".min" not in rb, "renderBoard rewrites what the owner minimized")
+check("AC-2 the row of the sentence hides with it", "sumline" in rs, "renderSum leaves an empty #sumline row while Today is open")
+for k, v in (("^Minimize the lifecycle$", "Minimizar o ciclo de vida"), ("^Minimize today$", "Minimizar hoje"), ("^Expand the lifecycle$", "Expandir o ciclo de vida"), ("^Expand today$", "Expandir hoje")):
+    check("AC-2 pt-BR fold label " + ascii(v), [k, v] in cat["rx"], "rx entry " + k + " is missing")
 check("AC-2 #sumline follows #cols", "sumline" in rb, "renderBoard does not set #sumline with #cols")
 check("AC-2 the board grid has a row for the line", bool(re.search(r"grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\)", h)), "the .board rows are not auto auto minmax(0, 1fr)")
 check("AC-2 the line stays out of localStorage", "shipfloor.show" not in h and "localStorage" not in src("function show("), "the open state is stored")
@@ -59,7 +64,8 @@ for k, v in (("\\\\bin use\\\\b", "em uso"), ("est\\\\. spent today", "est. gast
 sh = src("function show(")
 check("AC-3 show(which, on) exists", bool(sh), "function show(which, on) is missing")
 check("AC-3 show sets aria-expanded on the button", "aria-expanded" in sh, "show does not set aria-expanded")
-check("AC-3 show sets the panel's hidden and S.show", "hidden" in sh and "S.show" in sh, "show does not set hidden and S.show")
+check("AC-3 show folds the panel (class min) and sets S.show", '"min"' in sh and "S.show" in sh, "show does not toggle .min and S.show")
+check("AC-3 show names the button for what it does next", "Minimize" in sh and "Expand" in sh and "aria-label" in sh, "show does not relabel the button")
 check("AC-3 show restores a maximized panel first", "maxed" in sh, "show does not restore a maximized panel")
 check("AC-3 closing the band closes the peek", "peek" in sh.lower(), "show does not close an open peek")
 check("AC-3 show re-renders the sentence", "renderSum" in sh, "show does not re-render #sum")

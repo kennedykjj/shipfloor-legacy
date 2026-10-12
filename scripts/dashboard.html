@@ -114,11 +114,8 @@ kbd { font: inherit; border: 1px solid var(--faint); border-radius: 4px; padding
 main { min-height: 0; display: grid; }
 .board { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 0; min-height: 0; }
 .board[hidden], .feed[hidden], .band[hidden], .cols[hidden], .telem[hidden], .sumline[hidden], #sum[hidden], #msg[hidden] { display: none; }
-/* the first row: the closed faces of the lifecycle band and "Today", and the day in one sentence */
+/* the first row: the day in one sentence, shown while "Today" is minimized */
 .sumline { grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
-.sumline button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px 6px; margin: 0 -14px 0 -6px; border-radius: 6px; color: var(--muted); font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
-.sumline button:hover, .sumline button[aria-expanded="true"] { color: var(--text); }
-.sumline button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; } .sumline button[aria-expanded="false"] svg { transform: rotate(180deg); }
 #sum b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; } #sum .bad, #sum .bad b { color: var(--bad); }
 @media (min-width: 1181px) { .sumline { height: 36px; margin-bottom: 12px; } }
 .board > .band { grid-row: 2; margin-bottom: 16px; } .board > .cols { grid-row: 3; }
@@ -133,7 +130,7 @@ main { min-height: 0; display: grid; }
 @keyframes sweep { from { --sweep: 0deg; } to { --sweep: 360deg; } }
 
 /* the line: every column a cell, every card a dot */
-.band { padding: 12px 44px 8px 18px; overflow-x: auto; }
+.band { padding: 12px 78px 8px 18px; overflow-x: auto; }
 .cells { display: flex; min-width: 1040px; }
 .cell { min-width: 0; border-left: 1px solid color-mix(in srgb, var(--ov) 14.9%, transparent); } .cell:first-child { border-left: 0; }
 .lab { height: 62px; padding: 3px 8px 0 12px; } .cell:first-child .lab { padding-left: 0; }
@@ -164,6 +161,9 @@ main { min-height: 0; display: grid; }
 .max svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .max .in, .maxed > .max .out, .drawer.full .max .out { display: none; } .maxed > .max .in, .drawer.full .max .in { display: block; }
 .panel:hover > .max, .tile:hover > .max, .max:hover, .max:focus-visible, .maxed > .max, .drawer .max { color: var(--text); border-color: var(--edge-hi); background: var(--panel-hi); }
+/* minimize, beside maximize: the panel folds to its heading where it sits */
+.fold { right: 44px; } .fold[aria-expanded="false"] svg { transform: rotate(180deg); } .maxed > .fold { display: none; }
+.panel.min > :not(h1):not(.fold) { display: none; } .panel.min { min-height: 48px; max-height: none; } .band.min > h1 { display: block; }
 .panel.maxed { position: fixed; inset: 5vh 5vw; z-index: 4; max-height: none; background: var(--panel); border-color: var(--edge-hi); box-shadow: var(--shadow); padding: 22px clamp(16px, 3vw, 36px) 20px; }
 #dim { position: fixed; inset: 0; z-index: 3; background: var(--scrim); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); animation: fade .2s ease; }
 @keyframes fade { from { opacity: 0; } }
@@ -563,10 +563,8 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
   <section class="board" id="board" aria-label="Factory">
     <p class="placeholder" id="msg">Reading the factory…</p>
     <div class="sumline" id="sumline" hidden>
-      <button class="cap" data-show="band" aria-controls="band" aria-expanded="false">Lifecycle<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
-      <button class="cap" data-show="today" aria-controls="today" aria-expanded="false">Today<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
       <span id="sum"></span></div>
-    <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
+    <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><button class="max fold" data-show="band" aria-controls="cells" aria-expanded="true" aria-label="Minimize the lifecycle" title="Minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
       <div class="legend"><span><i></i>running, on the step it reported (1 to N)</span><span class="o"><i></i>queued</span><span style="--k:var(--sand)"><i></i>waits for you</span><span style="--k:var(--bad)"><i></i>blocked</span><span>+N: more cards than fit</span></div></nav>
     <div class="cols" id="cols" hidden>
       <div class="side">
@@ -576,7 +574,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
               <div class="iconf" id="ic" hidden><textarea id="inote" aria-label="Your note"></textarea><button class="btn approve" id="igo"></button><p class="ihint" id="ihint"></p></div>
               <div class="itoast" id="itoast" role="status" hidden><span id="imsg"></span><button id="iundo">Undo</button></div><p class="pnote" id="ierr" role="status"></p></aside></div>
           <p class="foot cap"><span class="keys-list"><span><kbd>N</kbd>next</span><span><kbd>A</kbd>approve</span><span><kbd>R</kbd>review</span><span><kbd>L</kbd>log</span></span><span class="keys-inbox"><span><kbd>1–9</kbd>choose</span><span><kbd>Esc</kbd>close</span></span></p></section>
-        <section class="telem panel" id="today" data-maxable="today" aria-labelledby="ht" hidden><h1 class="g" id="ht">Today</h1><div id="telem"></div></section>
+        <section class="telem panel" id="today" data-maxable="today" aria-labelledby="ht" hidden><h1 class="g" id="ht">Today</h1><button class="max fold" data-show="today" aria-controls="telem" aria-expanded="true" aria-label="Minimize today" title="Minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div id="telem"></div></section>
       </div>
       <section class="work panel" data-maxable="what is in progress" aria-labelledby="hw"><h1 class="g" id="hw"></h1><div class="tiles" id="tiles"></div>
         <p class="cap" id="wfoot" style="padding-top:12px;margin:auto 0 0" title="The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card."></p></section>
@@ -623,7 +621,7 @@ const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
 const S = { view: "board", overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "", refused: false,
   expanded: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {}, resuming: null, resumeErr: null,
-  show: { band: false, today: false } };  // what the owner opened on the Factory view: in memory only, closed at every load
+  show: { band: true, today: true } };  // what the owner left open on the Factory view: in memory only, open at every load
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
@@ -814,14 +812,14 @@ function grow(el, change, from) {
 function maximize(panel, on) {
   if (panel.classList.contains("maxed") === on) return;
   grow(panel, () => { panel.classList.toggle("maxed", on); renderBoard(); });
-  const b = panel.querySelector(":scope > .max"); b.title = on ? "Restore (Esc)" : "Maximize"; b.setAttribute("aria-label", `${on ? "Restore" : "Maximize"} ${panel.dataset.maxable}`);
+  const b = panel.querySelector(":scope > [data-max]"); b.title = on ? "Restore (Esc)" : "Maximize"; b.setAttribute("aria-label", `${on ? "Restore" : "Maximize"} ${panel.dataset.maxable}`);
 }
 const stale = (p) => p?.board_age_s != null && p.board_age_s > STALE_S;
 const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" ? "stop" : c.blocked === "infra" ? "infra" : c.running ? "run" : c.awaiting ? "you" : "wait";
 function renderBoard() {
   if (S.refused) return;
   const p = project();
-  $("cols").hidden = $("sumline").hidden = !p; $("band").hidden = !p || !S.show.band; $("today").hidden = !p || !S.show.today; $("msg").hidden = !!p; $("msg").removeAttribute("role");  // the line follows #cols; the band and Today open on demand
+  $("cols").hidden = $("sumline").hidden = !p; $("band").hidden = $("today").hidden = !p; $("msg").hidden = !!p; $("msg").removeAttribute("role");  // the line follows #cols; the band and Today fold where they sit (show)
   if (!p) { if (S.overview) setHTML($("msg"), 'No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.'); return; }
   const key = (c) => `${p.slug}/${c.issue}`, by = Object.fromEntries(COLS.map((c) => [c.name, []])), now = Date.now();
   for (const c of p.cards) {
@@ -831,19 +829,20 @@ function renderBoard() {
   }
   renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p); renderSum(p);
 }
-// The day in one sentence, the closed face of "Today": it hides while "Today" is open, whose headings carry the same figures.
+// The day in one sentence, the closed face of "Today": it hides, with its row, while "Today" is open, whose headings carry the same figures.
 function renderSum(p) {
-  const el = $("sum"), o = S.overview; el.hidden = S.show.today || !p || !o;
+  const el = $("sum"), o = S.overview; $("sumline").hidden = el.hidden = S.show.today || !p || !o;
   if (el.hidden) return;
   const hs = p.hours || [], failed = hs.reduce((n, h) => n + h.failed, 0), runs = hs.reduce((n, h) => n + h.ok + h.failed, 0), spent = hs.reduce((n, h) => n + h.cost, 0);
   setHTML(el, `Pool <b>${o.pool.used} / ${o.pool.size}</b> in use · <span title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml"><b>$${spent.toFixed(2)}</b> est. spent today</span> · <b>${plural(runs, "run")} today</b>${failed ? ` · <span class="bad"><b>${failed}</b> failed</span>` : ""}`);
 }
-// A control on the first row opens or closes its panel where it sits. Focus stays on the button.
+// The fold button inside a panel minimizes it to its heading, or opens it again, where it sits. Focus stays on the button.
 function show(which, on) {
-  const el = $(which === "band" ? "band" : "today"), btn = document.querySelector(`[data-show="${which}"]`);
+  const el = $(which === "band" ? "band" : "today"), btn = el.querySelector(":scope > .fold");
   if (!on && el.classList.contains("maxed")) maximize(el, false);  // restored first, then closed
   if (!on && which === "band" && S.peek) { S.peek = null; $("peek").hidden = true; }  // the peek hangs from a dot of the band
-  S.show[which] = on; el.hidden = !on; btn.setAttribute("aria-expanded", on);
+  S.show[which] = on; el.classList.toggle("min", !on); btn.setAttribute("aria-expanded", on);
+  btn.title = on ? "Minimize" : "Expand"; btn.setAttribute("aria-label", `${btn.title} ${el.dataset.maxable}`);
   if (on) renderBoard(); else renderSum(project());  // opening draws what the closed panel skipped
 }
 // A running card sits on the step it reported; with no step yet, further right the longer it runs against the usual.
