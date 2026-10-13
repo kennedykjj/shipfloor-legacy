@@ -57,8 +57,9 @@ echo ok > "$bin/health"
 up a >/dev/null; up b >/dev/null
 # each waiter is in the queue before the next step: a fixed sleep let "second" take its ticket first on a busy machine
 queued() { local i; for i in $(seq 1 150); do ls "$L/stack-queue" 2>/dev/null | grep -q -- "-$1\$" && return 0; sleep 0.1; done; return 1; }
-( up first > "$bin/first" ) & queued first || fail "first never took a ticket"
-( up second > "$bin/second" 2>/dev/null ) & queued second || fail "second never took a ticket"
+# the waiters wait long enough for a slow machine to start the second and release a; second's wait bounds the final "wait"
+( FACTORY_STACK_WAIT=60 up first > "$bin/first" ) & queued first || fail "first never took a ticket"
+( FACTORY_STACK_WAIT=15 up second > "$bin/second" 2>/dev/null ) & queued second || fail "second never took a ticket"
 down a; wait
 assert_contains "$(cat "$bin/first")" "http://localhost:21000"
 [ ! -s "$bin/second" ] && pass "the later waiter did not jump the queue" || fail "second got a slot first: $(cat "$bin/second")"
