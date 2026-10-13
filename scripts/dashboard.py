@@ -94,6 +94,11 @@ OWNER_MOVES = {"Inbox": [("Ready for Refinement", False)],
 AWAITING = ("Spec Review", "Staged")  # the columns where the factory waits for the owner's decision
 ORDERED = ("Inbox", "Ready for Refinement", "Ready for Dev")  # the owner sets their order (#128); the dispatcher takes from the top
 LINED = (*ORDERED, "Ready for Prod")  # a card there shows its place in line
+# Where a card blocked for the owner can be taken back (#127): from Coding or Validation there is code to redo from the
+# approved spec; from any other column ("*") only the spec or the Inbox. The card's own column is never a target.
+BLOCKED_MOVES = {"Coding": ("Inbox", "Ready for Refinement", "Ready for Dev"),
+                 "Validation": ("Inbox", "Ready for Refinement", "Ready for Dev"),
+                 "*": ("Inbox", "Ready for Refinement")}
 LOCKED = {"run": "a run is in progress", "infra": "blocked by infrastructure, the factory retries",
           "blocked": "it is blocked and waits for your call in the card"}
 
@@ -1039,6 +1044,7 @@ class Factory:
                 "alerts": shipfloor_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "moves": {f: [{"to": to, "note": note} for to, note in m] for f, m in OWNER_MOVES.items()}, "ordered": list(ORDERED),
+                "take_back": {f: list(m) for f, m in BLOCKED_MOVES.items()},
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
                           "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)},
                 "costs": dict(limits, day_stopped=day_stopped)}
@@ -1158,6 +1164,65 @@ class Factory:
             return 502, {"error": err, "commented": commented}
         self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
         return 200, {"moved_to": to}
+
+    def take_back(self, p, n, to, text):
+        """A card blocked for the owner goes back to Ready for Dev, Ready for Refinement or the Inbox (#127), in this order:
+        the comment (when there is one), the card's open pull request closed (Inbox only, its branch kept), the move, the
+        block off. A failure stops there and leaves the card blocked where it was, so the same move can be repeated."""
+        if not isinstance(to, str) or to not in BLOCKED_MOVES["Coding"]:
+            return 400, {"error": f"a blocked card goes to {', '.join(BLOCKED_MOVES['Coding'])}, not {to or 'nowhere'}"}
+        rows, err = self.board_rows(p)
+        if err:
+            return 502, {"error": err}
+        row = next((r for r in rows if r[0] == str(n)), None)
+        if not row:
+            return 409, {"error": f"#{n} is not on the board", "column": None}
+        column = row[1]
+        locked, err = self.lock(p, n)  # read now: a card unblocked a moment ago must not be moved as blocked
+        if err:
+            return 502, {"error": err}
+        if locked != "blocked":
+            why = LOCKED[locked] if locked else "it is not blocked now"
+            return 409, {"error": why, "column": column, "locked": locked}
+        if to == column or to not in BLOCKED_MOVES.get(column, BLOCKED_MOVES["*"]):
+            return 409, {"error": f"a card blocked in {column} does not go to {to}", "column": column}
+        cfg = self.config(p)
+        owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
+        commented, closed = False, None
+        if text.strip():
+            r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
+            if r.returncode != 0:
+                return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip(), "commented": False, "pr_closed": None}
+            commented = True
+        if to == "Inbox":  # the card's pull request, found by its branch feat/<n>-...; none open is not an error
+            prs, err = gh_json("pr", "list", "--repo", str(repo), "--state", "open", "--json", "number,headRefName", "--limit", "200")
+            if err:
+                return 502, {"error": "cannot read the pull requests, nothing moved: " + err, "commented": commented, "pr_closed": None}
+            for pr in prs or []:
+                if isinstance(pr, dict) and str(pr.get("headRefName") or "").startswith(f"feat/{n}-"):
+                    r = gh("pr", "close", str(pr.get("number")), "--repo", str(repo))  # no --delete-branch: the branch stays
+                    if r.returncode != 0:
+                        return 502, {"error": "closing the pull request failed, nothing moved: " + r.stderr.strip(),
+                                     "commented": commented, "pr_closed": closed}
+                    closed = closed or pr.get("number")
+        rest = [r for r in rows if r is not row]
+        last = [r for r in rest if r[1] == to][-1:]
+        if to in ORDERED and last:  # as owner_move: a Status change keeps the item's place, which may be the top of the queue
+            err = self.place(p, owner, num, row[2], last[0][2])
+            if err:
+                return 502, {"error": err, "commented": commented, "pr_closed": closed}
+            rest.insert(rest.index(last[0]) + 1, row)
+        else:
+            rest = rows
+        err = self.move(p, owner, num, row[2], to)
+        if err:
+            return 502, {"error": err, "commented": commented, "pr_closed": closed}
+        self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
+        code, body = self.unblock(p, n)
+        if code != 200:
+            return 502, {"error": "moved, but the block did not come off: " + body.get("error", ""), "commented": commented,
+                         "pr_closed": closed, "moved_to": to}
+        return 200, {"moved_to": to, "commented": commented, "pr_closed": closed, "unblocked": True}
 
     def owner_reorder(self, p, n, seen, before):
         """The card goes right before `before` in its column, or last for None (#128). `seen` and `before` are what the
@@ -1467,7 +1532,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "unblock", "message", "accept", "send-back", "weight")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "take-back", "unblock", "message", "accept", "send-back", "weight")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -1488,6 +1553,8 @@ class Handler(BaseHTTPRequestHandler):
                                                           str(body.get("text") or ""), bool(body.get("move_only"))))
             if parts[4] == "reorder":
                 return self.send(*self.factory.owner_reorder(parts[2], int(parts[3]), body.get("column"), body.get("before")))
+            if parts[4] == "take-back":
+                return self.send(*self.factory.take_back(parts[2], int(parts[3]), body.get("to"), str(body.get("text") or "")))
             if parts[4] == "comment":
                 return self.send(*self.factory.comment(parts[2], int(parts[3]), str(body.get("text") or "")))
             self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),

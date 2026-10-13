@@ -428,6 +428,12 @@
     "approve and ship": "aprovar e publicar",
     "the factory moves": "a fábrica move",
     "Move": "Mover",
+    "redo the code from the approved spec": "refazer o código a partir da spec aprovada",
+    "refine the spec again": "refinar a spec de novo",
+    "take it out of the factory": "tirar da fábrica",
+    "? A comment is optional; it is posted on the issue.": "? O comentário é opcional; ele é publicado na issue.",
+    "An open pull request is closed; its branch is kept.": "Um pull request aberto é fechado; a branch é mantida.",
+    "; its pull request was closed. The board confirms it on the dispatcher's next read.": "; o pull request foi fechado. O quadro confirma na próxima leitura do dispatcher.",
     "Up": "Subir",
     "Down": "Descer",
     "Place here": "Deixar aqui",
@@ -627,6 +633,10 @@
     [
       "^Refine #(\\d+) again$",
       "Refinar o #$1 de novo"
+    ],
+    [
+      "^Move #(\\d+) to $",
+      "Mover #$1 para "
     ],
     [
       "^Comment on #(\\d+)$",

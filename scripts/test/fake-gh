@@ -81,6 +81,11 @@ case "$args" in
     case "$args" in *"--repo acme/shop"*) ;; *) echo "failed to run git: fatal: not a git repository" >&2; exit 1 ;; esac
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     n="$(echo "$args" | awk '{print $3}')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
+  "pr list"*)  # the open pull requests, as JSON, from $d/prs (default: none)
+    if [ -f "$d/prs" ]; then cat "$d/prs"; else echo '[]'; fi ;;
+  "pr close"*)  # recorded in $d/pr-closed; $d/fail-pr-close makes it fail
+    [ -e "$d/fail-pr-close" ] && { echo "gh: HTTP 502" >&2; exit 1; }
+    echo "$args" >> "$d/pr-closed" ;;
   "issue comment"*)
     [ -e "$d/fail-comment" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     cat >> "$d/comments" ;;
