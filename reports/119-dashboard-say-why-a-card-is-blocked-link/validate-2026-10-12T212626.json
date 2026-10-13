@@ -1,0 +1,4 @@
+{"issue":119,"slug":"dashboard-say-why-a-card-is-blocked-link","pipeline":"validate","started_at":"2026-10-13T00:00:00Z","finished_at":"2026-10-13T00:40:00Z","outcome":"blocked",
+ "agents":[{"role":"engineer","tokens":38568,"duration_s":70},{"role":"qa-engineer","tokens":14632,"duration_s":25},{"role":"engineer","tokens":13655,"duration_s":12}],
+ "rounds":{"2":1,"4":1},"gates_failed":["green factory scripts/test/dashboard-glance.test.sh","build"],"flaky":[],"gates_reused":["green factory scripts/test/dashboard-block-line.test.sh"],"manual_edit":false,
+ "amendments":[{"file":"scripts/test/dashboard-glance.test.sh","reason":"AC-6 counted two buttons in #sumline; main's #135 moved the fold buttons into the panels. Now: #sumline holds no sentence, span or figures."}]}
