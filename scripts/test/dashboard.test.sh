@@ -218,7 +218,7 @@ cmp -s "$P/factory.yml" "$P/factory.yml.before" && pass "AC-6 factory.yml was ne
 post -d '{"project":"shop","values":{"deploy.timeout_min":null}}' "$base/api/settings/project" -H "$H_TOK" >/dev/null
 rm -f "$P/overrides.yml.before" "$P/factory.yml.before"
 [ ! -e "$P/overrides.yml" ] && pass "AC-3 no override left" || fail "AC-3 overrides.yml left: $(cat "$P/overrides.yml")"
-# the overview lists the runs that ended today, newest first (the Today panel), and the deploy script's own
+# the history lists the runs that ended today, newest first (the History panel on Today), and the deploy script's own
 # lock inside a deploy run is not a second run
 printf '== start /sf:refine 12 %sT08:00:00-03:00 pid=1
 == end /sf:refine 12 exit=0 %sT08:09:00-03:00
@@ -226,8 +226,10 @@ printf '== start /sf:refine 12 %sT08:00:00-03:00 pid=1
 == end /sf:refine 12 exit=3 %sT09:01:00-03:00
 ' "$D" "$D" "$D" "$D" > "$P/logs/$D-12-refine.log"
 mkdir -p "$P/locks/deploysh-11.lock"; echo "1 $(date +%s) 11" > "$P/locks/deploysh-11.lock/info"
-got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; o=json.load(sys.stdin); print([(r["issue"], r["stage"], r["exit"], r["cost"]) for r in o["projects"][0]["ended"]], sorted({r["stage"] for r in o["runs"]}))')"
-assert_contains "$got" "[(12, 'refine', 3, None), (12, 'refine', 0, None)] ['develop']"
+got="$(curl -s -H "$H_TOK" "$base/api/history/shop" | $PY -c 'import json,sys; o=json.load(sys.stdin); print([(r["issue"], r["stage"], r["exit"], r["cost"]) for r in o["runs"]])')"
+assert_contains "$got" "[(12, 'refine', 3, 0.0), (12, 'refine', 0, 0.0)]"
+got="$(curl -s -H "$H_TOK" "$base/api/overview" | $PY -c 'import json,sys; o=json.load(sys.stdin); print(sorted({r["stage"] for r in o["runs"]}), "hours" in o["projects"][0], "ended" in o["projects"][0])')"
+assert_contains "$got" "['develop'] False False"
 
 # ---- cost limits (machine config.yml: costs.card_warn / card_block / day_stop)
 # "today" is the machine's local date: do not straddle midnight

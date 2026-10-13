@@ -83,8 +83,6 @@
     "Running": "Rodando",
     "Waiting": "Esperando",
     "Runs that ended, by hour": "Execuções encerradas, por hora",
-    "Runs that ended today": "Execuções encerradas hoje",
-    "No run has ended today.": "Nenhuma execução terminou hoje.",
     "Spend by hour": "Gasto por hora",
     "A stage usually takes": "Um estágio costuma levar",
     "Cost by session": "Custo por sessão",
@@ -455,7 +453,38 @@
     "stepped up": "subiu de modelo",
     "Light (weight)": "Leve",
     "Standard (weight)": "Normal",
-    "Heavy (weight)": "Pesado"
+    "Heavy (weight)": "Pesado",
+    "History": "Histórico",
+    "· today": "· hoje",
+    "· yesterday": "· ontem",
+    "Period": "Período",
+    "Custom": "Personalizado",
+    "Previous period": "Período anterior",
+    "Next period": "Próximo período",
+    "This is the current period": "Este é o período atual",
+    "Back to now": "Voltar para agora",
+    "The end date is before the start date.": "A data final é anterior à inicial.",
+    "That date is in the future.": "Essa data está no futuro.",
+    "Pick 92 days at most.": "Escolha no máximo 92 dias.",
+    "Cards done": "Cards concluídos",
+    "Inbox to Done, median": "Inbox a Concluído, mediana",
+    "no card reached Done": "nenhum card chegou a Concluído",
+    "not comparable: a price is missing": "sem comparação: falta um preço",
+    "nothing the day before": "nada no dia anterior",
+    "the same as the day before": "o mesmo que no dia anterior",
+    "Runs that ended, by day": "Execuções encerradas, por dia",
+    "Spend by day": "Gasto por dia",
+    "Reading the history…": "Lendo o histórico…",
+    "No run ended in this period.": "Nenhuma execução terminou neste período.",
+    "See the day before": "Ver o dia anterior",
+    "Runs that ended": "Execuções encerradas",
+    "Show more runs": "Mostrar mais execuções",
+    "The next runs could not be read.": "Não foi possível ler as próximas execuções.",
+    "Cards of the period, by est. cost": "Cards do período, por custo est.",
+    "column": "coluna",
+    "runs": "execuções",
+    "Inbox to now": "Inbox até agora",
+    "1 run": "1 execução"
   },
   "rx": [
     [
@@ -1051,24 +1080,24 @@
       "Maximizar o ciclo de vida"
     ],
     [
-      "^Maximize today$",
-      "Maximizar hoje"
+      "^Maximize the history$",
+      "Maximizar o histórico"
     ],
     [
       "^Minimize the lifecycle$",
       "Minimizar o ciclo de vida"
     ],
     [
-      "^Minimize today$",
-      "Minimizar hoje"
+      "^Minimize the history$",
+      "Minimizar o histórico"
     ],
     [
       "^Expand the lifecycle$",
       "Expandir o ciclo de vida"
     ],
     [
-      "^Expand today$",
-      "Expandir hoje"
+      "^Expand the history$",
+      "Expandir o histórico"
     ],
     [
       "^Restore what waits for you$",
@@ -1083,8 +1112,8 @@
       "Restaurar o ciclo de vida"
     ],
     [
-      "^Restore today$",
-      "Restaurar hoje"
+      "^Restore the history$",
+      "Restaurar o histórico"
     ],
     [
       "^Message to the (\\w+) run$",
@@ -1309,6 +1338,114 @@
     [
       "\\bReady for Prod\\b",
       "Pronto para produção"
+    ],
+    [
+      "^· last (\\d+) days$",
+      "· últimos $1 dias"
+    ],
+    [
+      "^(\\d+) days$",
+      "$1 dias"
+    ],
+    [
+      "^See the (\\d+) days before$",
+      "Ver os $1 dias anteriores"
+    ],
+    [
+      "^nothing in the (\\d+) days before$",
+      "nada nos $1 dias anteriores"
+    ],
+    [
+      "^the same as the (\\d+) days before$",
+      "o mesmo que nos $1 dias anteriores"
+    ],
+    [
+      "^est\\. \\$(\\d+)\\.(\\d+) (more|less) than ",
+      "est. $$$1,$2 $3 than "
+    ],
+    [
+      "^(\\d+) days (faster|slower) than ",
+      "$1 dias $2 than "
+    ],
+    [
+      "^1 day (faster|slower) than ",
+      "1 dia $1 than "
+    ],
+    [
+      "^(.+) more than the day before$",
+      "$1 a mais que no dia anterior"
+    ],
+    [
+      "^(.+) more than the (\\d+) days before$",
+      "$1 a mais que nos $2 dias anteriores"
+    ],
+    [
+      "^(.+) fewer than the day before$",
+      "$1 a menos que no dia anterior"
+    ],
+    [
+      "^(.+) fewer than the (\\d+) days before$",
+      "$1 a menos que nos $2 dias anteriores"
+    ],
+    [
+      "^(.+) less than the day before$",
+      "$1 a menos que no dia anterior"
+    ],
+    [
+      "^(.+) less than the (\\d+) days before$",
+      "$1 a menos que nos $2 dias anteriores"
+    ],
+    [
+      "^(.+) faster than the day before$",
+      "$1 mais rápido que no dia anterior"
+    ],
+    [
+      "^(.+) faster than the (\\d+) days before$",
+      "$1 mais rápido que nos $2 dias anteriores"
+    ],
+    [
+      "^(.+) slower than the day before$",
+      "$1 mais lento que no dia anterior"
+    ],
+    [
+      "^(.+) slower than the (\\d+) days before$",
+      "$1 mais lento que nos $2 dias anteriores"
+    ],
+    [
+      "^Runs that ended by day: ",
+      "Execuções encerradas por dia: "
+    ],
+    [
+      "^Runs that ended by hour: ",
+      "Execuções encerradas por hora: "
+    ],
+    [
+      "^Estimated spend by day, \\$(\\d+)\\.(\\d+) in all$",
+      "Gasto estimado por dia, $$$1,$2 no total"
+    ],
+    [
+      "^Estimated spend by hour, \\$(\\d+)\\.(\\d+) in all$",
+      "Gasto estimado por hora, $$$1,$2 no total"
+    ],
+    [
+      ": no run(\\.|$)",
+      ": nenhuma execução$1"
+    ],
+    [
+      ": \\$(\\d+)\\.(\\d+) est\\.",
+      ": $$$1,$2 est."
+    ],
+    [
+      "\\. Open the day$",
+      ". Abrir o dia"
+    ],
+    [
+      "^(\\d+) of (\\d+) runs$",
+      "$1 de $2 execuções"
+    ],
+    [
+      "^(\\d+) runs$",
+      "$1 execuções"
     ]
   ]
 }

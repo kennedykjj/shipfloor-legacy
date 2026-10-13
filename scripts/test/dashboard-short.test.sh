@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Factory view above 1180px, Lifecycle and Today open on a short window: the list keeps its first two cards, Today gives way
+# Factory view above 1180px, Lifecycle and History open on a short window: the list keeps its first two cards, History gives way
 # and scrolls inside itself, "In progress" scrolls inside its panel (#112).
 # Static: reads the CSS and the script of dashboard.html. AC-1, AC-2 and AC-8 are pixel measures taken by UX/UI in validation.
 source "$(dirname "$0")/lib.sh"
@@ -125,7 +125,7 @@ def listens(ident):  # a scroll listener on the element whose handler is fit
         if re.search(r"addEventListener\(\s*[\"']scroll[\"']", line) and re.search(r"\bfit\b", line) and refs(line, ident): return True
     return bool(re.search(r"[\"']" + ident + r"[\"']\s*\)\s*\??\.addEventListener\(\s*[\"']scroll[\"']\s*,[^;]*\bfit\b", js))
 
-# AC-3: Today takes only the height the list leaves and scrolls inside itself; the page does not scroll
+# AC-3: History takes only the height the list leaves and scrolls inside itself; the page does not scroll
 telem = hits(wide, ".telem")
 sh = shrink(telem)
 ok(sh is not None and sh > 0, "AC-3 wide: .telem can shrink (flex-shrink is not 0)", ".telem flex-shrink is %r" % sh)
@@ -134,11 +134,11 @@ px = re.fullmatch(r"(\d+(?:\.\d+)?)px", mh)
 ok(bool(px) and 60 <= float(px.group(1)) <= 120, "AC-3 wide: .telem min-height is a floor of about 100px, not 292px", ".telem min-height is %r" % mh)
 ok(last(telem, "max-height") == "60%", "AC-3 wide: .telem keeps max-height: 60%", ".telem max-height is %r" % last(telem, "max-height"))
 ok(overflow_y(telem) == "auto", "AC-3 wide: .telem scrolls inside itself (overflow-y: auto)", ".telem overflow-y is %r" % overflow_y(telem))
-tm = mask_px(wide, lambda s: s.endswith(".cut") and ("telem" in s or "today" in s))
+tm = mask_px(wide, lambda s: s.endswith(".cut") and ("telem" in s or "history" in s))
 ok(24 in tm, "AC-3 wide: .telem.cut carries a bottom mask of 24px", "no .telem.cut rule with a 24px bottom mask (found %s)" % sorted(tm))
 ok(overflow_y(hits(wide, "body")) == "hidden", "AC-3 wide: body stays overflow: hidden (the page does not scroll)", "body overflow-y is %r" % overflow_y(hits(wide, "body")))
-ok(bool(fit) and refs(fit, "today") and "cut" in fit, "AC-3 fit toggles cut on #today", "function fit is missing or does not toggle cut on #today" if not fit else "fit does not toggle cut on #today")
-ok(listens("today"), "AC-3 #today has a scroll listener that calls fit", "no scroll listener on #today calls fit")
+ok(bool(fit) and refs(fit, "history") and "cut" in fit, "AC-3 fit toggles cut on #history", "function fit is missing or does not toggle cut on #history" if not fit else "fit does not toggle cut on #history")
+ok(listens("history"), "AC-3 #history has a scroll listener that calls fit", "no scroll listener on #history calls fit")
 
 # AC-4: every waiting card can be reached and brought whole into view
 lst = hits(wide, "#list")
@@ -171,14 +171,14 @@ rw = fnsrc("renderWork").rstrip()
 tail = rw[:-1].rstrip() if rw.endswith("}") else rw
 ok(bool(rw) and bool(re.search(r"\bfit\s*\(", tail[-160:])), "AC-6 renderWork ends in a call to fit", "renderWork does not end with fit()" if rw else "function renderWork is missing")
 
-# AC-7: only .side.tight compacts, only with Today open; narrow block and .maxed win; both closed is the old layout
+# AC-7: only .side.tight compacts, only with History open; narrow block and .maxed win; both closed is the old layout
 st = [(s, ds) for sels, ds in wide for s in sels if s.startswith(".side.tight")]
 ok(any(last(ds, "gap") == "10px" or last(ds, "row-gap") == "10px" for s, ds in st if s == ".side.tight"), "AC-7 wide: .side.tight sets the 10px gap", "no .side.tight rule with gap: 10px")
 ok(any("foot" in s and last(ds, "display") == "none" for s, ds in st), "AC-7 wide: .side.tight hides the foot of Yours", "no .side.tight rule hides .yours .foot")
 ok(any(re.search(r"h2|h3|first", s) and ((last(ds, "margin-top") == "6px") or (last(ds, "margin") or "").split()[:1] == ["6px"]) for s, ds in st), "AC-7 wide: .side.tight sets the first sub-heading's top margin to 6px", "no .side.tight rule sets a 6px top margin on Today's first sub-heading")
 stray = [s for sels, ds in wide for s in sels if re.search(r"\.foot$", s) and "[hidden]" not in s and ".maxed" not in s and ".tight" not in s and last(ds, "display") == "none"]
 ok(not stray, "AC-7 wide: nothing outside .side.tight hides the foot of Yours", "these rules hide the foot: %s" % stray)
-ok(bool(fit) and "tight" in fit and bool(re.search(r"S\.show\.today|today[\"']\)\s*\.hidden|today\.hidden|\.telem[^;\n]*hidden", fit)), "AC-7 fit turns .tight on only when Today is open", "function fit is missing" if not fit else "fit does not toggle .tight on the column under the condition that Today is open")
+ok(bool(fit) and "tight" in fit and bool(re.search(r"S\.show\.history|history[\"']\)\s*\.hidden|history\.hidden|\.telem[^;\n]*hidden", fit)), "AC-7 fit turns .tight on only when History is open", "function fit is missing" if not fit else "fit does not toggle .tight on the column under the condition that Today is open")
 ok(bool(fit) and bool(re.search(r"\.side|[\"']side[\"']", fit)) and "tight" in fit, "AC-7 fit puts .tight on .side", "function fit is missing" if not fit else "fit does not put .tight on .side")
 sj = fnsrc("show").rstrip()
 fi = [m.start() for m in re.finditer(r"\bfit\s*\(", sj)]
@@ -191,7 +191,7 @@ floor_reset = last(nar(lambda s: re.sub(r":not\(\.maxed\)", "", s).strip().endsw
 ok(floor_reset in ("0", "0px", "auto", "none", "unset", "initial") or bool(re.search(r"innerWidth|matchMedia|1180", fit)), "AC-7 narrow block: #list has no --two floor", "the narrow block leaves #list min-height at %r" % floor_reset)
 nt = bool(nar(lambda s: ".tight" in s)) or bool(re.search(r"innerWidth|matchMedia|1180", fit))
 ok(nt, "AC-7 narrow block: .tight has no effect at 1180px and below", "neither the narrow block nor fit turns .tight off there")
-nm = bool(nar(lambda s: ".cut" in s and ("telem" in s or "tiles" in s or "today" in s))) or bool(re.search(r"innerWidth|matchMedia|1180", fit))
+nm = bool(nar(lambda s: ".cut" in s and ("telem" in s or "tiles" in s or "history" in s))) or bool(re.search(r"innerWidth|matchMedia|1180", fit))
 ok(nm, "AC-7 narrow block: no new mask on .telem.cut / .tiles.cut at 1180px and below", "neither the narrow block nor fit turns the new masks off there")
 mx = [s for sels, ds in wide for s in sels if s.endswith(".cut") and ("telem" in s or "tiles" in s)]
 ok(bool(mx) and (all(":not(.maxed)" in s for s in mx) or any(".maxed" in s for sels, ds in wide for s in sels if ".cut" in s and ("telem" in s or "tiles" in s)) or "maxed" in fit),
