@@ -28,6 +28,12 @@ typography:
     fontSize: "23px"
     fontWeight: 600
     letterSpacing: "0.06em"
+  section:
+    fontFamily: 'Barlow Condensed, "Arial Narrow", sans-serif'
+    fontSize: "28px"
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: "0.02em"
   display:
     fontFamily: 'Barlow Condensed, "Arial Narrow", sans-serif'
     fontSize: "34px"
@@ -104,6 +110,7 @@ rounded:
   ctrl: "8px"
   tile: "12px"
   panel: "16px"
+  pill: "40px"
   dial: "50%"
 spacing:
   xs: "6px"
@@ -168,7 +175,7 @@ Every color is a token of the base block (`:root, [data-theme="charcoal"]`), and
 ### Neutral
 - **Ground** (`colors.ground`): the page, under a grain and the glows (`glow1a`, `glow1b`, `glow2`), and the well of the text area and of code.
 - **Panel** (`colors.panel`) and **Raised Panel** (`colors.panel-hi`): the drawer, the peek, a maximized panel and hover rows; ordinary panels on the page are only a 2% wash of the ink over the ground.
-- **Hairline** (`colors.edge`) and **Lit Edge** (`colors.edge-hi`): dividers and borders; the lit edge is the border of the drawer, the peek and the buttons.
+- **Hairline** (`colors.edge`) and **Lit Edge** (`colors.edge-hi`): dividers and borders; the lit edge is the border of the drawer, the peek and the buttons. The header rule, the legend, the stats separator and the passes use `--hair`, the theme's ink at 11% (`#ffffff1c` on Charcoal, the edge's tonal ramp in the sidecar).
 - **Text steps** (`colors.text`, `colors.soft`, `colors.muted`, `colors.faint`): primary, body, secondary and tertiary text, in that order. Each theme holds every step to 4.5:1 on its ground and panels.
 - **Track** (`colors.track`, `colors.track-on`): the lifecycle band's dotted line, and its solid line under a stage that works.
 
@@ -193,8 +200,9 @@ Every color is a token of the base block (`:root, [data-theme="charcoal"]`), and
 **Character:** a tool's voice. Both Barlow faces are embedded in the file as `@font-face` data (Barlow 400, 500 and 600; Barlow Condensed 500 and 600), so the page needs no network, no CDN and no build. If a face fails to load, the system stack named after it takes over. Monospace carries logs, code, the Settings hours field and the time in the Feed.
 
 ### Hierarchy
-- **Brand** (condensed, 600, 23px, 0.06em, uppercase): the product name in the header.
 - **Display** (condensed, 500, 34px, uppercase): the heading of a panel (`h1.g`), such as Lifecycle or Today.
+- **Section** (condensed, 500, 28px, 1, 0.02em, uppercase): the heading of the maximized line, of the Yours column and of a Settings section.
+- **Brand / Number** (condensed, 600, 23px, 0.06em, uppercase): the product name in the header, and the card number: one size in Yours and in a tile, and the dispatcher line's heading.
 - **Heading** (condensed, 600, 20px, uppercase): a column label in the lifecycle band, the tooltip total, a Settings group title.
 - **Control** (condensed, 600, 17px): the steppers and the heading of the decision.
 - **Headline** (sans, 600, 18px, 1.3): the drawer's card title.
@@ -206,7 +214,7 @@ Every color is a token of the base block (`:root, [data-theme="charcoal"]`), and
 - **Caption** (sans, 500, 11px, 0.14em, uppercase): the uppercase caption of the header (the views, the stats), of the inbox's section titles and of the legend. Captions are always uppercase and tracked wide; headings are condensed and uppercase; only prose is in sentence case.
 - **Log** (mono, 12px, 1.55, pre-wrap): the log pane and the Feed's time.
 
-The type ramp is the set of values used by three or more rules, plus 18px, 23px and 34px for their named roles. The values used by fewer rules are listed under Known deviations.
+The type ramp is the set of values used by three or more rules, plus 18px, 23px and 34px for their named roles. Section (28px) is used by three rules. The values used by fewer rules are listed under Known deviations. Order: Display 34 > Section 28 > Brand / Number 23 > Heading 20 > Headline 18 > Control 17.
 
 ### Named Rules
 **The Figures Rule.** Any number keeps tabular figures (`font-variant-numeric: tabular-nums` on the body). Prose stays proportional.
@@ -234,7 +242,7 @@ Tonal first. A panel is a 2% wash and a 9% hairline; the drawer, the peek, a max
 
 ## Shapes
 
-Radii come from one scale: 2px on bars, meters and the tick of a progress step; 4px on tags, gates, keys and code; 5px on buttons, the text area, the hours field and the scrollbar thumb; 6px on small cards (the maximize button, a chip in the lanes, the block note); 8px on selects, option cards, the peek and the stepper; 12px on a tile, an alert and the save bar; 16px on a panel; a full circle for dots, the dial and the switch knob. Borders are 1px hairlines.
+Radii come from one scale: 2px on bars, meters and the tick of a progress step; 4px on tags, gates, keys and code; 5px on buttons, the text area, the hours field and the scrollbar thumb; 6px on small cards (the maximize button, a chip in the lanes, the block note); 8px on selects, option cards, the theme swatch, the peek and the stepper; 12px on a tile, an alert and the save bar; 16px on a panel, a maximized one included; 40px on the Approve pill in the lists (`rounded.pill`); a full circle for dots, the dial and the switch knob. Marks whose shape carries state (the Feed's diamond and dash) are square, with no radius. Borders are 1px hairlines.
 
 ## Components
 
@@ -251,7 +259,7 @@ See Layout. A dot is 10px in `text` (running ones pulse once every 2.6s), hollow
 Panel titled "N wait(s) for you" or "Nothing waits for you". Each pass is a hairline-separated block: the card number (condensed, sand; bad when blocked), a caption with the column and the age, the title (clamped to two lines), and a footer of plain actions. A blocked pass adds one line under its title, 13px in `soft`, cut by an ellipsis and never wrapped (the whole text in its title): what the factory's issue comment says the owner must decide; else `Failed gate: <gate>`; else nothing, the pass as before. The line is the factory's own words, never translated except the gate's label. A block by the cost limit reads `Blocked · cost limit` with the spend sentence instead. The footer actions: **Approve** as a pill (`text` fill, `ground` text), Review, the request-changes field and the link to GitHub. The list fades its last 44px through a mask when it overflows. The footer reads N next, A approve, R review, L log.
 
 ### In Progress
-Tiles of 320px or more in an auto-fill grid. A running tile has the number (condensed, 22px), the cost in the accent, a clock at the right, the title (two lines), a step bar (done steps `muted`, the current one `text` and breathing), a step line ("Step 4 of 7: Engineer", warn when slower than usual), what the agent said last, and its last tool calls in mono, then a footer with Open session and Log. A waiting tile is dashed, with no fill, its number and title in `muted`, and says why in plain words ("Waiting for the pool · 4 of 4 busy"). Its ring and reason follow the Lifecycle band: hollow `muted` and `soft` when the card only queues, filled `warn` with the number and reason in `warn` when infrastructure failed ("Infrastructure failed; the factory retries once", the drawer's words; such a card does not enter "Yours"), and the accent only on a tile that waits for the owner. The cost stays in the accent, as money.
+Tiles of 320px or more in an auto-fill grid. A running tile has the number (condensed, 23px), the cost in the accent, a clock at the right, the title (two lines), a step bar (done steps `muted`, the current one `text` and breathing), a step line ("Step 4 of 7: Engineer", warn when slower than usual), what the agent said last, and its last tool calls in mono, then a footer with Open session and Log. A waiting tile is dashed, with no fill, its number and title in `muted`, and says why in plain words ("Waiting for the pool · 4 of 4 busy"). Its ring and reason follow the Lifecycle band: hollow `muted` and `soft` when the card only queues, filled `warn` with the number and reason in `warn` when infrastructure failed, and the accent only on a tile that waits for the owner. The cost stays in the accent, as money.
 
 ### Cooldown Dial (signature)
 A 13px circle filled by a conic sweep in `text` over the lit edge, ringed by the dial ring, turning once every 6s through a registered `--sweep` angle. It appears on a running card. Under `prefers-reduced-motion: reduce` it stops on a static quarter (90deg), and the pulse of the dot, the breathing of the step bar and the card transitions stop as well.
@@ -284,7 +292,7 @@ The dispatcher is the top line of the view: a dot (ok, warn when idle, bad when 
 The page is written in English and shown in the machine's language (`language` in `~/.shipfloor/config.yml`). In another language, every piece of text is rewritten as it enters the document, from the catalog the server sends (`scripts/lang/dashboard.<code>.json`): a whole piece by `exact`, a phrase inside one by `rx`. So a new string needs no code, only an entry; one with no entry shows in English. What the factory did not write is never rewritten: card titles, logs, and what the agents said (the `RAW` selector). Board columns keep their GitHub names in the data and show translated.
 
 ### Themes
-The owner picks how the dashboard looks in Settings, under Themes. Four come first (Auto, Floor tape, Kraft, High contrast); the rest sit under "More themes", a fold that opens closed every time Settings opens and, when the theme in use is behind it, says `In use: <name>`. A theme only changes color tokens: the base block in `scripts/dashboard.html` is Charcoal, and each `[data-theme="<id>"]` block sets the same tokens (ground, panels, edges, the four text steps, the accent `sand`, ok/warn/bad, the two glows, the lifecycle track, `refine`, `validate`). A light theme also sets `--ov`, `--well`, `--scrim`, `--shadow` and `color-scheme: light`. Almost no color is written out in a rule: tints come from `color-mix` over a token (`--ov`, the ink of the theme, is what makes a panel's wash and hairline), the few exceptions being the white of a plain review page and of the Approve pill's hover, and the dark well of the inbox's decision column.
+The owner picks how the dashboard looks in Settings, under Themes. Four come first (Auto, Floor tape, Kraft, High contrast); the rest sit under "More themes", a fold that opens closed every time Settings opens and, when the theme in use is behind it, says `In use: <name>`. A theme only changes color tokens: the base block in `scripts/dashboard.html` is Charcoal, and each `[data-theme="<id>"]` block sets the same tokens (ground, panels, edges, the four text steps, the accent `sand`, ok/warn/bad, the two glows, the lifecycle track, `refine`, `validate`). A light theme also sets `--ov`, `--well`, `--scrim`, `--shadow` and `color-scheme: light`. Almost no color is written out in a rule: tints come from `color-mix` over a token (`--ov`, the ink of the theme, is what makes a panel's wash and hairline), the one exception being the white of a plain review page.
 
 Nine dark themes (Floor tape, Charcoal, Dock, Machine green, Blueprint, Foundry, Night shift, Terminal, High contrast) and three light ones (Kraft, Steel, Drafting paper). Auto, the default, follows the system: Floor tape in dark, Kraft in light. The choice lives in the browser (`localStorage`, `shipfloor.theme`) and is applied before the first paint. In every theme the accent is not one of the outcome colors, so where the accent is yellow the warning is orange.
 
@@ -292,7 +300,7 @@ A swatch is a button that carries its theme's `data-theme`, so it is drawn with 
 
 ### Buttons
 - **Button:** raised panel, lit-edge border, 5px radius, 7px 12px; hover turns the border to `text`. **Ghost** drops the fill and sits in `muted` at 12.5px.
-- **Approve:** `text` fill, `ground` text, 600 weight; hover brightens 8%. Soft (asks twice): tinted fill. In the lists it is a pill (40px radius).
+- **Approve:** `text` fill, `ground` text, 600 weight; hover brightens 8%. Soft (asks twice): tinted fill. In the lists it is a pill (40px radius, `rounded.pill`) whose hover mixes 12% of the ground into the fill.
 - **Disabled:** not-allowed cursor, faint text; progress cursor while a move is in flight.
 - **Focus:** a 2px `sand` outline, 2px offset, on every focusable element.
 
@@ -307,16 +315,6 @@ Esc closes the peek, the maximized panel or the drawer, in that order (not while
 Values that fewer than three rules use and that have no named role. They stay as they are on the page until a rule widens the ramp or the scale.
 
 - `15.5px` — `.isec .plain`
-- `16px` — `.lane, .thp .n`
-- `21px` — `.ique .pnum, .iread h2`
-- `22px` — `.tnum`
-- `24px` — `.pnum, .disp h1`
-- `26px` — `.band > h1, .side h1`
-- `30px` — `.set-body > h1`
-- `10px` — `.iopt, .thp`
-- `14px` — `.drawer.open.full`
-- `40px` — `.stub .pill, .edit .pill`
-- `1px` — `.f-bad .fdot`
 
 ## Do's and Don'ts
 
