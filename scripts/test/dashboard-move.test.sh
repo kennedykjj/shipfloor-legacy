@@ -33,7 +33,7 @@ case "$*" in
       echo "{\"data\":{\"repository\":{$out}}}"; exit 0
     fi ;;
   "api repos/acme/shop/issues?labels="*)
-    lab="${*#*labels=}"; lab="${lab%%&*}"; any=""; out=""; sep=""
+    lab="${2#*labels=}"; lab="${lab%%&*}"; any=""; out=""; sep=""
     for f in "$d"/labels-*; do
       [ -f "$f" ] || continue
       any=1; grep -q "\"name\":\"$lab\"" "$f" && { out="$out$sep{\"number\":${f##*labels-}}"; sep=","; }
