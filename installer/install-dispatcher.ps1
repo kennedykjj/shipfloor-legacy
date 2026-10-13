@@ -26,7 +26,5 @@ $action = New-ScheduledTaskAction -Execute $mintty -Argument '-w hide /usr/bin/b
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $EveryMin) -RepetitionDuration (New-TimeSpan -Days 3650)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
-# The task was called AghanimDispatcher before the rename (legacy aghanim); it would run a script that no longer exists.
-if (Get-ScheduledTask -TaskName 'AghanimDispatcher' -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName 'AghanimDispatcher' -Confirm:$false }  # legacy aghanim
 Register-ScheduledTask -TaskName 'ShipfloorDispatcher' -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
 Write-Output "ShipfloorDispatcher registered: every $EveryMin minutes, hidden. Pause with: shipfloor pause [project]."
