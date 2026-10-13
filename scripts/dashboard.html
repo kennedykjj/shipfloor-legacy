@@ -113,13 +113,12 @@ kbd { font: inherit; border: 1px solid var(--faint); border-radius: 4px; padding
 .alerts b { font-weight: 600; margin-right: 6px; color: var(--k); } .alerts code { font: 12.5px var(--mono); }
 main { min-height: 0; display: grid; }
 .board { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 0; min-height: 0; }
-.board[hidden], .feed[hidden], .band[hidden], .cols[hidden], .telem[hidden], .sumline[hidden], #sum[hidden], #msg[hidden] { display: none; }
-/* the first row: the closed faces of the lifecycle band and "Today", and the day in one sentence */
-.sumline { grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
+.board[hidden], .feed[hidden], .band[hidden], .cols[hidden], .telem[hidden], .sumline[hidden], #msg[hidden] { display: none; }
+/* the first row: the closed faces of the lifecycle band and "Today" */
+.sumline { grid-row: 1; display: flex; align-items: center; gap: 4px 20px; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
 .sumline button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px 6px; margin: 0 -14px 0 -6px; border-radius: 6px; color: var(--muted); font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
 .sumline button:hover, .sumline button[aria-expanded="true"] { color: var(--text); }
 .sumline button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; } .sumline button[aria-expanded="false"] svg { transform: rotate(180deg); }
-#sum b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; } #sum .bad, #sum .bad b { color: var(--bad); }
 @media (min-width: 1181px) { .sumline { height: 36px; margin-bottom: 12px; } }
 .board > .band { grid-row: 2; margin-bottom: 16px; } .board > .cols { grid-row: 3; }
 .untitled { color: var(--faint); font-style: italic; }
@@ -238,7 +237,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .ptitle .row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .pnum { font-size: 24px; line-height: 1; color: var(--sand); } .stop .pnum { color: var(--bad); }
 .ptext { font-size: 14.5px; line-height: 1.3; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.cap.bad { color: var(--bad); } .pnote { margin: 6px 0 0; font-size: 13px; color: var(--bad); }
+.cap.bad { color: var(--bad); } .pcost, .pwhy { margin: 4px 0 0; font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pnote { margin: 6px 0 0; font-size: 13px; color: var(--bad); }
 .stub { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 9px; }
 .stub button, .stub a, .edit button { font-weight: 500; font-size: 13.5px; white-space: nowrap; background: none; border: 0; cursor: pointer; padding: 2px 4px; color: var(--soft); }
 .stub button:hover, .stub a:hover, .edit button:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -510,7 +509,7 @@ iframe.plain { visibility: visible; opacity: 1; background: #fff; }
 .review .none { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
 .placeholder { padding: 20px; color: var(--muted); max-width: 64ch; }
 /* a refused link: the page stops at the header and one message */
-body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused #sumline, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #peek, body.refused #drawer, body.refused #dim { display: none !important; }
+body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused .sumline, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #peek, body.refused #drawer, body.refused #dim { display: none !important; }
 #msg.refusal { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 20px; max-width: 64ch; color: var(--muted); outline: none; }
 #msg.refusal strong { color: var(--text); font-size: 14px; font-weight: 600; }
 #msg.refusal code { font: 13px var(--mono); color: var(--text); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 4px; padding: 2px 7px; white-space: nowrap; user-select: all; }
@@ -556,7 +555,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <header>
   <span class="g brand">Shipfloor</span>
   <nav class="views" aria-label="View"><button data-view="board" aria-pressed="true">Factory</button><button data-view="feed" aria-pressed="false">Feed</button><button data-view="settings" aria-pressed="false">Settings</button></nav>
-  <div class="stats"><span id="scope"></span><span id="stats"></span></div>
+  <div class="stats"><a class="cap" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener">Docs<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a><span id="scope"></span><span id="stats"></span></div>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
 <main>
@@ -564,8 +563,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
     <p class="placeholder" id="msg">Reading the factory…</p>
     <div class="sumline" id="sumline" hidden>
       <button class="cap" data-show="band" aria-controls="band" aria-expanded="false">Lifecycle<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
-      <button class="cap" data-show="today" aria-controls="today" aria-expanded="false">Today<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
-      <span id="sum"></span></div>
+      <button class="cap" data-show="today" aria-controls="today" aria-expanded="false">Today<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button></div>
     <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
       <div class="legend"><span><i></i>running, on the step it reported (1 to N)</span><span class="o"><i></i>queued</span><span style="--k:var(--sand)"><i></i>waits for you</span><span style="--k:var(--bad)"><i></i>blocked</span><span>+N: more cards than fit</span></div></nav>
     <div class="cols" id="cols" hidden>
@@ -640,7 +638,7 @@ function setHTML(el, html) { if (el._html === html) return false; if (el.id === 
 // text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
 // 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
 const LANG = { exact: {}, rx: [] };
-const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
+const RAW = ".ttitle, .ptext, .pwhy, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
 function loc(s) {
   const t = s.trim(); if (!t || !/[A-Za-z]{2}/.test(t)) return s;
   if (Object.hasOwn(LANG.exact, t)) return s.replace(t, LANG.exact[t]);
@@ -722,7 +720,7 @@ const UNTITLED = '<span class="untitled" title="The dashboard could not read the
 const outcome = (o) => { const v = String(o || "").toLowerCase(); return OK_OUTCOMES.has(v) ? "ok" : BAD_OUTCOMES.has(v) ? "bad" : "muted"; };
 function tok(n) { if (!n) return "–"; if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
 function when(iso) { if (!iso) return "–"; const d = new Date(iso); const t = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }) + " " + t; }
-function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
+function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; if (s > 172800) return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
 const liveRun = (p, n, stage) => S.overview?.runs.find((r) => r.project === p && r.issue === n && r.stage === stage && !r.orphan)?.started || null;
 const last = (sessions, stage) => sessions.filter((x) => x.stage === stage).pop();
 function clock(since, bare) { return since ? `<span class="${bare ? "" : "clock "}num" data-since="${esc(since)}"></span>` : ""; }
@@ -758,15 +756,15 @@ const waiting = () => (project()?.cards || []).map((c) => ({ ...c, key: `${S.pro
 
 function renderStrip() {
   const o = S.overview; if (!o) return;
-  const slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
+  const many = o.projects.length > 1, slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
   const held = slots.map((x) => `slot ${x.slot}: ${x.state}${x.owner !== "-" ? ` ${x.owner}` : ""}${x.state !== "free" ? ` ${elapsed(new Date(Date.now() - x.held_s * 1000))}` : ""}${x.reason ? ` (${x.reason})` : ""}`).join("\n");
   // The project switch is its own region: the numbers beside it change at every read, and rewriting it would close its open list.
   setHTML($("scope"), `${o.projects.length > 1 ? `<label class="proj cap">Project<select id="proj">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select></label>` : ""}
     ${project()?.board_url ? `<a class="cap" href="${esc(project().board_url)}" target="_blank" rel="noopener">Board on GitHub${EXT}</a>` : ""}${o.projects.length > 1 ? `<i class="sep"></i>` : ""}`);
   setHTML($("stats"), `<span class="cap" title="Sessions running now, out of the pool size">Pool<b>${o.pool.used} / ${o.pool.size}</b></span>
     <span class="cap${stuck ? " stuck" : ""}" title="Run environments in use${held ? "\n" + esc(held) : ""}">Stacks<b>${busy} / ${slots.length}</b>${o.queue ? ` · +${o.queue} waiting` : ""}</span>
-    <span class="cap">Runs today<b>${o.today.runs}</b>${o.today.failed ? ` · ${o.today.failed} failed` : ""}</span>
-    <span class="cap" title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml">Spent est.<b>$${o.today.cost.toFixed(2)}</b></span>`);
+    <span class="cap"${many ? ' title="Runs of every project today"' : ""}>Runs today<b>${o.today.runs}</b>${o.today.failed ? ` · ${o.today.failed} failed` : ""}</span>
+    <span class="cap" title="${many ? "Every project, today.\n" : ""}Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml">Spent est.<b>$${o.today.cost.toFixed(2)}</b></span>`);
   renderFlags();
 }
 // The alerts line exists only while something is wrong.
@@ -829,14 +827,7 @@ function renderBoard() {
     const sig = `${c.column}|${c.running || ""}`, k = key(c);  // a card that changed column or stage since the last read is fresh for a while
     if (!S.seen[k]) S.seen[k] = { sig, at: 0 }; else if (S.seen[k].sig !== sig) S.seen[k] = { sig, at: now };
   }
-  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p); renderSum(p);
-}
-// The day in one sentence, the closed face of "Today": it hides while "Today" is open, whose headings carry the same figures.
-function renderSum(p) {
-  const el = $("sum"), o = S.overview; el.hidden = S.show.today || !p || !o;
-  if (el.hidden) return;
-  const hs = p.hours || [], failed = hs.reduce((n, h) => n + h.failed, 0), runs = hs.reduce((n, h) => n + h.ok + h.failed, 0), spent = hs.reduce((n, h) => n + h.cost, 0);
-  setHTML(el, `Pool <b>${o.pool.used} / ${o.pool.size}</b> in use · <span title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml"><b>$${spent.toFixed(2)}</b> est. spent today</span> · <b>${plural(runs, "run")} today</b>${failed ? ` · <span class="bad"><b>${failed}</b> failed</span>` : ""}`);
+  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p);
 }
 // A control on the first row opens or closes its panel where it sits. Focus stays on the button.
 function show(which, on) {
@@ -844,7 +835,7 @@ function show(which, on) {
   if (!on && el.classList.contains("maxed")) maximize(el, false);  // restored first, then closed
   if (!on && which === "band" && S.peek) { S.peek = null; $("peek").hidden = true; }  // the peek hangs from a dot of the band
   S.show[which] = on; el.hidden = !on; btn.setAttribute("aria-expanded", on);
-  if (on) renderBoard(); else renderSum(project());  // opening draws what the closed panel skipped
+  if (on) renderBoard();  // opening draws what the closed panel skipped
 }
 // A running card sits on the step it reported; with no step yet, further right the longer it runs against the usual.
 function progress(p, c) {
@@ -1046,19 +1037,22 @@ function passHtml(c) {
   const head = (meta) => `<div class="seg"><button class="ptitle" data-open="${k}"><span class="row"><span class="g pnum">#${c.issue}</span>${meta}</span><span class="ptext">${c.title ? esc(c.title) : UNTITLED}</span></button>`;
   if (pend) return `<li class="pass" data-key="${k}">${head(`<span class="cap">Moving to ${esc(pend.to)}</span>`)}<div class="bar"><i></i></div></div><div class="stub"><button class="pill" data-q="undo">Undo</button></div></li>`;
   const cost = c.cost == null ? " · $ ?" : c.cost ? ` · $${c.cost.toFixed(2)}` : "";
-  const meta = stop ? '<span class="cap bad">Blocked · waits for your call</span>' : `<span class="cap">${esc(c.column)}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}</span>`;
+  const bc = stop ? c.block_cost : null;
+  const meta = stop ? `<span class="cap bad">${bc ? "Blocked · cost limit" : "Blocked · waits for your call"}</span>` : `<span class="cap">${esc(c.column)}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}</span>`;
+  const spent = !bc ? "" : bc.baseline > 0 ? `Spent ${usd(bc.total)} est. since it was last unblocked; the limit for a card is ${usd(bc.limit)}.` : `Spent ${usd(bc.total)} est. since Inbox; the limit for a card is ${usd(bc.limit)}.`;  // the page's own words: the catalog translates them
+  const pwhy = !stop ? "" : bc ? `<p class="pcost">${spent}</p>` : c.block_line ? `<p class="pwhy" title="${esc(c.block_line)}">${esc(c.block_line)}</p>` : "";
   const note = S.note[c.key] ? `<p class="pnote" role="status">${esc(S.note[c.key])}</p>` : "";
   const review = (label, cls) => `<button${cls} data-open="${k}" data-go="review">${label}</button>`, changes = '<button data-q="changes">Request changes</button>', link = gh(slug, c.issue);
   const acts = stop ? `<button class="pill" data-q="unblock">Unblock &amp; retry</button><button data-open="${k}">Details</button><button data-open="${k}" data-go="log">Log</button>${link}`
     : c.column === "Spec Review" ? `${review("Review spec", ' class="pill"')}${changes}${link}`
     : `<button class="pill" data-q="approve">Approve</button>${review("Review", "")}${changes}${link}`;
   const edit = S.editing === c.key && moves ? `<div class="edit"><label class="cap" for="qc">What should change in #${c.issue}? It is posted on the issue.</label><textarea id="qc"></textarea><div><button class="pill" data-q="send">Request changes → ${esc(moves[1])}</button><button data-q="cancel">Cancel</button></div></div>` : "";
-  return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
+  return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${pwhy}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
 }
 // Why a card the factory holds is not running, from what the overview knows.
 function whyWaits(p, c) {
   const o = S.overview, st = STAGE_OF[c.column], s = o.pool.stages[st] || { slots: 0, running: 0 };
-  if (c.blocked === "infra") return "Blocked by infrastructure; the factory retries it";
+  if (c.blocked === "infra") return "Infrastructure failed; the factory retries once";
   if (o.paused || p.paused) return "Paused";
   if (o.costs?.day_stopped) return "Stopped for today by the cost limit";
   if (o.usage_limited) return "Waiting for the usage limit to reset";

@@ -75,7 +75,10 @@
     "log": "log",
     "Blocked": "Bloqueado",
     "Blocked · waits for your call": "Bloqueado · espera a sua decisão",
-    "Blocked by infrastructure; the factory retries it": "Bloqueado por infraestrutura; a fábrica tenta de novo",
+    "Infrastructure failed; the factory retries once": "A infraestrutura falhou; a fábrica tenta mais uma vez",
+    "Docs": "Documentação",
+    "Runs of every project today": "Execuções de todos os projetos hoje",
+    "Every project, today.": "Todos os projetos, hoje.",
     "spec to review": "spec para revisar",
     "ready to ship": "pronto para publicar",
     "Running": "Rodando",
@@ -413,18 +416,6 @@
       "Em uso: "
     ],
     [
-      "\\bin use\\b",
-      "em uso"
-    ],
-    [
-      "est\\. spent today",
-      "est. gastos hoje"
-    ],
-    [
-      "(\\d+) runs? today",
-      "$1 execuções hoje"
-    ],
-    [
       "^Saved as (.*)\\. Reload the page to see it\\.$",
       "Salvo como $1. Recarregue a página para ver."
     ],
@@ -537,7 +528,7 @@
       "$1 card rodou em um modelo sem preço. Os limites não o contam."
     ],
     [
-      "Running · last cycle (\\S+) ago",
+      "Running · last cycle (\\d+d \\d+h|\\S+) ago",
       "Rodando · último ciclo há $1"
     ],
     [
@@ -717,7 +708,7 @@
       "Mais perto do fim primeiro"
     ],
     [
-      "board read (\\S+) ago",
+      "board read (\\d+d \\d+h|\\S+) ago",
       "quadro lido há $1"
     ],
     [
