@@ -88,6 +88,11 @@ out="$(bash "$M" doctor 2>&1)"; assert_contains "$out" "shop: the dispatcher ski
 assert_contains "$out" "index.lock exists"
 rm "$H2/SKIPPED"; git -C "$r" commit -q --allow-empty -m ahead; git -C "$r" push -q origin HEAD:main
 assert_contains "$(bash "$M" doctor 2>&1)" "shop: control checkout is behind origin/main"
+# AC-8 (#129): doctor says the language each project writes in and where it comes from: the repository, or this machine
+assert_contains "$(bash "$M" doctor 2>&1)" "ok   shop: writes in English (en), from the repository"
+printf 'language: pt-BR\n' > "$H2/overrides.yml"
+assert_contains "$(FACTORY_LANGUAGE=en bash "$M" doctor 2>&1)" "ok   shop: writes in Brazilian Portuguese (pt-BR), from this machine"
+rm "$H2/overrides.yml"
 assert_exit 0 bash "$M" clean shop
 [ ! -e "$H2/tmp/5" ] && [ ! -e "$H2/tmp/8" ] && [ -d "$H2/tmp/6" ] && pass "clean keeps the active card" || fail "clean removed the wrong tmp dirs: $(ls "$H2/tmp")"
 # accept: the owner records the acceptance files of a card as reviewed, with a reason, and the gate takes them

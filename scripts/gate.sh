@@ -523,7 +523,11 @@ run() {
 # shipfloor_cfg: one more python start per gate call is what every pipeline step would pay
 # A gate says its own verdict last, so a caller never needs `; echo $?` (headless runs refuse a `$` in a command).
 case "$cmd" in acceptance-own|stack) ;; *) trap 'rc=$?; case $rc in 0) echo "gate $cmd: pass" >&2 ;; 3) echo "gate $cmd: INFRA (exit 3)" >&2 ;; *) echo "gate $cmd: FAIL (exit $rc)" >&2 ;; esac' EXIT ;; esac
-GLANG=""; LANG_RE='^language:[[:space:]]*["'"'"']?([A-Za-z-]*)'
-while IFS= read -r GLINE; do [[ "$GLINE" =~ $LANG_RE ]] && { GLANG="${BASH_REMATCH[1]}"; break; }; done 2>/dev/null < "$FACTORY_CONFIG"
+# The language a run started with (FACTORY_LANGUAGE, set at launch) wins; else this machine's overrides.yml, then factory.yml.
+GLANG="${FACTORY_LANGUAGE:-}"; LANG_RE='^language:[[:space:]]*["'"'"']?([A-Za-z-]*)'
+for GFILE in "${FACTORY_CONFIG%[/\\]*}/overrides.yml" "$FACTORY_CONFIG"; do
+  [ -n "$GLANG" ] && break
+  while IFS= read -r GLINE; do [[ "$GLINE" =~ $LANG_RE ]] && { GLANG="${BASH_REMATCH[1]}"; break; }; done 2>/dev/null < "$GFILE"
+done
 if [ "${GLANG:-en}" = en ]; then run "$@"; exit; fi
 { run "$@" 2>&1 1>&3 | shipfloor_say "$GLANG" >&2; exit "${PIPESTATUS[0]}"; } 3>&1

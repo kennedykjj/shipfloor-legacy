@@ -6,7 +6,7 @@
     "Then open the URL it prints. This tab stays as it is.": "Depois abra a URL que ele imprimir. Esta aba fica como está.",
     "Factory": "Fábrica",
     "Feed": "Feed",
-    "All": "Tudo",
+    "Runs": "Execuções",
     "Waits for you": "Espera você",
     "Failures": "Falhas",
     "Newest first": "Mais recente em cima",
@@ -16,7 +16,10 @@
     "no end logged": "sem fim registrado",
     "now in": "agora em",
     "gates failed": "gates que falharam",
+    "no failed gate recorded": "nenhum gate que falhou foi registrado",
     "Board on GitHub": "Quadro no GitHub",
+    "Docs": "Documentação",
+    "Runs of every project today": "Execuções de todos os projetos hoje",
     "Pool": "Pool",
     "Stacks": "Stacks",
     "Runs today": "Execuções hoje",
@@ -59,12 +62,9 @@
     "Nothing waits for you. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.": "Nada espera você. Os cards aparecem aqui quando uma spec ou um PR pronto precisa da sua decisão, ou quando uma execução bloqueia.",
     "The factory moves on its own. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.": "A fábrica anda sozinha. Os cards aparecem aqui quando uma spec ou um PR pronto precisa da sua decisão, ou quando uma execução bloqueia.",
     "Nothing is in progress.": "Nada em andamento.",
-    "Review spec": "Revisar spec",
     "Review": "Revisão",
     "Request changes": "Pedir mudanças",
     "Approve": "Aprovar",
-    "Approve and ship": "Aprovar e publicar",
-    "Approve the spec": "Aprovar a spec",
     "Unblock & retry": "Desbloquear e tentar de novo",
     "Unblock and retry": "Desbloquear e tentar de novo",
     "Details": "Detalhes",
@@ -75,7 +75,7 @@
     "log": "log",
     "Blocked": "Bloqueado",
     "Blocked · waits for your call": "Bloqueado · espera a sua decisão",
-    "Blocked by infrastructure; the factory retries it": "Bloqueado por infraestrutura; a fábrica tenta de novo",
+    "Infrastructure failed; the factory retries once": "A infraestrutura falhou; a fábrica tenta mais uma vez",
     "spec to review": "spec para revisar",
     "ready to ship": "pronto para publicar",
     "Running": "Rodando",
@@ -179,13 +179,10 @@
     "A pull request is ready to ship": "Um pull request está pronto para publicar",
     "A run stopped and needs you": "Uma execução parou e precisa de você",
     "Build this spec?": "Construir esta spec?",
-    "Build it": "Construir",
     "Ship it to production?": "Publicar em produção?",
     "How should this run continue?": "Como esta execução deve continuar?",
     "It needs rework": "Precisa de retrabalho",
-    "Rewrite it": "Reescrever",
     "Just try again": "Só tentar de novo",
-    "Not yet": "Ainda não",
     "Send back to Coding": "Devolver para Coding",
     "Accept the tests and continue": "Aceitar os testes e continuar",
     "The edits are right": "As edições estão certas",
@@ -344,9 +341,8 @@
     "The dashboard's own text. What the agents wrote is shown as written. Applied when the page is reloaded.": "O texto do próprio dashboard. O que os agentes escreveram aparece como foi escrito. Vale quando a página é recarregada.",
     "The language shows after a reload.": "O idioma aparece depois de recarregar.",
     "What the factory writes": "O que a fábrica escreve",
-    "Read-only here: a project's language is part of its repository. To change it, edit": "Somente leitura aqui: o idioma de um projeto faz parte do repositório dele. Para mudar, edite",
-    "in its": "no",
-    ". The dispatcher reads it again on every cycle.": ". O dispatcher lê o arquivo de novo a cada ciclo.",
+    "Kept on this machine, over what the repository says; the repository's": "Fica nesta máquina, por cima do que o repositório diz; o",
+    "is not changed. A change applies from the dispatcher's next cycle; a session already running keeps the language it started in.": "do repositório não é alterado. Uma mudança vale a partir do próximo ciclo do dispatcher; uma sessão que já roda continua no idioma em que começou.",
     "English": "Inglês",
     "Brazilian Portuguese": "Português do Brasil",
     "This card's estimate passed the warning set in Settings, Costs. Nothing stops until the block limit.": "A estimativa deste card passou do aviso definido em Configurações, Custos. Nada para até o limite de bloqueio.",
@@ -418,20 +414,16 @@
   },
   "rx": [
     [
+      "^Every project, today\\.\\n",
+      "Todos os projetos, hoje.\n"
+    ],
+    [
+      "Estimated from the run transcripts' tokens and ~/\\.shipfloor/prices\\.yml",
+      "Estimado pelos tokens das transcrições e por ~/.shipfloor/prices.yml"
+    ],
+    [
       "^In use: ",
       "Em uso: "
-    ],
-    [
-      "\\bin use\\b",
-      "em uso"
-    ],
-    [
-      "est\\. spent today",
-      "est. gastos hoje"
-    ],
-    [
-      "(\\d+) runs? today",
-      "$1 execuções hoje"
     ],
     [
       "^Saved as (.*)\\. Reload the page to see it\\.$",
@@ -440,6 +432,22 @@
     [
       "^The language was not changed: (.*)\\. This dashboard stays in (.*)\\.$",
       "O idioma não foi alterado: $1. Este dashboard continua em $2."
+    ],
+    [
+      "^The language of (\\S+) was not changed: (.*)\\. It still writes in (.*)\\.$",
+      "O idioma de $1 não foi alterado: $2. Ele continua escrevendo em $3."
+    ],
+    [
+      "^As the repository says: (.+)$",
+      "Como o repositório diz: $1"
+    ],
+    [
+      "^set on this machine · the repository says (.+)$",
+      "definido nesta máquina · o repositório diz $1"
+    ],
+    [
+      "^Language the factory writes in for (\\S+)$",
+      "Idioma em que a fábrica escreve em $1"
     ],
     [
       "language must be one of ([A-Za-z, -]+)",
@@ -550,7 +558,7 @@
       "$1 card rodou em um modelo sem preço. Os limites não o contam."
     ],
     [
-      "Running · last cycle (\\S+) ago",
+      "Running · last cycle (\\d+d \\d+h|\\S+) ago",
       "Rodando · último ciclo há $1"
     ],
     [
@@ -580,6 +588,10 @@
     [
       " and ended with exit (\\d+)",
       " e terminou com exit $1"
+    ],
+    [
+      "ended with exit (\\d+)",
+      "terminou com exit $1"
     ],
     [
       "The ceiling for every project together\\.",
@@ -730,7 +742,7 @@
       "Mais perto do fim primeiro"
     ],
     [
-      "board read (\\S+) ago",
+      "board read (\\d+d \\d+h|\\S+) ago",
       "quadro lido há $1"
     ],
     [
@@ -744,14 +756,6 @@
     [
       "(\\d+) clean\\b",
       "$1 limpas"
-    ],
-    [
-      "^Approve → ",
-      "Aprovar → "
-    ],
-    [
-      "^Request changes → ",
-      "Pedir mudanças → "
     ],
     [
       "^Approve with (.*)$",

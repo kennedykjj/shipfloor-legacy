@@ -458,20 +458,39 @@ class Factory:
         return {"problem": problem, "criteria": [{"id": k, "text": t} for k, t in criteria],
                 "questions": items("open questions", "dúvidas")}
 
+    def cost_mark(self, p, n):
+        """The figures of a block by the cost limit, from its marker cost/<n>.json; None when it cannot be read."""
+        try:
+            mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
+            before, whole = float(mark.get("baseline") or 0), float(mark["total"])
+            return {"limit": mark.get("limit"), "total": round(whole - before, 4), "baseline": before, "card_total": whole,
+                    "stages": mark.get("stages") or {}}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return None
+
+    def block_line(self, p, n):
+        """One plain line for the list: what the note says the owner must decide, else the gate that failed, else "".
+        Taken from the note only, never composed; a block by the cost limit is told by its figures instead."""
+        reason = self.block_reason(p, n)
+        if reason.lstrip().startswith(COST_BLOCK):
+            return ""
+        plain = lambda t: " ".join(re.sub(r"^\s*[-*]\s*", "", t.replace("**", "").replace("`", "")).split())
+        decide = next((l for l in reason.splitlines() if re.search(r"must decide|owner must|needs? you to", l, re.I)), "")
+        decide = re.sub(r"^[^:]*(must decide|owner must|needs? you to)[^:]*:\s*", "", plain(decide), flags=re.I)
+        if decide:
+            return (decide[0].upper() + decide[1:])[:500]
+        gate = re.search(r"failed gates?:\**\s*([^.\n]+)", reason, re.I)
+        return f"Failed gate: {plain(gate.group(1))}"[:500] if gate and plain(gate.group(1)) else ""
+
     def block(self, p, n):
         """A block told in parts: the stage and step it stopped at, why, what was tried, how many times, and for
         acceptance-intact the test files as they changed."""
         reason = self.block_reason(p, n)
         blocked = [r for r in self.reports(p, n) if r["outcome"] == "blocked"]
-        if reason.lstrip().startswith(COST_BLOCK):  # the marker tells the figures; the newest note must still be this block's
-            try:
-                mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
-                before, whole = float(mark.get("baseline") or 0), float(mark["total"])
-                return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
-                        "times": len(blocked), "gate": "", "diff": "", "limit": mark.get("limit"), "total": round(whole - before, 4),
-                        "baseline": before, "card_total": whole, "stages": mark.get("stages") or {}}
-            except (OSError, ValueError, KeyError, TypeError, AttributeError):
-                pass  # no usable marker: an ordinary block
+        mark = self.cost_mark(p, n) if reason.lstrip().startswith(COST_BLOCK) else None  # the newest note must still be this block's
+        if mark:
+            return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
+                    "times": len(blocked), "gate": "", "diff": "", **mark}
         m = BLOCK_LINE.search(reason)
         stage, step = (m.group(1).lower(), int(m.group(2))) if m else (None, None)
         if not stage:  # a report tells the block: it names its stage, not a step
@@ -483,6 +502,14 @@ class Factory:
         return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
                 "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": gate,
                 "diff": self.acceptance_diff(p, n) if gate else ""}
+
+    def block_brief(self, p, n, kind):
+        """What the list tells of a card the owner must unblock: block_line, and block_cost for a block by the cost limit."""
+        if kind != "owner":
+            return {"block_line": "", "block_cost": None}
+        mark = self.cost_mark(p, n) if self.block_reason(p, n).lstrip().startswith(COST_BLOCK) else None
+        return {"block_line": "" if mark else self.block_line(p, n),
+                "block_cost": {k: mark[k] for k in ("total", "limit", "baseline")} if mark else None}
 
     def acceptance_diff(self, p, n):
         at, diff = self._diffs.get((p, n), (0, ""))
@@ -599,14 +626,17 @@ class Factory:
             known = dashboard_cost.spend(self.sessions(p), self.prices(), today)["cards"]
             unpriced += sum(1 for n in columns if n in known and known[n]["total"] is None)
             repo, row = self.config(p), registry.get(p, [])
-            cfg, _ = shipfloor_config.with_overrides(repo, shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml")))
+            over = shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml"))
+            cfg, _ = shipfloor_config.with_overrides(repo, over)
             knob = lambda c, k: next((v for v in [shipfloor_config.dotted(c, k)] if v is not None), KNOBS[k])
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "main": row[3] if len(row) > 3 else "main",
                              "repo": shipfloor_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
                              "knobs": {k: {"value": knob(cfg, k), "repo": knob(repo, k)} for k in KNOBS}, "context": cfg.get("context") or [],
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
-                             "language": {"code": cfg.get("language") or "en", "set": cfg.get("language") is not None,
-                                          "file": ".shipfloor/factory.yml"},
+                             # code: in effect; repo: what factory.yml yields; from: who decided; set: factory.yml has the key
+                             "language": {"code": cfg.get("language") or "en", "repo": repo.get("language") or "en",
+                                          "from": "machine" if isinstance(over, dict) and "language" in over else "repository",
+                                          "set": repo.get("language") is not None, "file": ".shipfloor/factory.yml"},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
         every = shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml"))
@@ -736,11 +766,13 @@ class Factory:
         return 200, self.settings()
 
     def set_project(self, project, values):
-        """The owner's overrides of a project's operational limits on this machine: {knob: number, or null to go
-        back to what the repository says}. Kept in the project's overrides.yml, which the config readers lay over
-        factory.yml; checked with the whole config before it is written."""
-        if project not in self.projects() or not isinstance(values, dict) or not set(values) <= set(KNOBS):
+        """The owner's overrides of a project on this machine: {knob: number, or null to go back to what the
+        repository says}, and language: a code of LANGS, or null. Kept in the project's overrides.yml, which the
+        config readers lay over factory.yml; checked with the whole config before it is written."""
+        if project not in self.projects() or not isinstance(values, dict) or not set(values) <= set(KNOBS) | {"language"}:
             return 400, {"error": "unknown project or setting"}
+        if "language" in values and values["language"] is not None and (not isinstance(values["language"], str) or values["language"] not in shipfloor_config.LANGS):
+            return 400, {"error": f"language must be one of {', '.join(shipfloor_config.LANGS)}"}
         path, repo = self.pdir(project) / "overrides.yml", self.config(project)
         over = read_yaml(path)
         over = json.loads(json.dumps(over)) if isinstance(over, dict) else {}
@@ -761,7 +793,7 @@ class Factory:
             return 400, {"error": "; ".join(errs)}
         if over:
             with open(path, "w", encoding="utf-8", newline="\n") as f:
-                f.write("# this machine's overrides of the project's operational limits; set in the dashboard's Settings\n")
+                f.write("# this machine's overrides of the project; set in the dashboard's Settings\n")
                 yaml.safe_dump(over, f, sort_keys=False)
         else:
             path.unlink(missing_ok=True)
@@ -894,7 +926,7 @@ class Factory:
                                         "spent": None if per_card.get(n, 0.0) is None else per_card.get(n, 0.0) - base.get(n, 0.0),
                                         "running": running.get(n), "awaiting": col in OWNER_MOVES,
                                         "review": col in OWNER_MOVES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
-                                        "blocked": blocked.get(n)}
+                                        "blocked": blocked.get(n), **self.block_brief(p, n, blocked.get(n))}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
@@ -1059,7 +1091,7 @@ class Factory:
     def feed_runs(self, p, runs):
         """A feed event per run, with what each one left behind, every piece from its own source: the card's
         title, the estimated cost of the run's sessions, the pull request and the failed gates its report names,
-        the last line of a run that failed and, on a card's newest run, the column the card is in now. A run with
+        and, on a card's newest run, the column the card is in now. A run with
         no end is running only while its lock is there, and then it carries its step; otherwise its end was lost."""
         prices, (columns, _) = self.prices(), self.board(p)
         titles = self.titles(p, sorted({*columns, *(r["issue"] for r in runs)}))
@@ -1083,19 +1115,6 @@ class Factory:
                     and stamp(r["start"]) <= x["file"][len(r["stage"]) + 1:-5] <= stamp(r["end"])]
             return mine[-1] if mine else {}
 
-        def last_line(r):  # what a failed run said last
-            said = ""
-            try:
-                with open(self.pdir(p) / "logs" / r["log"], encoding="utf-8", errors="replace") as f:
-                    for line in f:
-                        m = RUN_LINE.match(line)
-                        if m and m.group(1) == "end" and m.group(5) == r["end"]:
-                            return said[:300]
-                        said = "" if m else line.strip() or said
-            except OSError:
-                pass
-            return ""
-
         out = []
         for r in runs:
             n, key = r["issue"], (r["log"], r["start"])
@@ -1109,8 +1128,6 @@ class Factory:
                     e["pr"] = rep["pr"]
                 if isinstance(rep.get("failed_gates"), list) and rep["failed_gates"]:
                     e["failed"] = [str(g) for g in rep["failed_gates"]]
-                if r["exit"]:
-                    e["last"] = last_line(r)
                 if newest[n] is r and columns.get(n):
                     e.update(column=columns[n], you=columns[n] in OWNER_MOVES)
             else:

@@ -113,13 +113,9 @@ kbd { font: inherit; border: 1px solid var(--faint); border-radius: 4px; padding
 .alerts span::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--k); margin-right: 9px; }
 .alerts b { font-weight: 600; margin-right: 6px; color: var(--k); } .alerts code { font: 12.5px var(--mono); }
 main { min-height: 0; display: grid; }
-.board { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 0; min-height: 0; }
-.board[hidden], .feed[hidden], .band[hidden], .cols[hidden], .telem[hidden], .sumline[hidden], #sum[hidden], #msg[hidden] { display: none; }
-/* the first row: the day in one sentence, shown while "Today" is minimized */
-.sumline { grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
-#sum b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; } #sum .bad, #sum .bad b { color: var(--bad); }
-@media (min-width: 1181px) { .sumline { height: 36px; margin-bottom: 12px; } }
-.board > .band { grid-row: 2; margin-bottom: 16px; } .board > .cols { grid-row: 3; }
+.board { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0; min-height: 0; }
+.board[hidden], .feed[hidden], .band[hidden], .cols[hidden], .telem[hidden], #msg[hidden] { display: none; }
+.board > .band { grid-row: 1; margin-bottom: 16px; } .board > .cols { grid-row: 2; }
 .untitled { color: var(--faint); font-style: italic; }
 .dial {
   width: 13px; height: 13px; border-radius: 50%; flex: none; display: inline-block;
@@ -170,11 +166,11 @@ main { min-height: 0; display: grid; }
 @keyframes fade { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #dim { animation: none; } }
 /* the line maximized: every card by name, in two lanes of five columns */
-.lanes, .band > h1 { display: none; } .band > h1 { font-size: 26px; }
+.lanes, .band > h1 { display: none; } .band > h1 { font-size: 28px; }
 .band.maxed { display: flex; flex-direction: column; overflow: hidden; } .band.maxed > h1 { display: block; }
 .band.maxed .cells, .band.maxed .legend { display: none; }
 .band.maxed .lanes { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr); }
-.lane { margin: 12px 0 0; padding-bottom: 6px; border-bottom: 1px solid var(--edge-hi); font-size: 16px; letter-spacing: .1em; color: var(--soft); }
+.lane { margin: 12px 0 0; padding-bottom: 6px; border-bottom: 1px solid var(--edge-hi); font-size: 17px; letter-spacing: .1em; color: var(--soft); }
 .lane small { font: 400 12.5px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 10px; }
 .lcols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: 0; }
 .lcol { min-width: 0; overflow-y: auto; padding: 8px 12px 10px; border-left: 1px solid color-mix(in srgb, var(--ov) 14.9%, transparent); display: flex; flex-direction: column; gap: 6px; } .lcol:first-child { border-left: 0; padding-left: 0; }
@@ -188,7 +184,7 @@ main { min-height: 0; display: grid; }
 .cols { display: grid; grid-template-columns: minmax(320px, 410px) minmax(0, 1fr); gap: 20px; min-height: 0; }
 .side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
 .yours, .work, .telem { padding: 18px 20px 14px; display: flex; flex-direction: column; min-height: 0; } .yours { flex: 0 1000 auto; } .yours:not(.maxed) { min-height: var(--ymin, 0px); } .telem { flex: 0 1 auto; max-height: 60%; min-height: 100px; overflow-y: auto; }  /* Yours gives way first, down to its heading, two cards and foot (fit sets --ymin); then Today, down to its floor, and scrolls inside itself */
-.side h1 { font-size: 26px; }
+.side h1 { font-size: 28px; }
 h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-weight: 500; }
 #list { list-style: none; margin: 12px -6px 0; overflow-y: auto; min-height: var(--two, 0px); padding: 0 6px; }  /* --two: the first two cards whole, set by fit */
 /* what waits for you, maximized: a decision inbox. The queue, what to read, and the decision as options that each say what happens next */
@@ -197,13 +193,13 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .ique { border-right: 1px solid var(--edge); overflow-y: auto; }
 .ique button { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--edge); border-left: 3px solid transparent; padding: 10px 12px; cursor: pointer; }
 .ique button[aria-current="true"] { background: var(--panel-hi); border-left-color: var(--sand); }
-.ique .row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .ique .pnum { font-size: 21px; }
+.ique .row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .ique .pnum { font-size: 20px; }
 .ique p { margin: 2px 0 0; font-size: 13px; color: var(--soft); } .ique .ask { font-size: 12px; color: var(--muted); }
 .iread { padding: 16px 26px 20px; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
 .iread p { margin: 0 0 6px; } .iread ul { margin: 4px 0; padding-left: 18px; } .iread .h { font-weight: 600; }
 .iread pre { margin: 4px 0; padding: 6px 8px; background: var(--ground); border-radius: 4px; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
 .iq-k { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--sand); }
-.iread h2 { margin: 0; font-size: 21px; font-weight: 600; line-height: 1.25; text-wrap: balance; }
+.iread h2 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.25; text-wrap: balance; }
 .ifacts { display: flex; gap: 6px 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; } .ifacts .lnk { font-size: 12.5px; margin-left: 6px; }
 .tag { font-size: 11.5px; border: 1px solid var(--edge-hi); border-radius: 4px; padding: 1px 7px; color: var(--muted); white-space: nowrap; }
 .tag.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50.2%, transparent); } .tag.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50.2%, transparent); } .tag.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50.2%, transparent); }
@@ -219,9 +215,9 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .idiff { font: 12.5px/1.6 var(--mono); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; } .idiff div { padding: 1px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .idiff .f { background: var(--panel-hi); color: var(--muted); padding: 5px 12px; border-top: 1px solid var(--edge); } .idiff .f:first-child { border-top: 0; }
 .idiff .m { color: var(--bad); background: color-mix(in srgb, var(--bad) 9.0%, transparent); } .idiff .p { color: var(--ok); background: color-mix(in srgb, var(--ok) 9.0%, transparent); }
-.idec { border-left: 1px solid var(--edge); background: #0000002e; padding: 16px 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.idec { border-left: 1px solid var(--edge); background: var(--well); padding: 16px 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .idec h2 { margin: 0; font-size: 17px; letter-spacing: .06em; } #io { display: contents; }
-.iopt { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--edge-hi); border-radius: 10px; padding: 11px 13px; cursor: pointer; } .iopt:hover { border-color: var(--muted); }
+.iopt { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--edge-hi); border-radius: 8px; padding: 11px 13px; cursor: pointer; } .iopt:hover { border-color: var(--muted); }
 .iopt[aria-pressed="true"] { border-color: var(--text); background: var(--panel-hi); box-shadow: inset 3px 0 0 var(--text); }
 .iopt .t { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; font-weight: 600; font-size: 15px; } .iopt kbd { font-size: 12px; margin: 0; color: var(--muted); }
 .iopt .when { margin: 3px 0 0; font-size: 13px; color: var(--muted); } .iopt .then { margin: 7px 0 0; padding-top: 7px; border-top: 1px dashed var(--edge-hi); font-size: 13px; color: var(--soft); }
@@ -233,22 +229,22 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .itoast { display: flex; gap: 10px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45.1%, transparent); border-radius: 8px; padding: 8px 10px; }
 .itoast button { background: none; border: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 @media (max-width: 1180px) { .yours.maxed .inbox { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .ique, .idec { border: 0; overflow: visible; } .iread { overflow: visible; padding-inline: 0; } }
-#list.cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: linear-gradient(#000 calc(100% - 44px), transparent); mask-image: linear-gradient(#000 calc(100% - 44px), transparent); }
-.telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(#000 calc(100% - 24px), transparent); mask-image: linear-gradient(#000 calc(100% - 24px), transparent); }
+#list.cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); }
+.telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); }
 /* the shortest column: fit puts .tight on .side only with Today open, when the list floor, the gap and Today's floor do not fit */
 .side.tight { gap: 10px; } .side.tight .yours:not(.maxed) .foot { display: none; } .side.tight #telem h2:first-child { margin-top: 6px; }
 .pass { border-top: 1px solid var(--hair); padding: 10px 2px 12px; } .pass.hot { background: color-mix(in srgb, var(--ov) 3.5%, transparent); }
 .ptitle { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
 .ptitle .row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.pnum { font-size: 24px; line-height: 1; color: var(--sand); } .stop .pnum { color: var(--bad); }
+.pnum { font-size: 23px; line-height: 1; color: var(--sand); } .stop .pnum { color: var(--bad); }
 .ptext { font-size: 14.5px; line-height: 1.3; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.cap.bad { color: var(--bad); } .pnote { margin: 6px 0 0; font-size: 13px; color: var(--bad); }
+.cap.bad { color: var(--bad); } .pwhy { margin: 4px 0 0; font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pnote { margin: 6px 0 0; font-size: 13px; color: var(--bad); }
 .stub { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 9px; }
 .stub button, .stub a, .edit button { font-weight: 500; font-size: 13.5px; white-space: nowrap; background: none; border: 0; cursor: pointer; padding: 2px 4px; color: var(--soft); }
 .stub button:hover, .stub a:hover, .edit button:hover { text-decoration: underline; text-underline-offset: 3px; }
-.stub .pill, .edit .pill { background: var(--text); color: var(--ground); padding: 6px 16px; border-radius: 40px; font-weight: 600; } .stub .pill:hover, .edit .pill:hover { background: #fff; text-decoration: none; }
+.stub .pill, .edit .pill { background: var(--text); color: var(--ground); padding: 6px 16px; border-radius: 40px; font-weight: 600; } .stub .pill:hover, .edit .pill:hover { background: color-mix(in srgb, var(--text) 88%, var(--ground)); text-decoration: none; }
 .stub a { text-decoration: none; } .ext { width: 10px; height: 10px; margin-left: 4px; fill: none; stroke: currentColor; stroke-width: 1.4; }
-.edit { padding: 10px 0 2px; display: grid; gap: 6px; } .edit div { display: flex; gap: 14px; align-items: center; }
+.edit { padding: 10px 0 2px; display: grid; gap: 6px; } .edit div { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
 .edit textarea { height: 64px; background: color-mix(in srgb, var(--ov) 5.1%, transparent); border-color: color-mix(in srgb, var(--ov) 23.9%, transparent); border-radius: 8px; }
 .bar { height: 2px; background: color-mix(in srgb, var(--ov) 14.9%, transparent); margin-top: 10px; } .bar i { display: block; height: 2px; background: var(--sand); animation: drain 5s linear forwards; } @keyframes drain { to { width: 0; } }
 .empty { color: var(--muted); font-size: 14px; padding-top: 2px; max-width: 34ch; }
@@ -268,7 +264,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .tile.wait.you .ring { background: var(--sand); border-color: var(--sand); } .tile.wait.you .tnum, .tile.wait.you .why { color: var(--sand); }
 #hw small { font: 400 13px var(--sans); color: var(--muted); text-transform: none; letter-spacing: 0; margin-left: 12px; }
 .ended td:nth-child(2) { white-space: normal; } .ended th { background: none; position: static; }
-.thead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; white-space: nowrap; } .thead .tag { align-self: center; } .tnum { font-size: 22px; line-height: 1; } .thead .clock { margin-left: auto; font-size: 14px; color: var(--text); } .tcost { font-size: 13px; color: var(--sand); }
+.thead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; white-space: nowrap; } .thead .tag { align-self: center; } .tnum { font-size: 23px; line-height: 1; } .thead .clock { margin-left: auto; font-size: 14px; color: var(--text); } .tcost { font-size: 13px; color: var(--sand); }
 .ttitle { margin: 0; font-size: 14.5px; font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .steps { display: flex; gap: 3px; list-style: none; margin: 0; padding: 0; } .steps li { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ov) 14.9%, transparent); }
 .steps li.done { background: var(--muted); } .steps li.now { background: var(--text); animation: now 1.6s ease-in-out infinite; } @keyframes now { 50% { opacity: .45; } }
@@ -319,7 +315,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .drawer.open { width: min(660px, 52vw); }
 /* cards that wait for the owner keep the review's width on every tab, so tabs never reflow the drawer */
 .drawer.wide { width: min(1180px, 72vw); }
-.drawer.open.full { top: 5vh; bottom: 5vh; right: 5vw; width: 90vw; z-index: 4; border: 1px solid var(--edge-hi); border-radius: 14px; }
+.drawer.open.full { top: 5vh; bottom: 5vh; right: 5vw; width: 90vw; z-index: 4; border: 1px solid var(--edge-hi); border-radius: 16px; }
 #d-max { top: 14px; right: 88px; } .drawer:not(.open) #d-max { display: none; }
 .tip-head { padding: 16px 20px 14px; border-top: 1px solid var(--edge-hi); border-bottom: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); flex: none; }
 .tip-head .row1 { padding-right: 116px; }
@@ -343,7 +339,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 /* settings: the dispatcher on top of every section, the sections on the left, and a bar while something is unsaved */
 .settings { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; } .settings[hidden], .set-save[hidden] { display: none; }
 .disp { padding: 14px 20px; display: flex; gap: 12px 26px; flex-wrap: wrap; align-items: center; border-color: var(--edge-hi); background: var(--panel); }
-.disp.off { border-color: var(--bad); } .disp .who { margin-right: auto; } .disp h1 { font-size: 24px; display: flex; gap: 10px; align-items: center; }
+.disp.off { border-color: var(--bad); } .disp .who { margin-right: auto; } .disp h1 { font-size: 23px; display: flex; gap: 10px; align-items: center; }
 .disp .who p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 .sdot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); } .disp.off .sdot { background: var(--bad); }
 .disp.idle .sdot { background: var(--warn); } .disp .who p .warn { color: var(--warn); }
@@ -355,7 +351,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .set-nav { display: flex; flex-direction: column; gap: 2px; align-self: start; position: sticky; top: 0; }
 .set-nav button { text-align: left; background: none; border: 0; border-left: 2px solid transparent; padding: 8px 12px; cursor: pointer; color: var(--muted); font-size: 14.5px; }
 .set-nav button[aria-current="true"] { color: var(--text); border-left-color: var(--sand); background: color-mix(in srgb, var(--ov) 3.1%, transparent); } .set-nav small { display: block; font-size: 12px; color: var(--faint); }
-.set-body > h1 { font-size: 30px; } .set-body > .lead { margin: 6px 0 0; color: var(--muted); font-size: 14px; max-width: 74ch; }
+.set-body > h1 { font-size: 28px; } .set-body > .lead { margin: 6px 0 0; color: var(--muted); font-size: 14px; max-width: 74ch; }
 .sgroup { margin-top: 20px; } .sgroup > h2 { margin: 0; padding: 14px 20px 0; font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .sgroup > h2 code, .sgroup .from code { font: 11.5px var(--mono); color: var(--faint); text-transform: none; letter-spacing: 0; }
 .sgroup > h2.ptitle2 { padding: 16px 20px 2px; font: 600 20px var(--cond); letter-spacing: .04em; color: var(--text); justify-content: space-between; } .ptitle2 span { font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: auto; } .ptitle2 span b { font-weight: 500; color: var(--warn); } .ptitle2 span.inuse b { color: var(--text); }
@@ -387,10 +383,10 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .thms { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 18px 14px; padding: 14px 20px 20px; }
 .thm { display: flex; flex-direction: column; gap: 8px; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; color: var(--muted); font-size: 13.5px; }
 .thm b { font-weight: 500; color: var(--soft); } .thm small { margin-top: -5px; font-size: 12px; } .thm[aria-pressed="true"] b { color: var(--text); }
-.thp { display: block; position: relative; height: 86px; padding: 11px; border-radius: 10px; border: 1px solid var(--edge-hi); overflow: hidden; background: radial-gradient(130px 80px at 82% 0%, var(--glow1a), transparent 78%), var(--ground); }
+.thp { display: block; position: relative; height: 86px; padding: 11px; border-radius: 8px; border: 1px solid var(--edge-hi); overflow: hidden; background: radial-gradient(130px 80px at 82% 0%, var(--glow1a), transparent 78%), var(--ground); }
 .thm:hover .thp { border-color: var(--muted); } .thm[aria-pressed="true"] .thp { outline: 2px solid var(--sand); outline-offset: 2px; }
 .thp .c { display: block; height: 100%; padding: 6px 9px; border-radius: 6px; border: 1px solid var(--edge); background: var(--panel); }
-.thp .n { display: block; font: 600 16px/1.1 var(--cond); letter-spacing: .03em; color: var(--sand); }
+.thp .n { display: block; font: 600 17px/1.1 var(--cond); letter-spacing: .03em; color: var(--sand); }
 .thp .t, .thp .m { display: block; height: 4px; border-radius: 2px; margin-top: 7px; width: 72%; background: var(--text); } .thp .m { width: 46%; margin-top: 5px; background: var(--muted); }
 .thp .s { position: absolute; right: 19px; bottom: 19px; display: flex; gap: 4px; } .thp .s i { width: 7px; height: 7px; border-radius: 50%; background: var(--k); }
 .thp.two { display: grid; grid-template-columns: 1fr 1fr; padding: 0; background: none; } .thp.two > span { position: relative; padding: 11px 7px; background: var(--ground); } .thp.two .s { right: 13px; }
@@ -420,7 +416,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .fside { font-size: 13px; color: var(--muted); white-space: nowrap; text-align: right; }
 /* the mark: its shape carries the state, the colour repeats it */
 .fdot { width: 9px; height: 9px; border-radius: 50%; margin-top: 7px; background: var(--ok); }
-.f-bad .fdot { background: var(--bad); border-radius: 1px; transform: rotate(45deg); } .f-bad .fhead b { color: var(--bad); } .f-bad .fleft { color: var(--text); }
+.f-bad .fdot { background: var(--bad); border-radius: 0; transform: rotate(45deg); } .f-bad .fhead b { color: var(--bad); } .f-bad .fleft { color: var(--text); }
 .f-run .fdot { background: none; box-shadow: inset 0 0 0 2px var(--sand); }
 .f-sys .fdot { height: 2px; border-radius: 0; background: var(--faint); margin-top: 11px; }
 .f-sys .fhead { color: var(--soft); font-size: 13.5px; align-items: start; } .f-sys .fraw { overflow-wrap: anywhere; }
@@ -486,7 +482,7 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .decide-k { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; color: var(--muted); }
 .decide-k b { color: var(--text); font-weight: 600; }
 .decide-a { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.decide-a .hint { font-size: 12.5px; color: var(--muted); }
+.decide .hint, .edit .hint { font-size: 12.5px; color: var(--muted); }
 .decide .stale { margin: 0; font-size: 12.5px; color: var(--warn); overflow-wrap: anywhere; }
 .decide .stale.skipped { color: var(--bad); }
 .decide-b { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
@@ -517,7 +513,7 @@ iframe.plain { visibility: visible; opacity: 1; background: #fff; }
 .review .none { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
 .placeholder { padding: 20px; color: var(--muted); max-width: 64ch; }
 /* a refused link: the page stops at the header and one message */
-body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused #sumline, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #peek, body.refused #drawer, body.refused #dim { display: none !important; }
+body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #peek, body.refused #drawer, body.refused #dim { display: none !important; }
 #msg.refusal { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 20px; max-width: 64ch; color: var(--muted); outline: none; }
 #msg.refusal strong { color: var(--text); font-size: 14px; font-weight: 600; }
 #msg.refusal code { font: 13px var(--mono); color: var(--text); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 4px; padding: 2px 7px; white-space: nowrap; user-select: all; }
@@ -566,14 +562,12 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <header>
   <span class="g brand">Shipfloor</span>
   <nav class="views" aria-label="View"><button data-view="board" aria-pressed="true">Factory</button><button data-view="feed" aria-pressed="false">Feed</button><button data-view="settings" aria-pressed="false">Settings</button></nav>
-  <div class="stats"><span id="scope"></span><span id="stats"></span></div>
+  <div class="stats"><a class="cap" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener">Docs<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a><span id="scope"></span><span id="stats"></span></div>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
 <main>
   <section class="board" id="board" aria-label="Factory">
     <p class="placeholder" id="msg">Reading the factory…</p>
-    <div class="sumline" id="sumline" hidden>
-      <span id="sum"></span></div>
     <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><button class="max fold" data-show="band" aria-controls="cells" aria-expanded="true" aria-label="Minimize the lifecycle" title="Minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
       <div class="legend"><span><i></i>running, on the step it reported (1 to N)</span><span class="o"><i></i>queued</span><span style="--k:var(--sand)"><i></i>waits for you</span><span style="--k:var(--bad)"><i></i>blocked</span><span>+N: more cards than fit</span></div></nav>
     <div class="cols" id="cols" hidden>
@@ -648,7 +642,7 @@ function setHTML(el, html) { if (el._html === html) return false; if (el.id === 
 // text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
 // 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
 const LANG = { exact: {}, rx: [] };
-const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
+const RAW = ".ttitle, .ptext, .pwhy, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
 function loc(s) {
   const t = s.trim(); if (!t || !/[A-Za-z]{2}/.test(t)) return s;
   if (Object.hasOwn(LANG.exact, t)) return s.replace(t, LANG.exact[t]);
@@ -664,7 +658,7 @@ function localize(node) {
   if (node.nodeType !== 1) return;
   for (const el of [node, ...node.querySelectorAll("[title], [aria-label], [placeholder]")])
     for (const a of ["title", "aria-label", "placeholder"]) {
-      const v = el.getAttribute?.(a); if (!v || el.closest(".dot, .chip")) continue;  // a dot's title carries the card's own title
+      const v = el.getAttribute?.(a); if (!v || el.closest(".dot, .chip, .pwhy")) continue;  // a dot's title carries the card's own title, a reason line the factory's words
       const to = loc(v); if (to !== v) el.setAttribute(a, to);
     }
   const w = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) localize(n);
@@ -729,8 +723,9 @@ const EST = '<span class="est" title="Estimated from the run transcripts\' token
 const UNTITLED = '<span class="untitled" title="The dashboard could not read the issue titles from GitHub (gh).">Title not loaded</span>';
 const outcome = (o) => { const v = String(o || "").toLowerCase(); return OK_OUTCOMES.has(v) ? "ok" : BAD_OUTCOMES.has(v) ? "bad" : "muted"; };
 function tok(n) { if (!n) return "–"; if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
-function when(iso) { if (!iso) return "–"; const d = new Date(iso); const t = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }) + " " + t; }
-function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
+const dateLocale = () => document.documentElement.lang === "pt-BR" ? "pt-BR" : "en-US";  // the page's language, never the browser's
+function when(iso) { if (!iso) return "–"; const d = new Date(iso), l = dateLocale(); const t = d.toLocaleTimeString(l, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(l, l === "pt-BR" ? { day: "2-digit", month: "2-digit" } : { month: "short", day: "numeric" }) + " " + t; }
+function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; if (s > 172800) return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
 const liveRun = (p, n, stage) => S.overview?.runs.find((r) => r.project === p && r.issue === n && r.stage === stage && !r.orphan)?.started || null;
 const last = (sessions, stage) => sessions.filter((x) => x.stage === stage).pop();
 function clock(since, bare) { return since ? `<span class="${bare ? "" : "clock "}num" data-since="${esc(since)}"></span>` : ""; }
@@ -766,15 +761,15 @@ const waiting = () => (project()?.cards || []).map((c) => ({ ...c, key: `${S.pro
 
 function renderStrip() {
   const o = S.overview; if (!o) return;
-  const slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
+  const many = o.projects.length > 1, slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
   const held = slots.map((x) => `slot ${x.slot}: ${x.state}${x.owner !== "-" ? ` ${x.owner}` : ""}${x.state !== "free" ? ` ${elapsed(new Date(Date.now() - x.held_s * 1000))}` : ""}${x.reason ? ` (${x.reason})` : ""}`).join("\n");
   // The project switch is its own region: the numbers beside it change at every read, and rewriting it would close its open list.
   setHTML($("scope"), `${o.projects.length > 1 ? `<label class="proj cap">Project<select id="proj">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select></label>` : ""}
     ${project()?.board_url ? `<a class="cap" href="${esc(project().board_url)}" target="_blank" rel="noopener">Board on GitHub${EXT}</a>` : ""}${o.projects.length > 1 ? `<i class="sep"></i>` : ""}`);
   setHTML($("stats"), `<span class="cap" title="Sessions running now, out of the pool size">Pool<b>${o.pool.used} / ${o.pool.size}</b></span>
     <span class="cap${stuck ? " stuck" : ""}" title="Run environments in use${held ? "\n" + esc(held) : ""}">Stacks<b>${busy} / ${slots.length}</b>${o.queue ? ` · +${o.queue} waiting` : ""}</span>
-    <span class="cap">Runs today<b>${o.today.runs}</b>${o.today.failed ? ` · ${o.today.failed} failed` : ""}</span>
-    <span class="cap" title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml">Spent est.<b>$${o.today.cost.toFixed(2)}</b></span>`);
+    <span class="cap"${many ? ' title="Runs of every project today"' : ""}>Runs today<b>${o.today.runs}</b>${o.today.failed ? ` · ${o.today.failed} failed` : ""}</span>
+    <span class="cap" title="${many ? "Every project, today.\n" : ""}Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml">Spent est.<b>$${o.today.cost.toFixed(2)}</b></span>`);
   renderFlags();
 }
 // The alerts line exists only while something is wrong.
@@ -829,7 +824,7 @@ const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" ? "s
 function renderBoard() {
   if (S.refused) return;
   const p = project();
-  $("cols").hidden = $("sumline").hidden = !p; $("band").hidden = $("today").hidden = !p; $("msg").hidden = !!p; $("msg").removeAttribute("role");  // the line follows #cols; the band and Today fold where they sit (show)
+  $("cols").hidden = !p; $("band").hidden = $("today").hidden = !p; $("msg").hidden = !!p; $("msg").removeAttribute("role");  // the line follows #cols; the band and Today fold where they sit (show)
   if (!p) { if (S.overview) setHTML($("msg"), 'No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.'); return; }
   const key = (c) => `${p.slug}/${c.issue}`, by = Object.fromEntries(COLS.map((c) => [c.name, []])), now = Date.now();
   for (const c of p.cards) {
@@ -837,14 +832,7 @@ function renderBoard() {
     const sig = `${c.column}|${c.running || ""}`, k = key(c);  // a card that changed column or stage since the last read is fresh for a while
     if (!S.seen[k]) S.seen[k] = { sig, at: 0 }; else if (S.seen[k].sig !== sig) S.seen[k] = { sig, at: now };
   }
-  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p); renderSum(p);
-}
-// The day in one sentence, the closed face of "Today": it hides, with its row, while "Today" is open, whose headings carry the same figures.
-function renderSum(p) {
-  const el = $("sum"), o = S.overview; $("sumline").hidden = el.hidden = S.show.today || !p || !o;
-  if (el.hidden) return;
-  const hs = p.hours || [], failed = hs.reduce((n, h) => n + h.failed, 0), runs = hs.reduce((n, h) => n + h.ok + h.failed, 0), spent = hs.reduce((n, h) => n + h.cost, 0);
-  setHTML(el, `Pool <b>${o.pool.used} / ${o.pool.size}</b> in use · <span title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml"><b>$${spent.toFixed(2)}</b> est. spent today</span> · <b>${plural(runs, "run")} today</b>${failed ? ` · <span class="bad"><b>${failed}</b> failed</span>` : ""}`);
+  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p);
 }
 // The fold button inside a panel minimizes it to its heading, or opens it again, where it sits. Focus stays on the button.
 function show(which, on) {
@@ -853,7 +841,7 @@ function show(which, on) {
   if (!on && which === "band" && S.peek) { S.peek = null; $("peek").hidden = true; }  // the peek hangs from a dot of the band
   S.show[which] = on; el.classList.toggle("min", !on); btn.setAttribute("aria-expanded", on);
   btn.title = on ? "Minimize" : "Expand"; btn.setAttribute("aria-label", `${btn.title} ${el.dataset.maxable}`);
-  if (on) renderBoard(); else renderSum(project());  // opening draws what the closed panel skipped
+  if (on) renderBoard();  // opening draws what the closed panel skipped
   fit();
 }
 // A running card sits on the step it reported; with no step yet, further right the longer it runs against the usual.
@@ -979,10 +967,10 @@ function optionsFor(c, d) {
     { id: "send-back", t: "It needs rework", when: "Something in the card's work is wrong.", then: `${c.column === "Coding" ? "Stays in Coding" : "Goes back to Coding"} with your note, posted on the issue.${room(slug, "Coding")}`, verb: "Send back to Coding", note: "What should be done instead?", need: true, done: "goes back to Coding" },
     { id: "unblock", t: "Just try again", when: "The cause was outside the card, or you already fixed it.", then: `Takes the block off and ${stage} runs again.`, caveat: b?.times > 1 ? `It has stopped ${b.times} times; with nothing changed it stops again.` : "", verb: "Unblock and retry", done: "is unblocked and retries" }].filter(Boolean);
   return c.column === "Spec Review" ? [
-    { id: "approve", t: "Build it", when: "The criteria describe what you want.", then: `Goes to ${yes}.${room(slug, yes)}`, verb: "Approve the spec", note: d?.spec?.questions?.length ? "Optional: your answer to the open question, posted on the issue" : "", done: `goes to ${yes}` },
-    { id: "request-changes", t: "Rewrite it", when: "Something is missing or wrong in the spec.", then: `Goes back to ${no} with your note, posted on the issue.${room(slug, no)}`, verb: "Request changes", note: "What should change in the spec?", need: true, done: `goes back to ${no}` }]
-  : [{ id: "approve", t: "Ship it", when: "The change is what you asked for.", then: `Goes to ${yes}.${room(slug, yes)}`, verb: "Approve and ship", done: `goes to ${yes}` },
-    { id: "request-changes", t: "Not yet", when: "Something has to change before it ships.", then: `Goes back to ${no} with your note, posted on the issue. The pull request stays open.${room(slug, no)}`, verb: "Send back to Coding", note: "What should change?", need: true, done: `goes back to ${no}` }];
+    { id: "approve", t: "Approve", when: "The criteria describe what you want.", then: `Goes to ${yes}.${room(slug, yes)}`, verb: "Approve", note: d?.spec?.questions?.length ? "Optional: your answer to the open question, posted on the issue" : "", done: `goes to ${yes}` },
+    { id: "request-changes", t: "Request changes", when: "Something is missing or wrong in the spec.", then: `Goes back to ${no} with your note, posted on the issue.${room(slug, no)}`, verb: "Request changes", note: "What should change in the spec?", need: true, done: `goes back to ${no}` }]
+  : [{ id: "approve", t: "Approve", when: "The change is what you asked for.", then: `Goes to ${yes}.${room(slug, yes)}`, verb: "Approve", done: `goes to ${yes}` },
+    { id: "request-changes", t: "Request changes", when: "Something has to change before it ships.", then: `Goes back to ${no} with your note, posted on the issue. The pull request stays open.${room(slug, no)}`, verb: "Request changes", note: "What should change?", need: true, done: `goes back to ${no}` }];
 }
 function diffHtml(src) {  // only the lines that changed, under the file they are in
   const rows = [];
@@ -994,13 +982,14 @@ function diffHtml(src) {  // only the lines that changed, under the file they ar
   }
   return rows.length > 90 ? rows.slice(0, 90).join("") + `<div class="f">and ${rows.length - 90} more lines, in the card's worktree</div>` : rows.join("");
 }
+const costLine = (b) => b.baseline > 0 ? `Spent ${usd(b.total)} est. since it was last unblocked; the limit for a card is ${usd(b.limit)}.`
+  : `Spent ${usd(b.total)} est. since Inbox; the limit for a card is ${usd(b.limit)}.`;
 // Why a card was blocked by the cost limit: one sentence, the spend per stage of the span that was counted, and, when
 // earlier allowances exist, what the card cost in all.
 function costWhy(b) {
   const order = Object.keys(STAGE_NAME), at = (st) => order.includes(st) ? order.indexOf(st) : order.length;
   const rows = Object.entries(b.stages || {}).sort((x, y) => at(x[0]) - at(y[0]));
-  const sentence = b.baseline > 0 ? `Spent ${usd(b.total)} est. since it was last unblocked; the limit for a card is ${usd(b.limit)}.`
-    : `Spent ${usd(b.total)} est. since Inbox; the limit for a card is ${usd(b.limit)}.`;
+  const sentence = costLine(b);
   const table = rows.length ? `<div class="swrap"><table><thead><tr><th class="l">stage</th><th class="num">est. cost</th></tr></thead><tbody>${rows.map(([st, v]) =>
     `<tr><td class="l">${esc(STAGE_NAME[st] || st)}</td><td class="num gold"><span class="coin">${v.toFixed(2)}</span></td></tr>`).join("")}<tr class="total"><td class="l">Total</td><td class="num gold"><span class="coin">${b.total.toFixed(2)}</span></td></tr></tbody></table></div>` : "";
   return `<p class="plain">${sentence}</p>${table}${b.baseline > 0 && b.card_total != null ? `<p class="since">${usd(b.card_total)} est. since Inbox.</p>` : ""}`;
@@ -1046,7 +1035,7 @@ function renderInbox() {
   if (!d || Date.now() - d.at > 60000) loadDecide(c.key);
   setHTML($("ir"), readHtml(c, d));
   const opts = optionsFor(c, d), o = opts[INB.pick];
-  setHTML($("io"), opts.map((x, i) => `<button class="iopt" data-io="${i}" aria-pressed="${INB.pick === i}"><span class="t">${x.t}<kbd>${i + 1}</kbd></span><p class="when">${x.when}</p><p class="then">${esc(x.then)}${x.caveat ? ` <span class="caveat">${esc(x.caveat)}</span>` : ""}</p></button>`).join("") + (c.blocked === "owner" && d?.block?.kind === "cost" && d.block.limit > 0 ? `<p class="ihint cost">Unblocking lets it spend up to ${usd(d.block.limit)} more, counted from now.</p>` : ""));
+  setHTML($("io"), opts.map((x, i) => `<button class="iopt" data-io="${i}" aria-pressed="${INB.pick === i}" aria-labelledby="io-t${i}" aria-describedby="io-w${i} io-n${i}"><span class="t"><span id="io-t${i}">${x.t}</span><kbd>${i + 1}</kbd></span><p class="when" id="io-w${i}">${x.when}</p><p class="then" id="io-n${i}">${esc(x.then)}${x.caveat ? ` <span class="caveat">${esc(x.caveat)}</span>` : ""}</p></button>`).join("") + (c.blocked === "owner" && d?.block?.kind === "cost" && d.block.limit > 0 ? `<p class="ihint cost">Unblocking lets it spend up to ${usd(d.block.limit)} more, counted from now.</p>` : ""));
   $("ic").hidden = !o; if (!o) return;
   $("inote").hidden = !o.note; $("inote").placeholder = o.note || ""; $("igo").textContent = o.verb;
   const need = o.need && !$("inote").value.trim();
@@ -1074,19 +1063,21 @@ function passHtml(c) {
   const head = (meta) => `<div class="seg"><button class="ptitle" data-open="${k}"><span class="row"><span class="g pnum">#${c.issue}</span>${meta}</span><span class="ptext">${c.title ? esc(c.title) : UNTITLED}</span></button>`;
   if (pend) return `<li class="pass" data-key="${k}">${head(`<span class="cap">Moving to ${esc(pend.to)}</span>`)}<div class="bar"><i></i></div></div><div class="stub"><button class="pill" data-q="undo">Undo</button></div></li>`;
   const cost = c.cost == null ? " · $ ?" : c.cost ? ` · $${c.cost.toFixed(2)}` : "";
-  const meta = stop ? '<span class="cap bad">Blocked · waits for your call</span>' : `<span class="cap">${esc(c.column)}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}</span>`;
+  const meta = stop ? `<span class="cap bad">${c.block_cost ? "Blocked · cost limit" : "Blocked · waits for your call"}</span>` : `<span class="cap">${esc(c.column)}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}</span>`;
   const note = S.note[c.key] ? `<p class="pnote" role="status">${esc(S.note[c.key])}</p>` : "";
+  const why = !stop ? "" : c.block_cost ? `<p class="pwhy" data-t>${costLine(c.block_cost)}</p>`
+    : c.block_line ? `<p class="pwhy"${c.block_line.startsWith("Failed gate: ") ? " data-t" : ""} title="${esc(c.block_line)}">${esc(c.block_line)}</p>` : "";  // the factory's own words; only the gate's label is translated
   const review = (label, cls) => `<button${cls} data-open="${k}" data-go="review">${label}</button>`, changes = '<button data-q="changes">Request changes</button>', link = gh(slug, c.issue);
   const acts = stop ? `<button class="pill" data-q="unblock">Unblock &amp; retry</button><button data-open="${k}">Details</button><button data-open="${k}" data-go="log">Log</button>${link}`
-    : c.column === "Spec Review" ? `${review("Review spec", ' class="pill"')}${changes}${link}`
+    : c.column === "Spec Review" ? `${review("Review", ' class="pill"')}${changes}${link}`
     : `<button class="pill" data-q="approve">Approve</button>${review("Review", "")}${changes}${link}`;
-  const edit = S.editing === c.key && moves ? `<div class="edit"><label class="cap" for="qc">What should change in #${c.issue}? It is posted on the issue.</label><textarea id="qc"></textarea><div><button class="pill" data-q="send">Request changes → ${esc(moves[1])}</button><button data-q="cancel">Cancel</button></div></div>` : "";
-  return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
+  const edit = S.editing === c.key && moves ? `<div class="edit"><label class="cap" for="qc">What should change in #${c.issue}? It is posted on the issue.</label><textarea id="qc"></textarea><div><button class="pill" aria-describedby="send-to" data-q="send">Request changes</button><span class="hint" id="send-to">→ ${esc(moves[1])}</span><button data-q="cancel">Cancel</button></div></div>` : "";
+  return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${why}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
 }
 // Why a card the factory holds is not running, from what the overview knows.
 function whyWaits(p, c) {
   const o = S.overview, st = STAGE_OF[c.column], s = o.pool.stages[st] || { slots: 0, running: 0 };
-  if (c.blocked === "infra") return "Blocked by infrastructure; the factory retries it";
+  if (c.blocked === "infra") return "Infrastructure failed; the factory retries once";
   if (o.paused || p.paused) return "Paused";
   if (o.costs?.day_stopped) return "Stopped for today by the cost limit";
   if (o.usage_limited) return "Waiting for the usage limit to reset";
@@ -1302,9 +1293,9 @@ function renderDecide(p, n, column) {
       <div class="decide-k"><b id="decide-k">Your decision</b><span id="rv-progress" class="num"></span></div>
       ${project()?.skipped ? `<p class="stale skipped">The dispatcher skips ${esc(project().slug)} since ${when(project().skipped.since)}: ${esc(project().skipped.reason)}. A card you move stays where it lands until that is fixed.</p>` : ""}
       ${stale(project()) ? `<p class="stale">The board snapshot is ${Math.round(project().board_age_s / 60)} min old. Approve and Request changes read the live board first and stop if the card moved.</p>` : ""}
-      <div class="decide-a"><button class="btn approve" id="approve" aria-describedby="approve-hint" data-act="approve" data-label="Approve → ${esc(moves[0])}">Approve → ${esc(moves[0])}</button><span class="hint" id="approve-hint"></span></div>
+      <div class="decide-a"><button class="btn approve" id="approve" aria-describedby="approve-to approve-hint" data-act="approve" data-label="Approve">Approve</button><span class="hint" id="approve-to">→ ${esc(moves[0])}</span><span class="hint" id="approve-hint"></span></div>
       <div class="decide-b"><textarea id="changes" aria-label="What should change" placeholder="What should change (posted on the issue)"></textarea>
-        <div class="acts"><button class="btn" id="request" data-act="request-changes">Request changes → ${esc(moves[1])}</button><button class="btn ghost" id="fill" hidden></button></div></div>
+        <div class="acts"><button class="btn" id="request" aria-describedby="request-to" data-act="request-changes">Request changes</button><span class="hint" id="request-to">→ ${esc(moves[1])}</span><button class="btn ghost" id="fill" hidden></button></div></div>
       ${notice}</div>`
     : note ? `<div class="decide">${notice}</div>` : "";
   const text = $("changes")?.value; const focused = document.activeElement?.id;
@@ -1480,7 +1471,10 @@ const THEMES = { first: [["auto", "Auto"], ["tape", "Floor tape"], ["kraft", "Kr
   dark: [["charcoal", "Charcoal"], ["dock", "Dock"], ["machine", "Machine green"], ["blueprint", "Blueprint"], ["foundry", "Foundry"], ["night", "Night shift"], ["terminal", "Terminal"]], light: [["steel", "Steel"], ["paper", "Drafting paper"]] };
 const STAGE_HELP = { refine: "Writing specs.", develop: "Building a card.", validate: "Reviewing and opening the pull request.", deploy: "Merging and deploying. Always one card at a time per project." };
 const STAGE_HUE = { refine: "var(--refine)", develop: "var(--text)", validate: "var(--validate)", deploy: "var(--ok)" };
-const knobOf = (k) => { const [, slug, key] = k.split("|"); return SET.data.projects.find((p) => p.slug === slug)?.knobs[key]; };  // "p|<project>|<knob>"
+const knobOf = (k) => {  // "p|<project>|<knob>"; "p|<project>|language" is this machine's override (null: as the repository says)
+  const [, slug, key] = k.split("|"), p = SET.data.projects.find((x) => x.slug === slug);
+  return key === "language" ? p && { value: p.language.from === "machine" ? p.language.code : null, repo: p.language.repo } : p?.knobs[key];
+};
 const notifyWas = (k) => { const n = SET.data.machine.notify, [g, name] = k.split("."); return k.startsWith("quiet_") ? n.quiet.split("-")[k === "quiet_from" ? 0 : 1] || "" : name ? n[g][name] : n[g]; };  // "n|<setting>"
 const modelOf = (k) => { const [, group, name] = k.split("|"); return SET.data.models[group][name]; };  // "m|stages|<stage>" or "m|agents|<agent>"
 const AGENT_HELP = { "product-owner": "Writes the Product section of a spec.", "ux-designer": "Writes the UX section and checks the screens in validation.", "qa-engineer": "Writes the acceptance tests before the code.", engineer: "Implements a layer that names no agent of its own.", cybersec: "Writes the Security section and reviews the diff." };
@@ -1520,7 +1514,7 @@ function cycleStatus(d) {
 async function loadSettings() {
   const { status, body } = await api("/api/settings"); if (status !== 200) return;
   SET.data = body;
-  const p = (document.activeElement?.id === "every" || document.activeElement?.id === "lang") &&$("disp").querySelector(".who p");  // the select is focused or open: only the status text moves
+  const a = document.activeElement, p = (a?.id === "every" || a?.id === "lang" || a?.matches?.("[data-plang]")) && $("disp").querySelector(".who p");  // the select is focused or open: only the status text moves
   if (p) { p.innerHTML = cycleStatus(body); $("disp")._html = null; } else renderSettings();
 }
 function renderSettings() {
@@ -1607,8 +1601,12 @@ function renderSettings() {
       <div class="sgroup panel"><h2>This dashboard <code>~/.shipfloor/config.yml</code></h2>
         ${row("Language of this dashboard", saved !== LANG_LOADED ? `Saved as ${esc(loc(langs[saved] || saved))}. Reload the page to see it.` : "The dashboard's own text. What the agents wrote is shown as written. Applied when the page is reloaded.", pick)}</div>
       <div class="sgroup panel"><h2>What the factory writes <code>.shipfloor/factory.yml</code></h2>
-        ${d.projects.map((p) => row(esc(p.slug), `<code>${esc(p.language.file)}</code>${p.language.set ? "" : " · no language key, the factory default"}`, `<span class="sv">${said(p.language.code)}</span>`)).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}
-        ${d.projects.length ? `<p class="from">Read-only here: a project's language is part of its repository. To change it, edit <code>language</code> in its <code>.shipfloor/factory.yml</code>. The dispatcher reads it again on every cycle.</p>` : ""}</div>`;
+        ${d.projects.map((p) => {  // the first option goes back to the repository; a language picked by name stays this machine's, even when equal
+          const k = `p|${p.slug}|language`, v = setVal(k), id = `plang-${esc(p.slug)}`;
+          const sel = `<select data-plang="${esc(k)}"${k in SET.draft ? ' class="dirty"' : ""} aria-label="Language the factory writes in for ${esc(p.slug)}"${v ? ` aria-describedby="${id}"` : ""}><option value="">As the repository says: ${said(p.language.repo)}</option>${Object.keys(langs).map((c) => `<option value="${esc(c)}"${c === v ? " selected" : ""}>${said(c)}</option>`).join("")}</select>`;
+          return row(esc(p.slug), `<code>${esc(p.language.file)}</code>${p.language.set ? "" : " · no language key, the factory default"}`,
+            `<span class="sknob">${sel}${v ? `<small id="${id}">set on this machine · the repository says ${said(p.language.repo)}</small>` : ""}</span>`, k in SET.draft); }).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}
+        ${d.projects.length ? `<p class="from">Kept on this machine, over what the repository says; the repository's <code>.shipfloor/factory.yml</code> is not changed. A change applies from the dispatcher's next cycle; a session already running keeps the language it started in.</p>` : ""}</div>`;
   } else if (SET.sec === "notify") {
     const refusal = { reminder: "The reminder takes 15 to 720 minutes.", topic: "The topic takes letters, digits, - and _, up to 64.", quiet: "Quiet hours need both times, and they cannot be the same." };  // what the server says, to mark the field at fault
     const nk = (k) => "n|" + k, bad = (what) => SET.err.includes(refusal[what]), on = (k) => setVal(nk(k)), topic = on("ntfy_topic");
@@ -1674,6 +1672,16 @@ function setModel(t) {
   SET.err = ""; renderSettings();
   [...document.querySelectorAll("[data-model]")].find((x) => x.dataset.model === k)?.focus();  // the rewrite took the focus with it
 }
+function setPlang(t) {  // a project's language: a draft like a model's; the empty option is null, back to the repository
+  const k = t.dataset.plang, v = t.value || null;
+  if (v === setWas(k)) delete SET.draft[k]; else SET.draft[k] = v;
+  SET.err = ""; renderSettings();
+  [...document.querySelectorAll("[data-plang]")].find((x) => x.dataset.plang === k)?.focus();
+}
+function projectLangErr(slug, why) {  // the server's reason, in the page's sentence, with the language the project still writes in
+  const l = SET.data.projects.find((p) => p.slug === slug)?.language, langs = SET.data.languages || {};
+  return `The language of ${slug} was not changed: ${String(why || "").replace(/\.+$/, "")}. It still writes in ${loc(langs[l?.code] || l?.code || "en")} (${l?.code || "en"}).`;
+}
 function setHours(input) {  // typing is the draft; the server alone judges whether it is a valid window
   const v = input.value;
   if (v === setWas("hours")) delete SET.draft.hours; else SET.draft.hours = v;
@@ -1686,7 +1694,7 @@ async function setSave() {
   for (const [k, v] of Object.entries(SET.draft)) {
     if (k === "hours") body.hours = v.trim() ? v.split(",").map((w) => w.trim()) : null;  // an empty field clears it
     else if (k.startsWith("m|")) { const [, group, name] = k.split("|"); ((body.models ||= { stages: {}, agents: {} })[group])[name] = v; }
-    else if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = v === knobOf(k).repo ? null : v; }
+    else if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = key !== "language" && v === knobOf(k).repo ? null : v; }
     else if (k.startsWith("costs.")) (body.costs ||= {})[k.slice(6)] = costVal(v);  // an empty field is null: the limit is removed
     else if (k.startsWith("n|")) { const [g, name] = k.slice(2).split("."); if (!g.startsWith("quiet_")) { const n = body.notify ||= {}; if (name) (n[g] ||= {})[name] = v; else n[g] = v; } }
     else if (k.startsWith("stages.")) body.stages[k.slice(7)] = v; else if (k === "every_min") body.dispatcher = { every_min: v }; else body[k] = k === "stack_wait" ? v * 60 : v;
@@ -1702,6 +1710,7 @@ async function setSave() {
         : r.status === 409 && what === "machine" && "every_min" in SET.draft  // the system's own reason, in the page's sentence
         ? `The pace was not changed: ${String(r.body.error || "").replace(/\.+$/, "")}. The dispatcher still looks for work every ${SET.data.dispatcher.every_min} min.`
         : r.status === 400 && what === "machine" && "language" in SET.draft ? `The language was not changed: ${String(r.body.error || "").replace(/\.+$/, "")}. This dashboard stays in ${loc((SET.data.languages || {})[SET.data.machine.language] || SET.data.machine.language)}.`
+        : r.status === 400 && what === "project" && "language" in payload.values && /language/.test(r.body.error || "") ? projectLangErr(payload.project, r.body.error)
         : r.body.error || "The settings were not saved.";
       break;
     }
@@ -1730,21 +1739,22 @@ async function loadFeed() {
   S.feed = body.events; renderFeed();
 }
 const evId = (e) => `${e.source}/${e.log}/${e.start}`;
-const FEED_IS = { all: () => true, you: (e) => e.you, bad: (e) => e.issue && e.end && e.exit !== 0, run: (e) => e.issue && !e.end && !e.lost, sys: (e) => !e.issue };
-const FEED_NAMES = { all: "All", you: "Waits for you", bad: "Failures", run: "Running", sys: "Dispatcher" };
-const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
-function feedLeft(e) {  // what a run left behind, each piece from its source: the log, the report, the board, the run's lock
-  return [e.last && `<span class="fraw">${esc(e.last)}</span>`, e.pr && `PR #${e.pr}`,
-    e.failed && `<span>gates failed</span>: <span class="fraw">${esc(e.failed.join(", "))}</span>`,
+const FEED_IS = { runs: (e) => e.issue, you: (e) => e.you, bad: (e) => e.issue && e.end && e.exit !== 0, run: (e) => e.issue && !e.end && !e.lost, sys: (e) => !e.issue };
+const FEED_NAMES = { runs: "Runs", you: "Waits for you", bad: "Failures", run: "Running", sys: "Dispatcher" };
+const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "";
+function feedLeft(e) {  // what a run left behind, each piece from its source: the report, the board, the run's lock; a failed run says why first
+  const why = e.failed ? `<span>gates failed</span>: <span class="fraw">${esc(e.failed.join(", "))}</span>`
+    : e.end && e.exit !== 0 ? `<span>ended with exit ${e.exit}</span> · <span>no failed gate recorded</span>` : "";
+  return [why, e.pr && `PR #${e.pr}`,
     e.column && `<span>now in</span> <span>${esc(e.column)}</span>`,
     e.step && `Step ${e.step.i} of ${e.step.of}: <span>${esc(e.step.label)}</span>`].filter(Boolean).join(" · ");
 }
 function renderFeed() {
-  const el = $("feed"), all = S.feed || [], f = S.feedFilter || "all", many = (S.overview?.projects.length || 0) > 1;
+  const el = $("feed"), all = S.feed || [], f = S.feedFilter || "runs", many = (S.overview?.projects.length || 0) > 1;
   const had = document.activeElement?.closest?.("#feed [data-ev], #feed [data-feed]"), again = had && (had.dataset.ev ? `[data-ev="${CSS.escape(had.dataset.ev)}"]` : `[data-feed="${had.dataset.feed}"]`);
   let day = "";
   const rows = all.filter(FEED_IS[f]).reverse().map((e) => {  // newest first, a heading where the day changes
-    const d = e.ts ? new Date(e.ts).toDateString() : day, head = d === day ? "" : `<li class="fday cap">${new Date(e.ts).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</li>`;
+    const d = e.ts ? new Date(e.ts).toDateString() : day, head = d === day ? "" : `<li class="fday cap">${new Date(e.ts).toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long" })}</li>`;
     day = d;
     const time = `<time class="ftime" title="${esc(e.ts)}">${hhmm(e.ts)}</time><i class="fdot" aria-hidden="true"></i>`;
     if (!e.issue) return `${head}<li class="fev f-sys">${time}<p class="fhead"><b>${esc(e.source)}</b><span class="fraw">${esc(e.text)}</span></p><span class="fside">${e.n > 1 ? `${e.n}× <span>since</span> ${hhmm(e.since)}` : ""}</span></li>`;
@@ -1835,6 +1845,7 @@ document.addEventListener("change", (e) => {
   if (e.target.matches?.("[data-pause]")) setPause(e.target);
   if (e.target.dataset?.nk && e.target.type !== "text") setNotify(e.target);
   if (e.target.matches?.("[data-model]")) setModel(e.target);
+  if (e.target.matches?.("[data-plang]")) setPlang(e.target);
   if (e.target.id === "every") {  // a draft like a stepper's: Save applies it, picking the saved value again drops it
     if (+e.target.value === setWas("every_min")) delete SET.draft.every_min; else SET.draft.every_min = +e.target.value;
     SET.err = ""; renderSettings(); $("every")?.focus();
