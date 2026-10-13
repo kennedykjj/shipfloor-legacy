@@ -138,6 +138,10 @@ elif args[:2] == ["api", "-X"] and args[2] == "DELETE":
 elif args[:1] == ["api"] and len(args) > 1 and args[1].startswith("repos/"):
     url = urlparse(args[1])
     m = re.fullmatch(r"repos/([^/]+/[^/]+)/issues(?:/(\d+)(/comments)?)?", url.path)
+    ml = re.fullmatch(r"repos/([^/]+/[^/]+)/issues/(\d+)/labels", url.path)  # the labels of one issue: what the owner's moves read
+    if ml:
+        out([{"name": name} for name in repo_of(state, ml.group(1))["labels"].get(ml.group(2), [])])
+        raise SystemExit(0)
     if not m:
         die(9, f"demo-gh: unexpected call: {call}")
     r = repo_of(state, m.group(1))

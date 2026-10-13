@@ -197,6 +197,18 @@
     "Where it stopped": "Onde parou",
     "Upstream": "Upstream",
     "Downstream": "Downstream",
+    "Only what I can move": "Só o que eu posso mover",
+    "Nothing for you to move right now.": "Nada para você mover agora.",
+    "locked · a run is in progress": "travado · uma execução está em andamento",
+    "locked · blocked by infrastructure, the factory retries": "travado · bloqueado por infraestrutura, a fábrica tenta de novo",
+    "locked · blocked, it needs you": "travado · bloqueado, precisa de você",
+    "the factory moves": "a fábrica move",
+    "Move": "Mover",
+    "Comment": "Comentar",
+    "What should the refinement do differently?": "O que o refinamento deve fazer diferente?",
+    "Refine again": "Refinar de novo",
+    "Optional: a comment, posted on the issue": "Opcional: um comentário, publicado na issue",
+    "Post comment": "Publicar comentário",
     "Stays in Coding": "Fica em Coding",
     "Goes back to Coding": "Volta para Coding",
     "Factory paused": "Fábrica pausada",
@@ -1047,6 +1059,142 @@
     [
       "\\bReady for Prod\\b",
       "Pronto para produção"
+    ],
+    [
+      "^(#\\d+) moved to $",
+      "$1 foi para "
+    ],
+    [
+      "^\\. The board confirms it on the dispatcher's next read\\.$",
+      ". O quadro confirma na próxima leitura do dispatcher."
+    ],
+    [
+      "^(#\\d+) is back in $",
+      "$1 voltou para "
+    ],
+    [
+      "^Comment posted on #(\\d+)\\.$",
+      "Comentário publicado no #$1."
+    ],
+    [
+      "^(#\\d+) was not moved: it is no longer in $",
+      "$1 não foi movido: ele não está mais em "
+    ],
+    [
+      "^(#\\d+) was not moved: ",
+      "$1 não foi movido: "
+    ],
+    [
+      "^(#\\d+ não foi movido: )a run is in progress\\.$",
+      "$1uma execução está em andamento."
+    ],
+    [
+      "^(#\\d+ não foi movido: )blocked by infrastructure, the factory retries\\.$",
+      "$1bloqueado por infraestrutura, a fábrica tenta de novo."
+    ],
+    [
+      "^(#\\d+ não foi movido: )blocked, it needs you\\.$",
+      "$1bloqueado, precisa de você."
+    ],
+    [
+      "^(#\\d+) was not commented: ",
+      "O comentário no $1 não foi publicado: "
+    ],
+    [
+      "^Holding #(\\d+)\\. ",
+      "Segurando o #$1. "
+    ],
+    [
+      "\\bPress 1 to ",
+      "Aperte 1 para "
+    ],
+    [
+      "\\bPress 2 to ",
+      "Aperte 2 para "
+    ],
+    [
+      ", (\\d) to ",
+      ", $1 para "
+    ],
+    [
+      ", Esc to let go\\.$",
+      ", Esc para soltar."
+    ],
+    [
+      "\\bDrop to ",
+      "Solte para "
+    ],
+    [
+      "\\bTap to ",
+      "Toque para "
+    ],
+    [
+      "\\bsend it to refinement\\b",
+      "mandar para o refinamento"
+    ],
+    [
+      "\\btake it out of the queue\\b",
+      "tirar da fila"
+    ],
+    [
+      "\\bapprove the spec\\b",
+      "aprovar a spec"
+    ],
+    [
+      "\\brequest changes\\b",
+      "pedir mudanças"
+    ],
+    [
+      "\\brefine again\\b",
+      "refinar de novo"
+    ],
+    [
+      "\\bapprove and ship\\b",
+      "aprovar e publicar"
+    ],
+    [
+      "^#(\\d+) let go\\. It did not move\\.$",
+      "#$1 solto. Ele não se moveu."
+    ],
+    [
+      "^(#\\d+) cannot move: a run is in progress\\.$",
+      "$1 não pode ser movido: uma execução está em andamento."
+    ],
+    [
+      "^(#\\d+) cannot move: blocked by infrastructure, the factory retries\\.$",
+      "$1 não pode ser movido: bloqueado por infraestrutura, a fábrica tenta de novo."
+    ],
+    [
+      "^(#\\d+) cannot move: blocked, it needs you\\.$",
+      "$1 não pode ser movido: bloqueado, precisa de você."
+    ],
+    [
+      "^(#\\d+) is already on its way\\.$",
+      "O $1 já está a caminho."
+    ],
+    [
+      "^#(\\d+) is the factory's to move\\.$",
+      "Quem move o #$1 é a fábrica."
+    ],
+    [
+      "^Request changes on #(\\d+)$",
+      "Pedir mudanças no #$1"
+    ],
+    [
+      "^Refine #(\\d+) again$",
+      "Refinar o #$1 de novo"
+    ],
+    [
+      "^Comment on #(\\d+)$",
+      "Comentar no #$1"
+    ],
+    [
+      "\\b(\\d+) of (\\d+) in line\\b",
+      "$1 de $2 na fila"
+    ],
+    [
+      "^Move (#\\d+)$",
+      "Mover $1"
     ]
   ]
 }

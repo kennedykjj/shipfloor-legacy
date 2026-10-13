@@ -330,6 +330,6 @@ Values that fewer than three rules use and that have no named role. They stay as
 ### Don't:
 - **Don't** color-code columns or cards; position and name identify a stage, and the dot's state is carried by its fill too.
 - **Don't** use the accent as decoration, or the outcome colors for anything but results.
-- **Don't** add emoji or icon fonts; text labels carry actions (the few inline SVG marks are the maximize and external-link glyphs).
+- **Don't** add emoji or icon fonts; text labels carry actions (the few inline SVG marks are the maximize and external-link glyphs, and the lock on a card that cannot be moved, always beside its reason in words).
 - **Don't** link a font or an asset from the network, or add a build step; the dashboard is one self-contained file.
 - **Don't** add resting shadows or a third continuous animation.

@@ -3,6 +3,7 @@ factory's runs. Read-only, except the owner's decisions on a card that waits, me
 settings (the pool and the pauses)."""
 import argparse, hashlib, json, os, re, secrets, shlex, shutil, statistics, subprocess, sys, threading, time, webbrowser
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -80,8 +81,15 @@ addEventListener("load",function(){
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
-OWNER_MOVES = {"Spec Review": {"approve": "Ready for Dev", "request-changes": "Ready for Refinement"},
-               "Staged": {"approve": "Ready for Prod", "request-changes": "Coding"}}
+# The owner's moves, M1 to M7: per From column its targets, each with whether a note is required. The one table:
+# the page learns it from the overview, and approve / request-changes pick their target from it.
+OWNER_MOVES = {"Inbox": [("Ready for Refinement", False)],
+               "Ready for Refinement": [("Inbox", False)],
+               "Spec Review": [("Ready for Dev", False), ("Ready for Refinement", True)],
+               "Ready for Dev": [("Ready for Refinement", True)],
+               "Staged": [("Ready for Prod", False), ("Coding", True)]}
+DECIDES = ("Spec Review", "Staged")  # the columns where the factory waits for the owner's decision (awaiting, review, you)
+QUEUES = ("Ready for Refinement", "Ready for Dev", "Ready for Prod")  # the dispatcher takes cards from these in board order
 
 
 def number(s):  # ASCII digits only: str.isdigit() also accepts "²" and the like, which int() rejects
@@ -174,7 +182,7 @@ class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
         self._transcripts, self._titles, self._blocked, self._reasons, self._boards = {}, {}, {}, {}, {}
-        self._diffs, self._prs = {}, {}
+        self._diffs, self._prs, self._opened, self._lbl = {}, {}, {}, {}
         self._stacks = (0.0, [], 0)
         self._configs = {}
         self._snap, self._reading, self._retry = {}, set(), {}
@@ -358,7 +366,7 @@ class Factory:
         read, ok = {}, bool(ask)
         for i in range(0, len(ask), 100):
             batch = ask[i:i + 100]
-            fields = " ".join(f'i{int(n)}: issueOrPullRequest(number: {int(n)}) {{ ... on Issue {{ title }} ... on PullRequest {{ title }} }}' for n in batch)
+            fields = " ".join(f'i{int(n)}: issueOrPullRequest(number: {int(n)}) {{ ... on Issue {{ title createdAt }} ... on PullRequest {{ title createdAt }} }}' for n in batch)
             query = f'query($owner: String!, $name: String!) {{ repository(owner: $owner, name: $name) {{ {fields} }} }}'
             r = gh("api", "graphql", "-f", f"query={query}", "-f", f"owner={owner}", "-f", f"name={name}")
             try:  # a number GitHub does not know makes gh exit 1 but the others are still printed
@@ -369,6 +377,7 @@ class Factory:
                 ok = False
                 break
             read.update({n: ((repo.get(f"i{n}") or {}).get("title") or "") for n in batch})
+            self._opened.setdefault(p, {}).update({n: (repo.get(f"i{n}") or {}).get("createdAt") for n in batch})
         if ok:
             known = {**known, **read}
             self._titles[p] = (time.time() if stale else at, known)
@@ -870,6 +879,12 @@ class Factory:
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
             titles, blocked = self.titles(p, columns), self.blocked(p)
+            # the cards the owner could move are asked for their own labels (a minute old at most); the others keep the block map
+            lbl = self.label_locks(p, [n for n, col in columns.items() if col in OWNER_MOVES and n not in running])
+            opened, place, seen_in = self._opened.get(p, {}), {}, {}
+            for n, col in columns.items():  # board order is the order the dispatcher takes a queue's cards
+                seen_in[col] = seen_in.get(col, 0) + 1
+                place[n] = seen_in[col] if col in QUEUES else None
             # how long a stage usually takes (its clean runs) and when each card's last run ended
             took, since = {}, {}
             for r in all_runs:
@@ -892,9 +907,10 @@ class Factory:
                                         "cost": rounded(per_card.get(n, 0.0)),
                                         "over": "warn" if n in warned else None,
                                         "spent": None if per_card.get(n, 0.0) is None else per_card.get(n, 0.0) - base.get(n, 0.0),
-                                        "running": running.get(n), "awaiting": col in OWNER_MOVES,
-                                        "review": col in OWNER_MOVES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
-                                        "blocked": blocked.get(n)}
+                                        "running": running.get(n), "awaiting": col in DECIDES,
+                                        "review": col in DECIDES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
+                                        "blocked": blocked.get(n), "opened": opened.get(n), "position": place[n],
+                                        "lock": "run" if n in running else lbl.get(n) or {"infra": "infra", "owner": "blocked"}.get(blocked.get(n))}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
@@ -907,7 +923,8 @@ class Factory:
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
                           "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)},
-                "costs": dict(limits, day_stopped=day_stopped)}
+                "costs": dict(limits, day_stopped=day_stopped),
+                "moves": {col: [{"to": to, "note": note} for to, note in tos] for col, tos in OWNER_MOVES.items()}}
 
     def board_row(self, p, n):
         """(the card's row on the live board: number, column, item id; or None), or (None, error)."""
@@ -951,30 +968,91 @@ class Factory:
         code, body = self.unblock(p, n)
         return code, dict(body, moved_to="Coding")
 
+    def lock(self, p, n):
+        """Why the card cannot be moved now, read at this moment and not from the overview's cache: "run" (a run that
+        is not an orphan works on it), "infra" or "blocked" (its labels); None when it is free. (lock, error)."""
+        if any(r["issue"] == n and not r["orphan"] for r in self.live(p)):
+            return "run", None
+        return self.label_lock(p, n)
+
+    def label_lock(self, p, n):
+        """("infra" | "blocked" | None, error): the issue's own labels, one gh call."""
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
+        labels, err = gh_json("api", f"repos/{repo}/issues/{n}/labels")
+        if err:
+            return None, "cannot read the labels: " + err
+        names = {l.get("name") for l in labels or [] if isinstance(l, dict)}
+        return next((kind for label, kind in (("blocked:infra", "infra"), ("blocked", "blocked")) if label in names), None), None
+
+    def label_locks(self, p, cards):
+        """{n: "infra" | "blocked" | None} for the cards the owner could move, from each issue's labels, kept a minute
+        (the overview is read every two seconds; the move itself reads the labels again). A failed read keeps what was known."""
+        known, now = self._lbl.setdefault(p, {}), time.time()
+        stale = [n for n in cards if n not in known or now - known[n][0] > 60]
+        if stale:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for n, (kind, err) in zip(stale, pool.map(lambda n: self.label_lock(p, n), stale)):
+                    if not err:
+                        known[n] = (now, kind)
+                    elif n not in known:
+                        known[n] = (now, None)
+        return {n: known[n][1] for n in cards}
+
     def act(self, p, n, action, seen, text, move_only):
-        """The owner's approve / request-changes. Moves with gh directly: board.sh move refuses
-        owner-only columns on purpose (the agents' guardrail), and an owner path there would be open to agents."""
+        """The owner's approve / request-changes: the move the table gives for the action, through owner_move."""
+        to = next((t for t, note in OWNER_MOVES.get(seen, []) if seen in DECIDES and note == (action == "request-changes")), None)
+        if to is None:
+            row, err = self.board_row(p, n)
+            if err:
+                return 502, {"error": err}
+            column = row[1] if row else None
+            return 409, {"error": f"#{n} is in {column or 'no column'} now", "column": column}
+        return self.owner_move(p, n, seen, to, text, move_only)
+
+    def owner_move(self, p, n, seen, to, text, move_only):
+        """One of the owner's moves M1 to M7 (OWNER_MOVES), on the live board. Refuses in this order: the card is not
+        in the column the page saw (409), the pair is outside the table (403), the card is locked (423), a note is
+        missing (400); then the comment, then the move. Moves with gh directly: board.sh move refuses owner-only
+        columns on purpose (the agents' guardrail), and an owner path there would be open to agents."""
         cfg = self.config(p)
         owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
         row, err = self.board_row(p, n)
         if err:
             return 502, {"error": err}
         column = row[1] if row else None
-        if column not in OWNER_MOVES or column != seen:
+        if column is None or column != seen:
             return 409, {"error": f"#{n} is in {column or 'no column'} now", "column": column}
-        target = OWNER_MOVES[column][action]
-        # request-changes always says why; an approval may carry a note too (an answer to the spec's open question)
-        commented = not move_only and (action == "request-changes" or bool(text.strip()))
+        need = next((note for t, note in OWNER_MOVES.get(column, []) if t == to), None)
+        if need is None:
+            return 403, {"error": f"the owner does not move a card from {column} to {to}"}
+        locked, err = self.lock(p, n)
+        if err:
+            return 502, {"error": err}
+        if locked:
+            return 423, {"error": f"#{n} cannot move: " + {"run": "a run is in progress", "infra": "blocked by infrastructure",
+                                                           "blocked": "blocked"}[locked], "locked": locked}
+        # a request for changes always says why; an approval may carry a note too (an answer to the spec's open question)
+        commented = not move_only and (need or bool(text.strip()))
         if commented:
             if not text.strip():
                 return 400, {"error": "write what should change"}
             r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
             if r.returncode != 0:
                 return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip()}
-        err = self.move(p, owner, num, row[2], target)
+        err = self.move(p, owner, num, row[2], to)
         if err:
             return 502, {"error": err, "commented": commented}
-        return 200, {"moved_to": target}
+        return 200, {"moved_to": to}
+
+    def comment(self, p, n, text):
+        """The toast's Comment after the move has left: posts the text on the issue and moves nothing."""
+        if not text.strip():
+            return 400, {"error": "the comment is empty"}
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
+        r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
+        if r.returncode != 0:
+            return 502, {"error": "comment failed: " + r.stderr.strip()}
+        return 200, {"commented": True}
 
     def move(self, p, owner, num, item, target):
         fields, err = gh_json("project", "field-list", str(num), "--owner", owner, "--format", "json")
@@ -1112,7 +1190,7 @@ class Factory:
                 if r["exit"]:
                     e["last"] = last_line(r)
                 if newest[n] is r and columns.get(n):
-                    e.update(column=columns[n], you=columns[n] in OWNER_MOVES)
+                    e.update(column=columns[n], you=columns[n] in DECIDES)
             else:
                 now = live.get((r["stage"], n)) if newest[n] is r else None
                 if now is None:
@@ -1225,7 +1303,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and number(parts[3]) and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back", "move", "comment")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -1237,6 +1315,11 @@ class Handler(BaseHTTPRequestHandler):
             if parts[4] in ("accept", "send-back"):
                 fn = self.factory.accept if parts[4] == "accept" else self.factory.send_back
                 return self.send(*fn(parts[2], int(parts[3]), str(body.get("text", ""))))
+            if parts[4] == "comment":
+                return self.send(*self.factory.comment(parts[2], int(parts[3]), str(body.get("text", ""))))
+            if parts[4] == "move":
+                return self.send(*self.factory.owner_move(parts[2], int(parts[3]), body.get("column"), body.get("to"),
+                                                          str(body.get("text", "")), bool(body.get("move_only"))))
             if parts[4] == "unblock":
                 return self.send(*self.factory.unblock(parts[2], int(parts[3])))
             self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),

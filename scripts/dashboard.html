@@ -182,6 +182,26 @@ main { min-height: 0; display: grid; }
 .chip b { font-size: 15px; margin-right: 6px; color: var(--text); letter-spacing: .02em; } .chip small { display: block; color: var(--muted); font-size: 11.5px; }
 .chip.run { border-color: var(--text); } .chip.you { border-color: var(--sand); } .chip.stop { border-color: var(--bad); } .chip.infra { border-color: var(--warn); } .chip.wait { border-style: dashed; color: var(--muted); }
 .chip.hot, .chip:hover { background: var(--panel-hi); }
+/* the owner's moves on the line maximized: a held card lights the columns that accept it and dims the rest; a locked card says why */
+.lhead, .lstat, .lnone, .lerr, .ltoast { display: none; }
+.band.maxed .lhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.ltog { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.band.maxed .lstat { display: block; margin: 6px 0 0; font-size: 12.5px; color: var(--muted); min-height: 1.4em; }
+.band.maxed .lnone:not([hidden]), .band.maxed .lerr:not(:empty) { display: block; }
+.band.maxed .ltoast:not([hidden]) { display: flex; flex-wrap: wrap; margin-top: 8px; } .ltoast .tact { display: flex; gap: 12px; }
+.chip.can[draggable] { cursor: grab; } .chip[aria-disabled="true"] { cursor: not-allowed; }
+.chip small.lk { display: flex; align-items: center; gap: 5px; } .lock { width: 12px; height: 12px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; }
+.chip.held { background: var(--panel-hi); outline: 2px solid var(--sand); outline-offset: 1px; } .band.dragging .chip.held { opacity: .5; }
+.band.only:not(.holding) .chip:not(.can) { opacity: .45; }
+.crow { display: flex; gap: 6px; align-items: stretch; } .crow .chip { flex: 1; min-width: 0; } .crow .mv { min-height: 44px; flex: none; }
+.lcol.acc { outline: 1px dashed var(--sand); outline-offset: -1px; background: color-mix(in srgb, var(--sand) 7%, transparent); }
+.lcol.acc.over { outline-style: solid; background: var(--panel-hi); } .lcol.dim { opacity: .45; }
+.lacc { text-align: left; justify-content: flex-start; } .lacc kbd { margin-right: 6px; } .fm { font-size: 11.5px; color: var(--faint); }
+.peek.lnote { z-index: 6; } .lnote.up::before { display: none; } .lnote .acts { display: flex; gap: 8px; align-items: center; }
+#lnote-t, #lnote-t:focus { height: 76px; }
+@media (max-width: 860px) {
+  .lcols { grid-template-columns: repeat(5, minmax(168px, 1fr)); overflow-x: auto; scroll-snap-type: x proximity; } .lcol { scroll-snap-align: start; }
+}
 
 /* below the line: what waits for the owner, and what the factory is doing */
 .cols { display: grid; grid-template-columns: minmax(320px, 410px) minmax(0, 1fr); gap: 20px; min-height: 0; }
@@ -566,7 +586,11 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
       <button class="cap" data-show="band" aria-controls="band" aria-expanded="false">Lifecycle<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
       <button class="cap" data-show="today" aria-controls="today" aria-expanded="false">Today<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
       <span id="sum"></span></div>
-    <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
+    <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1>
+      <div class="lhead"><label class="ltog"><span class="sw sand"><input type="checkbox" id="lonly" aria-label="Only what I can move"><i></i></span><span>Only what I can move</span></label></div>
+      <p class="lstat" id="lstat" role="status"></p><p class="empty lnone" id="lnone" hidden>Nothing for you to move right now.</p><p class="pnote lerr" id="lerr" role="status"></p>
+      <div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
+      <div class="itoast ltoast" id="ltoast" role="status" hidden></div>
       <div class="legend"><span><i></i>running, on the step it reported (1 to N)</span><span class="o"><i></i>queued</span><span style="--k:var(--sand)"><i></i>waits for you</span><span style="--k:var(--bad)"><i></i>blocked</span><span>+N: more cards than fit</span></div></nav>
     <div class="cols" id="cols" hidden>
       <div class="side">
@@ -584,6 +608,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
   </section>
   <section class="feed panel" id="feed" aria-label="Feed" tabindex="0" hidden></section>
   <div class="peek" id="peek" role="dialog" aria-label="Card summary" hidden></div>
+  <div class="peek lnote" id="lnote" role="dialog" aria-labelledby="lnote-h" hidden></div>
   <section class="settings" id="settings" aria-label="Settings" hidden>
     <div class="disp panel" id="disp"></div>
     <div class="set-cols"><nav class="set-nav" id="set-nav" aria-label="Settings sections"></nav>
@@ -617,7 +642,7 @@ const gh = (slug, n) => { const u = issueUrl(slug, n); return u ? `<a href="${es
 const runOf = (slug, c) => S.overview?.runs.find((r) => r.project === slug && r.issue === c.issue && r.stage === c.running && !r.orphan);
 const mins = (iso) => Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
 const KIND = { run: "running", wait: "queued", you: "waits for you", stop: "blocked, needs you", infra: "blocked by infrastructure, retrying" };
-const OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
+const OWNER = {};  // where the owner decides, [approve, request changes]: derived from the overview's moves by ownerFrom()
 const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged", "shipped"]);
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
@@ -640,7 +665,7 @@ function setHTML(el, html) { if (el._html === html) return false; if (el.id === 
 // text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
 // 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
 const LANG = { exact: {}, rx: [] };
-const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
+const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code, .lit, .lcol .lab .q, .lcol .lab .g";  // .lit and the maximized line's column labels: column names stay English
 function loc(s) {
   const t = s.trim(); if (!t || !/[A-Za-z]{2}/.test(t)) return s;
   if (Object.hasOwn(LANG.exact, t)) return s.replace(t, LANG.exact[t]);
@@ -741,7 +766,7 @@ async function loadOverview() {
   if (S.refused) return;
   if (status !== 200) { if (status) setError(body.error || `the overview answered ${status}`); return; }
   setError("");
-  S.overview = body;
+  S.overview = body; ownerFrom(body.moves);
   if (!S.project || !body.projects.some((p) => p.slug === S.project)) S.project = body.projects[0]?.slug || null;
   for (const key of Object.keys(S.moving)) {
     const [p, n] = key.split("/"); const card = cardOf(p, +n);
@@ -905,7 +930,7 @@ function renderBand(p, by, key) {
     labels[col.name] = d;
     return `<div class="cell ${col.kind}${col.kind === "y" && cs.length ? " on" : ""}" style="flex:${col.flex} 0 0" title="${esc(col.name)}"><div class="lab">${col.stage ? `<b class="g">${STAGE_NAME[col.stage]}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${d}</span></div><div class="track">${dots}</div></div>`;
   }).join("");
-  if ($("band").classList.contains("maxed")) renderLanes(p, by, key, labels);
+  if ($("band").classList.contains("maxed")) renderLanes(p, by, key, labels); else laneReset();
   if (!setHTML($("cells"), html)) return;
   document.querySelectorAll(".dot").forEach((d) => {  // a dot slides from where it was
     const dx = was[d.dataset.key] - d.getBoundingClientRect().left; if (!dx) return;
@@ -916,10 +941,214 @@ function renderBand(p, by, key) {
 function renderLanes(p, by, key, labels) {
   const chip = (c) => { const k = key(c), kind = kindOf(k, c), run = kind === "run" && runOf(p.slug, c), of = STEP_COUNT[c.running];
     const sub = (run ? `${run.step && of ? `step ${run.step.i} of ${of} · ` : ""}${clock(run.started, true)}` : kind === "wait" ? "" : KIND[kind]) + (warnSpan(c) ? `${run || kind !== "wait" ? " · " : ""}${warnSpan(c)}` : "");
-    return `<button class="chip ${c.column === "Done" ? "" : kind}" data-key="${esc(k)}" data-open="${esc(k)}"><b class="g">#${c.issue}</b>${c.title ? esc(c.title) : UNTITLED}${sub ? `<small>${sub}</small>` : ""}</button>`; };
-  setHTML($("lanes"), LANES.map(([name, what, a, b]) => `<h2 class="lane g">${name}<small>${what}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
-    `<div class="lcol"><div class="lab">${col.stage ? `<b class="g">${STAGE_NAME[col.stage]}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${labels[col.name]}</span></div>${by[col.name].map(chip).join("")}</div>`).join("")}</div>`).join(""));
+    return laneChip(c, k, kind, sub, by); };
+  const at = document.activeElement?.closest?.(".chip")?.dataset.key, was = laneRects();  // the focus and the chips follow their card to its new column
+  if (setHTML($("lanes"), LANES.map(([name, what, a, b]) => `<h2 class="lane g">${name}<small>${what}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
+    `<div class="lcol" data-col="${esc(col.name)}"><div class="lab">${col.stage ? `<b class="g">${STAGE_NAME[col.stage]}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${labels[col.name]}</span></div>${laneCards(by, col.name).map(chip).join("")}</div>`).join("")}</div>`).join(""))) {
+    $("lanes")._paint = null; laneSlide(was);
+    if (at) document.querySelector(`.chip[data-key="${CSS.escape(at)}"]`)?.focus({ preventScroll: true });
+  }
+  paintLanes();
 }
+/* The owner's moves on the line maximized (#125). What a card accepts is the server's table (overview.moves): the page keeps no second one.
+   A held card (S.hold) lights the columns that accept it; a move waits five seconds in S.pending, as the list's Approve does. */
+S.hold = null; S.only = false; S.say = ""; S.lerr = ""; S.toast = null; S.nbox = null;
+const COARSE = matchMedia("(pointer: coarse)");
+COARSE.addEventListener("change", () => { if (S.overview) renderBoard(); });
+const MEANS = { "Inbox>Ready for Refinement": "send it to refinement", "Ready for Refinement>Inbox": "take it out of the queue", "Spec Review>Ready for Dev": "approve the spec",
+  "Spec Review>Ready for Refinement": "request changes", "Ready for Dev>Ready for Refinement": "refine again", "Staged>Ready for Prod": "approve and ship", "Staged>Coding": "request changes" };
+const NOTES = { "Spec Review>Ready for Refinement": { head: (n) => `Request changes on #${n}`, hint: "What should change in the spec?", go: "Request changes" },
+  "Ready for Dev>Ready for Refinement": { head: (n) => `Refine #${n} again`, hint: "What should the refinement do differently?", go: "Refine again" },
+  "Staged>Coding": { head: (n) => `Request changes on #${n}`, hint: "What should change?", go: "Send back to Coding" } };
+const LOCKS = { run: ["locked · a run is in progress", "a run is in progress"], infra: ["locked · blocked by infrastructure, the factory retries", "blocked by infrastructure, the factory retries"],
+  blocked: ["locked · blocked, it needs you", "blocked, it needs you"] };
+const LOCK = '<svg class="lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
+const lit = (name) => `<span class="lit">${esc(name)}</span>`;  // a column name, left in English in every language
+function ownerFrom(moves) {  // where the owner decides: the columns with a move that needs no note and one that does
+  for (const k of Object.keys(OWNER)) delete OWNER[k];
+  for (const [col, tos] of Object.entries(moves || {})) { const yes = tos.find((m) => !m.note), no = tos.find((m) => m.note); if (yes && no) OWNER[col] = [yes.to, no.to]; }
+}
+const moveTargets = (col) => (S.overview?.moves?.[col] || []).slice().sort((a, b) => COLUMNS.indexOf(a.to) - COLUMNS.indexOf(b.to));  // board order: the digits count left to right
+const laneCard = (k) => { const [p, n] = k.split("/"); return cardOf(p, +n); };
+const laneCan = (c, k) => moveTargets(c.column).length > 0 && !c.lock && !(k in S.moving) && !S.pending[k];
+const dest = (c) => { const k = `${S.project}/${c.issue}`; return S.pending[k]?.to || S.moving[k] || c.column; };  // a card on its way shows in its To column
+const laneCards = (by, name) => [...(by[name] || []).filter((c) => dest(c) === name), ...Object.values(by).flat().filter((c) => c.column !== name && dest(c) === name)];
+const laneChipEl = (k) => document.querySelector(`.lcol .chip[data-key="${CSS.escape(k)}"]`);
+const laneRects = () => Object.fromEntries([...document.querySelectorAll(".lcol .chip")].map((x) => [x.dataset.key, x.getBoundingClientRect()]));
+function laneSlide(was) {  // one 150ms ease-out slide to the new column; none under reduced motion
+  if (still.matches) return;
+  document.querySelectorAll(".lcol .chip").forEach((x) => {
+    const a = was[x.dataset.key]; if (!a) return;
+    const z = x.getBoundingClientRect(), dx = a.left - z.left, dy = a.top - z.top; if (!dx && !dy) return;
+    x.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 150, easing: "ease-out" });
+  });
+}
+function laneChip(c, k, kind, sub, by) {
+  const to = S.pending[k]?.to || S.moving[k], moved = !!to && to !== c.column, can = laneCan(c, k), locked = c.lock && moveTargets(c.column).length > 0;
+  const waited = c.running ? "" : dur(c.since || c.opened, Date.now()), place = c.position && !moved ? `${c.position} of ${by[c.column].length} in line` : "";
+  const info = moved ? `Moving to ${lit(to)}` : [sub, waited === "–" ? "" : waited, place].filter(Boolean).join(" · ");
+  const small = `${info ? `<small>${info}</small>` : ""}${locked ? `<small class="lk">${LOCK}<span>${LOCKS[c.lock][0]}</span></small>` : ""}`;
+  const chip = `<button class="chip ${c.column === "Done" ? "" : kind}${moved ? " wait" : ""}${can ? " can" : ""}" data-key="${esc(k)}" data-open="${esc(k)}"${can && !COARSE.matches ? ' draggable="true"' : ""}${locked ? ' aria-disabled="true"' : ""}><b class="g">#${c.issue}</b>${c.title ? esc(c.title) : UNTITLED}${small}</button>`;
+  return can && COARSE.matches ? `<div class="crow">${chip}<button class="btn ghost mv" data-hold="${esc(k)}" aria-label="Move #${c.issue}">Move</button></div>` : chip;
+}
+// What is drawn over the lanes for the card in hand: the lit and dimmed columns, their accept lines, the status line, the toast.
+function paintLanes() {
+  const band = $("band"); if (!band.classList.contains("maxed")) return;
+  const c = S.hold && laneCard(S.hold.k); if (S.hold && (!c || !laneCan(c, S.hold.k))) { S.hold = null; S.say = ""; }
+  const to = S.hold ? moveTargets(c.column) : [], lanes = $("lanes"), sig = JSON.stringify([S.hold, S.only, to]);
+  band.classList.toggle("holding", !!S.hold); band.classList.toggle("dragging", S.hold?.via === "drag"); band.classList.toggle("only", S.only);
+  if (lanes._paint !== sig) {
+    const first = !lanes._paint || JSON.parse(lanes._paint)[0] === null; lanes._paint = sig;  // first: the card was just picked up
+    lanes.querySelectorAll(".lacc, .fm").forEach((x) => x.remove());
+    lanes.querySelectorAll(".chip").forEach((ch) => { const on = ch.dataset.key === S.hold?.k; ch.classList.toggle("held", on); if (on) ch.setAttribute("aria-pressed", "true"); else ch.removeAttribute("aria-pressed"); });
+    lanes.querySelectorAll(".lcol").forEach((col) => {
+      const name = col.dataset.col, i = to.findIndex((m) => m.to === name);
+      col.classList.toggle("acc", i >= 0); col.classList.remove("over"); col.classList.toggle("dim", !!S.hold && i < 0 && name !== c.column);
+      if (i >= 0) {
+        const via = S.hold.via, means = MEANS[`${c.column}>${name}`] || name;
+        col.querySelector(".lab").insertAdjacentHTML("afterend", `<button class="btn ghost lacc" data-acc="${esc(name)}">${via === "key" ? `<kbd>${i + 1}</kbd>Press ${i + 1} to ` : via === "touch" ? "Tap to " : "Drop to "}${means}</button>`);
+      } else if (S.hold && name !== c.column && FACTORY_COLS.has(name)) col.querySelector(".lab").insertAdjacentHTML("afterend", '<span class="fm">the factory moves</span>');
+    });
+    if (S.hold && first) lanes.querySelector(".lcol.acc")?.scrollIntoView({ block: "nearest", inline: "nearest" });  // on a small screen the lanes scroll sideways
+  }
+  const p = project(), any = !!p?.cards.some((x) => laneCan(x, `${p.slug}/${x.issue}`));
+  $("lonly").checked = S.only; $("lnone").hidden = !(S.only && !any);
+  setHTML($("lstat"), esc(S.say)); setHTML($("lerr"), S.lerr);
+  const t = S.toast; if (t?.sent && !(t.k in S.moving)) S.toast = null;  // the board agrees: the toast has said its piece
+  $("ltoast").hidden = !S.toast; if (S.toast) setHTML($("ltoast"), toastHtml(S.toast));
+}
+const FACTORY_COLS = new Set(COLS.filter((x) => x.stage).map((x) => x.name));  // the columns that carry a stage name: the factory moves cards there
+function toastHtml(t) {
+  const n = t.k.split("/")[1];
+  const msg = t.kind === "moved" ? `#${n} moved to ${lit(t.to)}. The board confirms it on the dispatcher's next read.` : t.kind === "back" ? `#${n} is back in ${lit(t.from)}.` : `Comment posted on #${n}.`;
+  const acts = (t.kind === "moved" && t.comment && !t.commented ? '<button data-lcomment>Comment</button>' : "") + (t.kind === "moved" && S.pending[t.k] ? '<button data-lundo>Undo</button>' : "");
+  return `<span>${msg}</span>${acts ? `<span class="tact">${acts}</span>` : ""}`;
+}
+function laneHold(k, via) {  // a drag, M on a chip or the touch Move button picks the card up
+  const c = laneCard(k); if (!c) return;
+  S.lerr = "";
+  if (!laneCan(c, k)) {
+    S.say = c.lock && moveTargets(c.column).length ? `#${c.issue} cannot move: ${LOCKS[c.lock][1]}.` : S.moving[k] || S.pending[k] ? `#${c.issue} is already on its way.` : `#${c.issue} is the factory's to move.`;
+    return paintLanes();
+  }
+  const to = moveTargets(c.column);
+  S.hold = { k, via };
+  S.say = `Holding #${c.issue}. ` + to.map((m, i) => `${i ? `, ${i + 1} to ` : "Press 1 to "}${MEANS[`${c.column}>${m.to}`] || m.to}`).join("") + ", Esc to let go.";
+  paintLanes();
+}
+function laneRelease() {  // Esc, a tap elsewhere or the end of a drag: the card did not move
+  const h = S.hold; if (!h) return;
+  S.hold = null; S.say = `#${h.k.split("/")[1]} let go. It did not move.`; paintLanes();
+  if (h.via !== "drag") laneChipEl(h.k)?.focus({ preventScroll: true });
+}
+function laneMove(k, to) {  // a drop, a digit or a click on an accept line
+  const c = laneCard(k), m = c && moveTargets(c.column).find((x) => x.to === to);
+  S.hold = null; S.lerr = ""; S.say = "";
+  if (!m) return paintLanes();
+  if (!m.note && OWNER[c.column]?.[0] === to) {  // approving a spec or shipping: the same check as the list's Approve (#50)
+    const r = S.review[k], doubt = reviewDoubt(r);
+    if (doubt || (!r && c.review)) { paintLanes(); return lookFirst(k, doubt); }
+  }
+  if (m.note) return laneBox({ k, from: c.column, to, need: true });
+  laneQueue(k, c.column, to, "");
+}
+function laneQueue(k, from, to, text) {  // the move waits five seconds on the page: Undo before that leaves the board as it was
+  if (S.pending[k]) return;
+  S.pending[k] = { to, from, text, lane: true, timer: setTimeout(() => sendPending(k), 5000) };
+  S.toast = { kind: "moved", k, from, to, comment: !text, commented: false, sent: false };
+  renderBoard(); laneChipEl(k)?.focus({ preventScroll: true });
+}
+function laneUndo() {
+  const t = S.toast, e = t && S.pending[t.k]; if (!e) return;
+  clearTimeout(e.timer); delete S.pending[t.k];
+  S.toast = { kind: "back", k: t.k, from: e.from };
+  const k = t.k; setTimeout(() => { if (S.toast?.kind === "back" && S.toast.k === k) { S.toast = null; paintLanes(); } }, 6000);
+  renderBoard(); laneChipEl(k)?.focus({ preventScroll: true });
+}
+// The move that left: refused answers put the chip back and say why in the panel's note.
+const laneApi = (k, action, payload, keep) => { const [p, n] = k.split("/"); return api(`/api/card/${encodeURIComponent(p)}/${n}/${action}`, { method: "POST", keepalive: !!keep, body: JSON.stringify(payload) }); };
+async function sendLane(k, e, keep) {
+  const n = k.split("/")[1];
+  S.moving[k] = e.to; paintLanes();
+  const { status, body } = await laneApi(k, "move", { column: e.from, to: e.to, text: e.text, move_only: false }, keep);
+  if (status === 200) { S.moving[k] = body.moved_to || e.to; if (S.toast?.k === k) S.toast.sent = true; return loadOverview(); }
+  delete S.moving[k]; if (S.toast?.k === k) S.toast = null;
+  const why = status === 409 ? `it is no longer in ${lit(e.from)}.` : status === 423 && LOCKS[body.locked] ? `${LOCKS[body.locked][1]}.` : esc(body.error || "the move did not go through.");
+  S.lerr = `#${n} was not moved: ${why}`; renderBoard();
+}
+// The note box: required for a request for changes (M4, M5, M7), optional for the toast's Comment.
+function laneBox(b) {
+  const el = $("lnote"), n = b.k.split("/")[1], spec = b.need ? NOTES[`${b.from}>${b.to}`] : null;
+  S.nbox = b;
+  el.innerHTML = `<h3 id="lnote-h" data-t>${b.need ? spec.head(n) : `Comment on #${n}`}</h3><div class="iconf"><textarea id="lnote-t" aria-label="Your note" placeholder="${esc(b.need ? spec.hint : "")}"></textarea>
+    <p class="ihint" id="lnote-hint">${b.need ? "Write the note first: it goes with the decision." : "Optional: a comment, posted on the issue"}</p>
+    <div class="acts"><button class="btn" id="lnote-go" disabled>${b.need ? spec.go : "Post comment"}</button><button class="btn ghost" id="lnote-no">Cancel</button></div></div>`;
+  el.hidden = false; el.classList.toggle("up", !b.need);
+  const w = el.offsetWidth, at = (b.need ? document.querySelector(`.lcol[data-col="${CSS.escape(b.to)}"] .lab`) : $("ltoast"))?.getBoundingClientRect();
+  if (at) {
+    const left = Math.max(12, Math.min(at.left, innerWidth - w - 12));
+    el.style.left = `${left}px`; el.style.top = `${b.need ? at.bottom + 14 : Math.max(12, at.top - el.offsetHeight - 12)}px`; el.style.setProperty("--tip", `${Math.max(10, at.left + 20 - left)}px`);
+  }
+  $("lnote-t").focus();
+}
+function laneBoxClose(focus) {
+  const k = S.nbox?.k; S.nbox = null; $("lnote").hidden = true;
+  if (focus && k) laneChipEl(k)?.focus({ preventScroll: true });
+}
+async function laneBoxSend() {
+  const b = S.nbox, text = $("lnote-t")?.value.trim(); if (!b || !text) return;
+  laneBoxClose(true);
+  if (b.need) return laneQueue(b.k, b.from, b.to, text);
+  const e = S.pending[b.k], n = b.k.split("/")[1];
+  if (e) { e.text = e.text ? `${e.text}\n\n${text}` : text; if (S.toast?.k === b.k) S.toast.commented = true; return paintLanes(); }  // it goes with the move; Undo drops both
+  const { status, body } = await laneApi(b.k, "comment", { text });
+  if (status === 200) S.toast = { kind: "commented", k: b.k, sent: false }; else S.lerr = `#${n} was not commented: ${esc(body.error || "the comment did not go through.")}`;
+  paintLanes();
+}
+function laneReset() {  // the panel is back to its place: nothing is held or being written
+  if (!(S.hold || S.nbox || S.say)) return;
+  S.hold = null; S.say = ""; if (S.nbox) laneBoxClose(false);
+}
+document.addEventListener("keydown", (e) => {  // before the page's own keys: Esc lets go of a card or closes the note box before it restores the panel
+  if (S.refused || e.ctrlKey || e.metaKey || e.altKey || !$("band").classList.contains("maxed")) return;
+  const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+  if (e.key === "Escape") { if (S.nbox) { laneBoxClose(true); stop(); } else if (S.hold) { laneRelease(); stop(); } return; }
+  if (e.target.closest?.("textarea, input, select")) return;
+  if (S.hold && /^[1-9]$/.test(e.key)) { const m = moveTargets(laneCard(S.hold.k)?.column)[+e.key - 1]; if (m) laneMove(S.hold.k, m.to); stop(); return; }
+  const ch = e.key.toLowerCase() === "m" && e.target.closest?.(".chip[data-key]");
+  if (ch) { laneHold(ch.dataset.key, "key"); stop(); }
+}, true);
+document.addEventListener("click", (e) => {
+  const t = e.target, acc = t.closest?.("[data-acc]"), hold = t.closest?.("[data-hold]");
+  if (acc && S.hold) laneMove(S.hold.k, acc.dataset.acc);
+  else if (hold) laneHold(hold.dataset.hold, "touch");
+  else if (t.closest?.("[data-lcomment]")) laneBox({ k: S.toast.k, comment: true });
+  else if (t.closest?.("[data-lundo]")) laneUndo();
+  else if (t.id === "lnote-go") laneBoxSend();
+  else if (t.id === "lnote-no") laneBoxClose(true);
+  else if (S.hold && S.hold.via !== "key" && !t.closest?.(".chip")) laneRelease();  // a tap elsewhere lets go (also a drag whose end never came)
+});
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "lnote-t") return;
+  const need = S.nbox?.need, empty = !e.target.value.trim();
+  $("lnote-go").disabled = empty; if (need) $("lnote-hint").textContent = empty ? "Write the note first: it goes with the decision." : "You can undo for a few seconds after confirming.";
+});
+document.addEventListener("change", (e) => { if (e.target.id === "lonly") { S.only = e.target.checked; paintLanes(); } });
+document.addEventListener("dragstart", (e) => {
+  const ch = e.target.closest?.(".chip.can[draggable]"); if (!ch) return;
+  e.dataTransfer.setData("text/plain", ch.dataset.key); e.dataTransfer.effectAllowed = "move";
+  setTimeout(() => laneHold(ch.dataset.key, "drag"), 0);  // after the browser took the drag image
+});
+document.addEventListener("dragover", (e) => {
+  const col = S.hold && e.target.closest?.(".lcol.acc");
+  document.querySelectorAll(".lcol.over").forEach((x) => { if (x !== col) x.classList.remove("over"); });
+  if (col) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; col.classList.add("over"); }
+});
+document.addEventListener("drop", (e) => {
+  const col = S.hold && e.target.closest?.(".lcol.acc"); if (!col) return;
+  e.preventDefault(); laneMove(S.hold.k, col.dataset.col);
+});
+document.addEventListener("dragend", () => { document.querySelectorAll(".lcol.over").forEach((x) => x.classList.remove("over")); if (S.hold?.via === "drag") laneRelease(); });
 const fade = () => { const l = $("list"); l.classList.toggle("cut", l.scrollHeight - l.scrollTop - l.clientHeight > 8); };
 function renderYours() {
   const w = waiting();
@@ -1135,7 +1364,7 @@ function quick(q, k) {
   if (q === "changes") $("qc")?.focus();
 }
 // An entry leaves S.pending before it is sent, by the timer or by leaving the page, so it goes out once.
-function sendPending(k, keep) { const e = S.pending[k]; if (!e) return; clearTimeout(e.timer); delete S.pending[k]; return post(k, "approve", "", keep); }
+function sendPending(k, keep) { const e = S.pending[k]; if (!e) return; clearTimeout(e.timer); delete S.pending[k]; return e.lane ? sendLane(k, e, keep) : post(k, "approve", "", keep); }
 // The list asks the drawer's question: with doubt (or marks never seen) it opens the confirmation and sends nothing.
 function lookFirst(k, doubt) {
   openCard(k, "review");
