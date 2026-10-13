@@ -52,9 +52,9 @@ printf '%sT10:00:00-03:00 shipfloor: shop: first\nmv: stderr\n%sT10:10:00-03:00 
 printf '== start /sf:develop 7 %sT10:05:00-03:00 pid=1\ngate build: 2 tests failed\n\n== end /sf:develop 7 exit=4 %sT10:06:00-03:00\n' "$D" "$D" > "$P/logs/$D-7-develop.log"
 got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print(" | ".join(e["text"] + (" exit=%s" % e["exit"] if e.get("issue") else "") for e in json.load(sys.stdin)["events"]))')"
 assert_contains "$got" "shipfloor: shop: first | mv: stderr | develop #7 exit=4 | shipfloor: shop: last | shipfloor: shop: again"
-# a line repeated in a row is one event, and a run says what it left behind: the card's title, and its last words when it failed
-got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; ev=json.load(sys.stdin)["events"]; a=ev[-1]; r=[e for e in ev if e.get("issue")][0]; print(a["n"], a["since"][11:16], a["ts"][11:16], "|", r["stage"], r["title"], "|", r["last"])')"
-assert_contains "$got" "2 10:20 10:23 | develop Seven | gate build: 2 tests failed"
+# a line repeated in a row is one event, and a run says what it left behind: the card's title (and no log line: a failed run says why from its report or its exit code)
+got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; ev=json.load(sys.stdin)["events"]; a=ev[-1]; r=[e for e in ev if e.get("issue")][0]; print(a["n"], a["since"][11:16], a["ts"][11:16], "|", r["stage"], r["title"], "|", "last" in r)')"
+assert_contains "$got" "2 10:20 10:23 | develop Seven | False"
 # a run with no end and no lock is not running: its end was lost
 printf '== start /sf:refine 7 %sT09:00:00-03:00 pid=1\n' "$D" > "$P/logs/$D-7-refine.log"
 got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print([e.get("lost") for e in json.load(sys.stdin)["events"] if e.get("stage") == "refine"])')"
@@ -506,7 +506,7 @@ case "$embed" in *'--page:#0d1014'*'</style>'*'<script>'*'</script></head>'*) pa
 # AC-5 (red now): the page still gets every color the theme sends, and acknowledges them once applied
 case "$embed" in *'r.style.setProperty("--"+k,m.vars[k])'*'shipfloor:"themed"'*) pass "AC-5 the theme is applied to the root, then 'themed' is posted" ;; *) fail "AC-5 the embed script must apply the theme vars to the root and only then post shipfloor:\"themed\"" ;; esac
 # AC-6: no review page, or none that arrives: the empty area is the panel color, not white
-printf '%s' "$shell" | grep -Fq "c.review ? \`<iframe" && printf '%s' "$shell" | grep -Fq "</iframe>\` : '<p class=\"placeholder\">No review page for this card. Refine builds it when the spec is ready.</p>'" && pass "AC-6 no review page renders the placeholder paragraph and no iframe" || fail "AC-6 reviewPane must render the .placeholder paragraph, and no iframe, when the card has no review page"
+printf '%s' "$shell" | grep -Fq "c.review ? \`<iframe" && printf '%s' "$shell" | grep -Fq "</iframe>\` : noReview(column, c);" && printf '%s' "$shell" | grep -Fq "return '<p class=\"placeholder\">No review page for this card.</p>';" && pass "AC-6 no review page renders the placeholder paragraph and no iframe" || fail "AC-6 reviewPane must render the .placeholder paragraph, and no iframe, when the card has no review page"
 case "$base_rule" in *"background: var(--panel)"*) pass "AC-6 an iframe whose document never arrives stays on the panel color" ;; *) fail "AC-6 the iframe must stay on var(--panel) while no document arrives, got: $base_rule" ;; esac
 # working hours: the overview and the settings carry `hours`, and Settings writes it. The dashboard reads the clock in its own
 # process, so each clock is a server of its own: one at 23:30 (outside 08:00-23:00) and one at 12:00 (inside)

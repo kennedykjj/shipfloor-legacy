@@ -57,7 +57,8 @@ got="$(jget "$s" 'json.dumps(d.get("languages"))')"
 [ "$got" = "$want" ] && pass "AC-4 /api/settings languages is LANGS, in its own order" || fail "AC-4 languages was: $got (want $want)"
 page_has 'id="lang"' "AC-4"
 page_has "languages" "AC-4"
-if curl -s "$base/" | grep -qE 'pt-BR|Brazilian'; then fail "AC-4 the page names a language code or name of its own"; else pass "AC-4 the page names no language code or name of its own"; fi
+# (the date formats of #114 pick their locale from the page's language: only those two expressions may name pt-BR, nothing else on the page)
+if curl -s "$base/" | sed -e 's/document\.documentElement\.lang === "pt-BR" ? "pt-BR" : "en-US"//g' -e 's/l === "pt-BR"//g' | grep -qE 'pt-BR|Brazilian'; then fail "AC-4 the page names a language code or name of its own"; else pass "AC-4 the page names no language code or name of its own"; fi
 
 # --- AC-3: a language outside LANGS is refused with the reason, config.yml byte for byte as before
 fresh_home; printf 'language: en\npool: 6\n' > "$H/config.yml"; cp "$H/config.yml" "$C/config.before"; start_dash b "$OK_CMD"
