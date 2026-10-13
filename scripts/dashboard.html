@@ -1474,7 +1474,10 @@ const THEMES = { first: [["auto", "Auto"], ["tape", "Floor tape"], ["kraft", "Kr
   dark: [["charcoal", "Charcoal"], ["dock", "Dock"], ["machine", "Machine green"], ["blueprint", "Blueprint"], ["foundry", "Foundry"], ["night", "Night shift"], ["terminal", "Terminal"]], light: [["steel", "Steel"], ["paper", "Drafting paper"]] };
 const STAGE_HELP = { refine: "Writing specs.", develop: "Building a card.", validate: "Reviewing and opening the pull request.", deploy: "Merging and deploying. Always one card at a time per project." };
 const STAGE_HUE = { refine: "var(--refine)", develop: "var(--text)", validate: "var(--validate)", deploy: "var(--ok)" };
-const knobOf = (k) => { const [, slug, key] = k.split("|"); return SET.data.projects.find((p) => p.slug === slug)?.knobs[key]; };  // "p|<project>|<knob>"
+const knobOf = (k) => {  // "p|<project>|<knob>"; "p|<project>|language" is this machine's override (null: as the repository says)
+  const [, slug, key] = k.split("|"), p = SET.data.projects.find((x) => x.slug === slug);
+  return key === "language" ? p && { value: p.language.from === "machine" ? p.language.code : null, repo: p.language.repo } : p?.knobs[key];
+};
 const notifyWas = (k) => { const n = SET.data.machine.notify, [g, name] = k.split("."); return k.startsWith("quiet_") ? n.quiet.split("-")[k === "quiet_from" ? 0 : 1] || "" : name ? n[g][name] : n[g]; };  // "n|<setting>"
 const modelOf = (k) => { const [, group, name] = k.split("|"); return SET.data.models[group][name]; };  // "m|stages|<stage>" or "m|agents|<agent>"
 const AGENT_HELP = { "product-owner": "Writes the Product section of a spec.", "ux-designer": "Writes the UX section and checks the screens in validation.", "qa-engineer": "Writes the acceptance tests before the code.", engineer: "Implements a layer that names no agent of its own.", cybersec: "Writes the Security section and reviews the diff." };
@@ -1514,7 +1517,7 @@ function cycleStatus(d) {
 async function loadSettings() {
   const { status, body } = await api("/api/settings"); if (status !== 200) return;
   SET.data = body;
-  const p = (document.activeElement?.id === "every" || document.activeElement?.id === "lang") &&$("disp").querySelector(".who p");  // the select is focused or open: only the status text moves
+  const a = document.activeElement, p = (a?.id === "every" || a?.id === "lang" || a?.matches?.("[data-plang]")) && $("disp").querySelector(".who p");  // the select is focused or open: only the status text moves
   if (p) { p.innerHTML = cycleStatus(body); $("disp")._html = null; } else renderSettings();
 }
 function renderSettings() {
@@ -1601,8 +1604,12 @@ function renderSettings() {
       <div class="sgroup panel"><h2>This dashboard <code>~/.shipfloor/config.yml</code></h2>
         ${row("Language of this dashboard", saved !== LANG_LOADED ? `Saved as ${esc(loc(langs[saved] || saved))}. Reload the page to see it.` : "The dashboard's own text. What the agents wrote is shown as written. Applied when the page is reloaded.", pick)}</div>
       <div class="sgroup panel"><h2>What the factory writes <code>.shipfloor/factory.yml</code></h2>
-        ${d.projects.map((p) => row(esc(p.slug), `<code>${esc(p.language.file)}</code>${p.language.set ? "" : " · no language key, the factory default"}`, `<span class="sv">${said(p.language.code)}</span>`)).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}
-        ${d.projects.length ? `<p class="from">Read-only here: a project's language is part of its repository. To change it, edit <code>language</code> in its <code>.shipfloor/factory.yml</code>. The dispatcher reads it again on every cycle.</p>` : ""}</div>`;
+        ${d.projects.map((p) => {  // the first option goes back to the repository; a language picked by name stays this machine's, even when equal
+          const k = `p|${p.slug}|language`, v = setVal(k), id = `plang-${esc(p.slug)}`;
+          const sel = `<select data-plang="${esc(k)}"${k in SET.draft ? ' class="dirty"' : ""} aria-label="Language the factory writes in for ${esc(p.slug)}"${v ? ` aria-describedby="${id}"` : ""}><option value="">As the repository says: ${said(p.language.repo)}</option>${Object.keys(langs).map((c) => `<option value="${esc(c)}"${c === v ? " selected" : ""}>${said(c)}</option>`).join("")}</select>`;
+          return row(esc(p.slug), `<code>${esc(p.language.file)}</code>${p.language.set ? "" : " · no language key, the factory default"}`,
+            `<span class="sknob">${sel}${v ? `<small id="${id}">set on this machine · the repository says ${said(p.language.repo)}</small>` : ""}</span>`, k in SET.draft); }).join("") || '<p class="empty">No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.</p>'}
+        ${d.projects.length ? `<p class="from">Kept on this machine, over what the repository says; the repository's <code>.shipfloor/factory.yml</code> is not changed. A change applies from the dispatcher's next cycle; a session already running keeps the language it started in.</p>` : ""}</div>`;
   } else if (SET.sec === "notify") {
     const refusal = { reminder: "The reminder takes 15 to 720 minutes.", topic: "The topic takes letters, digits, - and _, up to 64.", quiet: "Quiet hours need both times, and they cannot be the same." };  // what the server says, to mark the field at fault
     const nk = (k) => "n|" + k, bad = (what) => SET.err.includes(refusal[what]), on = (k) => setVal(nk(k)), topic = on("ntfy_topic");
@@ -1668,6 +1675,16 @@ function setModel(t) {
   SET.err = ""; renderSettings();
   [...document.querySelectorAll("[data-model]")].find((x) => x.dataset.model === k)?.focus();  // the rewrite took the focus with it
 }
+function setPlang(t) {  // a project's language: a draft like a model's; the empty option is null, back to the repository
+  const k = t.dataset.plang, v = t.value || null;
+  if (v === setWas(k)) delete SET.draft[k]; else SET.draft[k] = v;
+  SET.err = ""; renderSettings();
+  [...document.querySelectorAll("[data-plang]")].find((x) => x.dataset.plang === k)?.focus();
+}
+function projectLangErr(slug, why) {  // the server's reason, in the page's sentence, with the language the project still writes in
+  const l = SET.data.projects.find((p) => p.slug === slug)?.language, langs = SET.data.languages || {};
+  return `The language of ${slug} was not changed: ${String(why || "").replace(/\.+$/, "")}. It still writes in ${loc(langs[l?.code] || l?.code || "en")} (${l?.code || "en"}).`;
+}
 function setHours(input) {  // typing is the draft; the server alone judges whether it is a valid window
   const v = input.value;
   if (v === setWas("hours")) delete SET.draft.hours; else SET.draft.hours = v;
@@ -1680,7 +1697,7 @@ async function setSave() {
   for (const [k, v] of Object.entries(SET.draft)) {
     if (k === "hours") body.hours = v.trim() ? v.split(",").map((w) => w.trim()) : null;  // an empty field clears it
     else if (k.startsWith("m|")) { const [, group, name] = k.split("|"); ((body.models ||= { stages: {}, agents: {} })[group])[name] = v; }
-    else if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = v === knobOf(k).repo ? null : v; }
+    else if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = key !== "language" && v === knobOf(k).repo ? null : v; }
     else if (k.startsWith("costs.")) (body.costs ||= {})[k.slice(6)] = costVal(v);  // an empty field is null: the limit is removed
     else if (k.startsWith("n|")) { const [g, name] = k.slice(2).split("."); if (!g.startsWith("quiet_")) { const n = body.notify ||= {}; if (name) (n[g] ||= {})[name] = v; else n[g] = v; } }
     else if (k.startsWith("stages.")) body.stages[k.slice(7)] = v; else if (k === "every_min") body.dispatcher = { every_min: v }; else body[k] = k === "stack_wait" ? v * 60 : v;
@@ -1696,6 +1713,7 @@ async function setSave() {
         : r.status === 409 && what === "machine" && "every_min" in SET.draft  // the system's own reason, in the page's sentence
         ? `The pace was not changed: ${String(r.body.error || "").replace(/\.+$/, "")}. The dispatcher still looks for work every ${SET.data.dispatcher.every_min} min.`
         : r.status === 400 && what === "machine" && "language" in SET.draft ? `The language was not changed: ${String(r.body.error || "").replace(/\.+$/, "")}. This dashboard stays in ${loc((SET.data.languages || {})[SET.data.machine.language] || SET.data.machine.language)}.`
+        : r.status === 400 && what === "project" && "language" in payload.values && /language/.test(r.body.error || "") ? projectLangErr(payload.project, r.body.error)
         : r.body.error || "The settings were not saved.";
       break;
     }
@@ -1831,6 +1849,7 @@ document.addEventListener("change", (e) => {
   if (e.target.matches?.("[data-pause]")) setPause(e.target);
   if (e.target.dataset?.nk && e.target.type !== "text") setNotify(e.target);
   if (e.target.matches?.("[data-model]")) setModel(e.target);
+  if (e.target.matches?.("[data-plang]")) setPlang(e.target);
   if (e.target.id === "every") {  // a draft like a stepper's: Save applies it, picking the saved value again drops it
     if (+e.target.value === setWas("every_min")) delete SET.draft.every_min; else SET.draft.every_min = +e.target.value;
     SET.err = ""; renderSettings(); $("every")?.focus();

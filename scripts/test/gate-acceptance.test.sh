@@ -139,6 +139,26 @@ out="$(FACTORY_CONFIG="$PT" bash "$GATE" acceptance-intact "$qa" 2>&1)"; code=$?
 assert_contains "$out" "acceptance-intact: os testes de aceitação mudaram depois do commit do QA"
 FACTORY_CONFIG="$PT" assert_exit 0 bash "$GATE" acceptance-intact "$(git rev-parse HEAD)"
 assert_exit 1 env FACTORY_CONFIG="$(f="$(mktemp)"; { cat "$FACTORY_CONFIG"; echo "language: klingon"; } > "$f"; echo "$f")" bash "$FACTORY_DIR/shipfloor-config.sh" validate
+# #129: this machine's language for the project (overrides.yml beside factory.yml) is the gates' too, with factory.yml
+# untouched (AC-2); a run started in one language keeps it (FACTORY_LANGUAGE, set at launch) whatever overrides.yml says now (AC-7)
+OD="$(mktemp -d)"; cp "$FACTORY_CONFIG" "$OD/factory.yml"; cp "$OD/factory.yml" "$OD/factory.before"; printf 'language: pt-BR\n' > "$OD/overrides.yml"
+out="$(FACTORY_CONFIG="$OD/factory.yml" bash "$GATE" acceptance-intact "$qa" 2>&1)"; code=$?
+[ "$code" = 1 ] && pass "AC-2 the gate still blocks with a pt-BR override" || fail "AC-2 gate with the override: exit $code"
+assert_contains "$out" "acceptance-intact: os testes de aceitação mudaram depois do commit do QA"
+cmp -s "$OD/factory.yml" "$OD/factory.before" && pass "AC-2 factory.yml is byte-identical" || fail "AC-2 factory.yml changed"
+out="$(FACTORY_LANGUAGE=en FACTORY_CONFIG="$OD/factory.yml" bash "$GATE" acceptance-intact "$qa" 2>&1)"; code=$?
+[ "$code" = 1 ] && pass "AC-7 the pinned gate still blocks" || fail "AC-7 pinned gate: exit $code"
+assert_contains "$out" "acceptance-intact: acceptance tests changed after the QA commit"
+case "$out" in *"os testes de aceitação"*) fail "AC-7 a run pinned to en spoke pt-BR: $out";; *) pass "AC-7 a run pinned to en keeps English over a pt-BR override";; esac
+d="$(FACTORY_LANGUAGE=en FACTORY_CONFIG="$OD/factory.yml" bash "$FACTORY_DIR/shipfloor-config.sh" describe | tr -d '\r')"
+assert_contains "$d" "language: English (en)"
+[ "$(FACTORY_LANGUAGE=en FACTORY_CONFIG="$OD/factory.yml" bash "$FACTORY_DIR/shipfloor-config.sh" get language | tr -d '\r')" = en ] && pass "AC-7 get language keeps the run's language" || fail "AC-7 get language moved with the override"
+# ...and the reverse: a run that started in pt-BR keeps it after the owner goes back to the repository's English
+rm "$OD/overrides.yml"
+out="$(FACTORY_LANGUAGE=pt-BR FACTORY_CONFIG="$OD/factory.yml" bash "$GATE" acceptance-intact "$qa" 2>&1)"
+assert_contains "$out" "acceptance-intact: os testes de aceitação mudaram depois do commit do QA"
+# a FACTORY_LANGUAGE outside the factory's languages is not a language: the config decides
+[ "$(FACTORY_LANGUAGE=klingon FACTORY_CONFIG="$OD/factory.yml" bash "$FACTORY_DIR/shipfloor-config.sh" get language | tr -d '\r')" = en ] && pass "AC-7 an unknown FACTORY_LANGUAGE is ignored" || fail "AC-7 an unknown FACTORY_LANGUAGE was taken"
 
 # QA amends its own acceptance tests: the amendment becomes the baseline, the gate keeps it honest, and what an
 # earlier QA commit wrote stays protected
