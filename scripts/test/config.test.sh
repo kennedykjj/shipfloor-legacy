@@ -76,4 +76,24 @@ stack_cfg() { local f; f="$(mktemp)"; sed '/^stack:/d' "$FACTORY_DIR/test/fixtur
 assert_exit 0 env FACTORY_CONFIG="$(stack_cfg 'stack: {url: "http://localhost:{web}", up: "x", down: "y", ports: [web, api], timeout: 60}')" bash "$CFG" validate
 assert_exit 1 env FACTORY_CONFIG="$(stack_cfg 'stack: {url: "http://localhost:3000", ports: web}')" bash "$CFG" validate
 assert_exit 1 env FACTORY_CONFIG="$(stack_cfg 'stack: {url: "http://localhost:{nope}", ports: [web]}')" bash "$CFG" validate
+# AC-2 (#129): this machine's language for a project lies in overrides.yml beside its factory.yml, which stays as it is;
+# every reader follows (get, describe, values; the gates in gate-acceptance.test.sh), and `language` names who decided it
+D="$(mktemp -d)"; cp "$FACTORY_DIR/test/fixture/factory.yml" "$D/factory.yml"; cp "$D/factory.yml" "$D/factory.before"
+dc() { FACTORY_CONFIG="$D/factory.yml" bash "$CFG" "$@" | tr -d '\r'; }
+[ "$(dc language)" = "en	repository	English" ] && pass "AC-2 no language key anywhere: en, from the repository" || fail "AC-2 language was: $(dc language)"
+printf 'language: pt-BR\n' > "$D/overrides.yml"
+assert_exit 0 env FACTORY_CONFIG="$D/factory.yml" bash "$CFG" validate
+[ "$(dc get language)" = "pt-BR" ] && pass "AC-2 get language follows the override" || fail "AC-2 get language: $(dc get language)"
+assert_contains "$(dc describe)" "language: Brazilian Portuguese (pt-BR)"
+[ "$(dc values language | tr -d '\0')" = "pt-BR" ] && pass "AC-2 values language follows the override" || fail "AC-2 values language: $(dc values language | tr -d '\0')"
+[ "$(dc language)" = "pt-BR	machine	Brazilian Portuguese" ] && pass "AC-2 language says pt-BR, from this machine" || fail "AC-2 language was: $(dc language)"
+cmp -s "$D/factory.yml" "$D/factory.before" && pass "AC-2 factory.yml is byte-identical" || fail "AC-2 factory.yml changed"
+# what may not be: a code outside LANGS, or a language that is not a string
+printf 'language: xx\n' > "$D/overrides.yml"; assert_exit 1 env FACTORY_CONFIG="$D/factory.yml" bash "$CFG" validate
+printf 'language: [en]\n' > "$D/overrides.yml"; assert_exit 1 env FACTORY_CONFIG="$D/factory.yml" bash "$CFG" validate
+# a factory.yml with its own language and an override over it: the override wins, and only it says "machine"
+{ printf 'language: pt-BR\n'; cat "$D/factory.before"; } > "$D/factory.yml"; printf 'language: en\n' > "$D/overrides.yml"
+[ "$(dc language)" = "en	machine	English" ] && pass "AC-2 the override wins over the repository's key" || fail "AC-2 language was: $(dc language)"
+rm "$D/overrides.yml"
+[ "$(dc language)" = "pt-BR	repository	Brazilian Portuguese" ] && pass "AC-2 the repository's key with no override" || fail "AC-2 language was: $(dc language)"
 finish

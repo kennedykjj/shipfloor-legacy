@@ -2,6 +2,7 @@
 
 **Issue:** #<n> · **Branch:** `feat/<n>-<slug>` · **Date:** <YYYY-MM-DD>
 **Roles:** PO, Tech Lead<, UX/UI><, Cybersec>
+**Weight:** light | standard | heavy
 
 ## Product
 _Product Owner_

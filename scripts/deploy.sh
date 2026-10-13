@@ -230,12 +230,12 @@ ci_findings() {  # ci_findings <sha>: the red checks and the end of each failed 
 }
 
 fast_gates() {  # deterministic checks only: CI runs build and tests on this exact head
-  local mb slug spec qa
+  local mb spec qa
   mb="$(g merge-base HEAD "origin/$MAIN")"
   case "$BRANCH" in revert/*)  # a revert removes what the card added: only the forbidden paths apply
     bash "$GATE" -C "$WT" forbidden "$mb" >"$TMP/gates.txt" 2>&1; return ;;
   esac
-  slug="${BRANCH#feat/$n-}"; spec="$(ls "$WT/$SPECS"*-"$slug"-design.md 2>/dev/null | head -1)"
+  spec="$(shipfloor_card_spec "$n" "$SPECS")"
   qa="$(qa_commit)"
   bash "$GATE" -C "$WT" fast "$mb" "${spec:-/dev/null}" $qa >"$TMP/gates.txt" 2>&1
 }

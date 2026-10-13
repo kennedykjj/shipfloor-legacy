@@ -68,4 +68,174 @@ PY
 while IFS= read -r line; do
   case "$line" in "ok "*) pass "${line#ok }" ;; "no "*) fail "${line#no }" ;; *) fail "unexpected: $line" ;; esac
 done <<< "$out"
+
+# The decision column's well and the Approve pill's hover keep 4.5:1 in every theme (#120, AC-5).
+out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" <<'PY'
+import re, sys
+h = open(sys.argv[1], encoding="utf-8").read()
+blocks = {n: dict(re.findall(r"--([a-z0-9-]+):\s*([^;]+);", b)) for n, b in re.findall(r'\[data-theme="([a-z]+)"\]\s*\{([^}]*)\}', h)}
+base = blocks["charcoal"]
+css = re.sub(r"/\*.*?\*/", "", h[h.index("<style>") + 7:h.index("</style>")], flags=re.S)
+css = re.sub(r"@font-face\s*\{[^}]*\}", "", css)
+rules = [(re.sub(r"\s+", " ", s).strip(), b) for s, b in re.findall(r"([^{}]+)\{([^{}]*)\}", css)]
+def decl(sel_ok, prop):
+    for s, b in rules:
+        if sel_ok(s):
+            m = re.search(r"(?<![\w-])%s\s*:\s*([^;}]+)" % prop, b)
+            if m: return m.group(1).replace("!important", "").strip()
+    return ""
+def split_args(s):
+    out, d, cur = [], 0, ""
+    for ch in s:
+        if ch == "(": d += 1
+        if ch == ")": d -= 1
+        if ch == "," and d == 0: out.append(cur.strip()); cur = ""
+        else: cur += ch
+    return out + [cur.strip()]
+def resolve(v, tok, depth=0):
+    """-> (r, g, b, a) with channels 0-255 and alpha 0-1; raises ValueError on a value it cannot resolve."""
+    v = v.strip()
+    m = re.fullmatch(r"#([0-9a-fA-F]+)", v)
+    if m and len(m.group(1)) in (3, 4, 6, 8):
+        x = m.group(1)
+        if len(x) < 6: x = "".join(c * 2 for c in x)
+        a = int(x[6:8], 16) / 255 if len(x) == 8 else 1.0
+        return (int(x[0:2], 16), int(x[2:4], 16), int(x[4:6], 16), a)
+    m = re.fullmatch(r"var\(\s*--([a-z0-9-]+)\s*\)", v)
+    if m and depth < 5 and tok(m.group(1)): return resolve(tok(m.group(1)), tok, depth + 1)
+    m = re.fullmatch(r"color-mix\((.*)\)", v)
+    if m:
+        a = split_args(m.group(1))
+        if len(a) == 3 and re.fullmatch(r"in\s+srgb", a[0]):
+            parts = []
+            for c in a[1:]:
+                pm = re.fullmatch(r"(.*?)\s+(\d*\.?\d+)%", c)
+                parts.append((pm.group(1), float(pm.group(2))) if pm else (c, None))
+            (c1, p1), (c2, p2) = parts
+            if p1 is None and p2 is None: p1 = p2 = 50.0
+            elif p1 is None: p1 = 100 - p2
+            elif p2 is None: p2 = 100 - p1
+            x, y = resolve(c1, tok, depth + 1), resolve(c2, tok, depth + 1)
+            w1, w2 = p1 / (p1 + p2), p2 / (p1 + p2)
+            return tuple(i * w1 + j * w2 for i, j in zip(x, y))
+    raise ValueError(v)
+def rgb(c): return list(c[:3])
+def lum(v):
+    v = [x / 255 for x in v]
+    v = [x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4 for x in v]
+    return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]
+def ratio(a, b):
+    x, y = sorted((lum(a), lum(b)), reverse=True)
+    return (x + .05) / (y + .05)
+res = []
+def check(name, cond, why): res.append(("ok " if cond else "no ") + (name if cond else f"{name}: {why}"))
+for name, t in sorted(blocks.items()):
+    tok = lambda k: t.get(k, base.get(k, "")).strip()   # a theme that omits a token inherits the base one
+    # what the page's own rules paint: the .idec background, and the pill's hover background under the pill's text color
+    idec_bg = decl(lambda s: s == ".idec", "background")
+    try:
+        c = resolve(idec_bg, tok)
+        panel = rgb(resolve(tok("panel"), tok))
+        under = [x * (1 - c[3]) + y * c[3] for x, y in zip(panel, c[:3])]
+        for fg in ("text", "soft", "muted"):
+            r = ratio(rgb(resolve(tok(fg), tok)), under)
+            check(f"AC-5 {name}: {fg} on the .idec background is 4.5:1", r >= 4.5, f"{fg} on .idec background {idec_bg} over panel is {r:.2f}:1")
+    except ValueError:
+        check(f"AC-5 {name}: the .idec background resolves", False, f"cannot resolve the .idec background {idec_bg or 'missing'}")
+    hov_bg = decl(lambda s: ".pill:hover" in s, "background")
+    pill_fg = decl(lambda s: s == ".stub .pill, .edit .pill", "color")
+    try:
+        fill = resolve(hov_bg, tok)
+        r = ratio(rgb(resolve(pill_fg, tok)), rgb(fill))
+        check(f"AC-5 {name}: the pill's text {pill_fg} on its hover background is 4.5:1", r >= 4.5, f"{pill_fg} text on the pill's hover background {hov_bg} is {r:.2f}:1")
+    except ValueError as e:
+        check(f"AC-5 {name}: the pill's hover colors resolve", False, f"cannot resolve the pill's hover background {hov_bg or 'missing'} or its text color {pill_fg or 'missing'}")
+check("AC-5 twelve themes are checked", len(blocks) == 12, f"{len(blocks)} themes")
+print("\n".join(res))
+PY
+)"
+while IFS= read -r line; do
+  case "$line" in "ok "*) pass "${line#ok }" ;; "no "*) fail "${line#no }" ;; *) fail "unexpected: $line" ;; esac
+done <<< "$out"
+
+# The pool bar's four stage hues: --validate exists in every theme, is readable, and the four hues are told apart (AC-5, AC-6; #115).
+out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" <<'PY'
+import itertools, math, re, sys
+h = open(sys.argv[1], encoding="utf-8").read()
+blocks = {n: dict(re.findall(r"--([a-z0-9-]+):\s*([^;]+);", b)) for n, b in re.findall(r'\[data-theme="([a-z]+)"\]\s*\{([^}]*)\}', h)}
+HEX = r"#[0-9a-fA-F]{6}"
+res = []
+def check(name, probs): res.append("ok " + name if not probs else "no " + name + ": " + "; ".join(probs))
+def hexof(t, k):
+    v = blocks[t].get(k, "").strip()
+    return v if re.fullmatch(HEX, v) else None
+def lin(c):
+    v = [int(c[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    return [x / 12.92 if x <= .04045 else ((x + .055) / 1.055) ** 2.4 for x in v]
+def lum(c):
+    r, g, b = lin(c); return .2126 * r + .7152 * g + .0722 * b
+def lab(c):
+    r, g, b = lin(c)
+    x = (.4124564 * r + .3575761 * g + .1804375 * b) / .95047
+    y = .2126729 * r + .7151522 * g + .0721750 * b
+    z = (.0193339 * r + .1191920 * g + .9503041 * b) / 1.08883
+    f = lambda t: t ** (1 / 3) if t > 216 / 24389 else (24389 / 27 * t + 16) / 116
+    fx, fy, fz = f(x), f(y), f(z)
+    return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+def de(a, b): return math.dist(lab(a), lab(b))
+def ratio(a, b):
+    hi, lo = sorted((lum(a), lum(b)), reverse=True); return (hi + .05) / (lo + .05)
+
+themes = sorted(blocks)
+check("every one of the twelve themes sets --validate as a hex color", [f"{t} has no --validate" for t in themes if not hexof(t, "validate")] + ([] if len(themes) == 12 else [f"{len(themes)} themes"]))
+p = []
+for t in themes:
+    v = hexof(t, "validate")
+    if not v: continue
+    for bg in ("ground", "panel", "panel-hi"):
+        r = ratio(v, hexof(t, bg))
+        if r < 4.5: p.append(f"{t}: validate on {bg} is {r:.2f}:1")
+check("validate is readable (4.5:1) on ground, panel and panel-hi in every theme", p + ([] if all(hexof(t, "validate") for t in themes) else ["--validate is not set in every theme"]))
+p = []
+for t in themes:
+    for fg in ("refine", "text", "validate", "ok"):
+        v = hexof(t, fg)
+        if not v: p.append(f"{t}: {fg} is not a hex color"); continue
+        r = ratio(v, hexof(t, "edge"))
+        if r < 3: p.append(f"{t}: {fg} on edge is {r:.2f}:1")
+check("refine, text, validate and ok hold 3:1 on edge in every theme", p)
+
+m = re.search(r"const STAGE_HUE\s*=\s*\{([^}]*)\}", h)
+hue = dict(re.findall(r'(\w+)\s*:\s*"([^"]*)"', m.group(1))) if m else {}
+tok = {k: (re.fullmatch(r"var\(--([a-z0-9-]+)\)", v).group(1) if re.fullmatch(r"var\(--([a-z0-9-]+)\)", v) else None) for k, v in hue.items()}
+p = []
+if hue.get("validate") != "var(--validate)": p.append(f"STAGE_HUE.validate is {hue.get('validate')!r}, want 'var(--validate)'")
+if not re.search(r"\.sbar[^\n]*STAGE_HUE\[st\]|sbar[\s\S]{0,200}STAGE_HUE\[st\]", h): p.append("the pool bar does not read STAGE_HUE[st]")
+if not re.search(r'class="key"[\s\S]{0,200}STAGE_HUE\[st\]', h): p.append("the key does not read STAGE_HUE[st]")
+kr, kv = hexof("kraft", tok.get("refine") or ""), hexof("kraft", tok.get("validate") or "")
+if not kr or not kv: p.append(f"on Kraft the Refine ({tok.get('refine')}) and Validate ({tok.get('validate')}) hues do not both resolve to a hex color")
+elif de(kr, kv) < 20: p.append(f"on Kraft Refine {kr} and Validate {kv} are only dE {de(kr, kv):.1f} apart, want 20")
+check("AC-5 on Kraft the pool bar's Refine and Validate are told apart and the key reads the same map", p)
+
+p = []
+stages = ["refine", "develop", "validate", "deploy"]
+for t in themes:
+    cols = {}
+    for st in stages:
+        c = hexof(t, tok.get(st) or "")
+        if c: cols[st] = c
+        else: p.append(f"{t}: {st} ({tok.get(st)}) does not resolve to a color")
+    sand = hexof(t, "sand")
+    for st, c in cols.items():
+        if sand and c.lower() == sand.lower(): p.append(f"{t}: {st} is the accent (sand {sand})")
+    for a, b in itertools.combinations(cols, 2):
+        d = de(cols[a], cols[b])
+        if d < 20: p.append(f"{t}: {a} {cols[a]} and {b} {cols[b]} are dE {d:.1f} apart")
+check("AC-6 in all twelve themes the four pool-bar stage colors are four different colors, none the accent", p)
+print("\n".join(res))
+PY
+)"
+while IFS= read -r line; do
+  case "$line" in "ok "*) pass "${line#ok }" ;; "no "*) fail "${line#no }" ;; *) fail "unexpected: $line" ;; esac
+done <<< "$out"
 finish

@@ -124,6 +124,28 @@ shipfloor_sweep_tmp() {  # removes what outlived its card under the project's tm
   done
 }
 
+shipfloor_card_spec() {  # shipfloor_card_spec <n> [specs dir]: the card's spec in its worktree (<worktrees>/<n>/<specs>*-<slug>-design.md); nothing when there is none
+  local wt="$FACTORY_WT_ROOT/$1" specs="${2:-}" branch f
+  [ -e "$wt/.git" ] || return 0
+  branch="$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null)" || return 0
+  case "$branch" in "feat/$1-"?*) ;; *) return 0 ;; esac
+  [ -n "$specs" ] || specs="$(shipfloor_cfg get paths.specs 2>/dev/null)" || return 0
+  for f in "$wt/$specs"*-"${branch#feat/$1-}"-design.md; do [ -f "$f" ] && { printf '%s\n' "$f"; return 0; }; done
+  return 0
+}
+
+shipfloor_spec_weight() {  # shipfloor_spec_weight <spec>: the weight its header names; standard when none, two, or another value
+  local w; w="$(awk '/^## /{exit} /^\*\*Weight:\*\*/' "$1" 2>/dev/null | tr -d '\r`')"
+  case "$w" in *$'\n'*) w="" ;; esac
+  w="$(printf '%s' "${w#\*\*Weight:\*\*}" | tr -d '[:space:]')"
+  case "$w" in light|standard|heavy) echo "$w" ;; *) echo standard ;; esac
+}
+
+shipfloor_card_weight() {  # shipfloor_card_weight <n>: the weight of card <n>'s spec; standard when there is no worktree, spec or weight line
+  local spec; spec="$(shipfloor_card_spec "$1")"
+  if [ -n "$spec" ]; then shipfloor_spec_weight "$spec"; else echo standard; fi
+}
+
 shipfloor_say() {  # shipfloor_say <language>: stdin, written in English, comes out in that language (lang/<language>.sed)
   # The scripts keep saying things in English; the catalog rewrites the phrases it knows and passes the rest.
   local f="$SHIPFLOOR_LIB/../lang/${1:-en}.sed"

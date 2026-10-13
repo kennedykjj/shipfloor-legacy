@@ -3,7 +3,7 @@ factory's runs. Read-only, except the owner's decisions on a card that waits, me
 settings (the pool and the pauses)."""
 import argparse, hashlib, json, os, re, secrets, shlex, shutil, statistics, subprocess, sys, threading, time, webbrowser
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -39,6 +39,10 @@ COST_BLOCK = "Cost limit: blocked."  # how the dispatcher opens the note of a bl
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:sf|aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy aghanim, legacy mylos
+RUN_MODEL = re.compile(r" model=([a-z0-9.-]+)")  # the start line's model, when the dispatcher passed one
+# the dispatcher's note that a develop run ended on a failed gate and the next one runs one model up
+STEPUP_LINE = re.compile(r"^== step-up /sf:([a-z]+) (\d+) (\S+) -> (\S+): gate (\S+) failed")
+WEIGHT_LINE = re.compile(r"^\*\*Weight:\*\*")
 # The review page inside the dashboard's drawer: the drawer already carries the title and the one
 # action, so the embedded page drops its header, takes the dashboard's palette and type, and posts
 # its review marks to the drawer.
@@ -80,12 +84,62 @@ addEventListener("load",function(){
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
-OWNER_MOVES = {"Spec Review": {"approve": "Ready for Dev", "request-changes": "Ready for Refinement"},
-               "Staged": {"approve": "Ready for Prod", "request-changes": "Coding"}}
+# The moves the owner makes from the dashboard, M1 to M7 of #125: from -> [(to, a note is required)]. Nothing else moves
+# a card from here. In Spec Review and Staged the move without a note is Approve, the one with a note Request changes.
+OWNER_MOVES = {"Inbox": [("Ready for Refinement", False)],
+               "Ready for Refinement": [("Inbox", False)],
+               "Spec Review": [("Ready for Dev", False), ("Ready for Refinement", True)],
+               "Ready for Dev": [("Ready for Refinement", True)],
+               "Staged": [("Ready for Prod", False), ("Coding", True)]}
+AWAITING = ("Spec Review", "Staged")  # the columns where the factory waits for the owner's decision
+ORDERED = ("Inbox", "Ready for Refinement", "Ready for Dev")  # the owner sets their order (#128); the dispatcher takes from the top
+LINED = (*ORDERED, "Ready for Prod")  # a card there shows its place in line
+# Where a card blocked for the owner can be taken back (#127): from Coding or Validation there is code to redo from the
+# approved spec; from any other column ("*") only the spec or the Inbox. The card's own column is never a target.
+BLOCKED_MOVES = {"Coding": ("Inbox", "Ready for Refinement", "Ready for Dev"),
+                 "Validation": ("Inbox", "Ready for Refinement", "Ready for Dev"),
+                 "*": ("Inbox", "Ready for Refinement")}
+HISTORY_DAYS = 92  # the longest period the History shows: past a quarter the bars of a day are too thin to read or click
+HISTORY_PAGE = 50  # runs per page of the maximized History's table
+LOCKED = {"run": "a run is in progress", "infra": "blocked by infrastructure, the factory retries",
+          "blocked": "it is blocked and waits for your call in the card"}
 
 
 def number(s):  # ASCII digits only: str.isdigit() also accepts "²" and the like, which int() rejects
     return bool(re.fullmatch(r"[0-9]+", s))
+
+
+def history_period(today, days=None, start=None, end=None):
+    """The period a History query asks for and its neighbours, as ISO dates: (period, None), or (None, why it is refused).
+    days: the N days that end today; or start and end, both included. A day is a calendar day of this machine."""
+    if start is not None or end is not None:
+        if not all(isinstance(x, str) and re.fullmatch(r"\d{4}-\d\d-\d\d", x) for x in (start, end)):
+            return None, "from and to must both be dates as YYYY-MM-DD"
+        try:
+            a, b = date.fromisoformat(start), date.fromisoformat(end)
+        except ValueError:
+            return None, "from and to must both be dates as YYYY-MM-DD"
+        if b < a:
+            return None, "the end date is before the start date"
+        if b > today:
+            return None, "that date is in the future"
+    else:
+        if days is not None and not (isinstance(days, str) and number(days)):
+            return None, f"days must be 1 to {HISTORY_DAYS}"
+        n = int(days or 1)
+        if not 1 <= n <= HISTORY_DAYS:
+            return None, f"days must be 1 to {HISTORY_DAYS}"
+        a, b = today - timedelta(days=n - 1), today
+    n = (b - a).days + 1
+    if n > HISTORY_DAYS:
+        return None, f"pick {HISTORY_DAYS} days at most"
+    span = lambda x, y: {"from": x.isoformat(), "to": y.isoformat()}
+    present = b == today
+    last = min(b + timedelta(days=n), today)  # the next period never passes today: it ends there, the same length
+    return {**span(a, b), "days": n, "unit": "hour" if n == 1 else "day", "present": present,
+            "prev": span(a - timedelta(days=n), a - timedelta(days=1)),
+            "next": None if present else span(last - timedelta(days=n - 1), last),
+            "now": None if present else span(today - timedelta(days=n - 1), today)}, None
 
 
 def read_yaml(path):
@@ -174,7 +228,7 @@ class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
         self._transcripts, self._titles, self._blocked, self._reasons, self._boards = {}, {}, {}, {}, {}
-        self._diffs, self._prs = {}, {}
+        self._diffs, self._prs, self._opened = {}, {}, {}
         self._stacks = (0.0, [], 0)
         self._configs = {}
         self._snap, self._reading, self._retry = {}, set(), {}
@@ -278,8 +332,9 @@ class Factory:
         return sorted(out, key=lambda s: s["start"] or "")
 
     def runs(self, p, issue=None, day=None):
-        """Runs as the dispatcher logged them: == start / == end lines."""
-        out = []
+        """Runs as the dispatcher logged them: == start / == end lines, the model each one started with, and the
+        step-up between a run that failed a gate and the one that ran again one model up."""
+        out, pending = [], {}
         for log in sorted((self.pdir(p) / "logs").glob("*.log")):
             if issue is not None and not re.fullmatch(rf"\d{{4}}-\d\d-\d\d-{issue}-[a-z]+\.log", log.name):
                 continue
@@ -288,12 +343,20 @@ class Factory:
             with open(log, encoding="utf-8", errors="replace") as f:
                 for line in f:
                     m = RUN_LINE.match(line)
+                    up = None if m else STEPUP_LINE.match(line)
+                    if up:
+                        stage, n, frm, to, gate = up.groups()
+                        pending[(stage, int(n))] = {"from": frm, "to": to, "gates": [gate]}
+                        if out and out[-1]["log"] == log.name:
+                            out[-1]["again"] = to
+                        continue
                     if not m:
                         continue
                     kind, stage, n, rc, ts = m.groups()
                     if kind == "start":
-                        out.append({"stage": LEGACY_STAGES.get(stage, stage), "issue": int(n), "start": ts,
-                                    "end": None, "exit": None, "log": log.name})
+                        stage, model = LEGACY_STAGES.get(stage, stage), RUN_MODEL.search(line)
+                        out.append({"stage": stage, "issue": int(n), "start": ts, "end": None, "exit": None, "log": log.name,
+                                    "model": model and model.group(1), "stepped": pending.pop((stage, int(n)), None), "again": None})
                     elif out and out[-1]["log"] == log.name and out[-1]["end"] is None:
                         out[-1].update(end=ts, exit=int(rc))
         return out
@@ -358,7 +421,7 @@ class Factory:
         read, ok = {}, bool(ask)
         for i in range(0, len(ask), 100):
             batch = ask[i:i + 100]
-            fields = " ".join(f'i{int(n)}: issueOrPullRequest(number: {int(n)}) {{ ... on Issue {{ title }} ... on PullRequest {{ title }} }}' for n in batch)
+            fields = " ".join(f'i{int(n)}: issueOrPullRequest(number: {int(n)}) {{ ... on Issue {{ title createdAt }} ... on PullRequest {{ title createdAt }} }}' for n in batch)
             query = f'query($owner: String!, $name: String!) {{ repository(owner: $owner, name: $name) {{ {fields} }} }}'
             r = gh("api", "graphql", "-f", f"query={query}", "-f", f"owner={owner}", "-f", f"name={name}")
             try:  # a number GitHub does not know makes gh exit 1 but the others are still printed
@@ -369,6 +432,7 @@ class Factory:
                 ok = False
                 break
             read.update({n: ((repo.get(f"i{n}") or {}).get("title") or "") for n in batch})
+            self._opened.setdefault(p, {}).update({n: (repo.get(f"i{n}") or {}).get("createdAt") for n in batch})
         if ok:
             known = {**known, **read}
             self._titles[p] = (time.time() if stale else at, known)
@@ -458,20 +522,39 @@ class Factory:
         return {"problem": problem, "criteria": [{"id": k, "text": t} for k, t in criteria],
                 "questions": items("open questions", "dúvidas")}
 
+    def cost_mark(self, p, n):
+        """The figures of a block by the cost limit, from its marker cost/<n>.json; None when it cannot be read."""
+        try:
+            mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
+            before, whole = float(mark.get("baseline") or 0), float(mark["total"])
+            return {"limit": mark.get("limit"), "total": round(whole - before, 4), "baseline": before, "card_total": whole,
+                    "stages": mark.get("stages") or {}}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return None
+
+    def block_line(self, p, n):
+        """One plain line for the list: what the note says the owner must decide, else the gate that failed, else "".
+        Taken from the note only, never composed; a block by the cost limit is told by its figures instead."""
+        reason = self.block_reason(p, n)
+        if reason.lstrip().startswith(COST_BLOCK):
+            return ""
+        plain = lambda t: " ".join(re.sub(r"^\s*[-*]\s*", "", t.replace("**", "").replace("`", "")).split())
+        decide = next((l for l in reason.splitlines() if re.search(r"must decide|owner must|needs? you to", l, re.I)), "")
+        decide = re.sub(r"^[^:]*(must decide|owner must|needs? you to)[^:]*:\s*", "", plain(decide), flags=re.I)
+        if decide:
+            return (decide[0].upper() + decide[1:])[:500]
+        gate = re.search(r"failed gates?:\**\s*([^.\n]+)", reason, re.I)
+        return f"Failed gate: {plain(gate.group(1))}"[:500] if gate and plain(gate.group(1)) else ""
+
     def block(self, p, n):
         """A block told in parts: the stage and step it stopped at, why, what was tried, how many times, and for
         acceptance-intact the test files as they changed."""
         reason = self.block_reason(p, n)
         blocked = [r for r in self.reports(p, n) if r["outcome"] == "blocked"]
-        if reason.lstrip().startswith(COST_BLOCK):  # the marker tells the figures; the newest note must still be this block's
-            try:
-                mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
-                before, whole = float(mark.get("baseline") or 0), float(mark["total"])
-                return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
-                        "times": len(blocked), "gate": "", "diff": "", "limit": mark.get("limit"), "total": round(whole - before, 4),
-                        "baseline": before, "card_total": whole, "stages": mark.get("stages") or {}}
-            except (OSError, ValueError, KeyError, TypeError, AttributeError):
-                pass  # no usable marker: an ordinary block
+        mark = self.cost_mark(p, n) if reason.lstrip().startswith(COST_BLOCK) else None  # the newest note must still be this block's
+        if mark:
+            return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
+                    "times": len(blocked), "gate": "", "diff": "", **mark}
         m = BLOCK_LINE.search(reason)
         stage, step = (m.group(1).lower(), int(m.group(2))) if m else (None, None)
         if not stage:  # a report tells the block: it names its stage, not a step
@@ -483,6 +566,14 @@ class Factory:
         return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
                 "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": gate,
                 "diff": self.acceptance_diff(p, n) if gate else ""}
+
+    def block_brief(self, p, n, kind):
+        """What the list tells of a card the owner must unblock: block_line, and block_cost for a block by the cost limit."""
+        if kind != "owner":
+            return {"block_line": "", "block_cost": None}
+        mark = self.cost_mark(p, n) if self.block_reason(p, n).lstrip().startswith(COST_BLOCK) else None
+        return {"block_line": "" if mark else self.block_line(p, n),
+                "block_cost": {k: mark[k] for k in ("total", "limit", "baseline")} if mark else None}
 
     def acceptance_diff(self, p, n):
         at, diff = self._diffs.get((p, n), (0, ""))
@@ -554,19 +645,79 @@ class Factory:
             run = next((r for r in reversed(runs) if r["stage"] == s["stage"]
                         and parse_ts(r["start"]).timestamp() <= start.timestamp() + 120), None)
             c = dashboard_cost.session_cost(s, prices)
+            main = max(s["tokens"].items(), key=lambda kv: sum(v or 0 for v in kv[1].values()), default=(None, {}))[0]
             sessions.append({"id": s["id"], "stage": s["stage"], "start": s["start"], "end": s["end"],
                              "tokens": s["tokens"], "cost": None if c is None else round(c, 4),
                              "subagents": [{"tokens": a["tokens"], "cost": cost(a["tokens"], prices)} for a in s["subagents"]],
-                             "exit": run and run["exit"], "log": run and run["log"]})
+                             "exit": run and run["exit"], "log": run and run["log"],
+                             "model": (run and run.get("model")) or main, "stepped": run and run.get("stepped")})
         total = dashboard_cost.spend(found, prices, datetime.now().date().isoformat())["cards"].get(n, {"total": 0.0})["total"]
         columns, _ = self.board(p)
         reports = self.reports(p, n)
+        weight, weight_set = self.weight(p, n)
         return {"project": p, "issue": n, "title": self.titles(p, [*columns, n]).get(n, ""), "column": columns.get(n),
+                "weight": weight, "weight_set": weight_set, "weight_models": self.weight_models(),
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
                 "total": rounded(total), "baseline": dashboard_cost.baselines(self.pdir(p)).get(n, 0.0), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                 "blocked": self.blocked(p).get(n),
                 "block_reason": self.block_reason(p, n) if self.blocked(p).get(n) else ""}
+
+    def card_spec(self, p, n):
+        """The card's spec in its worktree (<worktrees>/<n>/<specs>*-<slug>-design.md, the slug from the worktree's
+        branch), as lib/project.sh's shipfloor_card_spec finds it; None when there is none yet."""
+        row = next((c for c in (l.split("\t") for l in self.registry()) if c[0] == p), [])
+        wt = Path(row[2] if len(row) > 2 and row[2] else self.pdir(p) / "wt") / str(n)
+        try:
+            head = (wt / ".git").read_text(encoding="utf-8").strip()
+            git = Path(head[len("gitdir:"):].strip()) if head.startswith("gitdir:") else wt / ".git"
+            branch = (git / "HEAD").read_text(encoding="utf-8").strip()
+        except OSError:
+            try:
+                branch = ((wt / ".git" / "HEAD").read_text(encoding="utf-8").strip())
+            except OSError:
+                return None
+        prefix = f"ref: refs/heads/feat/{n}-"
+        if not branch.startswith(prefix) or len(branch) == len(prefix):
+            return None
+        specs = shipfloor_config.dotted(self.config(p), "paths.specs") or shipfloor_config.DEFAULTS["paths"]["specs"]
+        found = sorted((wt / specs).glob(f"*-{branch[len(prefix):]}-design.md"))
+        return found[0] if found else None
+
+    def weight(self, p, n):
+        """(weight, set): the weight the card's spec header names, standard when it names none (set False);
+        (None, False) before the card has a spec."""
+        spec = self.card_spec(p, n)
+        if spec is None:
+            return None, False
+        try:
+            lines = []
+            for line in spec.read_text(encoding="utf-8").splitlines():
+                if line.startswith("## "):
+                    break
+                if WEIGHT_LINE.match(line):
+                    lines.append(line[len("**Weight:**"):].strip().strip("`"))
+        except OSError:
+            return None, False
+        ok = len(lines) == 1 and lines[0] in shipfloor_config.WEIGHTS
+        return (lines[0], True) if ok else ("standard", False)
+
+    def weight_models(self):
+        """{weight: model} Develop starts with now, from the machine config."""
+        return dict(shipfloor_config.models_of(read_yaml(self.home / "config.yml"))["stages"]["develop"])
+
+    def set_weight(self, p, n, weight):
+        """The owner's weight for a card in Spec Review: `shipfloor weight` writes, commits and pushes the spec line."""
+        if weight not in shipfloor_config.WEIGHTS:
+            return 400, {"error": f"the weight is one of {', '.join(shipfloor_config.WEIGHTS)}"}
+        r = subprocess.run([bash(), (HERE / "shipfloor").as_posix(), "weight", p, str(n), weight],
+                           env=dict(os.environ, SHIPFLOOR_HOME=str(self.home)), capture_output=True, text=True, encoding="utf-8", errors="replace")
+        why = re.sub(r"^shipfloor: ", "", (r.stderr.strip() or r.stdout.strip()).splitlines()[-1] if (r.stderr.strip() or r.stdout.strip()) else "")
+        if r.returncode == 3:
+            return 409, {"error": why or "the card is no longer in Spec Review."}
+        if r.returncode != 0:
+            return (400 if r.returncode == 2 else 500), {"error": why or f"shipfloor weight exited {r.returncode}"}
+        return 200, {"weight": weight, "model": self.weight_models().get(weight)}
 
     def pool(self):
         m = shipfloor_config.merged(read_yaml(self.home / "config.yml"), shipfloor_config.MACHINE_DEFAULTS)
@@ -599,14 +750,17 @@ class Factory:
             known = dashboard_cost.spend(self.sessions(p), self.prices(), today)["cards"]
             unpriced += sum(1 for n in columns if n in known and known[n]["total"] is None)
             repo, row = self.config(p), registry.get(p, [])
-            cfg, _ = shipfloor_config.with_overrides(repo, shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml")))
+            over = shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml"))
+            cfg, _ = shipfloor_config.with_overrides(repo, over)
             knob = lambda c, k: next((v for v in [shipfloor_config.dotted(c, k)] if v is not None), KNOBS[k])
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "main": row[3] if len(row) > 3 else "main",
                              "repo": shipfloor_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
                              "knobs": {k: {"value": knob(cfg, k), "repo": knob(repo, k)} for k in KNOBS}, "context": cfg.get("context") or [],
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
-                             "language": {"code": cfg.get("language") or "en", "set": cfg.get("language") is not None,
-                                          "file": ".shipfloor/factory.yml"},
+                             # code: in effect; repo: what factory.yml yields; from: who decided; set: factory.yml has the key
+                             "language": {"code": cfg.get("language") or "en", "repo": repo.get("language") or "en",
+                                          "from": "machine" if isinstance(over, dict) and "language" in over else "repository",
+                                          "set": repo.get("language") is not None, "file": ".shipfloor/factory.yml"},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
         every = shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml"))
@@ -638,10 +792,15 @@ class Factory:
         raw, agents, prices = read_yaml(self.home / "config.yml"), self.project_agents(), self.prices()
         problems = shipfloor_config.model_problems(raw, agents)
         bad, configured = {p["key"] for p in problems}, raw.get("models") if isinstance(raw.get("models"), dict) else {}
+        priced = lambda value: value is None or any(k.startswith(f"claude-{value}-") for k in prices)
         def row(group, name, default):
             entries = configured.get(group) if isinstance(configured.get(group), dict) else {}
             value = None if f"models.{group}.{name}" in bad else entries.get(name)
-            return {"value": value, "default": default, "priced": value is None or any(k.startswith(f"claude-{value}-") for k in prices)}
+            if isinstance(default, dict):  # a stage per weight: a single model fills the three
+                value = {w: None if f"models.{group}.{name}.{w}" in bad else value.get(w) if isinstance(value, dict) else value
+                         for w in shipfloor_config.WEIGHTS}
+                return {"value": value, "default": dict(default), "priced": {w: priced(v) for w, v in value.items()}}
+            return {"value": value, "default": default, "priced": priced(value)}
         since, runs = datetime.now(timezone.utc) - timedelta(days=7), {s: [] for s in shipfloor_config.STAGES}
         for p in self.projects():
             for s in self.sessions(p):
@@ -703,15 +862,21 @@ class Factory:
             models = new["models"] if isinstance(new.get("models"), dict) else {}
             for group in ("stages", "agents"):
                 if isinstance(changes["models"].get(group), dict):
-                    rows = dict(models[group] if isinstance(models.get(group), dict) else {}, **changes["models"][group])
+                    rows = dict(models[group] if isinstance(models.get(group), dict) else {})
+                    for name, ch in changes["models"][group].items():
+                        if group == "stages" and isinstance(ch, dict) and name != "refine":  # per weight; null removes that weight
+                            had = rows.get(name)
+                            had = dict(had) if isinstance(had, dict) else dict.fromkeys(shipfloor_config.WEIGHTS, had) if isinstance(had, str) else {}
+                            had.update(ch)
+                            ch = {w: m for w, m in had.items() if m is not None} or None
+                        rows[name] = ch
                     models[group] = {n: m for n, m in rows.items() if m is not None}
             new["models"] = {g: rows for g, rows in models.items() if rows != {}}
             if not new["models"]:
                 del new["models"]
             agents = self.project_agents()
             before = shipfloor_config.model_problems(old, agents)
-            errs += [f"{p['key']}: not a stage or an agent here. Nothing was saved." if p["why"] == "name"
-                     else f"{p['key']}: must be a mapping. Nothing was saved." if p["why"] == "shape"
+            errs += [f"{shipfloor_config.model_problem_line(p)}. Nothing was saved." if p["why"] in ("name", "shape")
                      else f"{p['key']}: \"{p['value']}\" is not a model the factory knows. Nothing was saved."
                      for p in shipfloor_config.model_problems(new, agents) if p not in before]
         if errs:
@@ -736,11 +901,13 @@ class Factory:
         return 200, self.settings()
 
     def set_project(self, project, values):
-        """The owner's overrides of a project's operational limits on this machine: {knob: number, or null to go
-        back to what the repository says}. Kept in the project's overrides.yml, which the config readers lay over
-        factory.yml; checked with the whole config before it is written."""
-        if project not in self.projects() or not isinstance(values, dict) or not set(values) <= set(KNOBS):
+        """The owner's overrides of a project on this machine: {knob: number, or null to go back to what the
+        repository says}, and language: a code of LANGS, or null. Kept in the project's overrides.yml, which the
+        config readers lay over factory.yml; checked with the whole config before it is written."""
+        if project not in self.projects() or not isinstance(values, dict) or not set(values) <= set(KNOBS) | {"language"}:
             return 400, {"error": "unknown project or setting"}
+        if "language" in values and values["language"] is not None and (not isinstance(values["language"], str) or values["language"] not in shipfloor_config.LANGS):
+            return 400, {"error": f"language must be one of {', '.join(shipfloor_config.LANGS)}"}
         path, repo = self.pdir(project) / "overrides.yml", self.config(project)
         over = read_yaml(path)
         over = json.loads(json.dumps(over)) if isinstance(over, dict) else {}
@@ -761,7 +928,7 @@ class Factory:
             return 400, {"error": "; ".join(errs)}
         if over:
             with open(path, "w", encoding="utf-8", newline="\n") as f:
-                f.write("# this machine's overrides of the project's operational limits; set in the dashboard's Settings\n")
+                f.write("# this machine's overrides of the project; set in the dashboard's Settings\n")
                 yaml.safe_dump(over, f, sort_keys=False)
         else:
             path.unlink(missing_ok=True)
@@ -847,54 +1014,42 @@ class Factory:
         for p in self.projects():
             runs = self.live(p)
             live += runs
-            doing, hours = {}, {}
-            hour = lambda ts: parse_ts(ts).astimezone().hour
-            all_runs, spent = self.runs(p), {}  # spent: what each of today's runs cost, by (log, start)
-            sessions = self.sessions(p)
+            doing, all_runs, sessions = {}, self.runs(p), self.sessions(p)
             estimate, base = dashboard_cost.spend(sessions, prices, today), dashboard_cost.baselines(self.pdir(p))
             per_card = {n: c["total"] for n, c in estimate["cards"].items()}
             warned = dashboard_cost.over(estimate, limits, base)["warn"]
             today_cost += estimate["today"]
             for s in sessions:
                 doing[(s["issue"], s["stage"])] = s["activity"]  # sessions come oldest first: the latest wins
-                c = dashboard_cost.session_cost(s, prices)
-                if c and parse_ts(s["start"]).astimezone().date().isoformat() == today:
-                    # as in card(): a session belongs to the last run of its stage that started before it
-                    run = next((r for r in reversed(all_runs) if r["issue"] == s["issue"] and r["stage"] == s["stage"]
-                                and parse_ts(r["start"]).timestamp() <= parse_ts(s["start"]).timestamp() + 120), None)
-                    if run:
-                        spent[(run["log"], run["start"])] = spent.get((run["log"], run["start"]), 0.0) + c
-                    hours.setdefault(hour(s["start"]), {"ok": 0, "failed": 0, "cost": 0.0})["cost"] += c
             for r in runs:
                 r["activity"] = doing.get((r["issue"], r["stage"]), [])
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
             titles, blocked = self.titles(p, columns), self.blocked(p)
+            opened, place, line = self._opened.get(p, {}), {}, {}
+            for n, col in columns.items():  # columns come in board order: a card's place in line is its rank there
+                if col in LINED:
+                    line[col] = place[n] = line.get(col, 0) + 1
             # how long a stage usually takes (its clean runs) and when each card's last run ended
             took, since = {}, {}
             for r in all_runs:
                 if r["end"]:
                     since[r["issue"]] = r["end"]
-                    if r["log"].startswith(today):
-                        hours.setdefault(hour(r["end"]), {"ok": 0, "failed": 0, "cost": 0.0})["ok" if r["exit"] == 0 else "failed"] += 1
                     if r["exit"] == 0:
                         took.setdefault(r["stage"], []).append((parse_ts(r["end"]) - parse_ts(r["start"])).total_seconds())
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "board_age_s": age,
                              "skipped": self.skipped(p),
                              "typical_s": {st: round(statistics.median(v)) for st, v in took.items()},
-                             "hours": [dict(hours.get(h, {"ok": 0, "failed": 0, "cost": 0.0}), h=h)
-                                       for h in range(min(hours, default=0), datetime.now().hour + 1)] if hours else [],
-                             "ended": sorted((dict(r, cost=rounded(spent.get((r["log"], r["start"])))) for r in all_runs
-                                              if r["end"] and r["log"].startswith(today)),
-                                             key=lambda r: parse_ts(r["end"]), reverse=True)[:80],  # newest first
                              "repo": (self.config(p).get("project") or {}).get("repo"), "board_url": self.board_url(p),
                              "cards": [{"issue": n, "title": titles.get(n, ""), "column": col, "since": since.get(n),
                                         "cost": rounded(per_card.get(n, 0.0)),
                                         "over": "warn" if n in warned else None,
                                         "spent": None if per_card.get(n, 0.0) is None else per_card.get(n, 0.0) - base.get(n, 0.0),
-                                        "running": running.get(n), "awaiting": col in OWNER_MOVES,
-                                        "review": col in OWNER_MOVES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
-                                        "blocked": blocked.get(n)}
+                                        "running": running.get(n), "awaiting": col in AWAITING,
+                                        "review": col in AWAITING and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
+                                        "lock": "run" if n in running else {"infra": "infra", "owner": "blocked"}.get(blocked.get(n)),
+                                        "opened": opened.get(n), "position": place.get(n),
+                                        "blocked": blocked.get(n), **self.block_brief(p, n, blocked.get(n))}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
@@ -905,18 +1060,113 @@ class Factory:
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
                 "alerts": shipfloor_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
+                "moves": {f: [{"to": to, "note": note} for to, note in m] for f, m in OWNER_MOVES.items()}, "ordered": list(ORDERED),
+                "take_back": {f: list(m) for f, m in BLOCKED_MOVES.items()},
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
                           "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)},
                 "costs": dict(limits, day_stopped=day_stopped)}
 
-    def board_row(self, p, n):
-        """(the card's row on the live board: number, column, item id; or None), or (None, error)."""
+    def run_costs(self, runs, sessions, prices):
+        """{(log, start): US$} of each run that ended, from its sessions; None when one of them has no price. As in card(),
+        a session belongs to the last run of its card and stage that started before it; a run still going has none yet."""
+        by, out = {}, {}
+        for r in runs:
+            by.setdefault((r["issue"], r["stage"]), []).append(r)
+        for s in sessions:
+            at = parse_ts(s["start"]).timestamp() + 120
+            run = next((r for r in reversed(by.get((s["issue"], s["stage"]), [])) if parse_ts(r["start"]).timestamp() <= at), None)
+            if run and run["end"]:
+                key, c = (run["log"], run["start"]), dashboard_cost.session_cost(s, prices)
+                out[key] = None if c is None or out.get(key, 0.0) is None else out.get(key, 0.0) + c
+        return out
+
+    def history(self, p, per, page=1):
+        """The History panel over a period (history_period): the runs that ended in it by hour or by day, its totals and
+        the previous period's, how long a stage took, one page of its runs (newest first) and its cards by cost.
+        A run belongs to the day and hour its end falls in, on this machine's clock, and carries its sessions' cost."""
+        prices, runs, sessions = self.prices(), self.runs(p), self.sessions(p)
+        costs, day = self.run_costs(runs, sessions, prices), lambda r: parse_ts(r["end"]).astimezone()
+        cost = lambda r: costs.get((r["log"], r["start"]), 0.0)  # a run with no session cost nothing; rounded, so the totals equal the rows
+        ended = sorted((dict(r, cost=None if cost(r) is None else round(cost(r), 2)) for r in runs if r["end"]),
+                       key=lambda r: parse_ts(r["end"]).timestamp(), reverse=True)
+        within = lambda span: [r for r in ended if span["from"] <= day(r).date().isoformat() <= span["to"]]
+        mine, before = within(per), within(per["prev"])
+        columns, _ = self.board(p)
+        titles = self.titles(p, [*columns, *(r["issue"] for r in mine + before)])
+        opened = self._opened.get(p, {})
+
+        def figures(rs):
+            done = {}
+            for r in rs:  # newest first: a card's clean deploy is the last one it had in the period
+                if r["stage"] == "deploy" and r["exit"] == 0:
+                    done.setdefault(r["issue"], r["end"])
+            waits = []
+            for n, end in done.items():
+                try:  # a card whose creation GitHub did not give is left out of the median
+                    if opened.get(n):
+                        waits.append((parse_ts(end) - parse_ts(opened[n])).total_seconds())
+                except (TypeError, ValueError):
+                    continue
+            return {"done": len(done), "ok": sum(r["exit"] == 0 for r in rs), "failed": sum(r["exit"] != 0 for r in rs),
+                    "cost": round(sum(r["cost"] for r in rs if r["cost"] is not None), 2),
+                    "unpriced": sum(r["cost"] is None for r in rs),
+                    "median_s": round(statistics.median(waits)) if waits else None, "median_of": len(waits)}
+
+        if per["unit"] == "hour":
+            now = datetime.now()
+            slots = [{"h": h} for h in range(0, now.hour + 1 if per["present"] else 24)]
+            slot = lambda r: day(r).hour
+        else:
+            a = date.fromisoformat(per["from"])
+            slots = [{"day": (a + timedelta(days=i)).isoformat()} for i in range(per["days"])]
+            slot = lambda r: (day(r).date() - a).days
+        for b in slots:
+            b.update(ok=0, failed=0, cost=0.0, unpriced=0)
+        for r in mine:
+            i = slot(r)
+            if 0 <= i < len(slots):
+                b = slots[i]
+                b["ok" if r["exit"] == 0 else "failed"] += 1
+                if r["cost"] is None:
+                    b["unpriced"] += 1
+                else:
+                    b["cost"] = round(b["cost"] + r["cost"], 2)
+        took = {}
+        for r in mine:
+            if r["exit"] == 0:
+                took.setdefault(r["stage"], []).append((parse_ts(r["end"]) - parse_ts(r["start"])).total_seconds())
+        pages = max(1, -(-len(mine) // HISTORY_PAGE))
+        page = min(max(1, page), pages)
+        estimate = dashboard_cost.spend(sessions, prices, date.today().isoformat())["cards"]
+        cards = [{"issue": n, "title": titles.get(n, ""), "column": columns.get(n), "runs": sum(r["issue"] == n for r in mine),
+                  "cost": rounded((estimate.get(n) or {"total": 0.0})["total"])} for n in sorted({r["issue"] for r in mine})]
+        cards.sort(key=lambda c: (c["cost"] is None, -(c["cost"] or 0), c["issue"]))  # the costliest first, unpriced last
+        return {**{k: per[k] for k in ("from", "to", "days", "unit", "present", "prev", "next", "now")},
+                "buckets": slots, "totals": figures(mine), "previous": figures(before),
+                "typical_s": {st: round(statistics.median(v)) for st, v in took.items()},
+                "runs": [{"issue": r["issue"], "title": titles.get(r["issue"], ""), "stage": r["stage"], "start": r["start"],
+                          "end": r["end"], "exit": r["exit"], "log": r["log"], "cost": r["cost"]}
+                         for r in mine[(page - 1) * HISTORY_PAGE:page * HISTORY_PAGE]],
+                "runs_total": len(mine), "page": page, "pages": pages, "cards": cards, "empty": not mine}
+
+    def board_rows(self, p):
+        """(every row of the live board in board order: number, column, item id), or (None, error)."""
         env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
         snap = subprocess.run([bash(), (HERE / "board.sh").as_posix(), "snapshot"], env=env,
                               capture_output=True, text=True, encoding="utf-8")
         if snap.returncode != 0:
             return None, "cannot read the board: " + snap.stderr.strip()
-        return next((c for c in (l.split("\t") for l in snap.stdout.splitlines()) if c[0] == str(n)), None), None
+        return [c for c in (l.split("\t") for l in snap.stdout.splitlines()) if len(c) > 2 and number(c[0])], None
+
+    def board_row(self, p, n):
+        """(the card's row on the live board: number, column, item id; or None), or (None, error)."""
+        rows, err = self.board_rows(p)
+        return (None, err) if err else (next((c for c in rows if c[0] == str(n)), None), None)
+
+    def keep_rows(self, p, rows):
+        """The board as a write of the owner's just left it becomes the dashboard's own read, so the next overview shows it
+        without waiting for the dispatcher; board.tsv stays the dispatcher's to write."""
+        self._snap[p] = (time.time(), ["\t".join(r) for r in rows])
 
     def accept(self, p, n, text):
         """The owner takes the card's acceptance test edits as they stand (shipfloor accept), and the block comes off."""
@@ -952,29 +1202,195 @@ class Factory:
         return code, dict(body, moved_to="Coding")
 
     def act(self, p, n, action, seen, text, move_only):
-        """The owner's approve / request-changes. Moves with gh directly: board.sh move refuses
-        owner-only columns on purpose (the agents' guardrail), and an owner path there would be open to agents."""
+        """The owner's approve / request-changes on a Spec Review or Staged card: the move of that column without a note,
+        or the one with a note."""
+        if seen not in AWAITING:  # as before #125: a card outside those columns has nothing to decide, whatever the board says
+            row, err = self.board_row(p, n)
+            if err:
+                return 502, {"error": err}
+            return 409, {"error": f"#{n} is in {row[1] if row else 'no column'} now", "column": row and row[1]}
+        to = next(t for t, note in OWNER_MOVES[seen] if note == (action == "request-changes"))
+        return self.owner_move(p, n, seen, to, text, move_only)
+
+    def lock(self, p, n):
+        """(why the card cannot move now: "run", "infra", "blocked" or None, error). Read now, not from the minute-old cache."""
+        if any(r["issue"] == n and not r["orphan"] for r in self.live(p)):
+            return "run", None
+        issue, err = gh_json("api", f"repos/{shipfloor_config.dotted(self.config(p), 'project.repo')}/issues/{n}")
+        if err:
+            return None, "cannot read the card's labels: " + err
+        names = {l.get("name") for l in (issue or {}).get("labels") or [] if isinstance(l, dict)}
+        return ("infra" if "blocked:infra" in names else "blocked" if "blocked" in names else None), None
+
+    def owner_move(self, p, n, seen, to, text, move_only):
+        """A move of M1 to M7. Moves with gh directly: board.sh move refuses owner-only columns on purpose (the agents'
+        guardrail), and an owner path there would be open to agents. A note goes on the issue before the move."""
         cfg = self.config(p)
         owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
-        row, err = self.board_row(p, n)
+        rows, err = self.board_rows(p)
         if err:
             return 502, {"error": err}
+        row = next((r for r in rows if r[0] == str(n)), None)
         column = row[1] if row else None
-        if column not in OWNER_MOVES or column != seen:
+        if column != seen:
             return 409, {"error": f"#{n} is in {column or 'no column'} now", "column": column}
-        target = OWNER_MOVES[column][action]
-        # request-changes always says why; an approval may carry a note too (an answer to the spec's open question)
-        commented = not move_only and (action == "request-changes" or bool(text.strip()))
+        note = dict(OWNER_MOVES.get(column, ())).get(to) if isinstance(to, str) else None
+        if note is None:
+            return 403, {"error": f"the owner does not move a card from {column} to {to or 'nowhere'}"}
+        locked, err = self.lock(p, n)
+        if err:
+            return 502, {"error": err}
+        if locked:
+            return 423, {"error": LOCKED[locked], "locked": locked}
+        # a note move always says why; any other move may carry a note too (an answer to the spec's open question)
+        commented = not move_only and (note or bool(text.strip()))
         if commented:
             if not text.strip():
                 return 400, {"error": "write what should change"}
             r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
             if r.returncode != 0:
                 return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip()}
-        err = self.move(p, owner, num, row[2], target)
+        rest = [r for r in rows if r is not row]
+        last = [r for r in rest if r[1] == to][-1:]
+        if to in ORDERED and last:  # a Status change keeps the item's place, which may be the top of the queue: it goes last
+            err = self.place(p, owner, num, row[2], last[0][2])
+            if err:
+                return 502, {"error": err, "commented": commented}
+            rest.insert(rest.index(last[0]) + 1, row)
+        else:
+            rest = rows
+        err = self.move(p, owner, num, row[2], to)
         if err:
             return 502, {"error": err, "commented": commented}
-        return 200, {"moved_to": target}
+        self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
+        return 200, {"moved_to": to}
+
+    def take_back(self, p, n, to, text):
+        """A card blocked for the owner goes back to Ready for Dev, Ready for Refinement or the Inbox (#127), in this order:
+        the comment (when there is one), the card's open pull request closed (Inbox only, its branch kept), the move, the
+        block off. A failure stops there and leaves the card blocked where it was, so the same move can be repeated."""
+        if not isinstance(to, str) or to not in BLOCKED_MOVES["Coding"]:
+            return 400, {"error": f"a blocked card goes to {', '.join(BLOCKED_MOVES['Coding'])}, not {to or 'nowhere'}"}
+        rows, err = self.board_rows(p)
+        if err:
+            return 502, {"error": err}
+        row = next((r for r in rows if r[0] == str(n)), None)
+        if not row:
+            return 409, {"error": f"#{n} is not on the board", "column": None}
+        column = row[1]
+        locked, err = self.lock(p, n)  # read now: a card unblocked a moment ago must not be moved as blocked
+        if err:
+            return 502, {"error": err}
+        if locked != "blocked":
+            why = LOCKED[locked] if locked else "it is not blocked now"
+            return 409, {"error": why, "column": column, "locked": locked}
+        if to == column or to not in BLOCKED_MOVES.get(column, BLOCKED_MOVES["*"]):
+            return 409, {"error": f"a card blocked in {column} does not go to {to}", "column": column}
+        cfg = self.config(p)
+        owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
+        commented, closed = False, None
+        if text.strip():
+            r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
+            if r.returncode != 0:
+                return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip(), "commented": False, "pr_closed": None}
+            commented = True
+        if to == "Inbox":  # the card's pull request, found by its branch feat/<n>-...; none open is not an error
+            prs, err = gh_json("pr", "list", "--repo", str(repo), "--state", "open", "--json", "number,headRefName", "--limit", "200")
+            if err:
+                return 502, {"error": "cannot read the pull requests, nothing moved: " + err, "commented": commented, "pr_closed": None}
+            for pr in prs or []:
+                if isinstance(pr, dict) and str(pr.get("headRefName") or "").startswith(f"feat/{n}-"):
+                    r = gh("pr", "close", str(pr.get("number")), "--repo", str(repo))  # no --delete-branch: the branch stays
+                    if r.returncode != 0:
+                        return 502, {"error": "closing the pull request failed, nothing moved: " + r.stderr.strip(),
+                                     "commented": commented, "pr_closed": closed}
+                    closed = closed or pr.get("number")
+        rest = [r for r in rows if r is not row]
+        last = [r for r in rest if r[1] == to][-1:]
+        if to in ORDERED and last:  # as owner_move: a Status change keeps the item's place, which may be the top of the queue
+            err = self.place(p, owner, num, row[2], last[0][2])
+            if err:
+                return 502, {"error": err, "commented": commented, "pr_closed": closed}
+            rest.insert(rest.index(last[0]) + 1, row)
+        else:
+            rest = rows
+        err = self.move(p, owner, num, row[2], to)
+        if err:
+            return 502, {"error": err, "commented": commented, "pr_closed": closed}
+        self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
+        code, body = self.unblock(p, n)
+        if code != 200:
+            return 502, {"error": "moved, but the block did not come off: " + body.get("error", ""), "commented": commented,
+                         "pr_closed": closed, "moved_to": to}
+        return 200, {"moved_to": to, "commented": commented, "pr_closed": closed, "unblocked": True}
+
+    def owner_reorder(self, p, n, seen, before):
+        """The card goes right before `before` in its column, or last for None (#128). `seen` and `before` are what the
+        page saw: a board that changed since is refused, not reordered somewhere else."""
+        if before is not None and (isinstance(before, bool) or not isinstance(before, int)):
+            return 400, {"error": "before must be a card number or null"}
+        if before == n:
+            return 400, {"error": f"#{n} cannot go before itself"}
+        if seen not in ORDERED:
+            return 403, {"error": f"the order of {seen or 'no column'} is not the owner's to set"}
+        rows, err = self.board_rows(p)
+        if err:
+            return 502, {"error": err}
+        mine = [r for r in rows if r[1] == seen]
+        row = next((r for r in mine if r[0] == str(n)), None)
+        if not row:
+            return 409, {"error": f"it is no longer in {seen}", "column": seen, "gone": n}
+        if before is not None and not any(r[0] == str(before) for r in mine):
+            return 409, {"error": f"#{before} is no longer in {seen}", "column": seen, "gone": before}
+        locked, err = self.lock(p, n)
+        if err:
+            return 502, {"error": err}
+        if locked:
+            return 423, {"error": LOCKED[locked], "locked": locked}
+        rest = [r for r in rows if r is not row]
+        if before is None:
+            after = ([r for r in rest if r[1] == seen][-1:] or [None])[0]
+        else:
+            i = next(i for i, r in enumerate(rest) if r[0] == str(before))
+            after = rest[i - 1] if i else None
+        rest.insert(rest.index(after) + 1 if after else 0, row)
+        position = [r[0] for r in rest if r[1] == seen].index(str(n)) + 1
+        if rest == rows:
+            return 200, {"position": position}
+        cfg = self.config(p)
+        err = self.place(p, shipfloor_config.dotted(cfg, "board.owner"), shipfloor_config.dotted(cfg, "board.number"), row[2], after and after[2])
+        if err:
+            return 502, {"error": err}
+        self.keep_rows(p, rest)
+        return 200, {"position": position}
+
+    def place(self, p, owner, num, item, after):
+        """Puts the item right after another one in the project's order, or first without `after`."""
+        project_id, err = self.project_id(p, owner, num)
+        if err:
+            return err
+        query = ("mutation($project: ID!, $item: ID!, $after: ID) { updateProjectV2ItemPosition(input: "
+                 "{projectId: $project, itemId: $item, afterId: $after}) { clientMutationId } }")
+        r = gh("api", "graphql", "-f", f"query={query}", "-f", f"project={project_id}", "-f", f"item={item}",
+               *(("-f", f"after={after}") if after else ()))
+        return None if r.returncode == 0 else "reorder failed, nothing moved: " + r.stderr.strip()
+
+    def project_id(self, p, owner, num):
+        try:
+            return (self.pdir(p) / "board-ids").read_text().split()[0], None
+        except (OSError, IndexError):
+            project, err = gh_json("project", "view", str(num), "--owner", owner, "--format", "json")
+            return (None, "cannot read the board ids: " + err) if err else ((project or {}).get("id", ""), None)
+
+    def comment(self, p, n, text):
+        """A comment on the issue after a move already left (the toast's Comment); it moves nothing."""
+        if not text.strip():
+            return 400, {"error": "the comment is empty"}
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
+        r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
+        if r.returncode != 0:
+            return 502, {"error": "comment failed: " + r.stderr.strip()}
+        return 200, {"commented": True}
 
     def move(self, p, owner, num, item, target):
         fields, err = gh_json("project", "field-list", str(num), "--owner", owner, "--format", "json")
@@ -1059,7 +1475,7 @@ class Factory:
     def feed_runs(self, p, runs):
         """A feed event per run, with what each one left behind, every piece from its own source: the card's
         title, the estimated cost of the run's sessions, the pull request and the failed gates its report names,
-        the last line of a run that failed and, on a card's newest run, the column the card is in now. A run with
+        and, on a card's newest run, the column the card is in now. A run with
         no end is running only while its lock is there, and then it carries its step; otherwise its end was lost."""
         prices, (columns, _) = self.prices(), self.board(p)
         titles = self.titles(p, sorted({*columns, *(r["issue"] for r in runs)}))
@@ -1083,19 +1499,6 @@ class Factory:
                     and stamp(r["start"]) <= x["file"][len(r["stage"]) + 1:-5] <= stamp(r["end"])]
             return mine[-1] if mine else {}
 
-        def last_line(r):  # what a failed run said last
-            said = ""
-            try:
-                with open(self.pdir(p) / "logs" / r["log"], encoding="utf-8", errors="replace") as f:
-                    for line in f:
-                        m = RUN_LINE.match(line)
-                        if m and m.group(1) == "end" and m.group(5) == r["end"]:
-                            return said[:300]
-                        said = "" if m else line.strip() or said
-            except OSError:
-                pass
-            return ""
-
         out = []
         for r in runs:
             n, key = r["issue"], (r["log"], r["start"])
@@ -1103,16 +1506,20 @@ class Factory:
                  "end": r["end"], "exit": r["exit"] if r["end"] else None, "ts": r["end"] or r["start"], "text": f"{r['stage']} #{n}"}
             if key in spent:
                 e["cost"] = None if spent[key] is None else round(spent[key], 2)
+            if r.get("model"):
+                e["model"] = r["model"]
+            if r.get("stepped"):
+                e["stepped"] = {"from": r["stepped"]["from"], "to": r.get("model") or r["stepped"]["to"], "gates": r["stepped"]["gates"]}
+            if r.get("again"):
+                e["again"] = r["again"]
             if r["end"]:
                 rep = report(r)
                 if isinstance(rep.get("pr"), int):
                     e["pr"] = rep["pr"]
                 if isinstance(rep.get("failed_gates"), list) and rep["failed_gates"]:
                     e["failed"] = [str(g) for g in rep["failed_gates"]]
-                if r["exit"]:
-                    e["last"] = last_line(r)
                 if newest[n] is r and columns.get(n):
-                    e.update(column=columns[n], you=columns[n] in OWNER_MOVES)
+                    e.update(column=columns[n], you=columns[n] in AWAITING)
             else:
                 now = live.get((r["stage"], n)) if newest[n] is r else None
                 if now is None:
@@ -1170,6 +1577,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, f.settings())
             if parts == ["api", "feed"]:
                 return self.send(200, f.feed())
+            if known and len(parts) == 3 and parts[:2] == ["api", "history"]:
+                one = lambda k: q[k][0] if k in q else None
+                per, why = history_period(datetime.now().date(), one("days"), one("from"), one("to"))
+                if why:
+                    return self.send(400, {"error": why})
+                page = one("page") or "1"
+                return self.send(200, f.history(parts[2], per, int(page) if number(page) else 1))
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and number(parts[3]):
                 return self.send(200, f.card(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and number(parts[3]):
@@ -1225,7 +1639,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and number(parts[3]) and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "take-back", "unblock", "message", "accept", "send-back", "weight")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -1239,6 +1653,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(*fn(parts[2], int(parts[3]), str(body.get("text", ""))))
             if parts[4] == "unblock":
                 return self.send(*self.factory.unblock(parts[2], int(parts[3])))
+            if parts[4] == "weight":
+                return self.send(*self.factory.set_weight(parts[2], int(parts[3]), body.get("weight")))
+            if parts[4] == "move":
+                return self.send(*self.factory.owner_move(parts[2], int(parts[3]), body.get("column"), body.get("to"),
+                                                          str(body.get("text") or ""), bool(body.get("move_only"))))
+            if parts[4] == "reorder":
+                return self.send(*self.factory.owner_reorder(parts[2], int(parts[3]), body.get("column"), body.get("before")))
+            if parts[4] == "take-back":
+                return self.send(*self.factory.take_back(parts[2], int(parts[3]), body.get("to"), str(body.get("text") or "")))
+            if parts[4] == "comment":
+                return self.send(*self.factory.comment(parts[2], int(parts[3]), str(body.get("text") or "")))
             self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),
                                         str(body.get("text", "")), bool(body.get("move_only"))))
         except Exception as e:
