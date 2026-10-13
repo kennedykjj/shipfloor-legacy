@@ -3,7 +3,6 @@ factory's runs. Read-only, except the owner's decisions on a card that waits, me
 settings (the pool and the pauses)."""
 import argparse, hashlib, json, os, re, secrets, shlex, shutil, statistics, subprocess, sys, threading, time, webbrowser
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -182,7 +181,7 @@ class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
         self._transcripts, self._titles, self._blocked, self._reasons, self._boards = {}, {}, {}, {}, {}
-        self._diffs, self._prs, self._opened, self._lbl = {}, {}, {}, {}
+        self._diffs, self._prs, self._opened = {}, {}, {}
         self._stacks = (0.0, [], 0)
         self._configs = {}
         self._snap, self._reading, self._retry = {}, set(), {}
@@ -879,8 +878,6 @@ class Factory:
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
             titles, blocked = self.titles(p, columns), self.blocked(p)
-            # the cards the owner could move are asked for their own labels (a minute old at most); the others keep the block map
-            lbl = self.label_locks(p, [n for n, col in columns.items() if col in OWNER_MOVES and n not in running])
             opened, place, seen_in = self._opened.get(p, {}), {}, {}
             for n, col in columns.items():  # board order is the order the dispatcher takes a queue's cards
                 seen_in[col] = seen_in.get(col, 0) + 1
@@ -910,7 +907,7 @@ class Factory:
                                         "running": running.get(n), "awaiting": col in DECIDES,
                                         "review": col in DECIDES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                                         "blocked": blocked.get(n), "opened": opened.get(n), "position": place[n],
-                                        "lock": "run" if n in running else lbl.get(n) or {"infra": "infra", "owner": "blocked"}.get(blocked.get(n))}
+                                        "lock": "run" if n in running else {"infra": "infra", "owner": "blocked"}.get(blocked.get(n))}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
@@ -983,20 +980,6 @@ class Factory:
             return None, "cannot read the labels: " + err
         names = {l.get("name") for l in labels or [] if isinstance(l, dict)}
         return next((kind for label, kind in (("blocked:infra", "infra"), ("blocked", "blocked")) if label in names), None), None
-
-    def label_locks(self, p, cards):
-        """{n: "infra" | "blocked" | None} for the cards the owner could move, from each issue's labels, kept a minute
-        (the overview is read every two seconds; the move itself reads the labels again). A failed read keeps what was known."""
-        known, now = self._lbl.setdefault(p, {}), time.time()
-        stale = [n for n in cards if n not in known or now - known[n][0] > 60]
-        if stale:
-            with ThreadPoolExecutor(max_workers=8) as pool:
-                for n, (kind, err) in zip(stale, pool.map(lambda n: self.label_lock(p, n), stale)):
-                    if not err:
-                        known[n] = (now, kind)
-                    elif n not in known:
-                        known[n] = (now, None)
-        return {n: known[n][1] for n in cards}
 
     def act(self, p, n, action, seen, text, move_only):
         """The owner's approve / request-changes: the move the table gives for the action, through owner_move."""

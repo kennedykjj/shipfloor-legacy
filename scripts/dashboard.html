@@ -169,8 +169,9 @@ main { min-height: 0; display: grid; }
 @keyframes fade { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #dim { animation: none; } }
 /* the line maximized: every card by name, in two lanes of five columns */
-.lanes, .band > h1 { display: none; } .band > h1 { font-size: 26px; }
-.band.maxed { display: flex; flex-direction: column; overflow: hidden; } .band.maxed > h1 { display: block; }
+.lanes, .band h1 { display: none; } .band h1 { font-size: 26px; }
+.band.maxed { display: flex; flex-direction: column; overflow: hidden; } .band.maxed h1 { display: block; }
+.band.maxed .lrow { display: flex; align-items: center; column-gap: 24px; row-gap: 4px; flex-wrap: wrap; }
 .band.maxed .cells, .band.maxed .legend { display: none; }
 .band.maxed .lanes { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr); }
 .lane { margin: 12px 0 0; padding-bottom: 6px; border-bottom: 1px solid var(--edge-hi); font-size: 16px; letter-spacing: .1em; color: var(--soft); }
@@ -184,7 +185,7 @@ main { min-height: 0; display: grid; }
 .chip.hot, .chip:hover { background: var(--panel-hi); }
 /* the owner's moves on the line maximized: a held card lights the columns that accept it and dims the rest; a locked card says why */
 .lhead, .lstat, .lnone, .lerr, .ltoast { display: none; }
-.band.maxed .lhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.band.maxed .lhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ltog { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); cursor: pointer; }
 .band.maxed .lstat { display: block; margin: 6px 0 0; font-size: 12.5px; color: var(--muted); min-height: 1.4em; }
 .band.maxed .lnone:not([hidden]), .band.maxed .lerr:not(:empty) { display: block; }
@@ -586,8 +587,8 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
       <button class="cap" data-show="band" aria-controls="band" aria-expanded="false">Lifecycle<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
       <button class="cap" data-show="today" aria-controls="today" aria-expanded="false">Today<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button>
       <span id="sum"></span></div>
-    <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1>
-      <div class="lhead"><label class="ltog"><span class="sw sand"><input type="checkbox" id="lonly" aria-label="Only what I can move"><i></i></span><span>Only what I can move</span></label></div>
+    <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><div class="lrow"><h1 class="g">Lifecycle</h1>
+      <div class="lhead"><label class="ltog"><span class="sw sand"><input type="checkbox" id="lonly" aria-label="Only what I can move"><i></i></span><span>Only what I can move</span></label></div></div>
       <p class="lstat" id="lstat" role="status"></p><p class="empty lnone" id="lnone" hidden>Nothing for you to move right now.</p><p class="pnote lerr" id="lerr" role="status"></p>
       <div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
       <div class="itoast ltoast" id="ltoast" role="status" hidden></div>
@@ -1015,6 +1016,7 @@ function paintLanes() {
   $("lonly").checked = S.only; $("lnone").hidden = !(S.only && !any);
   setHTML($("lstat"), esc(S.say)); setHTML($("lerr"), S.lerr);
   const t = S.toast; if (t?.sent && !(t.k in S.moving)) S.toast = null;  // the board agrees: the toast has said its piece
+  if (t?.kind === "moved" && !t.sent && !S.pending[t.k] && !(t.k in S.moving)) S.toast = null;  // the list's Undo dropped the move
   $("ltoast").hidden = !S.toast; if (S.toast) setHTML($("ltoast"), toastHtml(S.toast));
 }
 const FACTORY_COLS = new Set(COLS.filter((x) => x.stage).map((x) => x.name));  // the columns that carry a stage name: the factory moves cards there
