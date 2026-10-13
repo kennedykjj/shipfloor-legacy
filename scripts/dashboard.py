@@ -626,14 +626,17 @@ class Factory:
             known = dashboard_cost.spend(self.sessions(p), self.prices(), today)["cards"]
             unpriced += sum(1 for n in columns if n in known and known[n]["total"] is None)
             repo, row = self.config(p), registry.get(p, [])
-            cfg, _ = shipfloor_config.with_overrides(repo, shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml")))
+            over = shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml"))
+            cfg, _ = shipfloor_config.with_overrides(repo, over)
             knob = lambda c, k: next((v for v in [shipfloor_config.dotted(c, k)] if v is not None), KNOBS[k])
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "main": row[3] if len(row) > 3 else "main",
                              "repo": shipfloor_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
                              "knobs": {k: {"value": knob(cfg, k), "repo": knob(repo, k)} for k in KNOBS}, "context": cfg.get("context") or [],
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
-                             "language": {"code": cfg.get("language") or "en", "set": cfg.get("language") is not None,
-                                          "file": ".shipfloor/factory.yml"},
+                             # code: in effect; repo: what factory.yml yields; from: who decided; set: factory.yml has the key
+                             "language": {"code": cfg.get("language") or "en", "repo": repo.get("language") or "en",
+                                          "from": "machine" if isinstance(over, dict) and "language" in over else "repository",
+                                          "set": repo.get("language") is not None, "file": ".shipfloor/factory.yml"},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
         every = shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml"))
@@ -763,11 +766,13 @@ class Factory:
         return 200, self.settings()
 
     def set_project(self, project, values):
-        """The owner's overrides of a project's operational limits on this machine: {knob: number, or null to go
-        back to what the repository says}. Kept in the project's overrides.yml, which the config readers lay over
-        factory.yml; checked with the whole config before it is written."""
-        if project not in self.projects() or not isinstance(values, dict) or not set(values) <= set(KNOBS):
+        """The owner's overrides of a project on this machine: {knob: number, or null to go back to what the
+        repository says}, and language: a code of LANGS, or null. Kept in the project's overrides.yml, which the
+        config readers lay over factory.yml; checked with the whole config before it is written."""
+        if project not in self.projects() or not isinstance(values, dict) or not set(values) <= set(KNOBS) | {"language"}:
             return 400, {"error": "unknown project or setting"}
+        if "language" in values and values["language"] is not None and (not isinstance(values["language"], str) or values["language"] not in shipfloor_config.LANGS):
+            return 400, {"error": f"language must be one of {', '.join(shipfloor_config.LANGS)}"}
         path, repo = self.pdir(project) / "overrides.yml", self.config(project)
         over = read_yaml(path)
         over = json.loads(json.dumps(over)) if isinstance(over, dict) else {}
@@ -788,7 +793,7 @@ class Factory:
             return 400, {"error": "; ".join(errs)}
         if over:
             with open(path, "w", encoding="utf-8", newline="\n") as f:
-                f.write("# this machine's overrides of the project's operational limits; set in the dashboard's Settings\n")
+                f.write("# this machine's overrides of the project; set in the dashboard's Settings\n")
                 yaml.safe_dump(over, f, sort_keys=False)
         else:
             path.unlink(missing_ok=True)

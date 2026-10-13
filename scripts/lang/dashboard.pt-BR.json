@@ -341,9 +341,8 @@
     "The dashboard's own text. What the agents wrote is shown as written. Applied when the page is reloaded.": "O texto do próprio dashboard. O que os agentes escreveram aparece como foi escrito. Vale quando a página é recarregada.",
     "The language shows after a reload.": "O idioma aparece depois de recarregar.",
     "What the factory writes": "O que a fábrica escreve",
-    "Read-only here: a project's language is part of its repository. To change it, edit": "Somente leitura aqui: o idioma de um projeto faz parte do repositório dele. Para mudar, edite",
-    "in its": "no",
-    ". The dispatcher reads it again on every cycle.": ". O dispatcher lê o arquivo de novo a cada ciclo.",
+    "Kept on this machine, over what the repository says; the repository's": "Fica nesta máquina, por cima do que o repositório diz; o",
+    "is not changed. A change applies from the dispatcher's next cycle; a session already running keeps the language it started in.": "do repositório não é alterado. Uma mudança vale a partir do próximo ciclo do dispatcher; uma sessão que já roda continua no idioma em que começou.",
     "English": "Inglês",
     "Brazilian Portuguese": "Português do Brasil",
     "This card's estimate passed the warning set in Settings, Costs. Nothing stops until the block limit.": "A estimativa deste card passou do aviso definido em Configurações, Custos. Nada para até o limite de bloqueio.",
@@ -433,6 +432,22 @@
     [
       "^The language was not changed: (.*)\\. This dashboard stays in (.*)\\.$",
       "O idioma não foi alterado: $1. Este dashboard continua em $2."
+    ],
+    [
+      "^The language of (\\S+) was not changed: (.*)\\. It still writes in (.*)\\.$",
+      "O idioma de $1 não foi alterado: $2. Ele continua escrevendo em $3."
+    ],
+    [
+      "^As the repository says: (.+)$",
+      "Como o repositório diz: $1"
+    ],
+    [
+      "^set on this machine · the repository says (.+)$",
+      "definido nesta máquina · o repositório diz $1"
+    ],
+    [
+      "^Language the factory writes in for (\\S+)$",
+      "Idioma em que a fábrica escreve em $1"
     ],
     [
       "language must be one of ([A-Za-z, -]+)",
