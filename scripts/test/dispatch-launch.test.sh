@@ -17,7 +17,7 @@ assert_contains "$log" "--disallowedTools PowerShell"
 assert_contains "$log" "mem=1 "
 assert_contains "$log" "--append-system-prompt This is an unattended factory run."
 case "$log" in *"reports-wt"*) fail "no rule for a reports folder that does not exist" ;; *) pass "no rule for a missing folder" ;; esac
-case "$log" in *"--model"*) fail "develop keeps the default model" ;; esac
+assert_contains "$log" "--model sonnet"   # no spec: a standard card, on develop's shipped sonnet (#133)
 assert_contains "$(cat "$FACTORY_HOME"/logs/*-60-validate.log)" "--model sonnet"
 assert_contains "$log" "== start /sf:develop 54"
 assert_contains "$log" "== end /sf:develop 54 exit=3"

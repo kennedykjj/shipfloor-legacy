@@ -7,6 +7,7 @@
 #   pool [set <n> | stage <stage> <n> | stacks <n>]  runs at once on this machine, per stage, and stack slots
 #   clean <slug>                  remove what cards left under tmp/ (the dispatcher does it every cycle)
 #   accept <slug> <n> <reason>    owner only: take card <n>'s acceptance tests as they stand (acceptance-intact)
+#   weight <slug> <n> <light|standard|heavy>  owner only: card <n>'s weight, in Spec Review (the model its runs take)
 #   dashboard [--port N] [--no-open] [--token T]  local dashboard: pool, runs, logs, cost per card, reviews
 #   migrate-home [OLD]            move the old ~/.aghanim home here (one-time, after the rename; legacy aghanim)
 set -uo pipefail
@@ -317,6 +318,42 @@ cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>
   [ "$took" = 1 ] || echo "nothing to accept: acceptance-intact already passes for card $n"
 }
 
+cmd_weight() {  # weight <slug> <n> <light|standard|heavy>: the owner sets card <n>'s weight in its spec header, from Spec Review
+  # One commit on the card's branch, pushed; the review page is not rebuilt, so the owner's marks stay.
+  local slug="${1:-}" n="${2:-}" w="${3:-}" wt spec branch d pid old tmp out
+  [ -n "$slug" ] && [[ "$n" =~ ^[0-9]+$ ]] && [ $# -eq 3 ] || die "usage: shipfloor weight <project> <n> <light|standard|heavy>" 2
+  case "$w" in light|standard|heavy) ;; *) die "'$w' is not a weight (light, standard, heavy)" 2 ;; esac
+  use "$slug"; wt="$FACTORY_WT_ROOT/$n"
+  [ "$(bash "$HERE/board.sh" status "$n" 2>/dev/null)" = "Spec Review" ] || die "the card is no longer in Spec Review." 3
+  for d in "$FACTORY_HOME"/locks/[a-z]*-"$n".lock; do
+    [ -d "$d" ] || continue; pid=""; read -r pid _ < "$d/info" 2>/dev/null
+    { [ -z "$pid" ] || kill -0 "$pid" 2>/dev/null; } && die "a run is working on card $n now; try again when it ends" 3
+  done
+  spec="$(shipfloor_card_spec "$n")"; [ -n "$spec" ] || die "no spec for card $n under $wt"
+  branch="$(git -C "$wt" rev-parse --abbrev-ref HEAD)"
+  [ -z "$(git -C "$wt" status --porcelain -- "$spec")" ] || die "$spec has uncommitted changes"
+  old="$(awk '/^## /{exit} /^\*\*Weight:\*\*/' "$spec" | tr -d '\r')"
+  [ "$old" = "**Weight:** $w" ] && { echo "weight $w"; return 0; }
+  # the one line, after the header's last **Field:** line (or before the first section); a second one goes
+  tmp="$spec.weight-tmp"
+  awk -v line="**Weight:** $w" '
+    { rows[NR] = $0 }
+    !sec && /^## / { sec = NR }
+    !sec && /^\*\*[^*]+:\*\*/ && !/^\*\*Weight:\*\*/ { last = NR }
+    END { at = last ? last : (sec ? sec - 1 : NR); done = 0
+      if (at == 0) { print line; done = 1 }
+      for (i = 1; i <= NR; i++) {
+        if ((!sec || i < sec) && rows[i] ~ /^\*\*Weight:\*\*/) continue
+        print rows[i]
+        if (i == at && !done) { print line; done = 1 } } }' "$spec" > "$tmp" && mv -f "$tmp" "$spec" || { rm -f "$tmp"; die "could not write $spec"; }
+  git -C "$wt" add -- "$spec" && git -C "$wt" commit -q -m "docs(${branch#feat/$n-}): weight $w for #$n" -- "$spec" || { git -C "$wt" checkout -q -- "$spec"; die "could not commit the weight"; }
+  if ! out="$(git -C "$wt" push -q origin "HEAD:$branch" 2>&1)"; then
+    git -C "$wt" reset -q --hard HEAD~1
+    die "could not push $branch: $(printf '%s' "$out" | grep -m1 -E '^(fatal|error|remote|!)' || printf '%s' "$out" | head -1)"
+  fi
+  echo "weight $w"
+}
+
 cmd="${1:-}"; shift || true
 case "$cmd" in
   install) cmd_install "$@" ;;
@@ -327,11 +364,12 @@ case "$cmd" in
   pool) cmd_pool "$@" ;;
   clean) use "${1:-}"; shipfloor_sweep_tmp | sed 's/^/removed /' ;;
   accept) cmd_accept "$@" ;;
+  weight) cmd_weight "$@" ;;
   pause) cmd_pause "$@" ;;
   resume) cmd_resume "$@" ;;
   setup-board) use "${1:-}"; cd "$FACTORY_HOME/control" && exec bash "$HERE/setup-board.sh" ;;
   migrate-home) cmd_migrate_home "$@" ;;
   dashboard) cmd_dashboard "$@" ;;
   metrics) use "${1:-}"; exec bash "$HERE/metrics.sh" ;;
-  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

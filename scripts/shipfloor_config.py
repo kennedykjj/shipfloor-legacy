@@ -508,13 +508,24 @@ def notify_problems(raw):
 
 
 MODELS = ("opus", "sonnet", "haiku", "fable")  # what `claude --model` and the Agent tool's model take
-STAGE_MODELS = {"refine": None, "develop": None, "validate": "sonnet", "deploy": "sonnet"}  # None = no --model flag
+MODEL_LADDER = ("haiku", "sonnet", "opus")  # a run that fails a gate steps one up; fable is not on it: the factory cannot rank it
+WEIGHTS = ("light", "standard", "heavy")  # the card's weight, written by Refine in the spec header; none = standard
+# A stage's model per weight. Refine runs before the card has a weight, so it has one model.
+STAGE_MODELS = {"refine": "sonnet", "develop": {"light": "sonnet", "standard": "sonnet", "heavy": "opus"},
+                "validate": dict.fromkeys(WEIGHTS, "sonnet"), "deploy": dict.fromkeys(WEIGHTS, "sonnet")}
 PLUGIN_AGENTS = {"product-owner": "opus", "ux-designer": "opus", "qa-engineer": "sonnet", "engineer": "sonnet", "cybersec": "opus"}
+
+
+def model_up(model):
+    """The next model up the ladder; None for the top one or a model outside it."""
+    i = MODEL_LADDER.index(model) if model in MODEL_LADDER else len(MODEL_LADDER)
+    return MODEL_LADDER[i + 1] if i + 1 < len(MODEL_LADDER) else None
 
 
 def model_problems(raw, project_agents=()):
     """The `models` entries of the machine config that the factory cannot use, as {key, value, why}
-    (why: model, name or shape). Not part of machine_problems: a bad model must not make config.yml invalid."""
+    (why: model, name or shape). Not part of machine_problems: a bad model must not make config.yml invalid.
+    A stage but refine takes a model (every weight) or a mapping weight -> model."""
     models = raw.get("models") if isinstance(raw, dict) else None
     if models is None:
         return []
@@ -529,29 +540,56 @@ def model_problems(raw, project_agents=()):
         if not isinstance(entries, dict):
             out.append({"key": f"models.{group}", "value": entries, "why": "shape"}); continue
         for name, model in entries.items():
+            key = f"models.{group}.{name}"
             if name not in names:
-                out.append({"key": f"models.{group}.{name}", "value": model, "why": "name"})
+                out.append({"key": key, "value": model, "why": "name"})
+            elif group == "stages" and isinstance(model, dict):
+                if name == "refine":
+                    out.append({"key": key, "value": model, "why": "shape"}); continue
+                for weight, m in model.items():
+                    if weight not in WEIGHTS:
+                        out.append({"key": f"{key}.{weight}", "value": m, "why": "name"})
+                    elif m not in MODELS:
+                        out.append({"key": f"{key}.{weight}", "value": m, "why": "model"})
             elif model not in MODELS:
-                out.append({"key": f"models.{group}.{name}", "value": model, "why": "model"})
+                out.append({"key": key, "value": model, "why": "model"})
     return out
 
 
 def models_of(raw, project_agents=()):
-    """The models the factory runs with: STAGE_MODELS with the valid `models.stages` on top, and the valid
-    `models.agents`. A problem entry is dropped, so its key keeps today's model."""
+    """The models the factory runs with: STAGE_MODELS with the valid `models.stages` on top (a stage's single model
+    fills its every weight), and the valid `models.agents`. A problem entry is dropped, so its key keeps today's model."""
     bad = {p["key"] for p in model_problems(raw, project_agents)}
-    out = {"stages": dict(STAGE_MODELS), "agents": {}}
+    out = {"stages": json.loads(json.dumps(STAGE_MODELS)), "agents": {}}
     models = raw.get("models") if isinstance(raw, dict) and isinstance(raw.get("models"), dict) else {}
-    for group in out:
-        entries = models.get(group) if isinstance(models.get(group), dict) else {}
-        out[group].update({n: m for n, m in entries.items() if f"models.{group}.{n}" not in bad})
+    stages = models.get("stages") if isinstance(models.get("stages"), dict) else {}
+    for name, model in stages.items():
+        key = f"models.stages.{name}"
+        if key in bad or name not in STAGES:
+            continue
+        if isinstance(model, dict):
+            out["stages"][name].update({w: m for w, m in model.items() if f"{key}.{w}" not in bad})
+        else:
+            out["stages"][name] = model if name == "refine" else dict.fromkeys(WEIGHTS, model)
+    agents = models.get("agents") if isinstance(models.get("agents"), dict) else {}
+    out["agents"].update({n: m for n, m in agents.items() if f"models.agents.{n}" not in bad})
     return out
+
+
+def stage_model(stages, stage, weight):
+    """The model a run of <stage> on a card of <weight> starts with, from models_of()['stages']."""
+    m = stages[stage]
+    return m.get(weight if weight in WEIGHTS else "standard") if isinstance(m, dict) else m
 
 
 def model_problem_line(p):
     if p["why"] == "name":
+        if p["key"].startswith("models.stages.") and p["key"].count(".") == 3:
+            return f"{p['key']}: not a weight ({', '.join(WEIGHTS)})"
         return f"{p['key']}: not a stage or an agent here"
     if p["why"] == "shape":
+        if p["key"] == "models.stages.refine":
+            return f"{p['key']}: must be one model (Refine runs before the card has a weight)"
         return f"{p['key']}: must be a mapping"
     return f"{p['key']}: \"{p['value']}\" is not a model the factory knows ({', '.join(MODELS)})"
 
@@ -672,7 +710,7 @@ def hours_state(raw, now):
 
 
 def machine(rest):
-    """machine <validate | values <key>... | show | hours | set <key> <int> | stage-models | models-check [<agent>...]> on $SHIPFLOOR_MACHINE_CONFIG."""
+    """machine <validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | models-check [<agent>...]> on $SHIPFLOOR_MACHINE_CONFIG."""
     path = os.environ.get("SHIPFLOOR_MACHINE_CONFIG", "")
     raw = {}
     if path and os.path.isfile(path):
@@ -722,8 +760,14 @@ def machine(rest):
         return 0
     if errs:
         raise Unusable(f"{path} is invalid: " + "; ".join(errs))
-    if cmd == "stage-models" and not args:
-        sys.stdout.write("".join(f"{models_of(raw)['stages'][s] or ''}\0" for s in STAGES)); return 0
+    if cmd == "stage-models" and not args:  # each stage x light, standard, heavy
+        stages = models_of(raw)["stages"]
+        sys.stdout.write("".join(f"{stage_model(stages, s, w) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
+    if cmd == "model-up" and len(args) == 1:
+        up = model_up(args[0])
+        if up:
+            print(up)
+        return 0
     if cmd == "models-check":
         found = model_problems(raw, args)
         for p in found:
@@ -738,7 +782,7 @@ def machine(rest):
             print(f"  {k}: {data['stages'][k]}")
         print(f"stacks: {data['stacks']}")
         return 0
-    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | models-check [<agent>...]")
+    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | models-check [<agent>...]")
 
 
 def main(argv):

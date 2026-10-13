@@ -28,24 +28,25 @@ has "$DEV" "--model haiku" "AC-1 models.stages.develop: haiku puts --model haiku
 cycle $'models:\n  stages: {validate: opus}'
 has "$VAL" "--model opus" "AC-1 models.stages.validate: opus puts --model opus on the validate run"
 lacks "$VAL" "--model sonnet" "AC-1 validate no longer runs on sonnet"
-lacks "$DEV" "--model" "AC-1 develop, not configured, still has no --model flag"
+has "$DEV" "--model sonnet" "AC-1 develop, not configured, keeps its shipped sonnet (a card with no weight is standard)"
 
 # AC-2: nothing configured (or a stage left out) -> today's command lines
 cycle ""
-lacks "$DEV" "--model" "AC-2 no config.yml: develop has no --model flag"
+has "$DEV" "--model sonnet" "AC-2 no config.yml: develop runs a standard card on sonnet"
 has "$VAL" "--model sonnet" "AC-2 no config.yml: validate runs on sonnet"
 cycle $'models:\n  stages: {refine: opus}'
-lacks "$DEV" "--model" "AC-2 a stage left out: develop has no --model flag"
+lacks "$DEV" "--model opus" "AC-2 refine's model is refine's alone"
+has "$DEV" "--model sonnet" "AC-2 a stage left out: develop keeps its shipped sonnet"
 has "$VAL" "--model sonnet" "AC-2 a stage left out: validate runs on sonnet"
 
 # AC-5: a model the factory does not know is today's model for that key, and the dispatcher keeps running
 cycle $'models:\n  stages: {develop: gpt, validate: gpt}'
 [ "$RC" = 0 ] && pass "AC-5 the dispatcher exits 0 on a bad model" || fail "AC-5 the dispatcher exited $RC on a bad model"
 has "$DEV" "== start /sf:develop 54" "AC-5 the develop run still started"
-lacks "$DEV" "--model" "AC-5 develop with an unknown model uses today's flags (none)"
+has "$DEV" "--model sonnet" "AC-5 develop with an unknown model uses its shipped model"
 has "$VAL" "--model sonnet" "AC-5 validate with an unknown model uses today's sonnet"
 lacks "$VAL" "gpt" "AC-5 the unknown model never reaches the command"
 cycle $'models:\n  stages: {review: opus}\n  agents: {nobody: opus}'
 [ "$RC" = 0 ] && pass "AC-5 the dispatcher exits 0 on an unknown stage and agent" || fail "AC-5 the dispatcher exited $RC on an unknown stage and agent"
-lacks "$DEV" "--model" "AC-5 an unknown stage changes nothing for develop"
+has "$DEV" "--model sonnet" "AC-5 an unknown stage changes nothing for develop"
 finish

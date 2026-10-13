@@ -27,9 +27,11 @@ MLANG="$(shipfloor_machine values language 2>/dev/null | tr -d '\0')"
 mapfile -d '' -t POOL < <(shipfloor_machine values pool stages.refine stages.develop stages.validate stages.deploy costs.card_block costs.day_stop)  # the cost limits ride on this read: none set, no estimate starts
 [ "${#POOL[@]}" -eq 7 ] || { echo "dispatch: cannot read the machine pool" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
 declare -A STAGE_SLOTS=([refine]="${POOL[1]}" [develop]="${POOL[2]}" [validate]="${POOL[3]}" [deploy]="${POOL[4]}")
-mapfile -d '' -t MODELS < <(shipfloor_machine stage-models)  # refine develop validate deploy; empty = no --model flag
-[ "${#MODELS[@]}" -eq 4 ] || { echo "dispatch: cannot read the stage models" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
-declare -A STAGE_MODEL=([refine]="${MODELS[0]}" [develop]="${MODELS[1]}" [validate]="${MODELS[2]}" [deploy]="${MODELS[3]}")
+mapfile -d '' -t MODELS < <(shipfloor_machine stage-models)  # refine develop validate deploy, each x light standard heavy; empty = no --model flag
+[ "${#MODELS[@]}" -eq 12 ] || { echo "dispatch: cannot read the stage models" | shipfloor_say "${MLANG:-en}" >&2; exit 2; }
+declare -A STAGE_MODEL=(); i=0
+for st in refine develop validate deploy; do for w in light standard heavy; do STAGE_MODEL[$st:$w]="${MODELS[$i]}"; i=$((i + 1)); done; done
+unset i st w
 
 refresh_control() {  # control checkout = exactly origin/main
   [ "${FACTORY_CONTROL_REFRESH:-1}" = "0" ] && return 0
@@ -108,12 +110,20 @@ launch() {  # launch <pipeline> <issue>
   # The owner's personal CLAUDE.md is loaded whatever the setting sources are: its memory and notes are not for a run.
   envs+=(CLAUDE_CODE_DISABLE_AUTO_MEMORY=1)
   extra+=(--append-system-prompt "This is an unattended factory run. A personal CLAUDE.md is for its owner's interactive sessions: what it says to read or write under ~/.claude (memory, journals, notes, a vault) does not apply here.")
-  [ -z "${STAGE_MODEL[$p]:-}" ] || extra+=(--model "${STAGE_MODEL[$p]}")  # validate and deploy default to sonnet: half the price
+  # The model comes from the card's weight (its spec header, standard when none); a develop run after a failed gate
+  # runs one model up (stepup/<n>: <from> <to> <gate>, written when the run before ended).
+  local weight model step="" from="" gate=""; weight="$(shipfloor_card_weight "$n")"; model="${STAGE_MODEL[$p:$weight]:-}"
+  if [ "$p" = develop ] && [ -f "$HOME_DIR/stepup/$n" ]; then
+    IFS=$'\t' read -r from step gate < "$HOME_DIR/stepup/$n"
+    [ -n "$step" ] && model="$step"
+  fi
+  [ -z "$model" ] || extra+=(--model "$model")
   local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(SHIPFLOOR_INFRA_RETRY=1); }
   (
     trap '' HUP
     echo "$BASHPID $(date +%s) $n" > "$dir/info"
-    echo "== start /sf:$p $n $(date -Is) pid=$BASHPID" >>"$log"
+    echo "== start /sf:$p $n $(date -Is) pid=$BASHPID${model:+ model=$model} weight=$weight" >>"$log"
+    [ -z "$step" ] || echo "$(date -Is) dispatch: #$n runs on $step, one model up after $from failed gate $gate" | shipfloor_say "${MLANG:-en}"
     # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into
     # "C:/Program Files/Git/develop 54", and MSYS_NO_PATHCONV would leak into mvn and break it.
     agent() { printf '/sf:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1; }
@@ -130,7 +140,8 @@ launch() {  # launch <pipeline> <issue>
       done
       echo "== end /sf:$p $n exit=$rc $(date -Is)" >>"$log"
     else
-      agent; echo "== end /sf:$p $n exit=$? $(date -Is)" >>"$log"
+      local rc; agent; rc=$?; echo "== end /sf:$p $n exit=$rc $(date -Is)" >>"$log"
+      [ "$p" = develop ] && [ "$rc" = 0 ] && step_up "$n" "$model" "$dir" "$log"
     fi
     # what the run created goes with it, before its lock: its stack slot, its tmp/<n>/, its retry marker
     stack_settings; stack_release_run "$dir"
@@ -139,6 +150,20 @@ launch() {  # launch <pipeline> <issue>
     read -r owner _ < "$dir/info" 2>/dev/null
     [ "${owner:-}" = "$BASHPID" ] && rm -rf "$dir"
   ) &
+}
+
+step_up() {  # step_up <issue> <model> <lock> <log>: a develop run that ended on a failed gate runs once more, one model up
+  # The verdict is the gate's own (<lock>/last-gate), never the agent's report. INFRA is the infra retry's; a card that
+  # already stepped up, a top model or one off the ladder fails as before: it stays blocked for the owner.
+  local n="$1" model="$2" name verdict up
+  [ -n "$model" ] && [ ! -e "$HOME_DIR/stepup/$n" ] || return 0
+  IFS=$'\t' read -r name verdict < "$3/last-gate" 2>/dev/null || return 0
+  [ "$verdict" = FAIL ] || return 0
+  up="$(shipfloor_machine model-up "$model" 2>/dev/null)"; [ -n "$up" ] || return 0
+  mkdir -p "$HOME_DIR/stepup"; printf '%s\t%s\t%s\n' "$model" "$up" "$name" > "$HOME_DIR/stepup/$n"
+  env -u FACTORY_BOARD_SNAPSHOT "$BOARD" label "$n" remove blocked >/dev/null
+  echo "== step-up /sf:develop $n $model -> $up: gate $name failed $(date -Is)" >>"$4"
+  echo "$(date -Is) dispatch: #$n failed gate $name on $model; the next run is on $up" | shipfloor_say "${MLANG:-en}"
 }
 
 run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = the stage slots decide> <wip-limit> <orphan columns, comma-separated> <wip column>...
@@ -217,6 +242,13 @@ if grep -q . "$SNAP" 2>/dev/null; then
   for f in "$HOME_DIR"/cost/*.json; do
     [ -f "$f" ] || continue; n="${f##*/}"; n="${n%.json}"
     [ -n "$(snapshot_status "$n")" ] || rm -f "$f"
+  done
+fi
+# A step-up marker (stepup/<n>) lasts while its card is in Coding: an unblocked card keeps the higher model.
+if grep -q . "$SNAP" 2>/dev/null; then
+  for f in "$HOME_DIR"/stepup/*; do
+    [ -f "$f" ] || continue; n="${f##*/}"
+    [ "$(snapshot_status "$n")" = Coding ] || card_busy "$n" || rm -f "$f"
   done
 fi
 BLOCK_CARDS=""

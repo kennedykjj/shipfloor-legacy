@@ -158,3 +158,5 @@ s~dispatch: cannot read the machine pool~dispatch: não foi possível ler o pool
 s~dispatch: invalid ~dispatch: arquivo inválido: ~
 s~dispatch: could not refresh (.*) from ~dispatch: não foi possível atualizar \1 a partir de ~
 s~dispatch: board read failed~dispatch: a leitura do quadro falhou~
+s~dispatch: #([0-9]+) runs on ([a-z0-9.-]+), one model up after ([a-z0-9.-]+) failed gate ~dispatch: #\1 roda em \2, um modelo acima, depois que \3 falhou no gate ~
+s~dispatch: #([0-9]+) failed gate (.+) on ([a-z0-9.-]+); the next run is on ~dispatch: #\1 falhou no gate \2 em \3; a próxima execução é em ~
