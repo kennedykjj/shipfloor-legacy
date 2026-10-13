@@ -458,20 +458,39 @@ class Factory:
         return {"problem": problem, "criteria": [{"id": k, "text": t} for k, t in criteria],
                 "questions": items("open questions", "dúvidas")}
 
+    def cost_mark(self, p, n):
+        """The figures of a block by the cost limit, from its marker cost/<n>.json; None when it cannot be read."""
+        try:
+            mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
+            before, whole = float(mark.get("baseline") or 0), float(mark["total"])
+            return {"limit": mark.get("limit"), "total": round(whole - before, 4), "baseline": before, "card_total": whole,
+                    "stages": mark.get("stages") or {}}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return None
+
+    def block_line(self, p, n):
+        """One plain line for the list: what the note says the owner must decide, else the gate that failed, else "".
+        Taken from the note only, never composed; a block by the cost limit is told by its figures instead."""
+        reason = self.block_reason(p, n)
+        if reason.lstrip().startswith(COST_BLOCK):
+            return ""
+        plain = lambda t: " ".join(re.sub(r"^\s*[-*]\s*", "", t.replace("**", "").replace("`", "")).split())
+        decide = next((l for l in reason.splitlines() if re.search(r"must decide|owner must|needs? you to", l, re.I)), "")
+        decide = re.sub(r"^[^:]*(must decide|owner must|needs? you to)[^:]*:\s*", "", plain(decide), flags=re.I)
+        if decide:
+            return (decide[0].upper() + decide[1:])[:500]
+        gate = re.search(r"failed gates?:\**\s*([^.\n]+)", reason, re.I)
+        return f"Failed gate: {plain(gate.group(1))}"[:500] if gate and plain(gate.group(1)) else ""
+
     def block(self, p, n):
         """A block told in parts: the stage and step it stopped at, why, what was tried, how many times, and for
         acceptance-intact the test files as they changed."""
         reason = self.block_reason(p, n)
         blocked = [r for r in self.reports(p, n) if r["outcome"] == "blocked"]
-        if reason.lstrip().startswith(COST_BLOCK):  # the marker tells the figures; the newest note must still be this block's
-            try:
-                mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
-                before, whole = float(mark.get("baseline") or 0), float(mark["total"])
-                return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
-                        "times": len(blocked), "gate": "", "diff": "", "limit": mark.get("limit"), "total": round(whole - before, 4),
-                        "baseline": before, "card_total": whole, "stages": mark.get("stages") or {}}
-            except (OSError, ValueError, KeyError, TypeError, AttributeError):
-                pass  # no usable marker: an ordinary block
+        mark = self.cost_mark(p, n) if reason.lstrip().startswith(COST_BLOCK) else None  # the newest note must still be this block's
+        if mark:
+            return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
+                    "times": len(blocked), "gate": "", "diff": "", **mark}
         m = BLOCK_LINE.search(reason)
         stage, step = (m.group(1).lower(), int(m.group(2))) if m else (None, None)
         if not stage:  # a report tells the block: it names its stage, not a step
@@ -483,6 +502,14 @@ class Factory:
         return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
                 "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": gate,
                 "diff": self.acceptance_diff(p, n) if gate else ""}
+
+    def block_brief(self, p, n, kind):
+        """What the list tells of a card the owner must unblock: block_line, and block_cost for a block by the cost limit."""
+        if kind != "owner":
+            return {"block_line": "", "block_cost": None}
+        mark = self.cost_mark(p, n) if self.block_reason(p, n).lstrip().startswith(COST_BLOCK) else None
+        return {"block_line": "" if mark else self.block_line(p, n),
+                "block_cost": {k: mark[k] for k in ("total", "limit", "baseline")} if mark else None}
 
     def acceptance_diff(self, p, n):
         at, diff = self._diffs.get((p, n), (0, ""))
@@ -894,7 +921,7 @@ class Factory:
                                         "spent": None if per_card.get(n, 0.0) is None else per_card.get(n, 0.0) - base.get(n, 0.0),
                                         "running": running.get(n), "awaiting": col in OWNER_MOVES,
                                         "review": col in OWNER_MOVES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
-                                        "blocked": blocked.get(n)}
+                                        "blocked": blocked.get(n), **self.block_brief(p, n, blocked.get(n))}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}

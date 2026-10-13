@@ -114,13 +114,9 @@ kbd { font: inherit; border: 1px solid var(--faint); border-radius: 4px; padding
 .alerts span::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--k); margin-right: 9px; }
 .alerts b { font-weight: 600; margin-right: 6px; color: var(--k); } .alerts code { font: 12.5px var(--mono); }
 main { min-height: 0; display: grid; }
-.board { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 0; min-height: 0; }
-.board[hidden], .feed[hidden], .band[hidden], .cols[hidden], .telem[hidden], .sumline[hidden], #sum[hidden], #msg[hidden] { display: none; }
-/* the first row: the day in one sentence, shown while "Today" is minimized */
-.sumline { grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
-#sum b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; } #sum .bad, #sum .bad b { color: var(--bad); }
-@media (min-width: 1181px) { .sumline { height: 36px; margin-bottom: 12px; } }
-.board > .band { grid-row: 2; margin-bottom: 16px; } .board > .cols { grid-row: 3; }
+.board { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0; min-height: 0; }
+.board[hidden], .feed[hidden], .band[hidden], .cols[hidden], .telem[hidden], #msg[hidden] { display: none; }
+.board > .band { grid-row: 1; margin-bottom: 16px; } .board > .cols { grid-row: 2; }
 .untitled { color: var(--faint); font-style: italic; }
 .dial {
   width: 13px; height: 13px; border-radius: 50%; flex: none; display: inline-block;
@@ -243,7 +239,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .ptitle .row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .pnum { font-size: 24px; line-height: 1; color: var(--sand); } .stop .pnum { color: var(--bad); }
 .ptext { font-size: 14.5px; line-height: 1.3; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.cap.bad { color: var(--bad); } .pnote { margin: 6px 0 0; font-size: 13px; color: var(--bad); }
+.cap.bad { color: var(--bad); } .pwhy { margin: 4px 0 0; font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pnote { margin: 6px 0 0; font-size: 13px; color: var(--bad); }
 .stub { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 9px; }
 .stub button, .stub a, .edit button { font-weight: 500; font-size: 13.5px; white-space: nowrap; background: none; border: 0; cursor: pointer; padding: 2px 4px; color: var(--soft); min-height: 24px; }
 .stub button:hover, .stub a:hover, .edit button:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -520,7 +516,7 @@ iframe.plain { visibility: visible; opacity: 1; background: #fff; }
 .review .none { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
 .placeholder { padding: 20px; color: var(--muted); max-width: 64ch; }
 /* a refused link: the page stops at the header and one message */
-body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused #sumline, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #peek, body.refused #drawer, body.refused #dim { display: none !important; }
+body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #peek, body.refused #drawer, body.refused #dim { display: none !important; }
 #msg.refusal { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 20px; max-width: 64ch; color: var(--muted); outline: none; }
 #msg.refusal strong { color: var(--text); font-size: 14px; font-weight: 600; }
 #msg.refusal code { font: 13px var(--mono); color: var(--text); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 4px; padding: 2px 7px; white-space: nowrap; user-select: all; }
@@ -569,14 +565,12 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <header>
   <span class="g brand">Shipfloor</span>
   <nav class="views" aria-label="View"><button data-view="board" aria-pressed="true">Factory</button><button data-view="feed" aria-pressed="false">Feed</button><button data-view="settings" aria-pressed="false">Settings</button></nav>
-  <div class="stats"><span id="scope"></span><span id="stats"></span></div>
+  <div class="stats"><a class="cap" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener">Docs<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a><span id="scope"></span><span id="stats"></span></div>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
 <main>
   <section class="board" id="board" aria-label="Factory">
     <p class="placeholder" id="msg">Reading the factory…</p>
-    <div class="sumline" id="sumline" hidden>
-      <span id="sum"></span></div>
     <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><button class="max fold" data-show="band" aria-controls="cells" aria-expanded="true" aria-label="Minimize the lifecycle" title="Minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
       <div class="legend"><span><i></i>running, on the step it reported (1 to N)</span><span class="o"><i></i>queued</span><span style="--k:var(--sand)"><i></i>waits for you</span><span style="--k:var(--bad)"><i></i>blocked</span><span>+N: more cards than fit</span></div></nav>
     <div class="cols" id="cols" hidden>
@@ -651,7 +645,7 @@ function setHTML(el, html) { if (el._html === html) return false; if (el.id === 
 // text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
 // 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
 const LANG = { exact: {}, rx: [] };
-const RAW = ".ttitle, .ptext, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
+const RAW = ".ttitle, .ptext, .pwhy, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
 function loc(s) {
   const t = s.trim(); if (!t || !/[A-Za-z]{2}/.test(t)) return s;
   if (Object.hasOwn(LANG.exact, t)) return s.replace(t, LANG.exact[t]);
@@ -667,7 +661,7 @@ function localize(node) {
   if (node.nodeType !== 1) return;
   for (const el of [node, ...node.querySelectorAll("[title], [aria-label], [placeholder]")])
     for (const a of ["title", "aria-label", "placeholder"]) {
-      const v = el.getAttribute?.(a); if (!v || el.closest(".dot, .chip")) continue;  // a dot's title carries the card's own title
+      const v = el.getAttribute?.(a); if (!v || el.closest(".dot, .chip, .pwhy")) continue;  // a dot's title carries the card's own title, a reason line the factory's words
       const to = loc(v); if (to !== v) el.setAttribute(a, to);
     }
   const w = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) localize(n);
@@ -734,7 +728,7 @@ const outcome = (o) => { const v = String(o || "").toLowerCase(); return OK_OUTC
 function tok(n) { if (!n) return "–"; if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
 const dateLocale = () => document.documentElement.lang === "pt-BR" ? "pt-BR" : "en-US";  // the page's language, never the browser's
 function when(iso) { if (!iso) return "–"; const d = new Date(iso), l = dateLocale(); const t = d.toLocaleTimeString(l, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString(l, l === "pt-BR" ? { day: "2-digit", month: "2-digit" } : { month: "short", day: "numeric" }) + " " + t; }
-function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
+function dur(a, b) { if (!a || !b) return "–"; const s = Math.max(0, (new Date(b) - new Date(a)) / 1000); if (s < 3600) return Math.round(s / 60) + "m"; if (s > 172800) return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`; return Math.floor(s / 3600) + "h" + String(Math.round((s % 3600) / 60)).padStart(2, "0"); }
 const liveRun = (p, n, stage) => S.overview?.runs.find((r) => r.project === p && r.issue === n && r.stage === stage && !r.orphan)?.started || null;
 const last = (sessions, stage) => sessions.filter((x) => x.stage === stage).pop();
 function clock(since, bare) { return since ? `<span class="${bare ? "" : "clock "}num" data-since="${esc(since)}"></span>` : ""; }
@@ -770,15 +764,15 @@ const waiting = () => (project()?.cards || []).map((c) => ({ ...c, key: `${S.pro
 
 function renderStrip() {
   const o = S.overview; if (!o) return;
-  const slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
+  const many = o.projects.length > 1, slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
   const held = slots.map((x) => `slot ${x.slot}: ${x.state}${x.owner !== "-" ? ` ${x.owner}` : ""}${x.state !== "free" ? ` ${elapsed(new Date(Date.now() - x.held_s * 1000))}` : ""}${x.reason ? ` (${x.reason})` : ""}`).join("\n");
   // The project switch is its own region: the numbers beside it change at every read, and rewriting it would close its open list.
   setHTML($("scope"), `${o.projects.length > 1 ? `<label class="proj cap">Project<select id="proj">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select></label>` : ""}
     ${project()?.board_url ? `<a class="cap" href="${esc(project().board_url)}" target="_blank" rel="noopener">Board on GitHub${EXT}</a>` : ""}${o.projects.length > 1 ? `<i class="sep"></i>` : ""}`);
   setHTML($("stats"), `<span class="cap" title="Sessions running now, out of the pool size">Pool<b>${o.pool.used} / ${o.pool.size}</b></span>
     <span class="cap${stuck ? " stuck" : ""}" title="Run environments in use${held ? "\n" + esc(held) : ""}">Stacks<b>${busy} / ${slots.length}</b>${o.queue ? ` · +${o.queue} waiting` : ""}</span>
-    <span class="cap">Runs today<b>${o.today.runs}</b>${o.today.failed ? ` · ${o.today.failed} failed` : ""}</span>
-    <span class="cap" title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml">Spent est.<b>$${o.today.cost.toFixed(2)}</b></span>`);
+    <span class="cap"${many ? ' title="Runs of every project today"' : ""}>Runs today<b>${o.today.runs}</b>${o.today.failed ? ` · ${o.today.failed} failed` : ""}</span>
+    <span class="cap" title="${many ? "Every project, today.\n" : ""}Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml">Spent est.<b>$${o.today.cost.toFixed(2)}</b></span>`);
   renderFlags();
 }
 // The alerts line exists only while something is wrong.
@@ -833,7 +827,7 @@ const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" ? "s
 function renderBoard() {
   if (S.refused) return;
   const p = project();
-  $("cols").hidden = $("sumline").hidden = !p; $("band").hidden = $("today").hidden = !p; $("msg").hidden = !!p; $("msg").removeAttribute("role");  // the line follows #cols; the band and Today fold where they sit (show)
+  $("cols").hidden = !p; $("band").hidden = $("today").hidden = !p; $("msg").hidden = !!p; $("msg").removeAttribute("role");  // the line follows #cols; the band and Today fold where they sit (show)
   if (!p) { if (S.overview) setHTML($("msg"), 'No project registered. Run <code>shipfloor add &lt;repo&gt;</code>.'); return; }
   const key = (c) => `${p.slug}/${c.issue}`, by = Object.fromEntries(COLS.map((c) => [c.name, []])), now = Date.now();
   for (const c of p.cards) {
@@ -841,14 +835,7 @@ function renderBoard() {
     const sig = `${c.column}|${c.running || ""}`, k = key(c);  // a card that changed column or stage since the last read is fresh for a while
     if (!S.seen[k]) S.seen[k] = { sig, at: 0 }; else if (S.seen[k].sig !== sig) S.seen[k] = { sig, at: now };
   }
-  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p); renderSum(p);
-}
-// The day in one sentence, the closed face of "Today": it hides, with its row, while "Today" is open, whose headings carry the same figures.
-function renderSum(p) {
-  const el = $("sum"), o = S.overview; $("sumline").hidden = el.hidden = S.show.today || !p || !o;
-  if (el.hidden) return;
-  const hs = p.hours || [], failed = hs.reduce((n, h) => n + h.failed, 0), runs = hs.reduce((n, h) => n + h.ok + h.failed, 0), spent = hs.reduce((n, h) => n + h.cost, 0);
-  setHTML(el, `Pool <b>${o.pool.used} / ${o.pool.size}</b> in use · <span title="Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml"><b>$${spent.toFixed(2)}</b> est. spent today</span> · <b>${plural(runs, "run")} today</b>${failed ? ` · <span class="bad"><b>${failed}</b> failed</span>` : ""}`);
+  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p);
 }
 // The fold button inside a panel minimizes it to its heading, or opens it again, where it sits. Focus stays on the button.
 function show(which, on) {
@@ -857,7 +844,7 @@ function show(which, on) {
   if (!on && which === "band" && S.peek) { S.peek = null; $("peek").hidden = true; }  // the peek hangs from a dot of the band
   S.show[which] = on; el.classList.toggle("min", !on); btn.setAttribute("aria-expanded", on);
   btn.title = on ? "Minimize" : "Expand"; btn.setAttribute("aria-label", `${btn.title} ${el.dataset.maxable}`);
-  if (on) renderBoard(); else renderSum(project());  // opening draws what the closed panel skipped
+  if (on) renderBoard();  // opening draws what the closed panel skipped
   fit();
 }
 // A running card sits on the step it reported; with no step yet, further right the longer it runs against the usual.
@@ -998,13 +985,14 @@ function diffHtml(src) {  // only the lines that changed, under the file they ar
   }
   return rows.length > 90 ? rows.slice(0, 90).join("") + `<div class="f">and ${rows.length - 90} more lines, in the card's worktree</div>` : rows.join("");
 }
+const costLine = (b) => b.baseline > 0 ? `Spent ${usd(b.total)} est. since it was last unblocked; the limit for a card is ${usd(b.limit)}.`
+  : `Spent ${usd(b.total)} est. since Inbox; the limit for a card is ${usd(b.limit)}.`;
 // Why a card was blocked by the cost limit: one sentence, the spend per stage of the span that was counted, and, when
 // earlier allowances exist, what the card cost in all.
 function costWhy(b) {
   const order = Object.keys(STAGE_NAME), at = (st) => order.includes(st) ? order.indexOf(st) : order.length;
   const rows = Object.entries(b.stages || {}).sort((x, y) => at(x[0]) - at(y[0]));
-  const sentence = b.baseline > 0 ? `Spent ${usd(b.total)} est. since it was last unblocked; the limit for a card is ${usd(b.limit)}.`
-    : `Spent ${usd(b.total)} est. since Inbox; the limit for a card is ${usd(b.limit)}.`;
+  const sentence = costLine(b);
   const table = rows.length ? `<div class="swrap"><table><thead><tr><th class="l">stage</th><th class="num">est. cost</th></tr></thead><tbody>${rows.map(([st, v]) =>
     `<tr><td class="l">${esc(STAGE_NAME[st] || st)}</td><td class="num gold"><span class="coin">${v.toFixed(2)}</span></td></tr>`).join("")}<tr class="total"><td class="l">Total</td><td class="num gold"><span class="coin">${b.total.toFixed(2)}</span></td></tr></tbody></table></div>` : "";
   return `<p class="plain">${sentence}</p>${table}${b.baseline > 0 && b.card_total != null ? `<p class="since">${usd(b.card_total)} est. since Inbox.</p>` : ""}`;
@@ -1078,19 +1066,21 @@ function passHtml(c) {
   const head = (meta) => `<div class="seg"><button class="ptitle" data-open="${k}"><span class="row"><span class="g pnum">#${c.issue}</span>${meta}</span><span class="ptext">${c.title ? esc(c.title) : UNTITLED}</span></button>`;
   if (pend) return `<li class="pass" data-key="${k}">${head(`<span class="cap">Moving to ${esc(pend.to)}</span>`)}<div class="bar"><i></i></div></div><div class="stub"><button class="pill" data-q="undo">Undo</button></div></li>`;
   const cost = c.cost == null ? " · $ ?" : c.cost ? ` · $${c.cost.toFixed(2)}` : "";
-  const meta = stop ? '<span class="cap bad">Blocked · waits for your call</span>' : `<span class="cap">${esc(c.column)}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}</span>`;
+  const meta = stop ? `<span class="cap bad">${c.block_cost ? "Blocked · cost limit" : "Blocked · waits for your call"}</span>` : `<span class="cap">${esc(c.column)}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}</span>`;
   const note = S.note[c.key] ? `<p class="pnote" role="status">${esc(S.note[c.key])}</p>` : "";
+  const why = !stop ? "" : c.block_cost ? `<p class="pwhy" data-t>${costLine(c.block_cost)}</p>`
+    : c.block_line ? `<p class="pwhy"${c.block_line.startsWith("Failed gate: ") ? " data-t" : ""} title="${esc(c.block_line)}">${esc(c.block_line)}</p>` : "";  // the factory's own words; only the gate's label is translated
   const review = (label, cls) => `<button${cls} data-open="${k}" data-go="review">${label}</button>`, changes = '<button data-q="changes">Request changes</button>', link = gh(slug, c.issue);
   const acts = stop ? `<button class="pill" data-q="unblock">Unblock &amp; retry</button><button data-open="${k}">Details</button><button data-open="${k}" data-go="log">Log</button>${link}`
     : c.column === "Spec Review" ? `${review("Review", ' class="pill"')}${changes}${link}`
     : `<button class="pill" data-q="approve">Approve</button>${review("Review", "")}${changes}${link}`;
   const edit = S.editing === c.key && moves ? `<div class="edit"><label class="cap" for="qc">What should change in #${c.issue}? It is posted on the issue.</label><textarea id="qc"></textarea><div><button class="pill" aria-describedby="send-to" data-q="send">Request changes</button><span class="hint" id="send-to">→ ${esc(moves[1])}</span><button data-q="cancel">Cancel</button></div></div>` : "";
-  return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
+  return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${why}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
 }
 // Why a card the factory holds is not running, from what the overview knows.
 function whyWaits(p, c) {
   const o = S.overview, st = STAGE_OF[c.column], s = o.pool.stages[st] || { slots: 0, running: 0 };
-  if (c.blocked === "infra") return "Blocked by infrastructure; the factory retries it";
+  if (c.blocked === "infra") return "Infrastructure failed; the factory retries once";
   if (o.paused || p.paused) return "Paused";
   if (o.costs?.day_stopped) return "Stopped for today by the cost limit";
   if (o.usage_limited) return "Waiting for the usage limit to reset";
