@@ -28,9 +28,12 @@ if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
       i=0; sep=""; for s in "👤 Inbox" "👤 Ready for Refinement" "🤖 Technical Refinement" "👤 Spec Review" "👤 Ready for Dev" "🤖 Coding" "🤖 Validation" "👤 Staged" "👤 Ready for Prod" "🤖 Done"; do
         i=$((i+1)); printf '%s{"name":"%s","id":"opt%s"}' "$sep" "$s" "$i"; sep=","; done
       printf ']}]}\n'; exit 0 ;;
-    "api repos/acme/shop/issues?labels="*) echo '[{"number":7}]'; exit 0 ;;
+    "api repos/acme/shop/issues?labels="*)  # $d/label-<label> (":" as "-") holds the issues with that label; default #7
+      l="${args#*labels=}"; l="${l%%&*}"; [ -f "$d/label-${l//:/-}" ] && { cat "$d/label-${l//:/-}"; exit 0; }; echo '[{"number":7}]'; exit 0 ;;
     "api user") echo '{"login":"factory"}'; exit 0 ;;
-    "api repos/acme/shop/issues/"*"/comments"*) [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
+    "api repos/acme/shop/issues/"*"/comments"*)  # $d/comments-<n> for one card, else $d/issue-comments for all
+      n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/.*#\1#')"; [ -f "$d/comments-$n" ] && { cat "$d/comments-$n"; exit 0; }
+      [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
   esac
 fi
 case "$args" in

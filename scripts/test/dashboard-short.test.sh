@@ -182,8 +182,8 @@ ok(bool(fit) and "tight" in fit and bool(re.search(r"S\.show\.today|today[\"']\)
 ok(bool(fit) and bool(re.search(r"\.side|[\"']side[\"']", fit)) and "tight" in fit, "AC-7 fit puts .tight on .side", "function fit is missing" if not fit else "fit does not put .tight on .side")
 sj = fnsrc("show").rstrip()
 fi = [m.start() for m in re.finditer(r"\bfit\s*\(", sj)]
-rs = sj.rfind("renderSum(")
-ok(bool(sj) and bool(fi) and rs >= 0 and fi[-1] > rs, "AC-7 show calls fit after both branches (open and close)", "show does not call fit after renderBoard / renderSum" if sj else "function show is missing")
+rs = sj.rfind("renderBoard(")
+ok(bool(sj) and bool(fi) and rs >= 0 and fi[-1] > rs, "AC-7 show calls fit after it opens or closes a panel", "show does not call fit after renderBoard" if sj else "function show is missing")
 fade_names = re.findall(r"\bfade\b", js)
 ok(not fade_names, "AC-7 the function fade is gone and nothing calls it", "the script still mentions fade (%d times); fit replaces it" % len(fade_names))
 nar = lambda p: [d for sels, ds in narrow for s in sels if p(s) for d in ds]
