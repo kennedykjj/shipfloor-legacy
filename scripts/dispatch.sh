@@ -109,6 +109,8 @@ launch() {  # launch <pipeline> <issue>
   envs+=(CLAUDE_CODE_DISABLE_AUTO_MEMORY=1)
   extra+=(--append-system-prompt "This is an unattended factory run. A personal CLAUDE.md is for its owner's interactive sessions: what it says to read or write under ~/.claude (memory, journals, notes, a vault) does not apply here.")
   [ -z "${STAGE_MODEL[$p]:-}" ] || extra+=(--model "${STAGE_MODEL[$p]}")  # validate and deploy default to sonnet: half the price
+  # the language the project writes in, read once: the run keeps it even if the owner changes it while it runs
+  local lang; lang="$(shipfloor_cfg get language 2>/dev/null)" && [ -n "$lang" ] && envs+=("FACTORY_LANGUAGE=$lang")
   local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(SHIPFLOOR_INFRA_RETRY=1); }
   (
     trap '' HUP
