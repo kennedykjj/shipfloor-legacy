@@ -18,6 +18,8 @@
     "gates failed": "gates que falharam",
     "no failed gate recorded": "nenhum gate que falhou foi registrado",
     "Board on GitHub": "Quadro no GitHub",
+    "Docs": "Documentação",
+    "Runs of every project today": "Execuções de todos os projetos hoje",
     "Pool": "Pool",
     "Stacks": "Stacks",
     "Runs today": "Execuções hoje",
@@ -73,7 +75,7 @@
     "log": "log",
     "Blocked": "Bloqueado",
     "Blocked · waits for your call": "Bloqueado · espera a sua decisão",
-    "Blocked by infrastructure; the factory retries it": "Bloqueado por infraestrutura; a fábrica tenta de novo",
+    "Infrastructure failed; the factory retries once": "A infraestrutura falhou; a fábrica tenta mais uma vez",
     "spec to review": "spec para revisar",
     "ready to ship": "pronto para publicar",
     "Running": "Rodando",
@@ -413,20 +415,16 @@
   },
   "rx": [
     [
+      "^Every project, today\\.\\n",
+      "Todos os projetos, hoje.\n"
+    ],
+    [
+      "Estimated from the run transcripts' tokens and ~/\\.shipfloor/prices\\.yml",
+      "Estimado pelos tokens das transcrições e por ~/.shipfloor/prices.yml"
+    ],
+    [
       "^In use: ",
       "Em uso: "
-    ],
-    [
-      "\\bin use\\b",
-      "em uso"
-    ],
-    [
-      "est\\. spent today",
-      "est. gastos hoje"
-    ],
-    [
-      "(\\d+) runs? today",
-      "$1 execuções hoje"
     ],
     [
       "^Saved as (.*)\\. Reload the page to see it\\.$",
@@ -545,7 +543,7 @@
       "$1 card rodou em um modelo sem preço. Os limites não o contam."
     ],
     [
-      "Running · last cycle (\\S+) ago",
+      "Running · last cycle (\\d+d \\d+h|\\S+) ago",
       "Rodando · último ciclo há $1"
     ],
     [
@@ -729,7 +727,7 @@
       "Mais perto do fim primeiro"
     ],
     [
-      "board read (\\S+) ago",
+      "board read (\\d+d \\d+h|\\S+) ago",
       "quadro lido há $1"
     ],
     [
