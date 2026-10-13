@@ -41,7 +41,9 @@ check("AC-5 the docs link needs no script to exist", bool(stats) and "learn-more
 check("AC-6 renderSum is gone", "renderSum" not in h, "function renderSum is still in the page")
 check("AC-6 no element #sum", 'id="sum"' not in h and "#sum" not in h, "span#sum or its CSS is still in the page")
 sl = re.search(r'<div class="sumline"[^>]*>(.*?)</div>', h, re.S)
-check("AC-6 #sumline holds only the two fold buttons", bool(sl) and len(re.findall(r"<button\b", sl.group(1))) == 2 and "<span" not in sl.group(1), "#sumline holds more than the Lifecycle and Today buttons")
+sl_in = sl.group(1) if sl else ""
+sl_text = re.sub(r"\s+", " ", re.sub(r"<[^>]*>", " ", sl_in)).strip().lower()
+check("AC-6 #sumline holds no sentence, span or figures", bool(sl) and "<span" not in sl_in and not re.search(r"\d|pool|runs today|spent|est\.", sl_text), "#sumline holds a span, a sentence or the header's figures")
 check("AC-6 the header shows Pool, Runs today and Spent est. once each", h.count("Pool<b>") == 1 and h.count("Runs today<b>") == 1 and h.count("Spent est.<b>") == 1, "a figure of the header is missing or written twice")
 check("AC-6 no sentence repeats them", "est. spent today" not in h and "renderSum" not in h, "the page still writes the summary sentence")
 rs = src("function renderStrip")
