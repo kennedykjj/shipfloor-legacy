@@ -1,0 +1,20 @@
+{
+  "issue": 46,
+  "slug": "remove-the-temporary-aghanim-stack-alias",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T20:40:00-03:00",
+  "finished_at": "2026-10-12T22:36:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "engineer", "tokens": 44410, "duration_s": 2080},
+    {"role": "qa-engineer", "tokens": 20186, "duration_s": 176}
+  ],
+  "rounds": {"implementation": 1, "qa-amend": 1},
+  "gates_failed": ["build", "build", "build", "build"],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [
+    {"file": "scripts/test/gate-stack.test.sh", "commit": "255cd98", "reason": "the queue-order case relied on the global stack_wait of 3 s and failed under the whole suite's load; its two waiters now set their own wait, no assertion changed"}
+  ],
+  "manual_edit": false
+}
