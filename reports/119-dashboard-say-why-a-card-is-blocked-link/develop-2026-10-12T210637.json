@@ -1,0 +1,19 @@
+{
+  "issue": 119,
+  "slug": "dashboard-say-why-a-card-is-blocked-link",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T20:55:00-03:00",
+  "finished_at": "2026-10-12T21:07:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "engineer", "task": "Task 2 (resumed)", "tokens": 31628, "duration_s": 274}
+  ],
+  "rounds": {"task-2": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [
+    {"file": "scripts/test/dashboard-block-line.test.sh", "commit": "2243fa9", "reason": "the gh stand-in answered issue comments as an array inside an array; it now answers one array, as gh api does (made in the first run; reason read from the diff)"}
+  ],
+  "manual_edit": false
+}
