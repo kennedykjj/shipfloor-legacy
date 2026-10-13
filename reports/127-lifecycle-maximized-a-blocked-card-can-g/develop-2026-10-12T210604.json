@@ -1,0 +1,15 @@
+{
+  "issue": 127,
+  "slug": "lifecycle-maximized-a-blocked-card-can-g",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T20:58:00-03:00",
+  "finished_at": "2026-10-12T21:06:00-03:00",
+  "outcome": "blocked",
+  "agents": [],
+  "rounds": {},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [],
+  "manual_edit": false
+}
