@@ -14,8 +14,9 @@ OWNER_ONLY_SOURCES='^(Spec Review|Staged)$'
 
 # Asks only for each card's issue number and Status: a few points per read, where
 # `gh project item-list` fetches up to 100 fields per card and costs ~200 points.
-# repositoryOwner serves both user and organization boards.
-BOARD_QUERY='query { repositoryOwner(login: "'"$OWNER"'") { ... on ProjectV2Owner { projectV2(number: '"$NUM"') { items(first: 100) { nodes {
+# repositoryOwner serves both user and organization boards. The items come in the project's own order, the one the owner
+# sets by dragging (#128): a column's cards in that order are its queue, and eligible and first keep it.
+BOARD_QUERY='query { repositoryOwner(login: "'"$OWNER"'") { ... on ProjectV2Owner { projectV2(number: '"$NUM"') { items(first: 100, orderBy: {field: POSITION, direction: ASC}) { nodes {
   id
   content { ... on Issue { number } ... on PullRequest { number } }
   status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }

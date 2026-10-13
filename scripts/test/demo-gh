@@ -81,6 +81,18 @@ if args[:2] == ["project", "view"]:
 elif args[:2] == ["project", "field-list"]:
     project_of(state, args[2])
     out({"fields": state["fields"]})
+elif args[:2] == ["api", "graphql"] and "updateProjectV2ItemPosition" in call:  # the owner's reorder (#128)
+    fields = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in args if re.match(r"(project|item|after)=", a)}
+    p = next((p for p in state["projects"].values() if p["id"] == fields.get("project")), None)
+    row = next((r for r in p["items"] if r[2] == fields.get("item")), None) if p else None
+    if not row:
+        die(1, "gh: no such board or card")
+    p["items"].remove(row)
+    at = next((i + 1 for i, r in enumerate(p["items"]) if r[2] == fields.get("after")), 0)
+    p["items"].insert(at, row)
+    save(state)
+    mirror(p)
+    out({"data": {"updateProjectV2ItemPosition": {"clientMutationId": None}}})
 elif args[:2] == ["api", "graphql"]:
     m = re.search(r"projectV2\(number: (\d+)\)", call)
     if not m and "repository(owner" in call:

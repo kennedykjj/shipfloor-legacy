@@ -15,7 +15,7 @@ The board (a GitHub Project v2) has fixed columns. The owner moves cards between
 
 The gates (`scripts/gate.sh`) do not depend on the model: file scope per role, forbidden paths, untouched acceptance tests, immutable, unique and ordered migrations, build per layer, red by assertion (not by a compile error) and green with at least one test run. `build` and `green` reuse a pass the factory recorded for the same clean commit and inputs, say so in their output, and run again when anything differs.
 
-A dispatcher (a scheduled task, every 3 minutes by default) goes through every registered project and starts pipelines with `claude -p`, within the machine's agent pool, each stage's slots and the project's WIP.
+A dispatcher (a scheduled task, every 3 minutes by default) goes through every registered project and starts pipelines with `claude -p`, within the machine's agent pool, each stage's slots and the project's WIP. It takes the cards of Ready for Refinement and Ready for Dev from the top: the order is the items' position in the GitHub Project, which the owner sets by dragging them in the dashboard (or on GitHub), and a card that cannot start (blocked) is skipped for the next one down.
 
 ## Parallel work
 
