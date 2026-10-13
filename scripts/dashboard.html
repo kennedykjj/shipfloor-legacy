@@ -645,8 +645,8 @@ const runOf = (slug, c) => S.overview?.runs.find((r) => r.project === slug && r.
 const mins = (iso) => Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
 const KIND = { run: "running", wait: "queued", you: "waits for you", stop: "blocked, needs you", infra: "blocked by infrastructure, retrying" };
 // A decision column's [Approve, Request changes] targets: its move without a note and its move with one, from the overview's
-// moves (the server holds the one table); this default serves until the first overview arrives.
-let OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
+// moves (the server holds the one table), refreshed in place by every overview; this default serves until the first one.
+const OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
 function decisions(moves) {
   const out = {};
   for (const [from, list] of Object.entries(moves || {})) { const a = list.find((m) => !m.note), r = list.find((m) => m.note); if (a && r) out[from] = [a.to, r.to]; }
@@ -778,7 +778,7 @@ async function loadOverview() {
   setError("");
   S.overview = body;
   if (!S.project || !body.projects.some((p) => p.slug === S.project)) S.project = body.projects[0]?.slug || null;
-  if (body.moves) OWNER = decisions(body.moves);
+  if (body.moves) { for (const k of Object.keys(OWNER)) delete OWNER[k]; Object.assign(OWNER, decisions(body.moves)); }
   for (const key of Object.keys(S.moving)) {
     const [p, n] = key.split("/"); const card = cardOf(p, +n);
     if (!card || card.column === S.moving[key]) delete S.moving[key];
