@@ -236,13 +236,16 @@ def with_overrides(raw, over):
     """(the project's config with this machine's overrides on top, what the overrides hold that they may not).
     A project's factory.yml comes from its repository on every cycle. overrides.yml beside it is the machine
     owner's, written by the dashboard's Settings, and changes only how the factory operates on the project:
-    limits.<stage>.wip, deploy.timeout_min and deploy.conflict_max_files."""
+    limits.<stage>.wip, deploy.timeout_min, deploy.conflict_max_files and the language it writes in."""
     if not isinstance(raw, dict) or not over:
         return raw, []
     if not isinstance(over, dict):
         return raw, ["overrides.yml is not a YAML mapping"]
     new, errs = json.loads(json.dumps(raw)), []
     for top, val in over.items():
+        if top == "language" and isinstance(val, str):  # problems() on the merged config refuses a code outside LANGS
+            new["language"] = val
+            continue
         for k, v in (val.items() if top in ("limits", "deploy") and isinstance(val, dict) else [(None, None)]):
             if top == "limits" and isinstance(v, dict) and set(v) == {"wip"}:
                 limits = new["limits"] = new["limits"] if isinstance(new.get("limits"), dict) else {}
@@ -251,7 +254,7 @@ def with_overrides(raw, over):
                 new["deploy"] = dict(new["deploy"] if isinstance(new.get("deploy"), dict) else {}, **{k: v})
             else:
                 errs.append(f"overrides.yml: {top}{'.' + str(k) if k else ''} cannot be overridden "
-                            f"(only limits.<stage>.wip, {', '.join('deploy.' + d for d in OVERRIDABLE_DEPLOY)})")
+                            f"(only limits.<stage>.wip, {', '.join('deploy.' + d for d in OVERRIDABLE_DEPLOY)}, language)")
     return new, errs
 
 
@@ -802,7 +805,7 @@ def main(argv):
         else:
             raise Unusable(f"unknown flag {flag}")
     if not args:
-        raise Unusable("usage: shipfloor-config validate|get|layers|layer|regex|layer-of|describe ...")
+        raise Unusable("usage: shipfloor-config validate|get|layers|layer|regex|layer-of|language|describe ...")
     cmd, rest = args[0], args[1:]
     if cmd == "machine":
         return machine(rest)
@@ -815,7 +818,11 @@ def main(argv):
         if cmd == "validate":
             print(f"shipfloor-config: {e}", file=sys.stderr); return 1
         raise
-    raw, over_errs = with_overrides(raw, overrides_of(path))
+    over = overrides_of(path)
+    raw, over_errs = with_overrides(raw, over)
+    # the language a run started with (dispatch.sh sets it at launch): a change made while it runs waits for the next one
+    if isinstance(raw, dict) and os.environ.get("FACTORY_LANGUAGE", "") in LANGS:
+        raw["language"] = os.environ["FACTORY_LANGUAGE"]
     errs = problems(raw) + over_errs
     if cmd == "validate":
         for e in errs:
@@ -878,6 +885,9 @@ def main(argv):
         if name is None:
             return 1
         print(name); return 0
+    if cmd == "language" and not rest:  # <code>	<machine|repository>	<name>: the language the project writes in, who decided it
+        code = cfg.data["language"]
+        print(f"{code}\t{'machine' if isinstance(over, dict) and 'language' in over else 'repository'}\t{LANGS[code]}"); return 0
     if cmd == "describe" and not rest:
         print(describe(cfg, home, worktrees)); return 0
     raise Unusable(f"bad usage: {' '.join(args)}")

@@ -1,6 +1,8 @@
 {
   "_": "pt-BR for the dashboard. The page is written in English; when the machine's language is pt-BR it rewrites what it shows with this file: 'exact' replaces a whole piece of text, 'rx' rewrites a phrase inside one (JavaScript regular expressions, applied in order). Text with no entry stays in English. Card titles, logs and what the agents wrote are never touched.",
   "exact": {
+    "On": "Ligado",
+    "Off": "Desligado",
     "This link is no longer valid": "Este link não é mais válido",
     "The dashboard does not accept it any more, so this page stopped updating. To get the current link, run in a terminal:": "O dashboard não o aceita mais, então esta página parou de atualizar. Para pegar o link atual, rode no terminal:",
     "Then open the URL it prints. This tab stays as it is.": "Depois abra a URL que ele imprimir. Esta aba fica como está.",
@@ -18,6 +20,8 @@
     "gates failed": "gates que falharam",
     "no failed gate recorded": "nenhum gate que falhou foi registrado",
     "Board on GitHub": "Quadro no GitHub",
+    "Docs": "Documentação",
+    "Runs of every project today": "Execuções de todos os projetos hoje",
     "Pool": "Pool",
     "Stacks": "Stacks",
     "Runs today": "Execuções hoje",
@@ -73,7 +77,7 @@
     "log": "log",
     "Blocked": "Bloqueado",
     "Blocked · waits for your call": "Bloqueado · espera a sua decisão",
-    "Blocked by infrastructure; the factory retries it": "Bloqueado por infraestrutura; a fábrica tenta de novo",
+    "Infrastructure failed; the factory retries once": "A infraestrutura falhou; a fábrica tenta mais uma vez",
     "spec to review": "spec para revisar",
     "ready to ship": "pronto para publicar",
     "Running": "Rodando",
@@ -339,9 +343,8 @@
     "The dashboard's own text. What the agents wrote is shown as written. Applied when the page is reloaded.": "O texto do próprio dashboard. O que os agentes escreveram aparece como foi escrito. Vale quando a página é recarregada.",
     "The language shows after a reload.": "O idioma aparece depois de recarregar.",
     "What the factory writes": "O que a fábrica escreve",
-    "Read-only here: a project's language is part of its repository. To change it, edit": "Somente leitura aqui: o idioma de um projeto faz parte do repositório dele. Para mudar, edite",
-    "in its": "no",
-    ". The dispatcher reads it again on every cycle.": ". O dispatcher lê o arquivo de novo a cada ciclo.",
+    "Kept on this machine, over what the repository says; the repository's": "Fica nesta máquina, por cima do que o repositório diz; o",
+    "is not changed. A change applies from the dispatcher's next cycle; a session already running keeps the language it started in.": "do repositório não é alterado. Uma mudança vale a partir do próximo ciclo do dispatcher; uma sessão que já roda continua no idioma em que começou.",
     "English": "Inglês",
     "Brazilian Portuguese": "Português do Brasil",
     "This card's estimate passed the warning set in Settings, Costs. Nothing stops until the block limit.": "A estimativa deste card passou do aviso definido em Configurações, Custos. Nada para até o limite de bloqueio.",
@@ -409,6 +412,33 @@
     "Windows like 08:00-23:00, separated by commas. Empty means always.": "Janelas como 08:00-23:00, separadas por vírgula. Vazio significa sempre.",
     "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.": "Horário de trabalho não salvo: escreva cada janela como HH:MM-HH:MM, separadas por vírgula.",
     "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora.",
+    "Only what I can move": "Só o que eu posso mover",
+    "Nothing for you to move right now.": "Nada para você mover agora.",
+    "locked · a run is in progress": "travado · uma execução está em andamento",
+    "locked · blocked by infrastructure, the factory retries": "travado · bloqueado por infraestrutura, a fábrica tenta de novo",
+    "locked · it is blocked and waits for your call in the card": "travado · ele está bloqueado e espera sua decisão no card",
+    "a run is in progress": "uma execução está em andamento",
+    "blocked by infrastructure, the factory retries": "bloqueado por infraestrutura, a fábrica tenta de novo",
+    "it is blocked and waits for your call in the card": "ele está bloqueado e espera sua decisão no card",
+    "send it to refinement": "mandar para o refinamento",
+    "take it out of the queue": "tirar da fila",
+    "approve the spec": "aprovar a spec",
+    "request changes": "pedir mudanças",
+    "refine again": "refinar de novo",
+    "approve and ship": "aprovar e publicar",
+    "the factory moves": "a fábrica move",
+    "Move": "Mover",
+    "Up": "Subir",
+    "Down": "Descer",
+    "Place here": "Deixar aqui",
+    "What should the refinement do differently?": "O que o refinamento deve fazer diferente?",
+    "Refine again": "Refinar de novo",
+    "Optional: a comment, posted on the issue": "Opcional: um comentário, publicado na issue",
+    "Post comment": "Publicar comentário",
+    "Comment": "Comentar",
+    ". The board confirms it on the dispatcher's next read.": ". O quadro confirma na próxima leitura do dispatcher.",
+    ", Esc to let go.": ", Esc para soltar.",
+    ", Up or Down to reorder, Enter to place it, Esc to let go.": ", seta para cima ou para baixo para reordenar, Enter para deixar no lugar, Esc para soltar.",
     "Which model each stage's session and each agent runs on. A stage picks its model from the card's weight, which Refine writes in the spec; a card with no weight runs as standard. A Develop run that fails a gate runs once more, one model up. Default keeps the model the plugin ships with. A change takes effect on the dispatcher's next cycle; sessions already running keep their model.": "Em qual modelo roda a sessão de cada estágio e cada agente. O estágio escolhe o modelo pelo peso do card, que o Refine escreve na spec; um card sem peso roda como normal. Uma execução de Develop que falha em um gate roda mais uma vez, um modelo acima. Padrão mantém o modelo que vem com o plugin. A mudança vale a partir do próximo ciclo do dispatcher; as sessões que já estão rodando continuam no modelo delas.",
     "Weight": "Peso",
     "weight: light": "peso: leve",
@@ -507,20 +537,112 @@
       "$1: deve ser um modelo só (o Refine roda antes de o card ter peso). Nada foi salvo."
     ],
     [
+      "^Holding #(\\d+), (\\d+) of (\\d+) in $",
+      "Segurando o #$1, $2 de $3 em "
+    ],
+    [
+      "^Holding #(\\d+)\\.$",
+      "Segurando o #$1."
+    ],
+    [
+      "^Press (\\d) to $",
+      "Aperte $1 para "
+    ],
+    [
+      "^Drop to $",
+      "Solte para "
+    ],
+    [
+      "^Tap to $",
+      "Toque para "
+    ],
+    [
+      "^, (\\d) to $",
+      ", $1 para "
+    ],
+    [
+      "^#(\\d+), (\\d+) of (\\d+)\\.$",
+      "#$1, $2 de $3."
+    ],
+    [
+      "^#(\\d+) let go\\. It did not move\\.$",
+      "#$1 solto. Ele não se moveu."
+    ],
+    [
+      "^#(\\d+) cannot move: $",
+      "#$1 não pode ser movido: "
+    ],
+    [
+      "^#(\\d+) is the factory's to move\\.$",
+      "Quem move o #$1 é a fábrica."
+    ],
+    [
+      "^#(\\d+) moved to $",
+      "#$1 foi para "
+    ],
+    [
+      "^#(\\d+) is back in $",
+      "#$1 voltou para "
+    ],
+    [
+      "^Comment posted on #(\\d+)\\.$",
+      "Comentário publicado no #$1."
+    ],
+    [
+      "^#(\\d+) was not moved: $",
+      "#$1 não foi movido: "
+    ],
+    [
+      "^it is no longer in $",
+      "ele não está mais em "
+    ],
+    [
+      "^#(\\d+) is no longer in $",
+      "o #$1 não está mais em "
+    ],
+    [
+      "^#(\\d+) was not reordered: $",
+      "#$1 não foi reordenado: "
+    ],
+    [
+      "^#(\\d+) is now (\\d+) of (\\d+) in $",
+      "#$1 agora é o $2 de $3 em "
+    ],
+    [
+      "^#(\\d+) is back at (\\d+) of (\\d+) in $",
+      "#$1 voltou para $2 de $3 em "
+    ],
+    [
+      "^(\\d+) of (\\d+) in line$",
+      "$1 de $2 na fila"
+    ],
+    [
+      "^Position (\\d+) of (\\d+)$",
+      "Posição $1 de $2"
+    ],
+    [
+      "^Request changes on #(\\d+)$",
+      "Pedir mudanças no #$1"
+    ],
+    [
+      "^Refine #(\\d+) again$",
+      "Refinar o #$1 de novo"
+    ],
+    [
+      "^Comment on #(\\d+)$",
+      "Comentar no #$1"
+    ],
+    [
+      "^Every project, today\\.\\n",
+      "Todos os projetos, hoje.\n"
+    ],
+    [
+      "Estimated from the run transcripts' tokens and ~/\\.shipfloor/prices\\.yml",
+      "Estimado pelos tokens das transcrições e por ~/.shipfloor/prices.yml"
+    ],
+    [
       "^In use: ",
       "Em uso: "
-    ],
-    [
-      "\\bin use\\b",
-      "em uso"
-    ],
-    [
-      "est\\. spent today",
-      "est. gastos hoje"
-    ],
-    [
-      "(\\d+) runs? today",
-      "$1 execuções hoje"
     ],
     [
       "^Saved as (.*)\\. Reload the page to see it\\.$",
@@ -529,6 +651,22 @@
     [
       "^The language was not changed: (.*)\\. This dashboard stays in (.*)\\.$",
       "O idioma não foi alterado: $1. Este dashboard continua em $2."
+    ],
+    [
+      "^The language of (\\S+) was not changed: (.*)\\. It still writes in (.*)\\.$",
+      "O idioma de $1 não foi alterado: $2. Ele continua escrevendo em $3."
+    ],
+    [
+      "^As the repository says: (.+)$",
+      "Como o repositório diz: $1"
+    ],
+    [
+      "^set on this machine · the repository says (.+)$",
+      "definido nesta máquina · o repositório diz $1"
+    ],
+    [
+      "^Language the factory writes in for (\\S+)$",
+      "Idioma em que a fábrica escreve em $1"
     ],
     [
       "language must be one of ([A-Za-z, -]+)",
@@ -639,7 +777,7 @@
       "$1 card rodou em um modelo sem preço. Os limites não o contam."
     ],
     [
-      "Running · last cycle (\\S+) ago",
+      "Running · last cycle (\\d+d \\d+h|\\S+) ago",
       "Rodando · último ciclo há $1"
     ],
     [
@@ -823,7 +961,7 @@
       "Mais perto do fim primeiro"
     ],
     [
-      "board read (\\S+) ago",
+      "board read (\\d+d \\d+h|\\S+) ago",
       "quadro lido há $1"
     ],
     [

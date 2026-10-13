@@ -84,8 +84,18 @@ addEventListener("load",function(){
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
-OWNER_MOVES = {"Spec Review": {"approve": "Ready for Dev", "request-changes": "Ready for Refinement"},
-               "Staged": {"approve": "Ready for Prod", "request-changes": "Coding"}}
+# The moves the owner makes from the dashboard, M1 to M7 of #125: from -> [(to, a note is required)]. Nothing else moves
+# a card from here. In Spec Review and Staged the move without a note is Approve, the one with a note Request changes.
+OWNER_MOVES = {"Inbox": [("Ready for Refinement", False)],
+               "Ready for Refinement": [("Inbox", False)],
+               "Spec Review": [("Ready for Dev", False), ("Ready for Refinement", True)],
+               "Ready for Dev": [("Ready for Refinement", True)],
+               "Staged": [("Ready for Prod", False), ("Coding", True)]}
+AWAITING = ("Spec Review", "Staged")  # the columns where the factory waits for the owner's decision
+ORDERED = ("Inbox", "Ready for Refinement", "Ready for Dev")  # the owner sets their order (#128); the dispatcher takes from the top
+LINED = (*ORDERED, "Ready for Prod")  # a card there shows its place in line
+LOCKED = {"run": "a run is in progress", "infra": "blocked by infrastructure, the factory retries",
+          "blocked": "it is blocked and waits for your call in the card"}
 
 
 def number(s):  # ASCII digits only: str.isdigit() also accepts "²" and the like, which int() rejects
@@ -178,7 +188,7 @@ class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
         self._transcripts, self._titles, self._blocked, self._reasons, self._boards = {}, {}, {}, {}, {}
-        self._diffs, self._prs = {}, {}
+        self._diffs, self._prs, self._opened = {}, {}, {}
         self._stacks = (0.0, [], 0)
         self._configs = {}
         self._snap, self._reading, self._retry = {}, set(), {}
@@ -371,7 +381,7 @@ class Factory:
         read, ok = {}, bool(ask)
         for i in range(0, len(ask), 100):
             batch = ask[i:i + 100]
-            fields = " ".join(f'i{int(n)}: issueOrPullRequest(number: {int(n)}) {{ ... on Issue {{ title }} ... on PullRequest {{ title }} }}' for n in batch)
+            fields = " ".join(f'i{int(n)}: issueOrPullRequest(number: {int(n)}) {{ ... on Issue {{ title createdAt }} ... on PullRequest {{ title createdAt }} }}' for n in batch)
             query = f'query($owner: String!, $name: String!) {{ repository(owner: $owner, name: $name) {{ {fields} }} }}'
             r = gh("api", "graphql", "-f", f"query={query}", "-f", f"owner={owner}", "-f", f"name={name}")
             try:  # a number GitHub does not know makes gh exit 1 but the others are still printed
@@ -382,6 +392,7 @@ class Factory:
                 ok = False
                 break
             read.update({n: ((repo.get(f"i{n}") or {}).get("title") or "") for n in batch})
+            self._opened.setdefault(p, {}).update({n: (repo.get(f"i{n}") or {}).get("createdAt") for n in batch})
         if ok:
             known = {**known, **read}
             self._titles[p] = (time.time() if stale else at, known)
@@ -471,20 +482,39 @@ class Factory:
         return {"problem": problem, "criteria": [{"id": k, "text": t} for k, t in criteria],
                 "questions": items("open questions", "dúvidas")}
 
+    def cost_mark(self, p, n):
+        """The figures of a block by the cost limit, from its marker cost/<n>.json; None when it cannot be read."""
+        try:
+            mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
+            before, whole = float(mark.get("baseline") or 0), float(mark["total"])
+            return {"limit": mark.get("limit"), "total": round(whole - before, 4), "baseline": before, "card_total": whole,
+                    "stages": mark.get("stages") or {}}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return None
+
+    def block_line(self, p, n):
+        """One plain line for the list: what the note says the owner must decide, else the gate that failed, else "".
+        Taken from the note only, never composed; a block by the cost limit is told by its figures instead."""
+        reason = self.block_reason(p, n)
+        if reason.lstrip().startswith(COST_BLOCK):
+            return ""
+        plain = lambda t: " ".join(re.sub(r"^\s*[-*]\s*", "", t.replace("**", "").replace("`", "")).split())
+        decide = next((l for l in reason.splitlines() if re.search(r"must decide|owner must|needs? you to", l, re.I)), "")
+        decide = re.sub(r"^[^:]*(must decide|owner must|needs? you to)[^:]*:\s*", "", plain(decide), flags=re.I)
+        if decide:
+            return (decide[0].upper() + decide[1:])[:500]
+        gate = re.search(r"failed gates?:\**\s*([^.\n]+)", reason, re.I)
+        return f"Failed gate: {plain(gate.group(1))}"[:500] if gate and plain(gate.group(1)) else ""
+
     def block(self, p, n):
         """A block told in parts: the stage and step it stopped at, why, what was tried, how many times, and for
         acceptance-intact the test files as they changed."""
         reason = self.block_reason(p, n)
         blocked = [r for r in self.reports(p, n) if r["outcome"] == "blocked"]
-        if reason.lstrip().startswith(COST_BLOCK):  # the marker tells the figures; the newest note must still be this block's
-            try:
-                mark = json.loads((self.pdir(p) / "cost" / f"{n}.json").read_text(encoding="utf-8"))
-                before, whole = float(mark.get("baseline") or 0), float(mark["total"])
-                return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
-                        "times": len(blocked), "gate": "", "diff": "", "limit": mark.get("limit"), "total": round(whole - before, 4),
-                        "baseline": before, "card_total": whole, "stages": mark.get("stages") or {}}
-            except (OSError, ValueError, KeyError, TypeError, AttributeError):
-                pass  # no usable marker: an ordinary block
+        mark = self.cost_mark(p, n) if reason.lstrip().startswith(COST_BLOCK) else None  # the newest note must still be this block's
+        if mark:
+            return {"kind": "cost", "stage": None, "step": None, "steps": [], "why": reason.strip(), "tried": "",
+                    "times": len(blocked), "gate": "", "diff": "", **mark}
         m = BLOCK_LINE.search(reason)
         stage, step = (m.group(1).lower(), int(m.group(2))) if m else (None, None)
         if not stage:  # a report tells the block: it names its stage, not a step
@@ -496,6 +526,14 @@ class Factory:
         return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
                 "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": gate,
                 "diff": self.acceptance_diff(p, n) if gate else ""}
+
+    def block_brief(self, p, n, kind):
+        """What the list tells of a card the owner must unblock: block_line, and block_cost for a block by the cost limit."""
+        if kind != "owner":
+            return {"block_line": "", "block_cost": None}
+        mark = self.cost_mark(p, n) if self.block_reason(p, n).lstrip().startswith(COST_BLOCK) else None
+        return {"block_line": "" if mark else self.block_line(p, n),
+                "block_cost": {k: mark[k] for k in ("total", "limit", "baseline")} if mark else None}
 
     def acceptance_diff(self, p, n):
         at, diff = self._diffs.get((p, n), (0, ""))
@@ -672,14 +710,17 @@ class Factory:
             known = dashboard_cost.spend(self.sessions(p), self.prices(), today)["cards"]
             unpriced += sum(1 for n in columns if n in known and known[n]["total"] is None)
             repo, row = self.config(p), registry.get(p, [])
-            cfg, _ = shipfloor_config.with_overrides(repo, shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml")))
+            over = shipfloor_config.overrides_of(str(self.pdir(p) / "factory.yml"))
+            cfg, _ = shipfloor_config.with_overrides(repo, over)
             knob = lambda c, k: next((v for v in [shipfloor_config.dotted(c, k)] if v is not None), KNOBS[k])
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "main": row[3] if len(row) > 3 else "main",
                              "repo": shipfloor_config.dotted(cfg, "project.repo"), "board": cfg.get("board"), "board_url": self.board_url(p),
                              "knobs": {k: {"value": knob(cfg, k), "repo": knob(repo, k)} for k in KNOBS}, "context": cfg.get("context") or [],
                              "stack": cfg.get("stack") or {}, "deploy": cfg.get("deploy") or {},
-                             "language": {"code": cfg.get("language") or "en", "set": cfg.get("language") is not None,
-                                          "file": ".shipfloor/factory.yml"},
+                             # code: in effect; repo: what factory.yml yields; from: who decided; set: factory.yml has the key
+                             "language": {"code": cfg.get("language") or "en", "repo": repo.get("language") or "en",
+                                          "from": "machine" if isinstance(over, dict) and "language" in over else "repository",
+                                          "set": repo.get("language") is not None, "file": ".shipfloor/factory.yml"},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
         every = shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml"))
@@ -820,11 +861,13 @@ class Factory:
         return 200, self.settings()
 
     def set_project(self, project, values):
-        """The owner's overrides of a project's operational limits on this machine: {knob: number, or null to go
-        back to what the repository says}. Kept in the project's overrides.yml, which the config readers lay over
-        factory.yml; checked with the whole config before it is written."""
-        if project not in self.projects() or not isinstance(values, dict) or not set(values) <= set(KNOBS):
+        """The owner's overrides of a project on this machine: {knob: number, or null to go back to what the
+        repository says}, and language: a code of LANGS, or null. Kept in the project's overrides.yml, which the
+        config readers lay over factory.yml; checked with the whole config before it is written."""
+        if project not in self.projects() or not isinstance(values, dict) or not set(values) <= set(KNOBS) | {"language"}:
             return 400, {"error": "unknown project or setting"}
+        if "language" in values and values["language"] is not None and (not isinstance(values["language"], str) or values["language"] not in shipfloor_config.LANGS):
+            return 400, {"error": f"language must be one of {', '.join(shipfloor_config.LANGS)}"}
         path, repo = self.pdir(project) / "overrides.yml", self.config(project)
         over = read_yaml(path)
         over = json.loads(json.dumps(over)) if isinstance(over, dict) else {}
@@ -845,7 +888,7 @@ class Factory:
             return 400, {"error": "; ".join(errs)}
         if over:
             with open(path, "w", encoding="utf-8", newline="\n") as f:
-                f.write("# this machine's overrides of the project's operational limits; set in the dashboard's Settings\n")
+                f.write("# this machine's overrides of the project; set in the dashboard's Settings\n")
                 yaml.safe_dump(over, f, sort_keys=False)
         else:
             path.unlink(missing_ok=True)
@@ -954,6 +997,10 @@ class Factory:
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
             titles, blocked = self.titles(p, columns), self.blocked(p)
+            opened, place, line = self._opened.get(p, {}), {}, {}
+            for n, col in columns.items():  # columns come in board order: a card's place in line is its rank there
+                if col in LINED:
+                    line[col] = place[n] = line.get(col, 0) + 1
             # how long a stage usually takes (its clean runs) and when each card's last run ended
             took, since = {}, {}
             for r in all_runs:
@@ -976,9 +1023,11 @@ class Factory:
                                         "cost": rounded(per_card.get(n, 0.0)),
                                         "over": "warn" if n in warned else None,
                                         "spent": None if per_card.get(n, 0.0) is None else per_card.get(n, 0.0) - base.get(n, 0.0),
-                                        "running": running.get(n), "awaiting": col in OWNER_MOVES,
-                                        "review": col in OWNER_MOVES and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
-                                        "blocked": blocked.get(n)}
+                                        "running": running.get(n), "awaiting": col in AWAITING,
+                                        "review": col in AWAITING and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
+                                        "lock": "run" if n in running else {"infra": "infra", "owner": "blocked"}.get(blocked.get(n)),
+                                        "opened": opened.get(n), "position": place.get(n),
+                                        "blocked": blocked.get(n), **self.block_brief(p, n, blocked.get(n))}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
@@ -989,18 +1038,29 @@ class Factory:
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
                 "alerts": shipfloor_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
+                "moves": {f: [{"to": to, "note": note} for to, note in m] for f, m in OWNER_MOVES.items()}, "ordered": list(ORDERED),
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
                           "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)},
                 "costs": dict(limits, day_stopped=day_stopped)}
 
-    def board_row(self, p, n):
-        """(the card's row on the live board: number, column, item id; or None), or (None, error)."""
+    def board_rows(self, p):
+        """(every row of the live board in board order: number, column, item id), or (None, error)."""
         env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
         snap = subprocess.run([bash(), (HERE / "board.sh").as_posix(), "snapshot"], env=env,
                               capture_output=True, text=True, encoding="utf-8")
         if snap.returncode != 0:
             return None, "cannot read the board: " + snap.stderr.strip()
-        return next((c for c in (l.split("\t") for l in snap.stdout.splitlines()) if c[0] == str(n)), None), None
+        return [c for c in (l.split("\t") for l in snap.stdout.splitlines()) if len(c) > 2 and number(c[0])], None
+
+    def board_row(self, p, n):
+        """(the card's row on the live board: number, column, item id; or None), or (None, error)."""
+        rows, err = self.board_rows(p)
+        return (None, err) if err else (next((c for c in rows if c[0] == str(n)), None), None)
+
+    def keep_rows(self, p, rows):
+        """The board as a write of the owner's just left it becomes the dashboard's own read, so the next overview shows it
+        without waiting for the dispatcher; board.tsv stays the dispatcher's to write."""
+        self._snap[p] = (time.time(), ["\t".join(r) for r in rows])
 
     def accept(self, p, n, text):
         """The owner takes the card's acceptance test edits as they stand (shipfloor accept), and the block comes off."""
@@ -1036,29 +1096,136 @@ class Factory:
         return code, dict(body, moved_to="Coding")
 
     def act(self, p, n, action, seen, text, move_only):
-        """The owner's approve / request-changes. Moves with gh directly: board.sh move refuses
-        owner-only columns on purpose (the agents' guardrail), and an owner path there would be open to agents."""
+        """The owner's approve / request-changes on a Spec Review or Staged card: the move of that column without a note,
+        or the one with a note."""
+        if seen not in AWAITING:  # as before #125: a card outside those columns has nothing to decide, whatever the board says
+            row, err = self.board_row(p, n)
+            if err:
+                return 502, {"error": err}
+            return 409, {"error": f"#{n} is in {row[1] if row else 'no column'} now", "column": row and row[1]}
+        to = next(t for t, note in OWNER_MOVES[seen] if note == (action == "request-changes"))
+        return self.owner_move(p, n, seen, to, text, move_only)
+
+    def lock(self, p, n):
+        """(why the card cannot move now: "run", "infra", "blocked" or None, error). Read now, not from the minute-old cache."""
+        if any(r["issue"] == n and not r["orphan"] for r in self.live(p)):
+            return "run", None
+        issue, err = gh_json("api", f"repos/{shipfloor_config.dotted(self.config(p), 'project.repo')}/issues/{n}")
+        if err:
+            return None, "cannot read the card's labels: " + err
+        names = {l.get("name") for l in (issue or {}).get("labels") or [] if isinstance(l, dict)}
+        return ("infra" if "blocked:infra" in names else "blocked" if "blocked" in names else None), None
+
+    def owner_move(self, p, n, seen, to, text, move_only):
+        """A move of M1 to M7. Moves with gh directly: board.sh move refuses owner-only columns on purpose (the agents'
+        guardrail), and an owner path there would be open to agents. A note goes on the issue before the move."""
         cfg = self.config(p)
         owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
-        row, err = self.board_row(p, n)
+        rows, err = self.board_rows(p)
         if err:
             return 502, {"error": err}
+        row = next((r for r in rows if r[0] == str(n)), None)
         column = row[1] if row else None
-        if column not in OWNER_MOVES or column != seen:
+        if column != seen:
             return 409, {"error": f"#{n} is in {column or 'no column'} now", "column": column}
-        target = OWNER_MOVES[column][action]
-        # request-changes always says why; an approval may carry a note too (an answer to the spec's open question)
-        commented = not move_only and (action == "request-changes" or bool(text.strip()))
+        note = dict(OWNER_MOVES.get(column, ())).get(to) if isinstance(to, str) else None
+        if note is None:
+            return 403, {"error": f"the owner does not move a card from {column} to {to or 'nowhere'}"}
+        locked, err = self.lock(p, n)
+        if err:
+            return 502, {"error": err}
+        if locked:
+            return 423, {"error": LOCKED[locked], "locked": locked}
+        # a note move always says why; any other move may carry a note too (an answer to the spec's open question)
+        commented = not move_only and (note or bool(text.strip()))
         if commented:
             if not text.strip():
                 return 400, {"error": "write what should change"}
             r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
             if r.returncode != 0:
                 return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip()}
-        err = self.move(p, owner, num, row[2], target)
+        rest = [r for r in rows if r is not row]
+        last = [r for r in rest if r[1] == to][-1:]
+        if to in ORDERED and last:  # a Status change keeps the item's place, which may be the top of the queue: it goes last
+            err = self.place(p, owner, num, row[2], last[0][2])
+            if err:
+                return 502, {"error": err, "commented": commented}
+            rest.insert(rest.index(last[0]) + 1, row)
+        else:
+            rest = rows
+        err = self.move(p, owner, num, row[2], to)
         if err:
             return 502, {"error": err, "commented": commented}
-        return 200, {"moved_to": target}
+        self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
+        return 200, {"moved_to": to}
+
+    def owner_reorder(self, p, n, seen, before):
+        """The card goes right before `before` in its column, or last for None (#128). `seen` and `before` are what the
+        page saw: a board that changed since is refused, not reordered somewhere else."""
+        if before is not None and (isinstance(before, bool) or not isinstance(before, int)):
+            return 400, {"error": "before must be a card number or null"}
+        if before == n:
+            return 400, {"error": f"#{n} cannot go before itself"}
+        if seen not in ORDERED:
+            return 403, {"error": f"the order of {seen or 'no column'} is not the owner's to set"}
+        rows, err = self.board_rows(p)
+        if err:
+            return 502, {"error": err}
+        mine = [r for r in rows if r[1] == seen]
+        row = next((r for r in mine if r[0] == str(n)), None)
+        if not row:
+            return 409, {"error": f"it is no longer in {seen}", "column": seen, "gone": n}
+        if before is not None and not any(r[0] == str(before) for r in mine):
+            return 409, {"error": f"#{before} is no longer in {seen}", "column": seen, "gone": before}
+        locked, err = self.lock(p, n)
+        if err:
+            return 502, {"error": err}
+        if locked:
+            return 423, {"error": LOCKED[locked], "locked": locked}
+        rest = [r for r in rows if r is not row]
+        if before is None:
+            after = ([r for r in rest if r[1] == seen][-1:] or [None])[0]
+        else:
+            i = next(i for i, r in enumerate(rest) if r[0] == str(before))
+            after = rest[i - 1] if i else None
+        rest.insert(rest.index(after) + 1 if after else 0, row)
+        position = [r[0] for r in rest if r[1] == seen].index(str(n)) + 1
+        if rest == rows:
+            return 200, {"position": position}
+        cfg = self.config(p)
+        err = self.place(p, shipfloor_config.dotted(cfg, "board.owner"), shipfloor_config.dotted(cfg, "board.number"), row[2], after and after[2])
+        if err:
+            return 502, {"error": err}
+        self.keep_rows(p, rest)
+        return 200, {"position": position}
+
+    def place(self, p, owner, num, item, after):
+        """Puts the item right after another one in the project's order, or first without `after`."""
+        project_id, err = self.project_id(p, owner, num)
+        if err:
+            return err
+        query = ("mutation($project: ID!, $item: ID!, $after: ID) { updateProjectV2ItemPosition(input: "
+                 "{projectId: $project, itemId: $item, afterId: $after}) { clientMutationId } }")
+        r = gh("api", "graphql", "-f", f"query={query}", "-f", f"project={project_id}", "-f", f"item={item}",
+               *(("-f", f"after={after}") if after else ()))
+        return None if r.returncode == 0 else "reorder failed, nothing moved: " + r.stderr.strip()
+
+    def project_id(self, p, owner, num):
+        try:
+            return (self.pdir(p) / "board-ids").read_text().split()[0], None
+        except (OSError, IndexError):
+            project, err = gh_json("project", "view", str(num), "--owner", owner, "--format", "json")
+            return (None, "cannot read the board ids: " + err) if err else ((project or {}).get("id", ""), None)
+
+    def comment(self, p, n, text):
+        """A comment on the issue after a move already left (the toast's Comment); it moves nothing."""
+        if not text.strip():
+            return 400, {"error": "the comment is empty"}
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
+        r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
+        if r.returncode != 0:
+            return 502, {"error": "comment failed: " + r.stderr.strip()}
+        return 200, {"commented": True}
 
     def move(self, p, owner, num, item, target):
         fields, err = gh_json("project", "field-list", str(num), "--owner", owner, "--format", "json")
@@ -1187,7 +1354,7 @@ class Factory:
                 if isinstance(rep.get("failed_gates"), list) and rep["failed_gates"]:
                     e["failed"] = [str(g) for g in rep["failed_gates"]]
                 if newest[n] is r and columns.get(n):
-                    e.update(column=columns[n], you=columns[n] in OWNER_MOVES)
+                    e.update(column=columns[n], you=columns[n] in AWAITING)
             else:
                 now = live.get((r["stage"], n)) if newest[n] is r else None
                 if now is None:
@@ -1300,7 +1467,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and number(parts[3]) and parts[4] in ("approve", "request-changes", "unblock", "message", "accept", "send-back", "weight")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "unblock", "message", "accept", "send-back", "weight")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -1316,6 +1483,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(*self.factory.unblock(parts[2], int(parts[3])))
             if parts[4] == "weight":
                 return self.send(*self.factory.set_weight(parts[2], int(parts[3]), body.get("weight")))
+            if parts[4] == "move":
+                return self.send(*self.factory.owner_move(parts[2], int(parts[3]), body.get("column"), body.get("to"),
+                                                          str(body.get("text") or ""), bool(body.get("move_only"))))
+            if parts[4] == "reorder":
+                return self.send(*self.factory.owner_reorder(parts[2], int(parts[3]), body.get("column"), body.get("before")))
+            if parts[4] == "comment":
+                return self.send(*self.factory.comment(parts[2], int(parts[3]), str(body.get("text") or "")))
             self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),
                                         str(body.get("text", "")), bool(body.get("move_only"))))
         except Exception as e:

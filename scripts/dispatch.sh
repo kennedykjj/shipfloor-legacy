@@ -118,6 +118,8 @@ launch() {  # launch <pipeline> <issue>
     [ -n "$step" ] && model="$step"
   fi
   [ -z "$model" ] || extra+=(--model "$model")
+  # the language the project writes in, read once: the run keeps it even if the owner changes it while it runs
+  local lang; lang="$(shipfloor_cfg get language 2>/dev/null)" && [ -n "$lang" ] && envs+=("FACTORY_LANGUAGE=$lang")
   local retry=0; [ -e "$HOME_DIR/infra/$n" ] && { retry=1; envs+=(SHIPFLOOR_INFRA_RETRY=1); }
   (
     trap '' HUP

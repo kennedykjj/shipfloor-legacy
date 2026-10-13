@@ -543,7 +543,11 @@ verdict() {  # verdict <exit code>
   return 0
 }
 case "$cmd" in acceptance-own|stack) ;; *) trap 'verdict $?' EXIT ;; esac
-GLANG=""; LANG_RE='^language:[[:space:]]*["'"'"']?([A-Za-z-]*)'
-while IFS= read -r GLINE; do [[ "$GLINE" =~ $LANG_RE ]] && { GLANG="${BASH_REMATCH[1]}"; break; }; done 2>/dev/null < "$FACTORY_CONFIG"
+# The language a run started with (FACTORY_LANGUAGE, set at launch) wins; else this machine's overrides.yml, then factory.yml.
+GLANG="${FACTORY_LANGUAGE:-}"; LANG_RE='^language:[[:space:]]*["'"'"']?([A-Za-z-]*)'
+for GFILE in "${FACTORY_CONFIG%[/\\]*}/overrides.yml" "$FACTORY_CONFIG"; do
+  [ -n "$GLANG" ] && break
+  while IFS= read -r GLINE; do [[ "$GLINE" =~ $LANG_RE ]] && { GLANG="${BASH_REMATCH[1]}"; break; }; done 2>/dev/null < "$GFILE"
+done
 if [ "${GLANG:-en}" = en ]; then run "$@"; exit; fi
 { run "$@" 2>&1 1>&3 | shipfloor_say "$GLANG" >&2; exit "${PIPESTATUS[0]}"; } 3>&1

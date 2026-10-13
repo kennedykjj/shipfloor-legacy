@@ -13,11 +13,23 @@ case "$args" in *issueOrPullRequest*)
   nums="$(echo "$args" | grep -o 'issueOrPullRequest(number: [0-9]*' | grep -o '[0-9]*$')"
   out=""; miss=0; sep=""
   for n in $nums; do
-    t="$( { if [ -f "$d/titles.tsv" ]; then tr -d '\r' < "$d/titles.tsv"; else printf '7\tSeven\n'; fi; } | awk -F'\t' -v n="$n" '$1 == n {print $2; f=1} END {exit !f}')" || { miss=1; out="$out$sep\"i$n\":null"; sep=","; continue; }
-    out="$out$sep\"i$n\":{\"title\":\"$t\"}"; sep=","
+    t="$( { if [ -f "$d/titles.tsv" ]; then tr -d '\r' < "$d/titles.tsv"; else printf '7\tSeven\n'; fi; } | awk -F'\t' -v n="$n" '$1 == n {print $2 "\t" $3; f=1} END {exit !f}')" || { miss=1; out="$out$sep\"i$n\":null"; sep=","; continue; }
+    at="${t#*$'\t'}"; t="${t%%$'\t'*}"  # an optional third column is the issue's createdAt
+    out="$out$sep\"i$n\":{\"title\":\"$t\"${at:+,\"createdAt\":\"$at\"}}"; sep=","
   done
   if [ "$miss" = 1 ]; then echo "{\"data\":{\"repository\":{$out}},\"errors\":[{\"message\":\"Could not resolve\"}]}"; exit 1; fi
   echo "{\"data\":{\"repository\":{$out}}}"; exit 0 ;;
+esac
+# The dashboard's reorder (#128): recorded in $d/positions ("<item> after <item|->"), and the item moves in items.tsv,
+# so the next board read has the new order. $d/fail-position makes it fail.
+case "$args" in *updateProjectV2ItemPosition*)
+  [ -e "$d/fail-position" ] && { echo "gh: HTTP 502" >&2; exit 1; }
+  item="$(printf '%s\n' "$@" | sed -n 's/^item=//p')"; after="$(printf '%s\n' "$@" | sed -n 's/^after=//p')"
+  echo "$item after ${after:--}" >> "$d/positions"
+  awk -F'\t' -v i="$item" -v a="$after" '$1 == i { row = $0; next } { rows[++n] = $0; ids[n] = $1 }
+    END { if (a == "") print row; for (k = 1; k <= n; k++) { print rows[k]; if (ids[k] == a) print row } }' "$d/items.tsv" > "$d/items.tsv.new" \
+    && mv "$d/items.tsv.new" "$d/items.tsv"
+  echo '{"data":{"updateProjectV2ItemPosition":{"clientMutationId":null}}}'; exit 0 ;;
 esac
 if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
   case "$args" in *--jq*) echo "fake-gh: --jq not allowed here: $args" >&2; exit 99 ;; esac
@@ -28,9 +40,17 @@ if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
       i=0; sep=""; for s in "👤 Inbox" "👤 Ready for Refinement" "🤖 Technical Refinement" "👤 Spec Review" "👤 Ready for Dev" "🤖 Coding" "🤖 Validation" "👤 Staged" "👤 Ready for Prod" "🤖 Done"; do
         i=$((i+1)); printf '%s{"name":"%s","id":"opt%s"}' "$sep" "$s" "$i"; sep=","; done
       printf ']}]}\n'; exit 0 ;;
-    "api repos/acme/shop/issues?labels="*) echo '[{"number":7}]'; exit 0 ;;
+    "api repos/acme/shop/issues?labels="*)  # $d/label-<label> (":" as "-") holds the issues with that label; default #7
+      l="${args#*labels=}"; l="${l%%&*}"; [ -f "$d/label-${l//:/-}" ] && { cat "$d/label-${l//:/-}"; exit 0; }; echo '[{"number":7}]'; exit 0 ;;
     "api user") echo '{"login":"factory"}'; exit 0 ;;
-    "api repos/acme/shop/issues/"*"/comments"*) [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
+    "api repos/acme/shop/issues/"*"/comments"*)  # $d/comments-<n> for one card, else $d/issue-comments for all
+      n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/.*#\1#')"; [ -f "$d/comments-$n" ] && { cat "$d/comments-$n"; exit 0; }
+      [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
+    "api repos/acme/shop/issues/"*)  # one issue: its labels from $d/labels-<n>, one name a line
+      [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
+      n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; printf '{"number":%s,"labels":[' "$n"; sep=""
+      [ -f "$d/labels-$n" ] && while IFS= read -r l; do [ -n "$l" ] && printf '%s{"name":"%s"}' "$sep" "${l%$'\r'}" && sep=","; done < "$d/labels-$n"
+      printf ']}\n'; exit 0 ;;
   esac
 fi
 case "$args" in
