@@ -13,8 +13,10 @@ source "$(dirname "$0")/lib.sh"
 out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" "$FACTORY_DIR/lang/dashboard.pt-BR.json" <<'PY'
 import json, re, sys
 h = open(sys.argv[1], encoding="utf-8").read()
+sys.path.insert(0, sys.argv[1].rsplit("/", 1)[0] + "/test"); import page_text  # the page's text is a catalog by key (#122)
+h = page_text.english(h)
 cat = json.load(open(sys.argv[2], encoding="utf-8"))
-ex = cat["exact"]
+ex = page_text.exact("pt-BR")
 res = []
 def check(name, cond, why): res.append(("ok " if cond else "no ") + (name if cond else f"{name}: {why}"))
 def fn(name):
@@ -38,7 +40,7 @@ staged_part = staged_part[:staged_part.find("\n\n")] if "\n\n" in staged_part el
 check("AC-1 the Staged text never names Refine", bool(staged_part) and "Refine" not in staged_part.split("Spec Review")[0], "the Staged text names Refine or is missing")
 check("AC-1 the old 'Refine builds it when the spec is ready.' is gone from the page", "Refine builds it when the spec is ready." not in h, "the page still says Refine builds it when the spec is ready")
 check("AC-1 the old string is gone from the pt-BR catalog", not any("Refine builds it when the spec is ready." in k for k in ex), "the catalog still has the old string")
-check("AC-1 pt-BR Staged text", ex.get(st + " The Gates tab has what validation checked; the changes are in the pull request.") is not None or any(k.startswith(st) for k in ex) or any("Gates tab" in k and "pull request" in k for k in ex), "no catalog entry for the Staged text")
+check("AC-1 pt-BR Staged text", bool(page_text.msg("pt-BR", "review.none_pr")) and bool(page_text.msg("pt-BR", "review.gates_tab")), "no catalog entry for the Staged text")
 check("AC-2 the Spec Review text says Refine has not built the page", "No review page yet. Refine has not built it for this spec." in nr, "the Spec Review text is missing")
 check("AC-2 pt-BR Spec Review text", "No review page yet. Refine has not built it for this spec." in ex, "no catalog entry for the Spec Review text")
 check("AC-2 other columns say 'No review page for this card.' without Refine", bool(re.search(r"No review page for this card\.(?! Refine)", nr)), "the generic text is missing")
@@ -57,13 +59,13 @@ check("AC-4 landing keeps review for a waiting card that has a page", bool(ld) a
 
 # --- AC-5 / AC-6: the reading pane
 rh = fn("readHtml")
-check("AC-5 readHtml draws a Gates section for a card without a review page", bool(re.search(r'sec\(\s*"Gates"', rh)) and "review" in rh, 'no sec("Gates", …) in readHtml')
+check("AC-5 readHtml draws a Gates section for a card without a review page", bool(re.search(r'sec\(\s*"?Gates"?,', rh)) and "review" in rh, 'no sec("Gates", …) in readHtml')
 check("AC-5 the Gates section draws d.report.gates", "report.gates" in rh or "report?.gates" in rh, "readHtml does not read d.report.gates")
 chip = len(re.findall(r'class="gate \$\{', h)) + len(re.findall(r'"gate pass"|"gate fail"|gate \$\{', h))
 check("AC-5 the gate chips come from one shared helper, not a copy", bool(re.search(r"gateChips|gateList|gateSpans|gatesHtml|chips\(", rh)) and len(re.findall(r'<span class="gate \$\{', h)) == 1, "the .gate chips are defined more than once or readHtml has no shared helper")
 check("AC-5 the cost tag reads 'est. so far'", "est. so far" in rh, 'the cost tag does not say "est. so far"')
 check("AC-5 the old '$… so far' cost tag without est. is gone", not re.search(r"\.toFixed\(2\)\} so far", h), "a cost tag still reads '$x so far'")
-check("AC-5 pt-BR cost tag", any("est. so far" in a for a, b in cat["rx"]) or "est. so far" in "".join(ex), "no catalog entry for the est. so far tag")
+check("AC-5 pt-BR cost tag", bool(page_text.msg("pt-BR", "cost.so_far")), "no catalog entry for the est. so far tag")
 msg = "Nothing is recorded for this card yet."
 check("AC-6 readHtml says 'Nothing is recorded for this card yet.'", msg in rh, f'"{msg}" is missing')
 check("AC-6 the line is an .empty paragraph", bool(re.search(r'<p class="empty">\s*' + re.escape(msg), rh)), "the line is not a <p class=\"empty\">")
@@ -82,7 +84,7 @@ check("AC-7 'Log tab' is a .lnk button selecting the Log tab", bool(re.search(r'
 check("AC-7 'Reading the session…' stays for the first seconds", "Reading the session…" in pl, "the reading message is gone from paintLive")
 check("AC-7 S.liveSince is set in openCard", "S.liveSince" in oc, "openCard does not set S.liveSince")
 check("AC-7 S.liveSince is set in selectTab", "S.liveSince" in stb, "selectTab does not set S.liveSince")
-check("AC-7 pt-BR for the nothing-to-show message", any(k.startswith(nm) for k in ex), "no catalog entry for the nothing-to-show message")
+check("AC-7 pt-BR for the nothing-to-show message", bool(page_text.msg("pt-BR", "live.nothing")), "no catalog entry for the nothing-to-show message")
 check("AC-8 followLive sets the nothing-yet message for a running card with no events", nm in fl or "nothingYet" in fl or "waitingLive" in fl, "followLive does not set the nothing-yet state")
 check("AC-8 followLive keeps 'No factory session for this card yet.' only for a card with no run", "No factory session for this card yet." in fl and bool(re.search(r"running|run", fl.split("No factory session")[0][-400:])), "followLive does not tell a running card from one with no run")
 tk = re.search(r"function tick\(.*", h)

@@ -18,8 +18,28 @@ except ImportError:
 RESERVED = {"po", "ux", "techlead", "qa"}
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-# what people read: the agents' specs, comments and reports, and what the scripts say (lang/<code>.sed, dashboard.<code>.json)
-LANGS = {"en": "English", "pt-BR": "Brazilian Portuguese"}
+# what people read: the agents' specs, comments and reports, and what the scripts say (lang/<code>.sed, dashboard.<code>.json).
+# Every code here has a dashboard catalog, which names the language in itself (#122); a code with no lang/<code>.sed or
+# notify.<code>.json has the scripts speak English. The name here is the one the agents and the CLI read.
+LANGS = {"en": "English", "zh-CN": "Simplified Chinese", "zh-TW": "Traditional Chinese", "es": "Spanish", "ja": "Japanese", "de": "German",
+         "fr": "French", "pt-BR": "Brazilian Portuguese", "ru": "Russian", "ko": "Korean", "it": "Italian", "tr": "Turkish"}
+
+
+class Msg(str):
+    """A sentence a person reads, in English as every caller has it, that also carries the key and values the dashboard's
+    catalogs translate it by (lang/dashboard.<code>.json): the page shows a refusal in its own language. A value can be
+    a Msg too."""
+    def __new__(cls, msg_key, text, /, **params):
+        s = super().__new__(cls, text)
+        s.key, s.params = msg_key, params
+        return s
+
+    def as_json(self):
+        return {"key": self.key, "params": {k: v.as_json() if isinstance(v, Msg) else v for k, v in self.params.items()}}
+
+
+def lang_problem():
+    return Msg("err.language", f"language must be one of {', '.join(LANGS)}", codes=", ".join(LANGS))
 DEFAULTS = {
     "language": "en",
     "project": {"main": "main"},
@@ -122,7 +142,7 @@ def problems(cfg):
     if not isinstance(cfg.get("review_criteria", ""), str):
         errs.append("review_criteria must be a path")
     if cfg.get("language", "en") not in LANGS:
-        errs.append(f"language must be one of {', '.join(LANGS)}")
+        errs.append(lang_problem())
     keep = cfg.get("acceptance_assertions", "")
     if not isinstance(keep, str) or (keep and not compiles(keep)):
         errs.append("acceptance_assertions must be a valid extended regex (grep -E)")
@@ -500,13 +520,13 @@ def notify_problems(raw):
                     errs.append(f"notify.{k}.{name} must be true or false")
     minutes, quiet, topic = raw.get("reminder_min", 60), raw.get("quiet", ""), raw.get("ntfy_topic", "")
     if not isinstance(minutes, int) or isinstance(minutes, bool) or not 15 <= minutes <= 720:
-        errs.append("The reminder takes 15 to 720 minutes.")
+        errs.append(Msg("err.reminder", "The reminder takes 15 to 720 minutes."))
     if not isinstance(quiet, str) or (quiet and not (QUIET.fullmatch(quiet) and quiet[:5] != quiet[6:])):
-        errs.append("Quiet hours need both times, and they cannot be the same.")
+        errs.append(Msg("err.quiet", "Quiet hours need both times, and they cannot be the same."))
     if not isinstance(topic, str) or (topic and not NTFY_TOPIC.fullmatch(topic)):
-        errs.append("The topic takes letters, digits, - and _, up to 64.")
+        errs.append(Msg("err.topic", "The topic takes letters, digits, - and _, up to 64."))
     elif not topic and (raw.get("channels") or {}).get("ntfy") is True:
-        errs.append("The phone push needs a topic.")
+        errs.append(Msg("err.ntfy_topic", "The phone push needs a topic."))
     return errs
 
 
@@ -588,13 +608,13 @@ def stage_model(stages, stage, weight):
 def model_problem_line(p):
     if p["why"] == "name":
         if p["key"].startswith("models.stages.") and p["key"].count(".") == 3:
-            return f"{p['key']}: not a weight ({', '.join(WEIGHTS)})"
-        return f"{p['key']}: not a stage or an agent here"
+            return Msg("err.model.weight", f"{p['key']}: not a weight ({', '.join(WEIGHTS)})", key=p["key"], weights=", ".join(WEIGHTS))
+        return Msg("err.model.name", f"{p['key']}: not a stage or an agent here", key=p["key"])
     if p["why"] == "shape":
         if p["key"] == "models.stages.refine":
-            return f"{p['key']}: must be one model (Refine runs before the card has a weight)"
-        return f"{p['key']}: must be a mapping"
-    return f"{p['key']}: \"{p['value']}\" is not a model the factory knows ({', '.join(MODELS)})"
+            return Msg("err.model.refine", f"{p['key']}: must be one model (Refine runs before the card has a weight)", key=p["key"])
+        return Msg("err.model.shape", f"{p['key']}: must be a mapping", key=p["key"])
+    return Msg("err.model.unknown", f"{p['key']}: \"{p['value']}\" is not a model the factory knows ({', '.join(MODELS)})", key=p["key"], value=p["value"], models=", ".join(MODELS))
 
 
 COST_KEYS = ("card_warn", "card_block", "day_stop")
@@ -621,7 +641,7 @@ def machine_problems(raw):
         return ["the file is not a YAML mapping"]
     errs = []
     if raw.get("language", "en") not in LANGS:
-        errs.append(f"language must be one of {', '.join(LANGS)}")
+        errs.append(lang_problem())
     errs += cost_problems(raw.get("costs"))
     errs += notify_problems(raw["notify"]) if "notify" in raw else []
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
@@ -661,7 +681,7 @@ def machine_problems(raw):
     else:
         every = disp.get("every_min", MACHINE_DEFAULTS["dispatcher"]["every_min"])
         if type(every) is not int or every not in DISPATCHER_EVERY:  # True == 1: the type is checked too
-            errs.append("dispatcher.every_min must be 1, 3, 5 or 10")
+            errs.append(Msg("err.every_min", "dispatcher.every_min must be 1, 3, 5 or 10"))
     return errs
 
 

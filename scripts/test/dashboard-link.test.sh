@@ -70,6 +70,7 @@ out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" "$FACTORY_DIR/lang/dash
 import json, re, sys
 h = open(sys.argv[1], encoding="utf-8").read()
 cat = json.load(open(sys.argv[2], encoding="utf-8"))
+en = json.load(open(sys.argv[2].replace("pt-BR", "en"), encoding="utf-8"))["messages"]  # the page's text, by key (#122)
 AC = {"one fetch": "AC-3", "the fetch": "AC-3", "S.refused is": "AC-3", "api() answers": "AC-3", "a 403": "AC-3", "the catch branch leaves": "AC-7", "the catch branch still": "AC-7", "a function": "AC-3"}
 def res(name, ok, why=""):
     ac = next((v for k, v in AC.items() if name.startswith(k)), "AC-4")
@@ -89,19 +90,19 @@ res("a 403 response sets S.refused and calls refuse()", re.search(r"403", tried)
 res("the catch branch leaves S.refused alone", "S.refused" not in caught and "refuse(" not in caught and "setOffline(true)" in caught, "the catch branch touches S.refused or lost the Offline flag")
 res("the catch branch still reports status 0 (the server is not answering)", re.search(r"status:\s*0", caught) is not None, "no status 0 in the catch")
 res("a function refuse() exists", re.search(r"function refuse\(", h) is not None, "no refuse()")
-res("the old sentence is gone", "belongs to an earlier run" not in h, "the page still says 'belongs to an earlier run'")
-res("the first line is a strong: This link is no longer valid", re.search(r"<strong>\s*This link is no longer valid\s*</strong>", h) is not None, "no <strong>This link is no longer valid</strong>")
-res("the sentence with the way to the current link", "The dashboard does not accept it any more, so this page stopped updating. To get the current link, run in a terminal:" in h, "sentence missing")
+res("the old sentence is gone", "belongs to an earlier run" not in h + json.dumps(en), "the page still says 'belongs to an earlier run'")
+res("the first line is a strong: This link is no longer valid", re.search(r'<strong>\$\{t\("refused\.h"\)\}</strong>', h) is not None and en.get("refused.h") == "This link is no longer valid", "no <strong>This link is no longer valid</strong>")
+res("the sentence with the way to the current link", 't("refused.why")' in h and en.get("refused.why") == "The dashboard does not accept it any more, so this page stopped updating. To get the current link, run in a terminal:", "sentence missing")
 res("the command is a code of its own", re.search(r"<code>\s*shipfloor dashboard\s*</code>", h) is not None, "no <code>shipfloor dashboard</code>")
-res("the closing sentence", "Then open the URL it prints. This tab stays as it is." in h, "closing sentence missing")
+res("the closing sentence", 't("refused.then")' in h and en.get("refused.then") == "Then open the URL it prints. This tab stays as it is.", "closing sentence missing")
 res("the command is selected whole by one click", re.search(r"user-select:\s*all", h) is not None, "no user-select: all")
 res("the refused message is announced and takes focus", 'role", "alert"' in h or 'role="alert"' in h or "role='alert'" in h, "no role alert")
 body = h[h.index("function refuse("):h.index("function refuse(") + 3000] if "function refuse(" in h else ""
 res("the refused message is focusable and takes focus", re.search(r"tabindex[\"']?\s*[,=]\s*[\"']?-1", body) is not None and ".focus()" in body, "refuse() sets no tabindex -1 and focus")
-ex = cat.get("exact", {})
-res("pt-BR: the first line", ex.get("This link is no longer valid") == "Este link não é mais válido", "entry missing or different")
-res("pt-BR: the sentence", ex.get("The dashboard does not accept it any more, so this page stopped updating. To get the current link, run in a terminal:") == "O dashboard não o aceita mais, então esta página parou de atualizar. Para pegar o link atual, rode no terminal:", "entry missing or different")
-res("pt-BR: the closing sentence", ex.get("Then open the URL it prints. This tab stays as it is.") == "Depois abra a URL que ele imprimir. Esta aba fica como está.", "entry missing or different")
+ex = cat.get("messages", {})
+res("pt-BR: the first line", ex.get("refused.h") == "Este link não é mais válido", "entry missing or different")
+res("pt-BR: the sentence", ex.get("refused.why") == "O dashboard não o aceita mais, então esta página parou de atualizar. Para pegar o link atual, rode no terminal:", "entry missing or different")
+res("pt-BR: the closing sentence", ex.get("refused.then") == "Depois abra a URL que ele imprimir. Esta aba fica como está.", "entry missing or different")
 PY
 )"
 while IFS= read -r line; do

@@ -45,13 +45,16 @@ want "AC-2 a block by the cost limit carries its figures, not a line" "$(card 10
 # AC-3: an infrastructure block asks for no decision: no line in the list, and the tile says what happened
 want "AC-3 an infrastructure block has no line" "$(card 11)" "infra||null"
 h="$(cat "$FACTORY_DIR/dashboard.html")"
-assert_contains "$h" 'if (c.blocked === "infra") return "Infrastructure failed; the factory retries once";'
-case "$h" in *"Blocked by infrastructure; the factory retries it"*) fail "AC-3 the old infrastructure wording is still there" ;; *) pass "AC-3 the old infrastructure wording is gone" ;; esac
-# the pass shows the line only for an owner block, through esc, outside the catalog
+assert_contains "$h" 'if (c.blocked === "infra") return t("why.infra");'
+[ "$(en_msg why.infra)" = "Infrastructure failed; the factory retries once" ] && pass "AC-3 the tile says the infrastructure failed and the factory retries once" || fail "AC-3 why.infra is: $(en_msg why.infra)"
+case "$h$(cat "$FACTORY_DIR/lang/dashboard.en.json")" in *"Blocked by infrastructure; the factory retries it"*) fail "AC-3 the old infrastructure wording is still there" ;; *) pass "AC-3 the old infrastructure wording is gone" ;; esac
+# the pass shows the line only for an owner block, through esc: the factory's own words, never a message; only a
+# failed gate's label is the page's (pass.failed_gate)
 ph="$(sed -n '/^function passHtml/,/^}/p' "$FACTORY_DIR/dashboard.html")"
 assert_contains "$ph" 'class="pwhy"'
 assert_contains "$ph" 'esc(c.block_line)'
-assert_contains "$ph" 'Blocked · cost limit'
-assert_contains "$(grep '^const RAW' "$FACTORY_DIR/dashboard.html")" ".pwhy"
+assert_contains "$ph" 't(c.block_cost ? "q.blocked_cost" : "pass.blocked")'
+[ "$(en_msg q.blocked_cost)" = "Blocked · cost limit" ] && pass "AC-1 a block by the cost limit reads Blocked · cost limit" || fail "AC-1 q.blocked_cost is: $(en_msg q.blocked_cost)"
+assert_contains "$ph" 't("pass.failed_gate", { gate: esc(gate[1]) })'
 grep -qE '\.pwhy \{[^}]*white-space: nowrap[^}]*text-overflow: ellipsis' "$FACTORY_DIR/dashboard.html" && pass "AC-1 the line is one line, cut by an ellipsis" || fail "AC-1 .pwhy does not stay on one line"
 finish

@@ -45,7 +45,8 @@ got="$(disp 'd["every_min"], d["choices"]')"
 got="$(disp 'd["can_set"], d["why"]')"
 [ "$got" = "True None" ] && pass "AC-2 a machine with the task can set the pace" || fail "AC-2 can_set/why was: $got (want 'True None')"
 page_has "Looks for work every" "AC-2"
-for label in "1 minute" "3 minutes" "5 minutes" "10 minutes"; do page_has "$label" "AC-2"; done
+page_has '${every(n)}' "AC-2"  # each choice under its own plural form, the page's language's (#122)
+[ "$(en_msg disp.every_n)" = "{n, plural, one {# minute} other {# minutes}}" ] && pass "AC-2 1 minute, 3 minutes, 5 minutes, 10 minutes" || fail "AC-2 disp.every_n is: $(en_msg disp.every_n)"
 
 # --- AC-1: pick 5 and save: the task is re-registered with 5, config.yml holds 5, the settings answer 5
 resp="$(post '{"dispatcher":{"every_min":5}}')"; code="${resp##*$'\n'}"

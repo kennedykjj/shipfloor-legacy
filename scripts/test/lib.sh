@@ -36,6 +36,13 @@ plugin_copy() {  # plugin_copy: a plain (non-git) copy of scripts/ and templates
   echo "$dir"
 }
 
+# The dashboard's text is a catalog of messages by key (#122): en_msg <key> prints the English one, and <code> <key>
+# for another language; empty when there is none.
+en_msg() { lang_msg en "$1"; }
+# page_english: dashboard.html with each t("key") written out as its English message (test/page_text.py)
+page_english() { "$FACTORY_PYTHON" -c 'import sys; sys.path.insert(0, sys.argv[1]); import page_text; sys.stdout.reconfigure(encoding="utf-8"); print(page_text.english(open(sys.argv[2], encoding="utf-8").read()))' "$FACTORY_DIR/test" "$FACTORY_DIR/dashboard.html" | tr -d '\r'; }
+lang_msg() { "$FACTORY_PYTHON" -I -c 'import json,sys; sys.stdout.reconfigure(encoding="utf-8"); print(json.load(open(sys.argv[1], encoding="utf-8"))["messages"].get(sys.argv[2], ""))' "$FACTORY_DIR/lang/dashboard.$1.json" "$2" 2>/dev/null | tr -d '\r'; }
+
 assert_exit() {
   local want="$1"; shift
   local out; out="$("$@" 2>&1)"; local got=$?

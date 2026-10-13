@@ -98,6 +98,31 @@ LOCKED = {"run": "a run is in progress", "infra": "blocked by infrastructure, th
           "blocked": "it is blocked and waits for your call in the card"}
 
 
+
+def refused(errs):
+    """A refusal: its reasons in English (error), and each one as the page translates it (errors): a shipfloor_config.Msg
+    gives its key and values, any other reason only its text."""
+    return {"error": "; ".join(errs), "errors": [e.as_json() if isinstance(e, shipfloor_config.Msg) else {"text": str(e)} for e in errs]}
+
+
+def catalogs():
+    """{code: the language's name in itself} for each code of LANGS that has a dashboard catalog, in LANGS' order."""
+    out = {}
+    for code in shipfloor_config.LANGS:
+        try:
+            out[code] = json.loads((HERE / "lang" / f"dashboard.{code}.json").read_text(encoding="utf-8"))["name"]
+        except (OSError, ValueError, KeyError):
+            pass
+    return out
+
+
+def catalog(code):
+    """The messages of lang/dashboard.<code>.json, {} when there is none."""
+    try:
+        return json.loads((HERE / "lang" / f"dashboard.{code}.json").read_text(encoding="utf-8")).get("messages", {}) if code in shipfloor_config.LANGS else {}
+    except (OSError, ValueError):
+        return {}
+
 def number(s):  # ASCII digits only: str.isdigit() also accepts "²" and the like, which int() rejects
     return bool(re.fullmatch(r"[0-9]+", s))
 
@@ -674,7 +699,8 @@ class Factory:
                            env=dict(os.environ, SHIPFLOOR_HOME=str(self.home)), capture_output=True, text=True, encoding="utf-8", errors="replace")
         why = re.sub(r"^shipfloor: ", "", (r.stderr.strip() or r.stdout.strip()).splitlines()[-1] if (r.stderr.strip() or r.stdout.strip()) else "")
         if r.returncode == 3:
-            return 409, {"error": why or "the card is no longer in Spec Review."}
+            gone = shipfloor_config.Msg("err.not_spec_review", "the card is no longer in Spec Review.")
+            return 409, refused([why]) if why and why != gone else refused([gone])
         if r.returncode != 0:
             return (400 if r.returncode == 2 else 500), {"error": why or f"shipfloor weight exited {r.returncode}"}
         return 200, {"weight": weight, "model": self.weight_models().get(weight)}
@@ -733,7 +759,7 @@ class Factory:
             cycle.setdefault("next_at", None)
         command, why = scheduler()
         return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "language": m.get("language") or "en", "costs": self.costs()},
-                "languages": shipfloor_config.LANGS, "paused": (self.home / "PAUSE").exists(),
+                "languages": catalogs(), "paused": (self.home / "PAUSE").exists(),
                 "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
                 "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours(), "unpriced": unpriced}
 
@@ -816,7 +842,7 @@ class Factory:
         if isinstance(changes.get("dispatcher"), dict) and "every_min" in changes["dispatcher"]:
             new["dispatcher"] = dict(new["dispatcher"] if isinstance(new.get("dispatcher"), dict) else {}, every_min=changes["dispatcher"]["every_min"])
         if "language" in changes and not isinstance(changes["language"], str):
-            return 400, {"error": f"language must be one of {', '.join(shipfloor_config.LANGS)}"}
+            return 400, refused([shipfloor_config.lang_problem()])
         errs =shipfloor_config.machine_problems(new) + (shipfloor_config.hours_problems(new) if "hours" in changes else [])
         if isinstance(changes.get("models"), dict):
             models = new["models"] if isinstance(new.get("models"), dict) else {}
@@ -836,11 +862,13 @@ class Factory:
                 del new["models"]
             agents = self.project_agents()
             before = shipfloor_config.model_problems(old, agents)
-            errs += [f"{shipfloor_config.model_problem_line(p)}. Nothing was saved." if p["why"] in ("name", "shape")
-                     else f"{p['key']}: \"{p['value']}\" is not a model the factory knows. Nothing was saved."
-                     for p in shipfloor_config.model_problems(new, agents) if p not in before]
+            Msg = shipfloor_config.Msg
+            errs += [Msg("err.unsaved", f"{line}. Nothing was saved.", line=line) for line in
+                     (shipfloor_config.model_problem_line(p) if p["why"] in ("name", "shape")
+                      else Msg("err.model.unknown_short", f"{p['key']}: \"{p['value']}\" is not a model the factory knows", key=p["key"], value=p["value"])
+                      for p in shipfloor_config.model_problems(new, agents) if p not in before)]
         if errs:
-            return 400, {"error": "; ".join(errs)}
+            return 400, refused(errs)
         every = shipfloor_config.dispatcher_every(new)
         if every != shipfloor_config.dispatcher_every(read_yaml(path)):  # the task is told first: if it refuses, nothing is saved
             command, why = scheduler()
@@ -867,7 +895,7 @@ class Factory:
         if project not in self.projects() or not isinstance(values, dict) or not set(values) <= set(KNOBS) | {"language"}:
             return 400, {"error": "unknown project or setting"}
         if "language" in values and values["language"] is not None and (not isinstance(values["language"], str) or values["language"] not in shipfloor_config.LANGS):
-            return 400, {"error": f"language must be one of {', '.join(shipfloor_config.LANGS)}"}
+            return 400, refused([shipfloor_config.lang_problem()])
         path, repo = self.pdir(project) / "overrides.yml", self.config(project)
         over = read_yaml(path)
         over = json.loads(json.dumps(over)) if isinstance(over, dict) else {}
@@ -885,7 +913,7 @@ class Factory:
         new, errs = shipfloor_config.with_overrides(repo, over)
         errs += [e for e in shipfloor_config.problems(new) if e not in shipfloor_config.problems(repo)] if over else []
         if errs:
-            return 400, {"error": "; ".join(errs)}
+            return 400, refused(errs)
         if over:
             with open(path, "w", encoding="utf-8", newline="\n") as f:
                 f.write("# this machine's overrides of the project; set in the dashboard's Settings\n")
@@ -1260,15 +1288,21 @@ class Factory:
             return {"text": fh.read(size - start).decode("utf-8", "replace"), "next": size}
 
     def lang(self):
-        """The machine's language (~/.shipfloor/config.yml) and its catalog for the page, lang/dashboard.<code>.json:
-        'exact' replaces a whole piece of text, 'rx' rewrites a phrase inside one. English has none."""
+        """The machine's language (~/.shipfloor/config.yml, English when it names none the dashboard has) and the page's
+        catalogs: that language's messages and the English ones, which a key the first lacks falls back to."""
         code = str(read_yaml(self.home / "config.yml").get("language", "en"))
-        f = HERE / "lang" / f"dashboard.{code}.json"
-        try:
-            cat = json.loads(f.read_text(encoding="utf-8")) if re.fullmatch(r"[A-Za-z-]{2,10}", code) else {}
-        except (OSError, ValueError):
-            cat = {}
-        return {"language": code, "exact": cat.get("exact", {}), "rx": cat.get("rx", [])}
+        code = code if code in catalogs() else "en"
+        return {"language": code, "messages": catalog(code), "en": catalog("en")}
+
+    def page(self):
+        """dashboard.html with lang() in it (#lang-data) and its language declared on <html>, so the first paint is
+        already in that language and the browser picks the language's glyphs and case rules."""
+        lang = self.lang()
+        data = json.dumps(lang, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+        html = (HERE / "dashboard.html").read_text(encoding="utf-8")
+        html = html.replace('<html lang="en">', f'<html lang="{lang["language"]}">', 1)
+        html = html.replace('<script type="application/json" id="lang-data">null</script>', f'<script type="application/json" id="lang-data">{data}</script>', 1)
+        return html.encode("utf-8")
 
     def feed(self, limit=400):
         """One timeline: the dispatcher's and the stacks' log lines, and one event per run, at the time it ended
@@ -1396,7 +1430,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         q, parts = parse_qs(url.query), [unquote(x) for x in url.path.strip("/").split("/")]
         if url.path == "/":
-            return self.send(200, (HERE / "dashboard.html").read_bytes(), "text/html; charset=utf-8")
+            return self.send(200, self.factory.page(), "text/html; charset=utf-8")
         if url.path == "/favicon.ico":  # the browser asks without a token; nothing to show
             return self.send(204, b"")
         if not self.allowed(q if parts[0] == "review" else None):

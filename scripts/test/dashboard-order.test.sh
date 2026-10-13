@@ -116,8 +116,8 @@ case "$page" in *'/reorder`'*) pass "AC-5 page: a pending reorder is sent to reo
 case "$page" in *"e.reorder"*) pass "AC-5 page: sendPending knows a reorder" ;; *) fail "AC-5 page: sendPending does not send a reorder" ;; esac
 case "$page" in *"overview?.ordered"*|*"overview.ordered"*) pass "AC-1 page: the ordered columns come from the overview" ;; *) fail "AC-1 page: the page does not read the overview's ordered" ;; esac
 CAT="$FACTORY_DIR/lang/dashboard.pt-BR.json"
-for s in "Posição \$1 de \$2" "Subir" "Descer" "Deixar aqui" " agora é o \$2 de \$3 em " " voltou para \$2 de \$3 em " " não foi reordenado: " "ele não está mais em " "Segurando o #\$1, \$2 de \$3 em " \
-  "seta para cima ou para baixo para reordenar, Enter para deixar no lugar, Esc para soltar." "#\$1, \$2 de \$3."; do
+for s in "Posição {i} de {n}" "Subir" "Descer" "Deixar aqui" " agora é o {i} de {of} em " " voltou para {i} de {of} em " " não foi reordenado: " "ele não está mais em " "Segurando o #{n}, {i} de {of} em " \
+  "seta para cima ou para baixo para reordenar, Enter para deixar no lugar, Esc para soltar." "#{n}, {i} de {of}."; do  # values by name since #122
   grep -qF -- "$s" "$CAT" && pass "AC-1 pt-BR catalog: $s" || fail "AC-1 pt-BR catalog lacks: $s"
 done
 finish

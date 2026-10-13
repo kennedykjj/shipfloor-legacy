@@ -161,25 +161,21 @@ is "$(cat "$cfgf")" "$before" "#133 AC-7 a refused save leaves config.yml as it 
 
 # AC-6 / AC-7 / AC-8: the page carries the section, and the pt-BR catalog has its strings
 page="$(curl -s "$base/")"
-for s in "Agents and models" "which model runs each role" "models.stages" "models.agents" "Model for " "No priced run in the last 7 days." "cannot be estimated" "which the factory does not know" "is not a stage or an agent here" "Model for \${STAGE_NAME[st]}, \${WEIGHT_ARIA[w]}" "which Refine writes in the spec"; do
+for s in "Agents and models" "which model runs each role" "models.stages" "models.agents" "Model for " "No priced run in the last 7 days." "cannot be estimated" "which the factory does not know" "is not a stage or an agent here" "t(\`models.aria.\${w}\`, { who: stageName(st) })" "Model for {who}, heavy cards" "which Refine writes in the spec"; do
   case "$page" in *"$s"*) pass "AC-6 the page carries '$s'" ;; *) fail "AC-6 the page has no '$s'" ;; esac
 done
-got="$($PY -I -c '
-import json, re, sys
+got="$($PY -c '
+import sys
 sys.stdout.reconfigure(encoding="ascii", errors="backslashreplace")
-cat = json.load(open(sys.argv[1], encoding="utf-8"))
-ex, out = cat["exact"], []
-for k, v in {"Agents and models": "Agentes e modelos", "which model runs each role": "qual modelo roda cada papel",
-             "No priced run in the last 7 days.": "Nenhuma execu" + chr(231) + chr(227) + "o com pre" + chr(231) + "o nos " + chr(250) + "ltimos 7 dias."}.items():
-    out.append("ok" if ex.get(k) == v else "exact %r is %r, want %r" % (k, ex.get(k), v))
-def tr(s):
-    for pat, to in cat["rx"]:
-        s = re.sub(pat, re.sub(r"\$(\d)", r"\\\1", to), s)
-    return s
-for s, want in (("Model for engineer", "Modelo de engineer"), ("default is Sonnet", "o padr" + chr(227) + "o " + chr(233) + " Sonnet"),
-                ("per card " + chr(183) + " 3 cards, last 7 days", "por card"), ("No price for Fable in prices.yml: its cost cannot be estimated.", "Sem pre" + chr(231) + "o para Fable")):
-    out.append("ok" if want in tr(s) else "rx: %r comes out %r, want %r in it" % (s, tr(s), want))
-print("\n".join(out))' "$(nat "$FACTORY_DIR/lang/dashboard.pt-BR.json")" 2>&1)"
+sys.path.insert(0, sys.argv[1]); from page_text import render  # the page asks for its text by key (#122)
+out = []
+for (k, v), want in ((("sec.models", {}), "Agentes e modelos"), (("sec.models.sub", {}), "qual modelo roda cada papel"),
+                     (("models.no_cost", {}), "Nenhuma execu" + chr(231) + chr(227) + "o com pre" + chr(231) + "o nos " + chr(250) + "ltimos 7 dias."),
+                     (("models.aria", {"who": "engineer"}), "Modelo de engineer"), (("models.default_is", {"model": "Sonnet"}), "o padr" + chr(227) + "o " + chr(233) + " Sonnet"),
+                     (("models.per_card", {"n": 3}), "por card"), (("models.no_price", {"model": "Fable"}), "Sem pre" + chr(231) + "o para Fable")):
+    got = render("pt-BR", k, **v)
+    out.append("ok" if want in got else "%s comes out %r, want %r in it" % (k, got, want))
+print("\n".join(out))' "$(nat "$FACTORY_DIR/test")" 2>&1)"
 while IFS= read -r line; do
   line="${line%$'\r'}"
   [ "$line" = ok ] && pass "AC-6 pt-BR catalog entry" || fail "AC-6 pt-BR catalog: $line"

@@ -6,8 +6,10 @@ source "$(dirname "$0")/lib.sh"
 out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" "$FACTORY_DIR/lang/dashboard.pt-BR.json" <<'PY'
 import json, re, sys
 h = open(sys.argv[1], encoding="utf-8").read()
+sys.path.insert(0, sys.argv[1].rsplit("/", 1)[0] + "/test"); import page_text  # the page's text is a catalog by key (#122)
+h = page_text.english(h)
 cat = json.load(open(sys.argv[2], encoding="utf-8"))
-exact, rx = cat.get("exact", {}), {a: b for a, b in cat.get("rx", [])}
+exact, rx = page_text.exact("pt-BR"), {a: b for a, b in cat.get("rx", [])}
 
 def func(name):  # the text of a top-level function of the page script
     m = re.search(r"^(?:async )?function " + name + r"\(", h, re.M)
@@ -80,9 +82,9 @@ check("AC-3",
   None if drawer_request == "Request changes" else f"AC-3: the drawer's #request reads {drawer_request!r}, want exactly 'Request changes'")
 
 # AC-4: the destination is secondary text outside the name, tied with aria-describedby, the same column everywhere
-send_span = re.search(r'data-q="send">[^<]*</button><span([^>]*)>\s*→ \$\{esc\(moves\[1\]\)\}\s*</span><button[^>]*data-q="cancel"', passf)
-dec_a = re.search(r"<span([^>]*)>\s*→ \$\{esc\(moves\[0\]\)\}\s*</span>", decf)
-dec_r = re.search(r"<span([^>]*)>\s*→ \$\{esc\(moves\[1\]\)\}\s*</span>", decf)
+send_span = re.search(r'data-q="send">[^<]*</button><span([^>]*)>\s*→ \$\{esc\((?:colName\()?moves\[1\]\)?\)\}\s*</span><button[^>]*data-q="cancel"', passf)
+dec_a = re.search(r"<span([^>]*)>\s*→ \$\{esc\((?:colName\()?moves\[0\]\)?\)\}\s*</span>", decf)
+dec_r = re.search(r"<span([^>]*)>\s*→ \$\{esc\((?:colName\()?moves\[1\]\)?\)\}\s*</span>", decf)
 def sid(m):
     i = re.search(r'id="([^"]+)"', m.group(1)) if m else None
     return i.group(1) if i else None
@@ -127,7 +129,7 @@ check("AC-6",
 
 # AC-7: armed approval
 check("AC-7",
-  tr("^Approve with (.*)$", "Aprovar com $1", "rx"),
+  None if page_text.msg("pt-BR", "rv.approve_with") == "Aprovar com {doubt}" else "pt-BR rv.approve_with is not 'Aprovar com {doubt}'",
   None if re.search(r"armed \? `Approve with \$\{doubt\}` : a\.dataset\.label", syncf) else "AC-7: syncDecide() no longer writes `Approve with ${doubt}` when armed and data-label otherwise",
   None if re.search(r'data-label="Approve"', approve_btn) else "AC-7: the armed button would return to the destination text: #approve data-label is not 'Approve'")
 
@@ -137,10 +139,10 @@ check("AC-8",
   None if 'data-act="approve"' in decf and 'data-act="request-changes"' in decf else "AC-8: #approve / #request lost their data-act",
   None if all(f'data-q="{q}"' in passf for q in ("approve", "changes", "send", "cancel", "unblock")) else "AC-8: the list buttons lost a data-q",
   None if len(appr) == 2 and len(reqc) == 2 and 'id: "send-back"' in optf and 'id: "unblock"' in optf else "AC-8: the option ids changed",
-  None if "Goes to ${yes}." in optf and "Goes back to ${no} with your note" in optf else "AC-8: the options' then lines changed",
+  None if "`Goes to ${column}.` + room(slug, yes)" in optf and "to = { column: colName(yes) }, back = { column: colName(no) }" in optf and page_text.EN["opt.goes_to"] == "Goes to {column}." and page_text.EN["opt.back_note"].startswith("Goes back to {column} with your note") else "AC-8: the options' then lines changed",
   None if 'a: \'[data-q="approve"]\'' in h and 'r: \'[data-go="review"]\'' in h else "AC-8: the keys A and R no longer click the approve pill and the review opener",
   None if 'verb: "Send back to Coding"' in optf and "Unblock and retry" in optf else "AC-8: a blocked card's options changed",
-  None if "Build this spec?" in h and "Ship it to production?" in h else "AC-8: the questions that head the box changed",
+  None if '"ask.spec" : "ask.ship"' in h and page_text.EN["ask.spec"] == "Build this spec?" and page_text.EN["ask.ship"] == "Ship it to production?" else "AC-8: the questions that head the box changed",
   None if field(staged_a, "t") == "Approve" and field(spec_a, "t") == "Approve" and field(staged_r, "verb") == "Request changes" else "AC-8: the options keep their old names while the ids and the destinations stay (names did not change, moves did not move)")
 
 sys.stdout.reconfigure(encoding="ascii", errors="backslashreplace")  # the red/green output stays plain text
