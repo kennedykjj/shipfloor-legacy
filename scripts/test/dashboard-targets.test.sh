@@ -62,10 +62,15 @@ factory = [
     ("Board on GitHub (a.cap in .stats)", [r"(\.stats )?a\.cap", r"\.stats a"], True),
     ("the Log link in .tfoot (.lnk)", [r"\.lnk", r"\.tfoot \.lnk", r"\.tfoot button"], True),
     ("the GitHub link in .tfoot (.tfoot a)", [r"\.tfoot a"], True),
+    ("the tile and inbox actions (.stub button, .stub a)", [r"\.stub button", r"\.stub a"], False),
 ]
 other = [
     ("the peek's links (.acts a)", [r"(\.peek )?\.acts a"], True),
     ("the sub-toggle (.subtoggle)", [r"\.subtoggle"], True),
+    ("the Feed row titles (.ftitle)", [r"\.ftitle"], False),
+    ("the drawer's issue link (.tip-head .meta a)", [r"\.tip-head \.meta a"], False),
+    ("the block note's Full report (.block-note summary)", [r"\.block-note summary"], False),
+    ("a project's board link in Settings (.ptitle2 span a)", [r"\.ptitle2 span a"], False),
 ]
 check("AC-1 every Factory control declares a 24x24px box", [target(*t) for t in factory])
 check("AC-2 the peek and the drawer controls declare a 24x24px box", [target(*t) for t in other])
