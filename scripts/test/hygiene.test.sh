@@ -3,7 +3,8 @@
 source "$(dirname "$0")/lib.sh"
 root="$FACTORY_DIR/.."
 hits="$(cd "$root" && grep -rIniE 'pickio|kennedykjj|/c/Users|scripts/factory|PICKIO_FACTORY' \
-  skills agents scripts templates installer examples README.md .claude-plugin 2>/dev/null | grep -v '^scripts/test/' || true)"
+  skills agents scripts templates installer examples README.md .claude-plugin 2>/dev/null | grep -v '^scripts/test/' \
+  | grep -v '^scripts/dashboard.html:.*href="https://github.com/kennedykjj/shipfloor#learn-more"' || true)"  # the dashboard's Docs link: Shipfloor's own home
 [ -z "$hits" ] && pass "no project- or machine-specific references" || fail "found:
 $hits"
 for a in backend-engineer frontend-engineer; do
