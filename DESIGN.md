@@ -82,15 +82,11 @@ typography:
     fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
     fontSize: "12px"
     fontWeight: 400
-  note:
-    fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
-    fontSize: "11.5px"
-    fontWeight: 400
   caption:
     fontFamily: 'Barlow, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif'
-    fontSize: "11px"
+    fontSize: "12px"
     fontWeight: 500
-    letterSpacing: "0.14em"
+    letterSpacing: "0.1em"
   log:
     fontFamily: 'ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace'
     fontSize: "12px"
@@ -202,8 +198,8 @@ Every color is a token of the base block (`:root, [data-theme="charcoal"]`), and
 - **Title** (sans, 14.5px, 500, 1.3, clamped to two lines): a card title in a tile, a pass and the peek.
 - **Body** (sans, 14px): sections of the inbox reader, the alerts, descriptions.
 - **UI** (13.5px, 13px, 12.5px): buttons, table cells, meta lines, tab labels, notices; 13.5px for the Feed's lines and the tile's last words.
-- **Meta** and **note** (12px, 11.5px): keys under stats, the legend, tags, gates, clocks and code.
-- **Caption** (sans, 500, 11px, 0.14em, uppercase): the uppercase caption of the header (the views, the stats), of the inbox's section titles and of the legend. Captions are always uppercase and tracked wide; headings are condensed and uppercase; only prose is in sentence case.
+- **Meta (12px)**: keys under stats, the legend, tags, gates, clocks and code. Nothing on the page is set under 12px.
+- **Caption** (sans, 500, 12px, 0.1em, uppercase): the uppercase caption of the header (the views, the stats), of the inbox's section titles and of the legend. Captions are always uppercase and tracked wide; headings are condensed and uppercase; only prose is in sentence case.
 - **Log** (mono, 12px, 1.55, pre-wrap): the log pane and the Feed's time.
 
 The type ramp is the set of values used by three or more rules, plus 18px, 23px and 34px for their named roles. The values used by fewer rules are listed under Known deviations.
@@ -257,7 +253,7 @@ Tiles of 320px or more in an auto-fill grid. A running tile has the number (cond
 A 13px circle filled by a conic sweep in `text` over the lit edge, ringed by the dial ring, turning once every 6s through a registered `--sweep` angle. It appears on a running card. Under `prefers-reduced-motion: reduce` it stops on a static quarter (90deg), and the pulse of the dot, the breathing of the step bar and the card transitions stop as well.
 
 ### Today
-The day in small charts with a key, and a list of how long each stage usually takes. Chart labels are 11px `faint`.
+The day in small charts with a key, and a list of how long each stage usually takes. Chart labels are 12px `faint`.
 
 ### Tooltip Drawer
 A panel with a lit left edge, `role="dialog"` (non-modal), labelled by its title. The head is a raised-to-panel gradient closed by a hairline in the accent at 60%: the number and title (headline), a bordered Close button at the top right (Esc closes too), a maximize button beside it, a meta line (column, "waits for you" in the accent or a dial and clock when running, the GitHub link), and four stats as `dt`/`dd` pairs: cost Inbox to now (the total, 20px, with "est."), sessions, first to last run, last report. A blocked card adds the block note: "**Blocked** · the factory stopped and waits for your call" (or "infrastructure failed; the factory retries once"), then the one line that says what the owner must decide and the failed gate, both taken from the factory's issue comment, Unblock and retry at the right, and the full report folded under "Full report", rendered from its markdown.
@@ -278,7 +274,7 @@ A click on a dot of the lifecycle line opens the **peek**, never the drawer: the
 One timeline, newest first, with a heading where the day changes. Above it, the filters (Runs, which is the view the Feed opens on and holds the run rows only, Waits for you, Failures, Running, Dispatcher), each with its count, and "Newest first". A run is **one row** placed at the time it ended (or started, while it runs): the time in mono, a mark whose shape carries the state (dot ok, diamond failed, ring running, dash for a dispatcher line or a run whose end was never logged), the project when there is more than one, the stage in bold, the card's number and title, and "waits for you" in the accent when the card sits in an owner column after that run. On the right, the duration (or "running 6m", or "· exit 4") and the run's estimated cost. A second line appears only when something is known of what the run left behind, each piece from its own source: why a run failed first, "gates failed: build" (the run's report) or, when no gate is on record, "ended with exit 4 · no failed gate recorded" (the exit code; no log line is shown, as it can read like a success), then "PR #64" (the report), "now in Staged" on the card's newest run (the board), "Step 4 of 7: Engineer" while it runs (its lock). Nothing is inferred from the stage. The whole row opens the card maximized on that run's log; the title is the row's button and keeps focus across refreshes. There is no button in a row. A dispatcher or stacks line repeated in a row is one row with "37× since 00:09".
 
 ### Settings
-The dispatcher is the top line of the view: a dot (ok, warn when idle, bad when off), its status in words, the working hours field (mono) and the switch that stops it. Below it, a nav of sections at the left (Sessions, Projects, Themes, Costs) and the section at the right in groups: a group is a panel with a condensed title, rows of a label, a description and a control (a stepper, a switch, a select, a value). A pool bar shows how the stages share the sessions, one hue per stage with a key under it (Refine `refine`, Develop `text`, Validate `validate`, Deploy `ok`; the share no stage uses is the hairline), and warns when they ask for more than the pool allows. While anything is unsaved, a sticky save bar with a sand border counts the changes and offers Discard and Save; a changed control turns its value sand. Under 1180px the nav becomes a row and rows stack.
+The dispatcher is the top line of the view: a dot (ok, warn when idle, bad when off), its status in words, the working hours field (mono) and the switch that stops it. Below it, a nav of sections at the left (Sessions, Projects, Themes, Costs) and the section at the right in groups: a group is a panel with a condensed title, rows of a label, a description and a control (a stepper, a switch, a select, a value). A switch shows its state as a word, On or Off, left of its track (`role="switch"` with `aria-checked`), so the state never rests on color or on the knob's place alone. A pool bar shows how the stages share the sessions, one hue per stage with a key under it (Refine `refine`, Develop `text`, Validate `validate`, Deploy `ok`; the share no stage uses is the hairline), and warns when they ask for more than the pool allows. While anything is unsaved, a sticky save bar with a sand border counts the changes and offers Discard and Save; a changed control turns its value sand. Under 1180px the nav becomes a row and rows stack.
 
 ### Language
 The page is written in English and shown in the machine's language (`language` in `~/.shipfloor/config.yml`). In another language, every piece of text is rewritten as it enters the document, from the catalog the server sends (`scripts/lang/dashboard.<code>.json`): a whole piece by `exact`, a phrase inside one by `rx`. So a new string needs no code, only an entry; one with no entry shows in English. What the factory did not write is never rewritten: card titles, logs, and what the agents said (the `RAW` selector). Board columns keep their GitHub names in the data and show translated.
@@ -294,6 +290,7 @@ A swatch is a button that carries its theme's `data-theme`, so it is drawn with 
 - **Button:** raised panel, lit-edge border, 5px radius, 7px 12px; hover turns the border to `text`. **Ghost** drops the fill and sits in `muted` at 12.5px.
 - **Approve:** `text` fill, `ground` text, 600 weight; hover brightens 8%. Soft (asks twice): tinted fill. In the lists it is a pill (40px radius).
 - **Disabled:** not-allowed cursor, faint text; progress cursor while a move is in flight.
+- **Target:** every focusable control has a box of at least 24x24px; a text-only control grows its box, not its ink.
 - **Focus:** a 2px `sand` outline, 2px offset, on every focusable element.
 
 ### Embedded Review Pages
