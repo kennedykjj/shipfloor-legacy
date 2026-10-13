@@ -1,0 +1,1 @@
+{"outcome": "blocked", "stage": "validate", "issue": 125, "pr": 142, "rounds": 1, "failed_gates": ["green factory scripts/test/dashboard-move.test.sh (after merge with main)"], "gates_reused": ["green factory scripts/test/dashboard-move.test.sh"], "flaky": [], "amendments": [], "agents": ["engineer"]}
