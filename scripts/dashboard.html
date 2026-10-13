@@ -966,17 +966,25 @@ function renderBand(p, by, key) {
 const L = { hold: null, only: false, toast: null, note: "", status: "", box: null, order: {} };
 const MEANING = { "Inbox>Ready for Refinement": "send it to refinement", "Ready for Refinement>Inbox": "take it out of the queue", "Spec Review>Ready for Dev": "approve the spec",
   "Spec Review>Ready for Refinement": "request changes", "Ready for Dev>Ready for Refinement": "refine again", "Staged>Ready for Prod": "approve and ship", "Staged>Coding": "request changes" };
+// A card blocked for the owner can be taken back (#127): where it may go comes from the overview's take_back (the server
+// holds the table, "*" for every column but Coding and Validation), never its own column; what each drop means.
+const TAKE = { "Ready for Dev": "redo the code from the approved spec", "Ready for Refinement": "refine the spec again", "Inbox": "take it out of the factory" };
+const takeOf = (c) => c.blocked === "owner" ? (S.overview?.take_back?.[c.column] || S.overview?.take_back?.["*"] || []).filter((to) => to !== c.column) : [];
+const means = (h, t) => t.take ? TAKE[t.to] : means(h, t);
 const LOCKED = { run: "a run is in progress", infra: "blocked by infrastructure, the factory retries", blocked: "it is blocked and waits for your call in the card" };
 const LOCK = '<svg class="lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
 const LINED = ["Inbox", "Ready for Refinement", "Ready for Dev", "Ready for Prod"];  // a card there shows its place in line
 const cn = (name) => `<span class="cn">${esc(name)}</span>`;  // a column name inside a message: in English in every language
 const movesOf = (col) => S.overview?.moves?.[col] || [];
 const ordered = (col) => (S.overview?.ordered || []).includes(col);
+const queue = (h) => !h.take && ordered(h.from);  // the held card can be reordered in its own column: a blocked card cannot
 const numOf = (k) => +k.split("/")[1];
-// a card the owner can pick up: a From column of the table, no lock, no move of its own on the way (a reorder may go on)
-const movable = (slug, c) => { const k = `${slug}/${c.issue}`, e = S.pending[k]; return movesOf(c.column).length > 0 && !c.lock && !(k in S.moving) && !(e && !e.reorder); };
+// a card the owner can pick up: a From column of the table and no lock, or blocked for the owner and taken back (#127); no
+// move of its own on the way (a reorder may go on)
+const movable = (slug, c) => { const k = `${slug}/${c.issue}`, e = S.pending[k];
+  return (c.lock === "blocked" ? takeOf(c).length > 0 : movesOf(c.column).length > 0 && !c.lock) && !(k in S.moving) && !(e && !e.reorder); };
 // the columns a held card may go to, numbered left to right in board order
-const targets = (h) => movesOf(h.from).map((m) => ({ ...m })).sort((a, b) => COLUMNS.indexOf(a.to) - COLUMNS.indexOf(b.to)).map((m, i) => ({ ...m, n: i + 1 }));
+const targets = (h) => (h.take ? h.take.map((to) => ({ to, take: true })) : movesOf(h.from).map((m) => ({ ...m }))).sort((a, b) => COLUMNS.indexOf(a.to) - COLUMNS.indexOf(b.to)).map((m, i) => ({ ...m, n: i + 1 }));
 function orderFor(slug, col) {  // the order the page shows in a queue until the board agrees: the held card's, a pending reorder's, a sent one's
   const h = L.hold; if (h?.order && h.slug === slug && h.from === col) return h.order;
   const e = Object.values(S.pending).find((v) => v.reorder && v.slug === slug && v.column === col);
@@ -1000,7 +1008,7 @@ function laneCards(p, by, key) {
 function renderLanes(p, by, key, labels) {
   const shown = laneCards(p, by, key), h = L.hold; let any = false;
   const chip = (c, i, list) => { const k = key(c), kind = c.moving ? "wait" : kindOf(k, c), run = kind === "run" && runOf(p.slug, c), of = STEP_COUNT[c.running];
-    const can = !c.moving && movable(p.slug, c), lock = !c.moving && movesOf(c.column).length > 0 && c.lock, bits = [];
+    const can = !c.moving && movable(p.slug, c), lock = !c.moving && !can && (movesOf(c.column).length > 0 || c.lock === "infra") && c.lock, bits = [];
     if (can) any = true;
     if (c.moving) bits.push(`<span>Moving to </span>${cn(c.column)}`);
     else {
@@ -1013,7 +1021,7 @@ function renderLanes(p, by, key, labels) {
     }
     if (warnSpan(c)) bits.push(warnSpan(c));
     const pos = ordered(c.column) ? `<span class="pos num" aria-hidden="true">${i + 1}</span><span class="vh">Position ${i + 1} of ${list.length}</span>` : "";
-    const rord = h?.key === k && h.via === "touch" && ordered(h.from) ? `<div class="rord"><button class="btn ghost" data-rord="up"${i ? "" : " disabled"}>Up</button><button class="btn ghost" data-rord="down"${i < list.length - 1 ? "" : " disabled"}>Down</button><button class="btn ghost" data-rord="place">Place here</button></div>` : "";
+    const rord = h?.key === k && h.via === "touch" && queue(h) ? `<div class="rord"><button class="btn ghost" data-rord="up"${i ? "" : " disabled"}>Up</button><button class="btn ghost" data-rord="down"${i < list.length - 1 ? "" : " disabled"}>Down</button><button class="btn ghost" data-rord="place">Place here</button></div>` : "";
     return `<div class="cw" data-cw="${esc(k)}"><button class="chip ${c.column === "Done" ? "" : kind}${lock ? " locked" : ""}${L.only && !can ? " dimc" : ""}" data-key="${esc(k)}" data-open="${esc(k)}"${can ? ' draggable="true"' : ""}${can ? ' data-mvok aria-pressed="false"' : ""}${lock ? ' aria-disabled="true"' : ""}>${pos}<b class="g">#${c.issue}</b>${c.title ? esc(c.title) : UNTITLED}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}</button>${can ? `<button class="btn ghost mvb" data-mv="${esc(k)}">Move</button>` : ""}${rord}</div>`; };
   const was = Object.fromEntries([...$("lanes").querySelectorAll(".chip")].map((el) => [el.dataset.key, el.getBoundingClientRect()]));
   const changed = setHTML($("lanes"), LANES.map(([name, what, a, b]) => `<h2 class="lane g">${name}<small>${what}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
@@ -1035,9 +1043,9 @@ function paintHold() {
   const lanes = $("lanes"), h = L.hold, ts = h ? targets(h) : [];
   lanes.classList.toggle("holding", !!h); lanes.classList.toggle("dragging", h?.via === "drag");
   lanes.querySelectorAll(".lcol").forEach((col) => {
-    const name = col.dataset.col, t = ts.find((x) => x.to === name), own = !!h && ordered(h.from) && name === h.from;
+    const name = col.dataset.col, t = ts.find((x) => x.to === name), own = !!h && queue(h) && name === h.from;
     col.classList.toggle("acc", !!t); col.classList.toggle("off", !!h && !t && !own); if (!t) col.classList.remove("over");
-    const html = t ? `<button class="btn ghost acl" data-acc="${esc(t.to)}">${h.via === "key" ? `<kbd>${t.n}</kbd><span>Press ${t.n} to </span>` : `<span>${h.via === "touch" ? "Tap" : "Drop"} to </span>`}<span>${MEANING[`${h.from}>${t.to}`]}</span></button>`
+    const html = t ? `<button class="btn ghost acl" data-acc="${esc(t.to)}">${h.via === "key" ? `<kbd>${t.n}</kbd><span>Press ${t.n} to </span>` : `<span>${h.via === "touch" ? "Tap" : "Drop"} to </span>`}<span>${means(h, t)}</span></button>`
       : h && !own && col.dataset.stage ? '<span class="fm">the factory moves</span>' : "";
     const slot = col.querySelector(".accl"); if (slot._h !== html) { slot._h = html; slot.innerHTML = html; }
   });
@@ -1050,17 +1058,17 @@ function focusChip(k) {
 }
 const shownKeys = (col) => [...$("lanes").querySelectorAll(`.lcol[data-col="${CSS.escape(col)}"] .chip`)].map((el) => el.dataset.key);
 function holdLine(h) {
-  const ks = h.order || h.base, place = ordered(h.from) ? `<span>Holding #${h.n}, ${ks.indexOf(h.key) + 1} of ${ks.length} in </span>${cn(h.from)}<span>.</span>` : `<span>Holding #${h.n}.</span>`;
+  const ks = h.order || h.base, place = queue(h) ? `<span>Holding #${h.n}, ${ks.indexOf(h.key) + 1} of ${ks.length} in </span>${cn(h.from)}<span>.</span>` : `<span>Holding #${h.n}.</span>`;
   if (h.via !== "key") return place;
-  const ts = targets(h).map((t, i) => `<span>${i ? `, ${t.n} to ` : `Press ${t.n} to `}</span><span>${MEANING[`${h.from}>${t.to}`]}</span>`).join("");
-  return `${place} ${ts}<span>${ordered(h.from) ? ", Up or Down to reorder, Enter to place it, Esc to let go." : ", Esc to let go."}</span>`;
+  const ts = targets(h).map((t, i) => `<span>${i ? `, ${t.n} to ` : `Press ${t.n} to `}</span><span>${means(h, t)}</span>`).join("");
+  return `${place} ${ts}<span>${queue(h) ? ", Up or Down to reorder, Enter to place it, Esc to let go." : ", Esc to let go."}</span>`;
 }
 // Picks up a card, or says why it cannot be: false when nothing is held.
 function tryHold(k, via) {
   const [slug, n] = k.split("/"), c = cardOf(slug, +n); if (!c || slug !== S.project) return false;
   L.note = "";
   if (!movable(slug, c)) {
-    tell(c.lock && movesOf(c.column).length ? `<span>#${n} cannot move: </span><span>${LOCKED[c.lock]}</span><span>.</span>` : `<span>#${n} is the factory's to move.</span>`);
+    tell(c.lock && (movesOf(c.column).length || c.lock === "infra") ? `<span>#${n} cannot move: </span><span>${LOCKED[c.lock]}</span><span>.</span>` : `<span>#${n} is the factory's to move.</span>`);
     return false;
   }
   if (L.hold) {  // another card was held: let go of it without drawing, a drag may be starting
@@ -1068,10 +1076,10 @@ function tryHold(k, via) {
     if (pe?.reorder) pe.timer = setTimeout(() => sendPending(old.key), 5000);
   }
   const e = S.pending[k]; if (e?.reorder) clearTimeout(e.timer);  // holding it again continues its reorder: the 5 s start over when it lands
-  L.hold = { key: k, slug, n: +n, from: c.column, via, base: shownKeys(c.column), order: null };
+  L.hold = { key: k, slug, n: +n, from: c.column, via, base: shownKeys(c.column), order: null, take: c.lock === "blocked" ? takeOf(c) : null };
   tell(holdLine(L.hold));
   if (via === "drag") paintHold(); else renderBoard();
-  if (via !== "drag" && !ordered(c.column) && matchMedia("(max-width: 860px)").matches)  // the first column that takes it comes into view
+  if (via !== "drag" && !queue(L.hold) && matchMedia("(max-width: 860px)").matches)  // the first column that takes it comes into view
     $("lanes").querySelector(".lcol.acc")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   return true;
 }
@@ -1085,6 +1093,7 @@ function letGo(quiet) {
 function drop(to) {
   const h = L.hold, t = h && targets(h).find((x) => x.to === to); if (!t) return letGo();
   L.hold = null; L.status = "";
+  if (t.take) { renderBoard(); return openBox({ key: h.key, from: h.from, to, take: true }); }
   if (!t.note && OWNER[h.from]?.[0] === to) {  // an approval asks the drawer's question, as the list's Approve does
     const r = S.review[h.key], doubt = reviewDoubt(r), unseen = !r && cardOf(h.slug, h.n)?.review;
     if (doubt || unseen) { renderBoard(); return lookFirst(h.key, doubt); }
@@ -1156,27 +1165,45 @@ function settleLanes() {
   const t = L.toast; if (t && (t.sent && !(t.key in S.moving) && !(t.ck && L.order[t.ck]) || t.done && Date.now() - (t.at ||= Date.now()) > 6000)) L.toast = null;
   const h = L.hold, c = h && cardOf(h.slug, h.n); if (h && (!c || c.column !== h.from)) { L.hold = null; L.status = ""; }  // it moved on the board meanwhile
 }
-// The note box: required for M4, M5 and M7; optional for the toast's Comment.
+// The note box: required for M4, M5 and M7; optional for the toast's Comment and for a blocked card taken back (#127),
+// whose "Move" is the confirmation: it is never disabled and no Undo follows.
 function openBox(b) {
   L.box = b; const n = numOf(b.key), m = `${b.from}>${b.to}`, el = $("mbox");
-  $("mbox-h").textContent = b.optional ? `Comment on #${n}` : m === "Ready for Dev>Ready for Refinement" ? `Refine #${n} again` : `Request changes on #${n}`;
+  if (b.take) $("mbox-h").innerHTML = `<span>Move #${n} to </span>${cn(b.to)}<span>? A comment is optional; it is posted on the issue.</span>`;
+  else $("mbox-h").textContent = b.optional ? `Comment on #${n}` : m === "Ready for Dev>Ready for Refinement" ? `Refine #${n} again` : `Request changes on #${n}`;
   $("mnote").value = ""; $("mnote").placeholder = b.optional ? "" : { "Spec Review>Ready for Refinement": "What should change in the spec?", "Ready for Dev>Ready for Refinement": "What should the refinement do differently?" }[m] || "What should change?";
-  $("mgo").textContent = b.optional ? "Post comment" : { "Spec Review>Ready for Refinement": "Request changes", "Ready for Dev>Ready for Refinement": "Refine again" }[m] || "Send back to Coding";
+  $("mgo").textContent = b.take ? "Move" : b.optional ? "Post comment" : { "Spec Review>Ready for Refinement": "Request changes", "Ready for Dev>Ready for Refinement": "Refine again" }[m] || "Send back to Coding";
   boxHint(); el.hidden = false;
   const lab = $("lanes").querySelector(`.lcol[data-col="${CSS.escape(b.to)}"] .lab`)?.getBoundingClientRect() || { left: 12, bottom: 80 };
   el.style.left = `${Math.max(12, Math.min(lab.left, innerWidth - el.offsetWidth - 12))}px`; el.style.top = `${Math.min(lab.bottom + 8, innerHeight - el.offsetHeight - 12)}px`;
   $("mnote").focus();
 }
-function boxHint() { const empty = !$("mnote").value.trim(); $("mgo").disabled = empty; $("mhint").textContent = L.box?.optional ? "Optional: a comment, posted on the issue" : empty ? "Write the note first: it goes with the decision." : "You can undo for a few seconds after confirming."; }
+function boxHint() {
+  if (L.box?.take) { $("mgo").disabled = false; $("mhint").textContent = L.box.to === "Inbox" ? "An open pull request is closed; its branch is kept." : ""; return; }
+  const empty = !$("mnote").value.trim(); $("mgo").disabled = empty; $("mhint").textContent = L.box?.optional ? "Optional: a comment, posted on the issue" : empty ? "Write the note first: it goes with the decision." : "You can undo for a few seconds after confirming."; }
 function closeBox() { const b = L.box; L.box = null; $("mbox").hidden = true; if (b) focusChip(b.key); }
 async function sendBox() {
-  const b = L.box, text = $("mnote").value.trim(); if (!b || !text) return;
+  const b = L.box, text = $("mnote").value.trim(); if (!b || !text && !b.take) return;
+  if (b.take) { L.box = null; $("mbox").hidden = true; return takeBack(b, text); }
   closeBox();
   if (!b.optional) return pendMove(b.key, b.from, b.to, text, false);
   const e = S.pending[b.key]; if (e?.move) { e.text = text; return; }  // the move has not left: the comment goes with it, and Undo drops both
   const [p, n] = b.key.split("/"), { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/comment`, { method: "POST", body: JSON.stringify({ text }) });
   if (status === 200) L.toast = { key: b.key, html: `<span>Comment posted on #${n}.</span>`, done: true }; else L.note = `<span>${esc(body.error || "The comment did not go through.")}</span>`;
   renderBoard();
+}
+// A blocked card taken back (#127): it sits in its new column, "Moving to", until the answer; a failure puts it back, still
+// blocked, with the reason kept until the next pick-up.
+async function takeBack(b, text) {
+  const [p, n] = b.key.split("/"); S.moving[b.key] = b.to; L.note = ""; renderBoard();
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/take-back`, { method: "POST", body: JSON.stringify({ to: b.to, text }) });
+  if (status === 200) {
+    L.toast = { key: b.key, html: `<span>#${n} moved to </span>${cn(b.to)}<span>${body.pr_closed ? "; its pull request was closed. The board confirms it on the dispatcher's next read." : ". The board confirms it on the dispatcher's next read."}</span>`, done: true };
+    focusChip(b.key); return loadOverview();
+  }
+  delete S.moving[b.key];
+  L.note = `<span>#${n} was not moved: </span>${status === 409 && body.column && body.column !== b.from ? `<span>it is no longer in </span>${cn(b.from)}<span>.</span>` : `<span>${esc(body.error || "the move did not go through")}</span>`}`;
+  renderBoard(); focusChip(b.key);
 }
 // a pointer drop in its own queue goes before the chip under the pointer, or last below the last one; null where it changes nothing
 function dropAt(col, y) {
@@ -1197,7 +1224,7 @@ document.addEventListener("dragover", (e) => {
   $("lanes").querySelectorAll(".lcol.over").forEach((el) => { if (el !== col) el.classList.remove("over"); });
   if (!col) return;
   if (col.classList.contains("acc")) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; col.classList.add("over"); return; }
-  if (col.dataset.col !== h.from || !ordered(h.from)) return;
+  if (col.dataset.col !== h.from || !queue(h)) return;
   e.preventDefault(); e.dataTransfer.dropEffect = "move";
   const r = col.getBoundingClientRect(); if (e.clientY - r.top < 24) col.scrollTop -= 8; else if (r.bottom - e.clientY < 24) col.scrollTop += 8;
   const at = dropAt(col, e.clientY); if (at) at.el.classList.add(at.before ? "bar-before" : "bar-after");
@@ -1206,7 +1233,7 @@ document.addEventListener("drop", (e) => {
   const h = L.hold; if (h?.via !== "drag") return;
   e.preventDefault(); const col = e.target.closest?.("#lanes .lcol"); endDrag();
   if (col?.classList.contains("acc")) return drop(col.dataset.col);
-  const at = col && col.dataset.col === h.from && ordered(h.from) && dropAt(col, e.clientY);
+  const at = col && col.dataset.col === h.from && queue(h) && dropAt(col, e.clientY);
   if (at) return reorderTo(h, at.before);
   letGo(true);  // on its own place: nothing to say
 });
@@ -2222,8 +2249,8 @@ document.addEventListener("keydown", (e) => {
       if (/^[1-9]$/.test(e.key)) { const t = targets(h).find((x) => x.n === +e.key); e.preventDefault(); if (t) drop(t.to); return; }  // a digit discards the arrows
       if (["ArrowUp", "ArrowDown", "Enter", " "].includes(e.key)) {  // taken from the page while a card is held: no scroll, the card does not open
         e.preventDefault();
-        if (ordered(h.from) && e.key.startsWith("Arrow")) step(e.key === "ArrowUp" ? -1 : 1);
-        else if (ordered(h.from) && e.key === "Enter") placeHeld();
+        if (queue(h) && e.key.startsWith("Arrow")) step(e.key === "ArrowUp" ? -1 : 1);
+        else if (queue(h) && e.key === "Enter") placeHeld();
         return;
       }
     }
