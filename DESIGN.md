@@ -175,7 +175,7 @@ Every color is a token of the base block (`:root, [data-theme="charcoal"]`), and
 ### Neutral
 - **Ground** (`colors.ground`): the page, under a grain and the glows (`glow1a`, `glow1b`, `glow2`), and the well of the text area and of code.
 - **Panel** (`colors.panel`) and **Raised Panel** (`colors.panel-hi`): the drawer, the peek, a maximized panel and hover rows; ordinary panels on the page are only a 2% wash of the ink over the ground.
-- **Hairline** (`colors.edge`) and **Lit Edge** (`colors.edge-hi`): dividers and borders; the lit edge is the border of the drawer, the peek and the buttons.
+- **Hairline** (`colors.edge`) and **Lit Edge** (`colors.edge-hi`): dividers and borders; the lit edge is the border of the drawer, the peek and the buttons. The header rule, the legend, the stats separator and the passes use `--hair`, the theme's ink at 11% (`#ffffff1c` on Charcoal, the edge's tonal ramp in the sidecar).
 - **Text steps** (`colors.text`, `colors.soft`, `colors.muted`, `colors.faint`): primary, body, secondary and tertiary text, in that order. Each theme holds every step to 4.5:1 on its ground and panels.
 - **Track** (`colors.track`, `colors.track-on`): the lifecycle band's dotted line, and its solid line under a stage that works.
 

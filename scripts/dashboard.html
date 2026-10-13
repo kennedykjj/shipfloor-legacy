@@ -233,8 +233,8 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .itoast { display: flex; gap: 10px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45.1%, transparent); border-radius: 8px; padding: 8px 10px; }
 .itoast button { background: none; border: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 @media (max-width: 1180px) { .yours.maxed .inbox { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .ique, .idec { border: 0; overflow: visible; } .iread { overflow: visible; padding-inline: 0; } }
-#list.cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: linear-gradient(#000 calc(100% - 44px), transparent); mask-image: linear-gradient(#000 calc(100% - 44px), transparent); }
-.telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(#000 calc(100% - 24px), transparent); mask-image: linear-gradient(#000 calc(100% - 24px), transparent); }
+#list.cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); }
+.telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); }
 /* the shortest column: fit puts .tight on .side only with Today open, when the list floor, the gap and Today's floor do not fit */
 .side.tight { gap: 10px; } .side.tight .yours:not(.maxed) .foot { display: none; } .side.tight #telem h2:first-child { margin-top: 6px; }
 .pass { border-top: 1px solid var(--hair); padding: 10px 2px 12px; } .pass.hot { background: color-mix(in srgb, var(--ov) 3.5%, transparent); }

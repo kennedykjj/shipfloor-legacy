@@ -7,7 +7,7 @@
       "ground": { "role": "neutral", "displayName": "Ground", "canonical": "#0a0a0a" },
       "panel": { "role": "neutral", "displayName": "Panel", "canonical": "#14171b" },
       "panel-hi": { "role": "neutral", "displayName": "Raised Panel", "canonical": "#1c2026" },
-      "edge": { "role": "neutral", "displayName": "Hairline", "canonical": "#2a2f39" },
+      "edge": { "role": "neutral", "displayName": "Hairline", "canonical": "#2a2f39", "tonalRamp": ["#ffffff1c"] },
       "edge-hi": { "role": "neutral", "displayName": "Lit Edge", "canonical": "#3d444f" },
       "text": { "role": "neutral", "displayName": "Text", "canonical": "#f2f1ee" },
       "soft": { "role": "neutral", "displayName": "Soft Text", "canonical": "#d6d8da" },
