@@ -5,8 +5,10 @@ source "$(dirname "$0")/lib.sh"
 out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" "$FACTORY_DIR/lang/dashboard.pt-BR.json" <<'PY'
 import json, re, sys
 h = open(sys.argv[1], encoding="utf-8").read()
+sys.path.insert(0, sys.argv[1].rsplit("/", 1)[0] + "/test"); import page_text  # the page's text is a catalog by key (#122)
+h = page_text.english(h)
 cat = json.load(open(sys.argv[2], encoding="utf-8"))
-exact, rx = cat.get("exact", {}), {a: b for a, b in cat.get("rx", [])}
+exact, rx = page_text.exact("pt-BR"), {a: b for a, b in cat.get("rx", [])}
 
 def func(name):  # the text of a top-level function of the page script
     m = re.search(r"^(?:async )?function " + name + r"\(", h, re.M)
@@ -52,7 +54,7 @@ check("AC-1",
   tr("No new run starts there. Running sessions finish.", "Nenhuma execução nova começa nele. As sessões que já rodam terminam."),
   tr("Resume", "Retomar"), tr("Resume the factory", "Retomar a fábrica"),
   tr("Still paused: the resume did not go through.", "Continua pausado: a retomada não foi aplicada."),
-  tr("^Resume (\\S+)$", "Retomar $1", "rx"))
+  None if page_text.msg("pt-BR", "alert.project_paused.resume") == "Retomar {project}" else "pt-BR alert.project_paused.resume is not Retomar {project}")
 
 # AC-2 / AC-3
 drawer = func("renderDrawer")
@@ -87,7 +89,7 @@ tokens = {t for c in re.findall(r'class="([^"]*)"', foot[len('<p class="foot cap
 dn = [b for s, b in re.findall(r"([^{}]+)\{([^{}]*)\}", h) if ".yours.maxed .foot" in [x.strip() for x in s.split(",")] and "display" in b and "none" in b]
 check("AC-5",
   None if all(f"<kbd>{k}</kbd>" in foot for k in "NARL") else "the legend lost N A R L",
-  None if "<kbd>1–9</kbd>choose" in foot and "<kbd>Esc</kbd>close" in foot else "the legend does not name <kbd>1–9</kbd>choose and <kbd>Esc</kbd>close",
+  None if '<kbd>1–9</kbd><span data-i="keys.choose">choose</span>' in foot and '<kbd>Esc</kbd><span data-i="keys.close">close</span>' in foot else "the legend does not name <kbd>1–9</kbd>choose and <kbd>Esc</kbd>close",
   None if len(tokens) >= 2 and all(re.search(r"\." + re.escape(t) + r"\b", re.sub(r"<[^>]*>", "", h[: h.index("</style>")])) for t in tokens) else "the legend does not hold two styled groups (list keys, inbox keys) that CSS shows one at a time",
   None if not dn else ".yours.maxed .foot is still in a display: none rule: the legend is hidden in the inbox",
   None if re.search(r"\.yours\.maxed[^{}]*\{[^}]*display", h[: h.index("</style>")]) else "no CSS rule shows one group by .yours.maxed",
@@ -106,7 +108,7 @@ rawm = re.search(r'const RAW = "[^"]*"', h)
 headm = re.search(r'head\s*=\s*d === day \? "" : `([^`]*)`', feed)
 check("AC-7",
   None if headm and 'class="fday' in headm.group(1) else 'renderFeed() emits no day row (class "fday") when the calendar day changes',
-  None if headm and "toLocaleDateString" in headm.group(1) and "weekday" in headm.group(1) else "the day row does not name the day (weekday, day, month)",
+  None if headm and "DAY_LONG.format" in headm.group(1) and re.search(r"DAY_LONG = new Intl\.DateTimeFormat\(CODE, \{ weekday: \"long\", day: \"numeric\", month: \"long\" \}\)", h) else "the day row does not name the day (weekday, day, month)",
   None if re.search(r"\$\{head\}<li class=\"fev", feed) else "the day row is not placed before the event row (${head} ahead of <li class=\"fev\")",
   None if headm and "fev" not in headm.group(1) else "the day row sits inside an event row",
   None if fday and "var(--hair)" in rule(".fday::after") else ".fday has no CSS (day row with a hairline)",

@@ -51,20 +51,25 @@ page_has "What the factory writes" "AC-2"
 if curl -s "$base/" | grep -qF "Read-only here"; then fail "AC-2 the page still says a project's language is read-only"; else pass "AC-2 a project's language is no longer read-only"; fi
 page_has ".shipfloor/factory.yml" "AC-2"
 
-# --- AC-4: the options are the keys of LANGS, each with its name; the page lists no language of its own
-want="$($PY -I -c 'import sys,json; sys.path.insert(0,sys.argv[1]); import shipfloor_config as c; print(json.dumps(c.LANGS))' "$(nat "$FACTORY_DIR")" 2>&1)"
+# --- AC-4: the options are the keys of LANGS, each under its own name (#122: the name its catalog gives itself); the page
+# lists no language of its own
+want="$($PY -I -c 'import sys,json; sys.path.insert(0,sys.argv[1]); import shipfloor_config as c; print(json.dumps({k: json.load(open(sys.argv[1] + "/lang/dashboard." + k + ".json", encoding="utf-8"))["name"] for k in c.LANGS}))' "$(nat "$FACTORY_DIR")" 2>&1)"
 got="$(jget "$s" 'json.dumps(d.get("languages"))')"
-[ "$got" = "$want" ] && pass "AC-4 /api/settings languages is LANGS, in its own order" || fail "AC-4 languages was: $got (want $want)"
+[ "$got" = "$want" ] && pass "AC-4 /api/settings languages is LANGS, in its own order, each under its own name" || fail "AC-4 languages was: $got (want $want)"
+[ "$(jget "$s" 'len(d["languages"])')" = 12 ] && pass "#122 twelve languages on offer" || fail "#122 languages on offer: $(jget "$s" 'len(d["languages"])')"
+[ "$(jget "$s" 'd["languages"]["es"] + "|" + d["languages"]["ja"] + "|" + d["languages"]["pt-BR"]')" = "Español|日本語|Português (Brasil)" ] && pass "#122 each language under its own name (Español, 日本語)" || fail "#122 names were: $(jget "$s" 'd["languages"]["es"] + "|" + d["languages"]["ja"]')"
+page_has 'lang="${esc(c)}"' "#122 each option declares its language, for its glyphs"
 page_has 'id="lang"' "AC-4"
 page_has "languages" "AC-4"
 # (the date formats of #114 pick their locale from the page's language: only those two expressions may name pt-BR, nothing else on the page)
-if curl -s "$base/" | sed -e 's/document\.documentElement\.lang === "pt-BR" ? "pt-BR" : "en-US"//g' -e 's/l === "pt-BR"//g' | grep -qE 'pt-BR|Brazilian'; then fail "AC-4 the page names a language code or name of its own"; else pass "AC-4 the page names no language code or name of its own"; fi
+if curl -s "$base/" | grep -qE 'pt-BR|Brazilian|Português|日本語'; then fail "AC-4 the page names a language code or name of its own"; else pass "AC-4 the page names no language code or name of its own"; fi
 
 # --- AC-3: a language outside LANGS is refused with the reason, config.yml byte for byte as before
 fresh_home; printf 'language: en\npool: 6\n' > "$H/config.yml"; cp "$H/config.yml" "$C/config.before"; start_dash b "$OK_CMD"
 resp="$(post '{"language":"xx"}')"; code="${resp##*$'\n'}"; body="${resp%$'\n'*}"
 [ "$code" = 400 ] && pass "AC-3 saving xx answers 400" || fail "AC-3 saving xx answered $code: $resp"
-case "$(jget "$body" 'd.get("error")')" in *"language must be one of en, pt-BR"*) pass "AC-3 the reason says language must be one of en, pt-BR";; *) fail "AC-3 the reason was: $(jget "$body" 'd.get("error")')";; esac
+case "$(jget "$body" 'd.get("error")')" in *"language must be one of en, zh-CN, zh-TW, es, ja, de, fr, pt-BR, ru, ko, it, tr"*) pass "AC-3 the reason says language must be one of the twelve";; *) fail "AC-3 the reason was: $(jget "$body" 'd.get("error")')";; esac
+[ "$(jget "$body" 'd["errors"][0]["key"]')" = "err.language" ] && pass "#122 the reason carries its key for the page's language" || fail "#122 the reason's key: $(jget "$body" 'd.get("errors")')"
 cmp -s "$H/config.yml" "$C/config.before" && pass "AC-3 config.yml is byte-identical" || fail "AC-3 config.yml changed: $(cat "$H/config.yml")"
 page_has "The language was not changed" "AC-3"
 cat_has "O idioma não foi alterado" "AC-3"
@@ -77,16 +82,16 @@ resp="$(post '{"language":"pt-BR"}')"; code="${resp##*$'\n'}"
 [ "$(cfglang)" = "pt-BR" ] && pass "AC-1 config.yml holds language: pt-BR" || fail "AC-1 config.yml language is: $(cfglang)"
 l="$(get /api/lang)"
 [ "$(jget "$l" 'd.get("language")')" = "pt-BR" ] && pass "AC-1 /api/lang answers pt-BR" || fail "AC-1 /api/lang language was: $(jget "$l" 'd.get("language")') (want pt-BR)"
-[ "$(jget "$l" 'd["exact"].get("Language")')" = "Idioma" ] && pass "AC-1 the catalog translates the section's nav entry" || fail "AC-1 exact[Language] was: $(jget "$l" 'd["exact"].get("Language")') (want Idioma)"
-[ "$(jget "$l" 'd["exact"].get("What the factory writes")')" = "O que a fábrica escreve" ] && pass "AC-1 the catalog translates the second group" || fail "AC-1 exact[What the factory writes] was: $(jget "$l" 'd["exact"].get("What the factory writes")')"
-[ "$(jget "$l" 'd["exact"].get("Language of this dashboard")')" = "Idioma deste dashboard" ] && pass "AC-1 the catalog translates the row title" || fail "AC-1 exact[Language of this dashboard] was: $(jget "$l" 'd["exact"].get("Language of this dashboard")')"
-[ "$(jget "$l" 'd["exact"].get("This dashboard")')" = "Este dashboard" ] && pass "AC-1 the catalog translates the first group" || fail "AC-1 exact[This dashboard] was: $(jget "$l" 'd["exact"].get("This dashboard")')"
-[ "$(jget "$l" 'd["exact"].get("The language shows after a reload.")')" = "O idioma aparece depois de recarregar." ] && pass "AC-1 the catalog translates the reload sentence" || fail "AC-1 exact[The language shows after a reload.] was: $(jget "$l" 'd["exact"].get("The language shows after a reload.")')"
-[ "$(jget "$l" 'd["exact"].get("English")')" = "Inglês" ] && [ "$(jget "$l" 'd["exact"].get("Brazilian Portuguese")')" = "Português do Brasil" ] && pass "AC-1 the catalog translates both language names" || fail "AC-1 language names were: $(jget "$l" 'd["exact"].get("English")') / $(jget "$l" 'd["exact"].get("Brazilian Portuguese")')"
+for kv in "sec.language=Idioma" "lang.factory=O que a fábrica escreve" "lang.dashboard=Idioma deste dashboard" "lang.this=Este dashboard" "set.reload=O idioma aparece depois de recarregar."; do
+  k="${kv%%=*}"; [ "$(jget "$l" "d['messages'].get('$k')")" = "${kv#*=}" ] && pass "AC-1 the catalog has $k: ${kv#*=}" || fail "AC-1 $k was: $(jget "$l" "d['messages'].get('$k')")"
+done
+[ "$(jget "$l" 'd["en"].get("sec.language")')" = "Language" ] && pass "#122 the English catalog comes along, for a key the other lacks" || fail "#122 /api/lang has no English catalog"
+pg="$(curl -s "$base/")"
+case "$pg" in *'<html lang="pt-BR">'*) pass "#122 the page declares its language (<html lang>)" ;; *) fail "#122 the page does not say <html lang=\"pt-BR\">" ;; esac
+case "$pg" in *'id="lang-data">{"language": "pt-BR", "messages": {'*) pass "#122 the page carries its catalog, so the first paint is in pt-BR" ;; *) fail "#122 the page does not carry the pt-BR catalog" ;; esac
 cat_has "Salvo como" "AC-1"
 [ "$(jget "$(get /api/settings)" 'd["machine"].get("language")')" = "pt-BR" ] && pass "AC-1 /api/settings answers pt-BR" || fail "AC-1 /api/settings machine.language was: $(jget "$(get /api/settings)" 'd["machine"].get("language")')"
-raw="$(curl -s "$base/" | grep -F 'const RAW =')"
-case "$raw" in *.says*.did*.ttitle*|*.ttitle*.says*.did*|*.ttitle*.did*.says*) pass "AC-1 RAW still lists the agents' text (.ttitle, .says, .did)";; *) fail "AC-1 RAW no longer lists the agents' text: $raw";; esac
+case "$pg" in *'<p class="says">${esc(says.text)}</p>'*'<h3 class="ttitle">${c.title ? esc(c.title) : UNTITLED}</h3>'*) pass "AC-1 the agents' text and the titles are shown as written (.says, .ttitle)";; *) fail "AC-1 the agents' text goes through a catalog";; esac
 page_has 'id="lang"' "AC-1"
 [ -z "$(cat "$C/stub-ok" 2>/dev/null)" ] && pass "AC-1 a language change does not call the scheduler" || fail "AC-1 the scheduler was called: $(cat "$C/stub-ok")"
 
@@ -110,11 +115,11 @@ fresh_home; printf 'language: en\n' > "$H/config.yml"; start_dash e "$OK_CMD"
 [ "$(plang shop)" = "('en', 'en', 'repository')" ] && pass "#129 AC-1 shop: en in effect, en from the repository" || fail "#129 AC-1 shop was: $(plang shop)"
 [ "$(plang blog)" = "('pt-BR', 'pt-BR', 'repository')" ] && pass "#129 AC-1 blog: pt-BR in effect, from the repository" || fail "#129 AC-1 blog was: $(plang blog)"
 page_has 'data-plang=' "#129 AC-1"
-page_has '<option value="">As the repository says: ${said(p.language.repo)}</option>' "#129 AC-1"
-page_has 'aria-label="Language the factory writes in for ${esc(p.slug)}"' "#129 AC-1"
+page_has '<option value="">${t("lang.as_repo", { language: said(p.language.repo) })}</option>' "#129 AC-1"
+page_has 'aria-label="${ta("lang.project", { project: p.slug })}"' "#129 AC-1"
 page_has "a session already running keeps the language it started in" "#129 AC-7"
-cat_has "Como o repositório diz: \$1" "#129 AC-1"
-cat_has "Idioma em que a fábrica escreve em \$1" "#129 AC-1"
+cat_has "Como o repositório diz: {language}" "#129 AC-1"
+cat_has "Idioma em que a fábrica escreve em {project}" "#129 AC-1"
 cat_has "uma sessão que já roda continua no idioma em que começou" "#129 AC-7"
 cat_has "Fica nesta máquina, por cima do que o repositório diz; o" "#129 AC-7"
 if grep -qF "Read-only here" "$FACTORY_DIR/lang/dashboard.pt-BR.json"; then fail "#129 the catalog keeps the read-only sentence"; else pass "#129 the catalog dropped the read-only sentence"; fi
@@ -123,12 +128,12 @@ if grep -qF "Read-only here" "$FACTORY_DIR/lang/dashboard.pt-BR.json"; then fail
 resp="$(ppost '{"project":"blog","values":{"language":"en"}}')"
 [ "${resp##*$'\n'}" = 200 ] && pass "#129 AC-4 blog set to en on this machine" || fail "#129 AC-4 saving blog's language answered: $resp"
 [ "$(plang blog)" = "('en', 'pt-BR', 'machine')" ] && pass "#129 AC-4 blog: en in effect, pt-BR in the repository, from this machine" || fail "#129 AC-4 blog was: $(plang blog)"
-page_has 'set on this machine · the repository says ${said(p.language.repo)}' "#129 AC-4"
+page_has 't("lang.set_here", { language: said(p.language.repo) })' "#129 AC-4"
 page_has 'aria-describedby="${id}"' "#129 AC-4"
-cat_has "definido nesta máquina · o repositório diz \$1" "#129 AC-4"
+cat_has "definido nesta máquina · o repositório diz {language}" "#129 AC-4"
 # the refusal of a project's language reads in the page's sentence, in both languages
-page_has 'The language of ${slug} was not changed: ' "#129 AC-6"
-cat_has "O idioma de \$1 não foi alterado: \$2. Ele continua escrevendo em \$3." "#129 AC-6"
+page_has 't("lang.project_failed", { project: slug, why:' "#129 AC-6"
+cat_has "O idioma de {project} não foi alterado: {why}. Ele continua escrevendo em {language}." "#129 AC-6"
 
 # --- #129 AC-5: the dashboard's language and a project's are independent: changing one never changes the other
 [ "$(cfglang)" = "en" ] && pass "#129 AC-5 a project's language left config.yml's alone" || fail "#129 AC-5 config.yml language is: $(cfglang)"

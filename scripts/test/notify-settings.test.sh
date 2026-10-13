@@ -82,7 +82,7 @@ code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: applica
 [ "$code" = 403 ] && pass "AC-8 no token, no change" || fail "AC-8 changed the notification settings without the token (status $code)"
 
 # AC-8: the Settings view has a "Notifications" section: events, channels, topic, reminder minutes, quiet hours
-html="$(cat "$FACTORY_DIR/dashboard.html")"
+html="$(page_english)$(cat "$FACTORY_DIR/lang/dashboard.en.json")"  # the server's refusals are in the catalog too (#122)
 for s in 'when the factory needs you' 'Events' 'Channels' 'Quiet hours' \
          'A card waits for your decision' 'A run is blocked' 'Remind me of a card that still waits' 'Minutes before the reminder' \
          'The factory is stuck' 'A card reached production' 'Windows notification on this machine' 'Push to your phone' 'ntfy topic' \
@@ -91,11 +91,11 @@ for s in 'when the factory needs you' 'Events' 'Channels' 'Quiet hours' \
          'Quiet hours need both times, and they cannot be the same.' 'The reminder takes 15 to 720 minutes.'; do
   case "$html" in *"$s"*) pass "AC-8 the page has '$s'" ;; *) fail "AC-8 dashboard.html is missing '$s'" ;; esac
 done
-case "$html" in *'"Notifications"'*|*'>Notifications<'*|*'Notifications</'*) pass "AC-8 the Settings nav has a Notifications entry" ;; *) fail "AC-8 no Notifications entry in the Settings nav" ;; esac
+case "$html" in *'"sec.notify": "Notifications"'*) pass "AC-8 the Settings nav has a Notifications entry" ;; *) fail "AC-8 no Notifications entry in the Settings nav" ;; esac
 echo "$html" | grep -Eq 'reminder_min.{0,120}720|720.{0,120}reminder_min' && pass "AC-8 the reminder stepper goes up to 720" || fail "AC-8 no reminder stepper bounded at 720"
 $PY -I - "$(nat "$FACTORY_DIR/lang/dashboard.pt-BR.json")" <<'PYEOF' && pass "AC-8 the pt-BR catalog has the new phrases" || fail "AC-8 the pt-BR catalog lacks the Notifications phrases"
 import json, sys
-vals = set(json.load(open(sys.argv[1], encoding="utf-8"))["exact"].values())
+vals = set(json.load(open(sys.argv[1], encoding="utf-8"))["messages"].values())
 want = ["Notificações", "Horário de silêncio", "Nenhum canal está ligado: nada é enviado.",
         "Todos os eventos estão desligados: nada é enviado.", "O lembrete aceita de 15 a 720 minutos."]
 missing = [w for w in want if w not in vals]

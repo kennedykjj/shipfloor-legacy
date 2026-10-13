@@ -65,11 +65,11 @@ printf '== start /sf:refine 7 %sT09:00:00-03:00 pid=1\n' "$D" > "$P/logs/$D-7-re
 got="$(curl -s -H "$H_TOK" "$base/api/feed" | $PY -c 'import json,sys; print([e.get("lost") for e in json.load(sys.stdin)["events"] if e.get("stage") == "refine"])')"
 assert_contains "$got" "[True]"; rm -f "$P/logs/$D-7-refine.log"
 [ "$(code "$base/api/feed")" = 403 ] && pass "no token, no feed" || fail "served the feed without the token"
-# the page's language is the machine's: English sends no catalog, pt-BR sends its own
-lang() { curl -s -H "$H_TOK" "$base/api/lang" | $PY -c 'import json,sys; d=json.load(sys.stdin); print(d["language"], len(d["exact"]) > 50, len(d["rx"]) > 20, d["exact"].get("Close", ""))'; }
-assert_contains "$(lang)" "en False False"
+# the page's language is the machine's: its catalog by key, and the English one beside it (#122)
+lang() { curl -s -H "$H_TOK" "$base/api/lang" | $PY -c 'import json,sys; d=json.load(sys.stdin); print(d["language"], len(d["messages"]) > 500, d["messages"] == d["en"], d["messages"].get("drawer.close", ""))'; }
+assert_contains "$(lang)" "en True True Close"
 [ -f "$H/config.yml" ] && cp "$H/config.yml" "$H/config.yml.bak"; echo "language: pt-BR" >> "$H/config.yml"
-assert_contains "$(lang)" "pt-BR True True Fechar"
+assert_contains "$(lang)" "pt-BR True False Fechar"
 if [ -f "$H/config.yml.bak" ]; then mv "$H/config.yml.bak" "$H/config.yml"; else rm "$H/config.yml"; fi
 rm "$P/logs/$D-7-develop.log"
 # the overview says how long a stage usually takes (clean runs only) and when a card's last run ended
@@ -216,7 +216,7 @@ cp "$P/overrides.yml" "$P/overrides.yml.before"
 for bad in '"xx"' '7' '["en"]' '""'; do
   resp="$(curl -s -w '\n%{http_code}' -X POST -H 'Content-Type: application/json' -H "$H_TOK" -d "{\"project\":\"shop\",\"values\":{\"language\":$bad}}" "$base/api/settings/project")"
   [ "${resp##*$'\n'}" = 400 ] && pass "AC-6 language $bad is refused" || fail "AC-6 language $bad answered: $resp"
-  assert_contains "${resp%$'\n'*}" "language must be one of en, pt-BR"
+  assert_contains "${resp%$'\n'*}" "language must be one of en, zh-CN, zh-TW, es, ja, de, fr, pt-BR, ru, ko, it, tr"
 done
 cmp -s "$P/overrides.yml" "$P/overrides.yml.before" && pass "AC-6 overrides.yml is byte-identical after the refusals" || fail "AC-6 overrides.yml changed: $(cat "$P/overrides.yml")"
 cmp -s "$P/factory.yml" "$P/factory.yml.before" && pass "AC-6 factory.yml was never written" || fail "AC-6 factory.yml changed"
@@ -245,7 +245,8 @@ sess() {  # sess <name> <issue> <model> <input tokens> <day>: a develop session 
     printf '{"type":"assistant","timestamp":"%sT12:05:00%s","message":{"id":"c-%s","model":"%s","usage":{"input_tokens":%s,"output_tokens":0}}}\n' "$5" "$TZO" "$1" "$3" "$4"; } > "$T/$1.jsonl"
 }
 ovq() { curl -s -H "$H_TOK" "$base/api/overview" | $PY -c "import json,sys; o=json.load(sys.stdin); c={x['issue']: x for x in o['projects'][0]['cards']}; $1" 2>&1 | tr -d '\r'; }
-hs() { grep -qF -- "$1" "$FACTORY_DIR/dashboard.html"; }
+PAGE_TXT="$(page_english)$(cat "$FACTORY_DIR/lang/dashboard.en.json")"  # what the page says, its messages written out (#122)
+hs() { case "$PAGE_TXT" in *"$1"*) return 0 ;; esac; return 1; }
 ptb() { grep -qF -- "$1" "$FACTORY_DIR/lang/dashboard.pt-BR.json"; }
 printf '7\tStaged\n30\tCoding\n' > "$P/board.tsv"
 
@@ -270,7 +271,7 @@ printf '{"at":"2026-10-09T12:00:00-03:00","limit":40,"total":15,"baseline":0,"st
 assert_contains "$(ovq 'print(c[7]["over"], round(c[7]["spent"], 2), c[7]["cost"])')" "None 9.3 24.3"   # 24.3 in all, but only 9.3 since: under card_warn 14
 rm "$P/cost/7.json"
 hs "passed the warning set in Settings, Costs" && pass "AC-1 the page has the over-warning flag and its title" || fail "AC-1 no over-warning flag in dashboard.html"
-hs "over \$" && pass "AC-1 the flag reads 'over \$N est.'" || fail "AC-1 no 'over \$' flag text in dashboard.html"
+hs "over {amount} est." && pass "AC-1 the flag reads 'over \$N est.'" || fail "AC-1 no 'over \$' flag text in dashboard.html"
 hs "over the cost warning" && pass "AC-1 the lifecycle dot says it is over the cost warning" || fail "AC-1 the lifecycle board does not say over the cost warning"
 ptb "A estimativa deste card passou do aviso definido em Configurações, Custos. Nada para até o limite de bloqueio." && pass "AC-1 pt-BR title of the flag" || fail "AC-1 pt-BR flag title missing"
 ptb "acima do aviso de custo" && pass "AC-1 pt-BR lifecycle dot" || fail "AC-1 pt-BR lifecycle dot missing"
@@ -538,7 +539,7 @@ case "$embed" in *'--page:#0d1014'*'</style>'*'<script>'*'</script></head>'*) pa
 # AC-5 (red now): the page still gets every color the theme sends, and acknowledges them once applied
 case "$embed" in *'r.style.setProperty("--"+k,m.vars[k])'*'shipfloor:"themed"'*) pass "AC-5 the theme is applied to the root, then 'themed' is posted" ;; *) fail "AC-5 the embed script must apply the theme vars to the root and only then post shipfloor:\"themed\"" ;; esac
 # AC-6: no review page, or none that arrives: the empty area is the panel color, not white
-printf '%s' "$shell" | grep -Fq "c.review ? \`<iframe" && printf '%s' "$shell" | grep -Fq "</iframe>\` : noReview(column, c);" && printf '%s' "$shell" | grep -Fq "return '<p class=\"placeholder\">No review page for this card.</p>';" && pass "AC-6 no review page renders the placeholder paragraph and no iframe" || fail "AC-6 reviewPane must render the .placeholder paragraph, and no iframe, when the card has no review page"
+printf '%s' "$shell" | grep -Fq "c.review ? \`<iframe" && printf '%s' "$shell" | grep -Fq "</iframe>\` : noReview(column, c);" && printf '%s' "$shell" | grep -Fq 'return `<p class="placeholder">${t("review.none")}</p>`;' && [ "$(en_msg review.none)" = "No review page for this card." ] && pass "AC-6 no review page renders the placeholder paragraph and no iframe" || fail "AC-6 reviewPane must render the .placeholder paragraph, and no iframe, when the card has no review page"
 case "$base_rule" in *"background: var(--panel)"*) pass "AC-6 an iframe whose document never arrives stays on the panel color" ;; *) fail "AC-6 the iframe must stay on var(--panel) while no document arrives, got: $base_rule" ;; esac
 # working hours: the overview and the settings carry `hours`, and Settings writes it. The dashboard reads the clock in its own
 # process, so each clock is a server of its own: one at 23:30 (outside 08:00-23:00) and one at 12:00 (inside)
@@ -612,7 +613,7 @@ got="$(mpost '{"pool":7}')"
 rm "$H/config.yml"
 
 # AC-4 / AC-7 the page: the copy and the control are in dashboard.html, the translations in dashboard.pt-BR.json
-html="$FACTORY_DIR/dashboard.html"
+html="$(mktemp)"; printf '%s' "$PAGE_TXT" > "$html"  # the page with its English messages written out (#122)
 for s in 'Outside working hours:' 'starts again at' 'Working hours' 'placeholder="always"' 'spellcheck="false"' 'autocomplete="off"' 'aria-invalid' \
          'Windows like 08:00-23:00, separated by commas. Empty means always.' \
          'Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.' \
@@ -622,18 +623,18 @@ done
 cat > "$FAKE_GH_DIR/catalog.py" <<'EOP'
 import json, sys
 d = json.load(open(sys.argv[1], encoding="utf-8"))
-ex, rx = d.get("exact", {}), [tuple(x) for x in d.get("rx", [])]
+ex = d.get("messages", {})  # by key since #122
 want = {
-    "Outside working hours:": "Fora do hor\u00e1rio de trabalho:",
-    "Working hours": "Hor\u00e1rio de trabalho",
-    "always": "sempre",
-    "Windows like 08:00-23:00, separated by commas. Empty means always.": "Janelas como 08:00-23:00, separadas por v\u00edrgula. Vazio significa sempre.",
-    "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.": "Hor\u00e1rio de trabalho n\u00e3o salvo: escreva cada janela como HH:MM-HH:MM, separadas por v\u00edrgula.",
-    "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O hor\u00e1rio em config.yml n\u00e3o \u00e9 v\u00e1lido, ent\u00e3o o dispatcher roda a qualquer hora.",
+    "alert.hours": "Fora do hor\u00e1rio de trabalho:",
+    "disp.hours": "Hor\u00e1rio de trabalho",
+    "disp.always": "sempre",
+    "disp.hours_help": "Janelas como 08:00-23:00, separadas por v\u00edrgula. Vazio significa sempre.",
+    "disp.hours_failed": "Hor\u00e1rio de trabalho n\u00e3o salvo: escreva cada janela como HH:MM-HH:MM, separadas por v\u00edrgula.",
+    "disp.hours_bad": "O hor\u00e1rio em config.yml n\u00e3o \u00e9 v\u00e1lido, ent\u00e3o o dispatcher roda a qualquer hora.",
+    "alert.hours.text": "volta a iniciar \u00e0s {at}",
 }
 for k, v in want.items():
-    print("ok" if ex.get(k) == v else "MISSING exact: " + k.encode("ascii", "replace").decode())
-print("ok" if (r"starts again at (\d\d:\d\d)", "volta a iniciar \u00e0s $1") in rx else "MISSING rx: starts again at (\\d\\d:\\d\\d)")
+    print("ok" if ex.get(k) == v else "MISSING: " + k)
 EOP
 while IFS= read -r line; do
   line="${line%$'\r'}"

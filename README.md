@@ -50,7 +50,7 @@ The yellow columns are yours; the factory works the dark ones.
 
 `shipfloor dashboard` opens a local page with what waits for you, what is running and at which step, each run's log and what each card cost. You approve specs and pull requests there, with the review beside the decision.
 
-It comes with twelve themes, in English and Brazilian Portuguese.
+It comes with twelve themes, in twelve languages: English, Simplified and Traditional Chinese, Spanish, Japanese, German, French, Brazilian Portuguese, Russian, Korean, Italian and Turkish.
 
 ## Quick start
 

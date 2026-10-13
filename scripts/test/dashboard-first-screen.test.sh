@@ -6,6 +6,8 @@ source "$(dirname "$0")/lib.sh"
 out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" "$FACTORY_DIR/lang/dashboard.pt-BR.json" <<'PY'
 import json, re, sys
 h = open(sys.argv[1], encoding="utf-8").read()
+sys.path.insert(0, sys.argv[1].rsplit("/", 1)[0] + "/test"); import page_text  # the page's text is a catalog by key (#122)
+h = page_text.english(h)
 cat = json.load(open(sys.argv[2], encoding="utf-8"))
 res = []
 def check(name, cond, why):
@@ -42,13 +44,13 @@ check("AC-2 the state starts as S.show = {band: true, history: true}", bool(re.s
 check("AC-2 renderSum is gone", "renderSum" not in h, "the page still has renderSum")
 rb = src("function renderBoard")
 check("AC-2 a refresh leaves the fold alone", "S.show" not in rb and ".min" not in rb, "renderBoard rewrites what the owner minimized")
-for k, v in (("^Minimize the lifecycle$", "Minimizar o ciclo de vida"), ("^Minimize the history$", "Minimizar o histórico"), ("^Expand the lifecycle$", "Expandir o ciclo de vida"), ("^Expand the history$", "Expandir o histórico")):
-    check("AC-2 pt-BR fold label " + ascii(v), [k, v] in cat["rx"], "rx entry " + k + " is missing")
+for k, v in (("panel.band.min", "Minimizar o ciclo de vida"), ("panel.history.min", "Minimizar o histórico"), ("panel.band.expand", "Expandir o ciclo de vida"), ("panel.history.expand", "Expandir o histórico")):
+    check("AC-2 pt-BR fold label " + ascii(v), page_text.msg("pt-BR", k) == v, k + " is " + ascii(page_text.msg("pt-BR", k)))
 check("AC-2 the board grid is the band, then the columns", bool(re.search(r"grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)", h)), "the .board rows are not auto minmax(0, 1fr)")
 check("AC-2 the line stays out of localStorage", "shipfloor.show" not in h and "localStorage" not in src("function show("), "the open state is stored")
 for k, v in (("\\\\bin use\\\\b", "em uso"), ("est\\\\. spent today", "est. gastos hoje"), ("(\\\\d+) runs? today", "$1 execuções hoje")):
     want = json.loads('"' + k + '"')
-    gone = not any(a == want for a, b in cat["rx"])
+    gone = "rx" not in cat and not any(x in json.dumps(page_text.EN) for x in ("in use today", "est. spent today", "runs today"))
     check("AC-2 pt-BR summary-line rx dropped " + ascii(v), gone, "rx entry " + ascii(want) + " is still in the catalog")
 
 # AC-3: a control opens and closes in place, and the state survives the refresh
@@ -56,7 +58,7 @@ sh = src("function show(")
 check("AC-3 show(which, on) exists", bool(sh), "function show(which, on) is missing")
 check("AC-3 show sets aria-expanded on the button", "aria-expanded" in sh, "show does not set aria-expanded")
 check("AC-3 show folds the panel (class min) and sets S.show", '"min"' in sh and "S.show" in sh, "show does not toggle .min and S.show")
-check("AC-3 show names the button for what it does next", "Minimize" in sh and "Expand" in sh and "aria-label" in sh, "show does not relabel the button")
+check("AC-3 show names the button for what it does next", "btn.minimize" in sh and "btn.expand" in sh and "aria-label" in sh, "show does not relabel the button")
 check("AC-3 show restores a maximized panel first", "maxed" in sh, "show does not restore a maximized panel")
 check("AC-3 closing the band closes the peek", "peek" in sh.lower(), "show does not close an open peek")
 check("AC-3 the click handler has a [data-show] branch that toggles", bool(re.search(r"\[data-show\]", h)) and bool(re.search(r"dataset\.show", h)) and bool(re.search(r"show\(\s*[\w.]*dataset\.show\s*,\s*!", h)), "no [data-show] branch toggling through show()")
@@ -71,7 +73,7 @@ check("AC-7 with nothing waiting #list gets an empty string", bool(em) and (em.g
 check("AC-7 the key hints are hidden when nothing waits", bool(re.search(r"foot", ry)) and bool(re.search(r"hidden", ry)), "renderYours does not hide .foot")
 check("AC-7 the heading still says Nothing waits for you", "Nothing waits for you" in ry, "the heading string is gone")
 ri = src("function renderInbox")
-check("AC-7 the maximized inbox keeps its own empty text", bool(re.search(r"""setHTML\(\$\("ir"\),\s*['"]<p class="empty">Nothing waits for you\. Cards show up here""", ri)), "renderInbox no longer writes the p.empty 'Nothing waits for you. Cards show up here...' into #ir")
+check("AC-7 the maximized inbox keeps its own empty text", bool(re.search(r"""setHTML\(\$\("ir"\),\s*['"`]<p class="empty">Nothing waits for you\. Cards show up here""", ri)), "renderInbox no longer writes the p.empty 'Nothing waits for you. Cards show up here...' into #ir")
 
 # AC-8: more than 5 wait, the oldest first
 wt = src("const waiting")

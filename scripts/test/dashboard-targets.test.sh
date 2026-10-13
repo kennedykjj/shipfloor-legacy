@@ -7,8 +7,10 @@ source "$(dirname "$0")/lib.sh"
 out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" "$FACTORY_DIR/lang/dashboard.pt-BR.json" <<'PY'
 import json, re, sys
 h = open(sys.argv[1], encoding="utf-8", newline=None).read()
+sys.path.insert(0, sys.argv[1].rsplit("/", 1)[0] + "/test"); import page_text  # the page's text is a catalog by key (#122)
+h = page_text.english(h)
 cat = json.load(open(sys.argv[2], encoding="utf-8"))
-exact = cat.get("exact", {})
+exact = page_text.exact("pt-BR")
 
 res = []
 def check(name, problems):
@@ -103,7 +105,7 @@ def template(name, key):
     p = []
     if 'role="switch"' not in t: p.append(f'{name}() writes no role="switch"')
     if not re.search(r'aria-checked=["\']?\$\{', t): p.append(f"{name}() writes no aria-checked bound to the state")
-    if WORDS not in t: p.append(f"{name}() has no {WORDS} before the end of the switch")
+    if WORDS not in t and not ("${onOff}<i></i>" in t and line("onOff").endswith("`" + WORDS[:-len("<i></i>")] + "`;")): p.append(f"{name}() has no {WORDS} before the end of the switch")
     if key not in t: p.append(f"{name}() lost {key}")
     if "aria-label" not in t: p.append(f"{name}() lost aria-label")
     return p

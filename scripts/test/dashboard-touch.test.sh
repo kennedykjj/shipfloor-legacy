@@ -5,6 +5,8 @@ source "$(dirname "$0")/lib.sh"
 out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" <<'PY'
 import re, sys
 h = open(sys.argv[1], encoding="utf-8").read()
+sys.path.insert(0, sys.argv[1].rsplit("/", 1)[0] + "/test"); import page_text  # the page's text is a catalog by key (#122)
+h = page_text.english(h)
 css = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", h, re.S))
 css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
 js = "\n".join(re.findall(r"<script[^>]*>(.*?)</script>", h, re.S))

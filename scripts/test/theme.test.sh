@@ -5,7 +5,7 @@ out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" <<'PY'
 import re, sys
 h = open(sys.argv[1], encoding="utf-8").read()
 blocks = {n: dict(re.findall(r"--([a-z0-9-]+):\s*([^;]+);", b)) for n, b in re.findall(r'\[data-theme="([a-z]+)"\]\s*\{([^}]*)\}', h)}
-offered = set(re.findall(r'\["([a-z]+)", "[^"]+"\]', h[h.index("const THEMES"):h.index("const THEMES") + 900]))
+offered = set(re.findall(r'"([a-z]+)"', h[h.index("const THEMES"):h.index("\n", h.index("const THEMES"))]))  # ids; each named by theme.<id> (#122)
 base = blocks["charcoal"]
 colors = [k for k, v in base.items() if re.fullmatch(r"#[0-9a-fA-F]{6}", v)]
 def lum(c):
@@ -32,6 +32,8 @@ assert_contains "$out" "all readable"
 out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" "$FACTORY_DIR/lang/dashboard.pt-BR.json" <<'PY'
 import json, re, sys
 h = open(sys.argv[1], encoding="utf-8").read()
+sys.path.insert(0, sys.argv[1].rsplit("/", 1)[0] + "/test"); import page_text  # the page's text is a catalog by key (#122)
+h = page_text.english(h)
 cat = json.load(open(sys.argv[2], encoding="utf-8"))
 res = []
 def check(name, cond, why): res.append(("ok " if cond else "no ") + (name if cond else f"{name}: {why}"))
@@ -40,7 +42,7 @@ pos = {k: win.find(k + ":") for k in ("first", "dark", "light")}
 def ids(k):
     if pos[k] < 0: return []
     later = sorted(p for p in pos.values() if p > pos[k])
-    return re.findall(r'\["([a-z]+)", "[^"]+"\]', win[pos[k]:later[0] if later else len(win)])
+    return re.findall(r'"([a-z]+)"', win[pos[k]:later[0] if later else len(win)].split("\n")[0])
 first, dark, light = ids("first"), ids("dark"), ids("light")
 css = set(re.findall(r'\[data-theme="([a-z]+)"\]\s*\{', h))
 check("AC-5 THEMES.first holds Auto, Floor tape, Kraft, High contrast in that order", first == ["auto", "tape", "kraft", "contrast"], f"first is {first}")
@@ -60,8 +62,8 @@ check("AC-5 picking a theme keeps focus on its swatch", bool(tp) and "focus" in 
 check("AC-5 the first group has no heading", bool(re.search(r"THEMES\.first", h)), "Settings does not draw THEMES.first")
 check("AC-6 the fold row says In use: with the theme name in <b>", bool(re.search(r"In use: <b>", h)), 'the text "In use: <b>name</b>" is missing')
 check("AC-6 In use shows only when the theme is not one of the four", bool(re.search(r"THEMES\.first", h)) and bool(re.search(r"In use: <b>", h)) and bool(re.search(r"first[^;\n]*(some|includes|find|map)[^;\n]*THEME|THEME[^;\n]*first", h)), "In use is not conditioned on THEME being outside THEMES.first")
-check("AC-6 pt-BR In use: prefix", any(a == "^In use: " and b == "Em uso: " for a, b in cat["rx"]), "rx '^In use: ' is missing")
-check("AC-5 pt-BR More themes", cat["exact"].get("More themes") == "Mais temas", "exact 'More themes' is missing")
+check("AC-6 pt-BR In use: prefix", page_text.msg("pt-BR", "themes.in_use") == "Em uso: {theme}", "themes.in_use is not 'Em uso: {theme}'")
+check("AC-5 pt-BR More themes", page_text.msg("pt-BR", "themes.more") == "Mais temas", "themes.more is not 'Mais temas'")
 print("\n".join(res))
 PY
 )"

@@ -1,1451 +1,758 @@
 {
-  "_": "pt-BR for the dashboard. The page is written in English; when the machine's language is pt-BR it rewrites what it shows with this file: 'exact' replaces a whole piece of text, 'rx' rewrites a phrase inside one (JavaScript regular expressions, applied in order). Text with no entry stays in English. Card titles, logs and what the agents wrote are never touched.",
-  "exact": {
-    "On": "Ligado",
-    "Off": "Desligado",
-    "This link is no longer valid": "Este link não é mais válido",
-    "The dashboard does not accept it any more, so this page stopped updating. To get the current link, run in a terminal:": "O dashboard não o aceita mais, então esta página parou de atualizar. Para pegar o link atual, rode no terminal:",
-    "Then open the URL it prints. This tab stays as it is.": "Depois abra a URL que ele imprimir. Esta aba fica como está.",
-    "Factory": "Fábrica",
-    "Feed": "Feed",
-    "Runs": "Execuções",
-    "Waits for you": "Espera você",
-    "Failures": "Falhas",
-    "Newest first": "Mais recente em cima",
-    "Filter the feed": "Filtrar o feed",
-    "Nothing here.": "Nada aqui.",
-    "since": "desde",
-    "no end logged": "sem fim registrado",
-    "now in": "agora em",
-    "gates failed": "gates que falharam",
-    "no failed gate recorded": "nenhum gate que falhou foi registrado",
-    "Board on GitHub": "Quadro no GitHub",
-    "Docs": "Documentação",
-    "Runs of every project today": "Execuções de todos os projetos hoje",
-    "Pool": "Pool",
-    "Stacks": "Stacks",
-    "Runs today": "Execuções hoje",
-    "Spent est.": "Gasto est.",
-    "est.": "est.",
-    "Lifecycle": "Ciclo de vida",
-    "Today": "Hoje",
-    "Yesterday": "Ontem",
-    "No new run starts. Running sessions finish.": "Nenhuma execução nova começa. As sessões que já rodam terminam.",
-    "No new run starts there. Running sessions finish.": "Nenhuma execução nova começa nele. As sessões que já rodam terminam.",
-    "Resume": "Retomar",
-    "Resume the factory": "Retomar a fábrica",
-    "Still paused: the resume did not go through.": "Continua pausado: a retomada não foi aplicada.",
-    "choose": "escolher",
-    "close": "fechar",
-    "Inbox": "Entrada",
-    "Ready for Refinement": "Pronto para refinar",
-    "Technical Refinement": "Refinamento técnico",
-    "Spec Review": "Revisão da spec",
-    "Ready for Dev": "Pronto para dev",
-    "Coding": "Codificação",
-    "Validation": "Validação",
-    "Staged": "Pronto para aprovar",
-    "Ready for Prod": "Pronto para produção",
-    "Done": "Concluído",
-    "Refine": "Refinar",
-    "Develop": "Desenvolver",
-    "Validate": "Validar",
-    "Deploy": "Deploy",
-    "empty": "vazio",
-    "queued": "na fila",
-    "waits for you": "espera você",
-    "blocked": "bloqueado",
-    "running": "rodando",
-    "running, on the step it reported (1 to N)": "rodando, no passo que reportou (1 a N)",
-    "+N: more cards than fit": "+N: mais cards do que cabem",
-    "blocked, needs you": "bloqueado, precisa de você",
-    "blocked by infrastructure, retrying": "bloqueado por infraestrutura, tentando de novo",
-    "Nothing waits for you": "Nada espera você",
-    "Nothing waits for you. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.": "Nada espera você. Os cards aparecem aqui quando uma spec ou um PR pronto precisa da sua decisão, ou quando uma execução bloqueia.",
-    "The factory moves on its own. Cards show up here when a spec or a staged PR needs your decision, or when a run is blocked.": "A fábrica anda sozinha. Os cards aparecem aqui quando uma spec ou um PR pronto precisa da sua decisão, ou quando uma execução bloqueia.",
-    "Nothing is in progress.": "Nada em andamento.",
-    "Review": "Revisão",
-    "Request changes": "Pedir mudanças",
-    "Approve": "Aprovar",
-    "Unblock & retry": "Desbloquear e tentar de novo",
-    "Unblock and retry": "Desbloquear e tentar de novo",
-    "Details": "Detalhes",
-    "Log": "Log",
-    "next": "próximo",
-    "approve": "aprovar",
-    "review": "revisar",
-    "log": "log",
-    "Blocked": "Bloqueado",
-    "Blocked · waits for your call": "Bloqueado · espera a sua decisão",
-    "Infrastructure failed; the factory retries once": "A infraestrutura falhou; a fábrica tenta mais uma vez",
-    "spec to review": "spec para revisar",
-    "ready to ship": "pronto para publicar",
-    "Running": "Rodando",
-    "Waiting": "Esperando",
-    "Runs that ended, by hour": "Execuções encerradas, por hora",
-    "Spend by hour": "Gasto por hora",
-    "A stage usually takes": "Um estágio costuma levar",
-    "Cost by session": "Custo por sessão",
-    "clean": "limpas",
-    "clean ·": "limpas ·",
-    "failed": "falharam",
-    "ended": "terminou",
-    "none yet": "nenhuma ainda",
-    "Close": "Fechar",
-    "Cancel": "Cancelar",
-    "Send": "Enviar",
-    "Undo": "Desfazer",
-    "Maximize": "Maximizar",
-    "Minimize": "Minimizar",
-    "Expand": "Expandir",
-    "Restore (Esc)": "Restaurar (Esc)",
-    "Maximize the session": "Maximizar a sessão",
-    "Maximize or restore the card": "Maximizar ou restaurar o card",
-    "Open session": "Abrir sessão",
-    "Open card": "Abrir card",
-    "Open the card": "Abrir o card",
-    "Whole log": "Log inteiro",
-    "Full report": "Relatório completo",
-    "Card summary": "Resumo do card",
-    "Card sections": "Seções do card",
-    "Open the issue on GitHub": "Abrir a issue no GitHub",
-    "issue on GitHub": "issue no GitHub",
-    "Live": "Ao vivo",
-    "Sessions": "Sessões",
-    "Gates": "Gates",
-    "cost, Inbox to now": "custo, da Entrada até agora",
-    "Total, Inbox to now": "Total, da Entrada até agora",
-    "cost": "custo",
-    "sessions": "sessões",
-    "first to last run": "da primeira à última execução",
-    "last report": "último relatório",
-    "start": "início",
-    "stage": "estágio",
-    "stage · model": "estágio · modelo",
-    "input": "entrada",
-    "output": "saída",
-    "cache": "cache",
-    "time": "tempo",
-    "result": "resultado",
-    "subagent": "subagente",
-    "card": "card",
-    "follows while open": "acompanha enquanto aberto",
-    "Log file": "Arquivo de log",
-    "Loading…": "Carregando…",
-    "(empty)": "(vazio)",
-    "Reading the factory…": "Lendo a fábrica…",
-    "Reading the session…": "Lendo a sessão…",
-    "Reading the log…": "Lendo o log…",
-    "Nothing logged yet.": "Nada registrado ainda.",
-    "No factory session for this card yet.": "Ainda não há sessão da fábrica para este card.",
-    "No factory session for this card yet. Sessions appear here once the dispatcher runs a stage for it.": "Ainda não há sessão da fábrica para este card. As sessões aparecem aqui quando o dispatcher roda um estágio para ele.",
-    "No gates for this stage.": "Sem gates neste estágio.",
-    "No log for this card yet.": "Ainda não há log para este card.",
-    "No report yet. Each stage writes one when it ends.": "Ainda não há relatório. Cada estágio escreve um ao terminar.",
-    "No review page for this card.": "Não há página de revisão para este card.",
-    "No review page yet. Refine has not built it for this spec.": "Ainda não há página de revisão. O refine ainda não a montou para esta spec.",
-    "No review page for this pull request. The": "Não há página de revisão para este pull request. A",
-    "Gates tab": "aba Gates",
-    "has what validation checked; the changes are in the": "tem o que a validação verificou; as mudanças estão no",
-    "has what validation checked; the changes are in the pull request.": "tem o que a validação verificou; as mudanças estão no pull request.",
-    "Nothing to show yet. The": "Ainda não há nada para mostrar. A",
-    "Log tab": "aba Log",
-    "has what the run wrote.": "tem o que a execução escreveu.",
-    "This card has no review page yet.": "Este card ainda não tem página de revisão.",
-    "Nothing is recorded for this card yet.": "Ainda não há nada registrado para este card.",
-    "Open the log": "Abrir o log",
-    "No run is working on this card now. A message reaches only a run in progress.": "Nenhuma execução trabalha neste card agora. Uma mensagem só chega a uma execução em andamento.",
-    "Enter sends, Shift+Enter starts a new line.": "Enter envia, Shift+Enter começa uma linha nova.",
-    "What the session says and does": "O que a sessão diz e faz",
-    "The message was not sent.": "A mensagem não foi enviada.",
-    "The log could not be read.": "Não foi possível ler o log.",
-    "The action failed.": "A ação falhou.",
-    "Unblock failed.": "O desbloqueio falhou.",
-    "Your decision": "Sua decisão",
-    "Your note": "Sua nota",
-    "What should change": "O que deve mudar",
-    "What should change?": "O que deve mudar?",
-    "What should change (posted on the issue)": "O que deve mudar (vai para a issue)",
-    "What should change in the spec?": "O que deve mudar na spec?",
-    "What should be done instead?": "O que deve ser feito em vez disso?",
-    "Click again to move it anyway.": "Clique de novo para mover mesmo assim.",
-    "Nothing was approved: look at the review first.": "Nada foi aprovado: veja a revisão primeiro.",
-    "Write the note first: it goes with the decision.": "Escreva a nota primeiro: ela vai junto com a decisão.",
-    "You can undo for a few seconds after confirming.": "Dá para desfazer por alguns segundos depois de confirmar.",
-    "Retry the move": "Tentar mover de novo",
-    "The factory left no note about this block. The log has what the run did.": "A fábrica não deixou nota sobre este bloqueio. O log mostra o que a execução fez.",
-    "The spec asks you": "A spec pergunta a você",
-    "A spec is ready for your approval": "Uma spec está pronta para a sua aprovação",
-    "A pull request is ready to ship": "Um pull request está pronto para publicar",
-    "A run stopped and needs you": "Uma execução parou e precisa de você",
-    "Build this spec?": "Construir esta spec?",
-    "Ship it to production?": "Publicar em produção?",
-    "How should this run continue?": "Como esta execução deve continuar?",
-    "It needs rework": "Precisa de retrabalho",
-    "Just try again": "Só tentar de novo",
-    "Send back to Coding": "Devolver para Coding",
-    "Accept the tests and continue": "Aceitar os testes e continuar",
-    "The edits are right": "As edições estão certas",
-    "Something has to change before it ships.": "Algo precisa mudar antes de publicar.",
-    "Something in the card's work is wrong.": "Algo no trabalho do card está errado.",
-    "Something is missing or wrong in the spec.": "Falta algo ou há algo errado na spec.",
-    "The cause was outside the card, or you already fixed it.": "A causa estava fora do card, ou você já a corrigiu.",
-    "The change is what you asked for.": "A mudança é o que você pediu.",
-    "The criteria describe what you want.": "Os critérios descrevem o que você quer.",
-    "The tests had to change, and they still check what the spec asks.": "Os testes precisaram mudar, e ainda conferem o que a spec pede.",
-    "Why are the edits right? It is recorded with the acceptance.": "Por que as edições estão certas? Fica registrado com o aceite.",
-    "Optional: your answer to the open question, posted on the issue": "Opcional: sua resposta à pergunta em aberto, publicada na issue",
-    "Acceptance criteria": "Critérios de aceitação",
-    "What will be true when it is done": "O que será verdade quando estiver pronto",
-    "What the validation said": "O que a validação disse",
-    "What the factory already tried": "O que a fábrica já tentou",
-    "What changed in the acceptance tests since QA wrote them": "O que mudou nos testes de aceitação desde que o QA os escreveu",
-    "Where it stopped": "Onde parou",
-    "Upstream": "Upstream",
-    "Downstream": "Downstream",
-    "Stays in Coding": "Fica em Coding",
-    "Goes back to Coding": "Volta para Coding",
-    "Factory paused": "Fábrica pausada",
-    "Usage limit hit": "Limite de uso atingido",
-    "Waiting for the usage limit to reset": "Esperando o limite de uso voltar",
-    "Agents wait for the limit to reset.": "Os agentes esperam o limite voltar.",
-    "Stack stuck": "Stack travada",
-    "A run environment did not come back; hover Stacks for the slot.": "Um ambiente de execução não voltou; passe o mouse em Stacks para ver o slot.",
-    "Not updating": "Sem atualizar",
-    "The dispatcher is skipping this project": "O dispatcher está pulando este projeto",
-    "Columns may be out of date. Approve and Request changes still read the live board before they move a card.": "As colunas podem estar desatualizadas. Aprovar e Pedir mudanças ainda leem o quadro ao vivo antes de mover um card.",
-    "The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card.": "O quadro vem da última leitura do dispatcher. Aprovar e Pedir mudanças leem o quadro ao vivo antes de mover um card.",
-    "Still reading the factory. The first read parses every run transcript and asks GitHub for the issue titles, so it can take a few seconds.": "Ainda lendo a fábrica. A primeira leitura processa a transcrição de cada execução e pede ao GitHub os títulos das issues, então pode levar alguns segundos.",
-    "Title not loaded": "Título não carregado",
-    "The dashboard could not read the issue titles from GitHub (gh).": "O dashboard não conseguiu ler os títulos das issues no GitHub (gh).",
-    "A model in this card has no price, so its cost is unknown and the cost limits skip it. Add it to ~/.shipfloor/prices.yml.": "Um modelo deste card não tem preço, então o custo é desconhecido e os limites de custo não o contam. Adicione em ~/.shipfloor/prices.yml.",
-    "Estimated from the run transcripts' tokens and ~/.shipfloor/prices.yml": "Estimado pelos tokens das transcrições e por ~/.shipfloor/prices.yml",
-    "Cache read plus cache written; hover a row for the split": "Cache lido mais cache escrito; passe o mouse numa linha para ver a divisão",
-    "Sessions running now, out of the pool size": "Sessões rodando agora, sobre o tamanho do pool",
-    "What waits for you, the oldest first": "O que espera você, do mais antigo ao mais novo",
-    "Where every card is in the pipeline": "Onde cada card está no pipeline",
-    "No step reported yet": "Nenhum passo reportado ainda",
-    "This stage reports no steps": "Este estágio não reporta passos",
-    "running long": "demorando",
-    "Project": "Projeto",
-    "View": "Visão",
-    "Plan": "Plano",
-    "Acceptance tests": "Testes de aceitação",
-    "Implementation": "Implementação",
-    "Up to date with main": "Em dia com a main",
-    "Last gates": "Últimos gates",
-    "Hand over to validation": "Entrega para validação",
-    "Report": "Relatório",
-    "UX/UI and architecture": "UX/UI e arquitetura",
-    "Product": "Produto",
-    "Architecture": "Arquitetura",
-    "Security": "Segurança",
-    "Test plan": "Plano de testes",
-    "Pull request": "Pull request",
-    "Pick the card": "Escolher o card",
-    "Publish for review": "Publicar para revisão",
-    "Paused": "Pausado",
-    "done": "concluído",
-    "Settings": "Configurações",
-    "Settings sections": "Seções das configurações",
-    "Pause the factory": "Pausar a fábrica",
-    "Looks for work every": "Procura trabalho a cada",
-    "1 minute": "1 minuto",
-    "3 minutes": "3 minutos",
-    "5 minutes": "5 minutos",
-    "10 minutes": "10 minutos",
-    "Windows only: this machine has no ShipfloorDispatcher scheduled task. Its pace is set by whatever schedules the dispatcher here.": "Só no Windows: esta máquina não tem a tarefa agendada ShipfloorDispatcher. O ritmo é definido por quem agenda o dispatcher aqui.",
-    "Paused: no new run starts on any project. Sessions already running finish.": "Pausada: nenhuma execução nova começa em nenhum projeto. As sessões que já rodam terminam.",
-    "No cycle recorded yet.": "Nenhum ciclo registrado ainda.",
-    "how much runs at once": "quanto roda ao mesmo tempo",
-    "Projects": "Projetos",
-    "Costs": "Custos",
-    "limits and the prices behind the estimate": "limites e os preços por trás da estimativa",
-    "Themes": "Temas",
-    "how this dashboard looks": "a aparência deste dashboard",
-    "How this dashboard looks. The choice is kept in this browser and changes nothing in the factory.": "A aparência deste dashboard. A escolha fica neste navegador e não muda nada na fábrica.",
-    "Follow the system": "Seguir o sistema",
-    "Auto": "Automático",
-    "Floor tape in dark, Kraft in light": "Fita de piso no escuro, Kraft no claro",
-    "More themes": "Mais temas",
-    "Dark": "Escuros",
-    "Light": "Claros",
-    "Floor tape": "Fita de piso",
-    "Charcoal": "Carvão",
-    "Dock": "Doca",
-    "Machine green": "Verde-máquina",
-    "Blueprint": "Planta",
-    "Foundry": "Fundição",
-    "Night shift": "Turno da noite",
-    "High contrast": "Alto contraste",
-    "Steel": "Aço",
-    "Drafting paper": "Papel de desenho",
-    "How many agent sessions this machine runs at once, in all and per stage. A change takes effect on the dispatcher's next cycle; sessions already running are never cut.": "Quantas sessões de agente esta máquina roda ao mesmo tempo, no total e por estágio. Uma mudança vale a partir do próximo ciclo do dispatcher; sessões que já rodam nunca são cortadas.",
-    "The pool": "O pool",
-    "Sessions at once": "Sessões ao mesmo tempo",
-    "never used": "nunca usado",
-    "Run environments": "Ambientes de execução",
-    "Local stacks at once": "Stacks locais ao mesmo tempo",
-    "Minutes to wait for a free stack": "Minutos de espera por um stack livre",
-    "A run that cannot get one in time is blocked as infrastructure and retried once.": "Uma execução que não consegue um a tempo é bloqueada por infraestrutura e tentada de novo uma vez.",
-    "The repositories this factory works on. How the factory operates on a project (the pause and the four limits with steppers) is decided here, for this machine. What a project is (its files, layers and commands) is part of its repository and is shown as last read.": "Os repositórios em que esta fábrica trabalha. Como a fábrica opera num projeto (a pausa e os quatro limites com botões) se decide aqui, para esta máquina. O que o projeto é (seus arquivos, camadas e comandos) faz parte do repositório dele e aparece como foi lido por último.",
-    "The dispatcher skips this project. Other projects keep running, and sessions already running finish.": "O dispatcher pula este projeto. Os outros projetos seguem rodando, e as sessões que já rodam terminam.",
-    "Cards in progress at once": "Cards em andamento ao mesmo tempo",
-    "Coding and Validation count together, so pull requests do not pile up against main. 0 is no limit.": "Codificação e Validação contam juntas, para os pull requests não se acumularem contra a main. 0 é sem limite.",
-    "Specs in refinement at once": "Specs em refinamento ao mesmo tempo",
-    "Cards being refined, before they wait for your approval. 0 is no limit.": "Cards sendo refinados, antes de esperarem sua aprovação. 0 é sem limite.",
-    "Minutes the deploy waits for CI and production": "Minutos que o deploy espera pelo CI e pela produção",
-    "Past this the deploy stops and the card comes back to you.": "Passado esse tempo o deploy para e o card volta para você.",
-    "Largest merge conflict an agent may resolve": "Maior conflito de merge que um agente pode resolver",
-    "In files. A larger conflict goes back to Coding instead.": "Em arquivos. Um conflito maior volta para Codificação.",
-    "What the agents read about the product": "O que os agentes leem sobre o produto",
-    "The product owner, UX and the tech lead start from these files.": "O product owner, o UX e o tech lead partem destes arquivos.",
-    "nothing set": "nada definido",
-    "Local stack for e2e and UX checks": "Stack local para e2e e checagens de UX",
-    "Where a run's own copy of the app answers.": "Onde responde a cópia do app de cada execução.",
-    "none": "nenhum",
-    "CI the deploy waits for": "CI que o deploy espera",
-    "The workflow whose result decides whether a card ships.": "O workflow cujo resultado decide se um card vai para produção.",
-    "Layers": "Camadas",
-    "layer": "camada",
-    "path": "caminho",
-    "stack": "stack",
-    "build": "build",
-    "tests live in": "os testes ficam em",
-    "tests only": "só testes",
-    "The limits above are kept on this machine, over what the repository says. To change the rest, edit": "Os limites acima ficam nesta máquina, por cima do que o repositório diz. Para mudar o resto, edite",
-    "The dashboard estimates what a card cost from the tokens of its runs and these prices, in US$ per million tokens.": "O dashboard estima o custo de um card pelos tokens das execuções dele e por estes preços, em US$ por milhão de tokens.",
-    "Prices": "Preços",
-    "model": "modelo",
-    "cache write, 1h": "escrita de cache, 1h",
-    "cache read": "leitura de cache",
-    "To change a price or add a model, edit": "Para mudar um preço ou incluir um modelo, edite",
-    "(copy it from the plugin's": "(copie do",
-    "if it is not there yet).": "do plugin, se ainda não existir).",
-    "Applied on the dispatcher's next cycle. Running sessions are not touched.": "Vale a partir do próximo ciclo do dispatcher. As sessões que rodam não são tocadas.",
-    "Discard": "Descartar",
-    "Save": "Salvar",
-    "Less": "Menos",
-    "More": "Mais",
-    "no limit": "sem limite",
-    "minutes": "minutos",
-    "files": "arquivos",
-    "board on GitHub": "quadro no GitHub",
-    "The settings were not saved.": "As configurações não foram salvas.",
-    "The pause did not go through.": "A pausa não foi aplicada.",
-    "Language": "Idioma",
-    "the page and what the factory writes": "a página e o que a fábrica escreve",
-    "The language of this dashboard, and the language the factory writes in for each project. The text a product shows its own users is not a factory setting: it is set in the files that project's agents read.": "O idioma deste dashboard e o idioma em que a fábrica escreve em cada projeto. O texto que um produto mostra aos próprios usuários não é uma configuração da fábrica: ele é definido nos arquivos que os agentes daquele projeto leem.",
-    "This dashboard": "Este dashboard",
-    "Language of this dashboard": "Idioma deste dashboard",
-    "The dashboard's own text. What the agents wrote is shown as written. Applied when the page is reloaded.": "O texto do próprio dashboard. O que os agentes escreveram aparece como foi escrito. Vale quando a página é recarregada.",
-    "The language shows after a reload.": "O idioma aparece depois de recarregar.",
-    "What the factory writes": "O que a fábrica escreve",
-    "Kept on this machine, over what the repository says; the repository's": "Fica nesta máquina, por cima do que o repositório diz; o",
-    "is not changed. A change applies from the dispatcher's next cycle; a session already running keeps the language it started in.": "do repositório não é alterado. Uma mudança vale a partir do próximo ciclo do dispatcher; uma sessão que já roda continua no idioma em que começou.",
-    "English": "Inglês",
-    "Brazilian Portuguese": "Português do Brasil",
-    "This card's estimate passed the warning set in Settings, Costs. Nothing stops until the block limit.": "A estimativa deste card passou do aviso definido em Configurações, Custos. Nada para até o limite de bloqueio.",
-    ", over the cost warning": ", acima do aviso de custo",
-    "Runs stopped for today": "Execuções paradas por hoje",
-    "Stopped for today by the cost limit": "Parado por hoje pelo limite de custo",
-    "A card reached its cost limit": "Um card chegou ao limite de custo",
-    "cost limit": "limite de custo",
-    "est. cost": "custo est.",
-    "Limits": "Limites",
-    "Warn on a card": "Avisar em um card",
-    "Flags a card whose estimate passes this. Nothing stops.": "Marca o card cuja estimativa passa disto. Nada para.",
-    "Block a card": "Bloquear um card",
-    "Its next run does not start and the card waits for your call. Unblocking grants the same amount again.": "A próxima execução não começa e o card espera sua decisão. Desbloquear libera o mesmo valor de novo.",
-    "Stop the day": "Parar o dia",
-    "Past this, across every project, no new run starts until tomorrow. Sessions already running finish.": "Acima disto, somando todos os projetos, nenhuma execução começa até amanhã. As sessões em andamento terminam.",
-    "Enter an amount above 0, or leave it empty for no limit.": "Informe um valor acima de 0, ou deixe vazio para sem limite.",
-    "Notifications": "Notificações",
-    "when the factory needs you": "quando a fábrica precisa de você",
-    "The factory tells you when it waits for you or stops by itself. These settings are this machine's, for every project. A change applies from the dispatcher's next cycle.": "A fábrica avisa quando espera você ou para sozinha. Estas configurações são desta máquina, para todos os projetos. Uma mudança vale a partir do próximo ciclo do dispatcher.",
-    "Events": "Eventos",
-    "Channels": "Canais",
-    "Quiet hours": "Horário de silêncio",
-    "A card waits for your decision": "Um card espera a sua decisão",
-    "It entered Spec Review or Staged.": "Entrou em Spec Review ou Staged.",
-    "A run is blocked": "Uma execução bloqueou",
-    "It stopped and waits for your call.": "Ela parou e espera a sua decisão.",
-    "Remind me of a card that still waits": "Lembrar de um card que ainda espera",
-    "Once per wait, never once per cycle.": "Uma vez por espera, nunca uma por ciclo.",
-    "Minutes before the reminder": "Minutos até o lembrete",
-    "Counted from when the card started waiting.": "Contados de quando o card começou a esperar.",
-    "The factory is stuck": "A fábrica travou",
-    "The usage limit was hit, a project is skipped, or no card moved for an hour.": "O limite de uso foi atingido, um projeto foi pulado ou nenhum card andou em uma hora.",
-    "A card reached production": "Um card chegou em produção",
-    "Asks nothing of you.": "Não pede nada de você.",
-    "Windows notification on this machine": "Notificação do Windows nesta máquina",
-    "A toast on this desktop.": "Um aviso nesta área de trabalho.",
-    "Windows only": "Só no Windows",
-    "Push to your phone": "Push no celular",
-    "Through ntfy.sh. Sends the project and the card's number, title and state to that service, and nothing else.": "Pelo ntfy.sh. Envia o projeto e o número, o título e o estado do card para esse serviço, e nada mais.",
-    "Set a topic to turn this on.": "Defina um tópico para ligar.",
-    "ntfy topic": "Tópico do ntfy",
-    "Subscribe to the same topic in the ntfy app. Anyone who knows the topic can read these notifications: pick a long, random one.": "Assine o mesmo tópico no app do ntfy. Quem souber o tópico lê estas notificações: escolha um longo e aleatório.",
-    "Nothing is sent between these times, on this machine's clock. Afterwards one notification lists what still needs you. Leave both empty for none.": "Nada é enviado entre estes horários, no relógio desta máquina. Depois, uma notificação lista o que ainda precisa de você. Deixe os dois vazios para não ter.",
-    "From": "De",
-    "To": "Até",
-    "No channel is on: nothing is sent.": "Nenhum canal está ligado: nada é enviado.",
-    "Every event is off: nothing is sent.": "Todos os eventos estão desligados: nada é enviado.",
-    "The topic takes letters, digits, - and _, up to 64.": "O tópico aceita letras, dígitos, - e _, até 64.",
-    "Quiet hours need both times, and they cannot be the same.": "O horário de silêncio precisa dos dois horários, e eles não podem ser iguais.",
-    "The reminder takes 15 to 720 minutes.": "O lembrete aceita de 15 a 720 minutos.",
-    "Agents and models": "Agentes e modelos",
-    "which model runs each role": "qual modelo roda cada papel",
-    "Stages": "Estágios",
-    "Agents": "Agentes",
-    "No priced run in the last 7 days.": "Nenhuma execução com preço nos últimos 7 dias.",
-    "Writes the Product section of a spec.": "Escreve a seção Product da spec.",
-    "Writes the UX section and checks the screens in validation.": "Escreve a seção UX e confere as telas na validação.",
-    "Writes the acceptance tests before the code.": "Escreve os testes de aceitação antes do código.",
-    "Implements a layer that names no agent of its own.": "Implementa uma camada que não indica um agente próprio.",
-    "Writes the Security section and reviews the diff.": "Escreve a seção Security e revisa o diff.",
-    "Outside working hours:": "Fora do horário de trabalho:",
-    "Working hours": "Horário de trabalho",
-    "always": "sempre",
-    "Windows like 08:00-23:00, separated by commas. Empty means always.": "Janelas como 08:00-23:00, separadas por vírgula. Vazio significa sempre.",
-    "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.": "Horário de trabalho não salvo: escreva cada janela como HH:MM-HH:MM, separadas por vírgula.",
-    "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora.",
-    "Only what I can move": "Só o que eu posso mover",
-    "Nothing for you to move right now.": "Nada para você mover agora.",
-    "locked · a run is in progress": "travado · uma execução está em andamento",
-    "locked · blocked by infrastructure, the factory retries": "travado · bloqueado por infraestrutura, a fábrica tenta de novo",
-    "locked · it is blocked and waits for your call in the card": "travado · ele está bloqueado e espera sua decisão no card",
-    "a run is in progress": "uma execução está em andamento",
-    "blocked by infrastructure, the factory retries": "bloqueado por infraestrutura, a fábrica tenta de novo",
-    "it is blocked and waits for your call in the card": "ele está bloqueado e espera sua decisão no card",
-    "send it to refinement": "mandar para o refinamento",
-    "take it out of the queue": "tirar da fila",
-    "approve the spec": "aprovar a spec",
-    "request changes": "pedir mudanças",
-    "refine again": "refinar de novo",
-    "approve and ship": "aprovar e publicar",
-    "the factory moves": "a fábrica move",
-    "Move": "Mover",
-    "redo the code from the approved spec": "refazer o código a partir da spec aprovada",
-    "refine the spec again": "refinar a spec de novo",
-    "take it out of the factory": "tirar da fábrica",
-    "? A comment is optional; it is posted on the issue.": "? O comentário é opcional; ele é publicado na issue.",
-    "An open pull request is closed; its branch is kept.": "Um pull request aberto é fechado; a branch é mantida.",
-    "; its pull request was closed. The board confirms it on the dispatcher's next read.": "; o pull request foi fechado. O quadro confirma na próxima leitura do dispatcher.",
-    "Up": "Subir",
-    "Down": "Descer",
-    "Place here": "Deixar aqui",
-    "What should the refinement do differently?": "O que o refinamento deve fazer diferente?",
-    "Refine again": "Refinar de novo",
-    "Optional: a comment, posted on the issue": "Opcional: um comentário, publicado na issue",
-    "Post comment": "Publicar comentário",
-    "Comment": "Comentar",
-    ". The board confirms it on the dispatcher's next read.": ". O quadro confirma na próxima leitura do dispatcher.",
-    ", Esc to let go.": ", Esc para soltar.",
-    ", Up or Down to reorder, Enter to place it, Esc to let go.": ", seta para cima ou para baixo para reordenar, Enter para deixar no lugar, Esc para soltar.",
-    "Which model each stage's session and each agent runs on. A stage picks its model from the card's weight, which Refine writes in the spec; a card with no weight runs as standard. A Develop run that fails a gate runs once more, one model up. Default keeps the model the plugin ships with. A change takes effect on the dispatcher's next cycle; sessions already running keep their model.": "Em qual modelo roda a sessão de cada estágio e cada agente. O estágio escolhe o modelo pelo peso do card, que o Refine escreve na spec; um card sem peso roda como normal. Uma execução de Develop que falha em um gate roda mais uma vez, um modelo acima. Padrão mantém o modelo que vem com o plugin. A mudança vale a partir do próximo ciclo do dispatcher; as sessões que já estão rodando continuam no modelo delas.",
-    "Weight": "Peso",
-    "weight: light": "peso: leve",
-    "weight: standard": "peso: normal",
-    "weight: heavy": "peso: pesado",
-    "The spec names no weight, so the card runs as standard.": "A spec não diz o peso, então o card roda como normal.",
-    "Saving…": "Salvando…",
-    "stepped up": "subiu de modelo",
-    "Light (weight)": "Leve",
-    "Standard (weight)": "Normal",
-    "Heavy (weight)": "Pesado",
-    "History": "Histórico",
-    "· today": "· hoje",
-    "· yesterday": "· ontem",
-    "Period": "Período",
-    "Custom": "Personalizado",
-    "Previous period": "Período anterior",
-    "Next period": "Próximo período",
-    "This is the current period": "Este é o período atual",
-    "Back to now": "Voltar para agora",
-    "The end date is before the start date.": "A data final é anterior à inicial.",
-    "That date is in the future.": "Essa data está no futuro.",
-    "Pick 92 days at most.": "Escolha no máximo 92 dias.",
-    "Cards done": "Cards concluídos",
-    "Inbox to Done, median": "Inbox a Concluído, mediana",
-    "no card reached Done": "nenhum card chegou a Concluído",
-    "not comparable: a price is missing": "sem comparação: falta um preço",
-    "nothing the day before": "nada no dia anterior",
-    "the same as the day before": "o mesmo que no dia anterior",
-    "Runs that ended, by day": "Execuções encerradas, por dia",
-    "Spend by day": "Gasto por dia",
-    "Reading the history…": "Lendo o histórico…",
-    "No run ended in this period.": "Nenhuma execução terminou neste período.",
-    "See the day before": "Ver o dia anterior",
-    "Runs that ended": "Execuções encerradas",
-    "Show more runs": "Mostrar mais execuções",
-    "The next runs could not be read.": "Não foi possível ler as próximas execuções.",
-    "Cards of the period, by est. cost": "Cards do período, por custo est.",
-    "column": "coluna",
-    "runs": "execuções",
-    "Inbox to now": "Inbox até agora",
-    "1 run": "1 execução"
-  },
-  "rx": [
-    [
-      "^Light: ",
-      "Leve: "
-    ],
-    [
-      "^Standard: ",
-      "Normal: "
-    ],
-    [
-      "^Heavy: ",
-      "Pesado: "
-    ],
-    [
-      "^(Leve|Normal|Pesado): default is (.+)$",
-      "$1: o padrão é $2"
-    ],
-    [
-      "^Model for (\\w+), light cards$",
-      "Modelo de $1, cards leves"
-    ],
-    [
-      "^Model for (\\w+), standard cards$",
-      "Modelo de $1, cards normais"
-    ],
-    [
-      "^Model for (\\w+), heavy cards$",
-      "Modelo de $1, cards pesados"
-    ],
-    [
-      "Runs before the card has a weight, so it has one model\\.",
-      "Roda antes de o card ter peso, então tem um modelo só."
-    ],
-    [
-      "config\\.yml names (\\S+), which is not a weight\\. It is ignored\\.",
-      "O config.yml cita $1, que não é um peso. Ele é ignorado."
-    ],
-    [
-      "^Develop will run on (\\w+)\\.$",
-      "O Develop vai rodar em $1."
-    ],
-    [
-      "^Weight is now light\\. ",
-      "O peso agora é leve. "
-    ],
-    [
-      "^Weight is now standard\\. ",
-      "O peso agora é normal. "
-    ],
-    [
-      "^Weight is now heavy\\. ",
-      "O peso agora é pesado. "
-    ],
-    [
-      "Develop will run on (\\w+)\\.$",
-      "O Develop vai rodar em $1."
-    ],
-    [
-      "^The weight was not changed: ",
-      "O peso não foi alterado: "
-    ],
-    [
-      "the card is no longer in Spec Review\\.",
-      "o card não está mais em Spec Review."
-    ],
-    [
-      "^Ran one model up after (\\w+) failed a gate: ",
-      "Rodou um modelo acima depois que o $1 falhou em um gate: "
-    ],
-    [
-      "^stepped up from (\\w+) to (\\w+): the run before failed$",
-      "subiu de $1 para $2: a execução anterior falhou em"
-    ],
-    [
-      "^runs again on (\\w+)$",
-      "roda de novo em $1"
-    ],
-    [
-      "^(\\S+): not a weight \\(light, standard, heavy\\)\\. Nothing was saved\\.$",
-      "$1: não é um peso (light, standard, heavy). Nada foi salvo."
-    ],
-    [
-      "^(\\S+): must be one model \\(Refine runs before the card has a weight\\)\\. Nothing was saved\\.$",
-      "$1: deve ser um modelo só (o Refine roda antes de o card ter peso). Nada foi salvo."
-    ],
-    [
-      "^Holding #(\\d+), (\\d+) of (\\d+) in $",
-      "Segurando o #$1, $2 de $3 em "
-    ],
-    [
-      "^Holding #(\\d+)\\.$",
-      "Segurando o #$1."
-    ],
-    [
-      "^Press (\\d) to $",
-      "Aperte $1 para "
-    ],
-    [
-      "^Drop to $",
-      "Solte para "
-    ],
-    [
-      "^Tap to $",
-      "Toque para "
-    ],
-    [
-      "^, (\\d) to $",
-      ", $1 para "
-    ],
-    [
-      "^#(\\d+), (\\d+) of (\\d+)\\.$",
-      "#$1, $2 de $3."
-    ],
-    [
-      "^#(\\d+) let go\\. It did not move\\.$",
-      "#$1 solto. Ele não se moveu."
-    ],
-    [
-      "^#(\\d+) cannot move: $",
-      "#$1 não pode ser movido: "
-    ],
-    [
-      "^#(\\d+) is the factory's to move\\.$",
-      "Quem move o #$1 é a fábrica."
-    ],
-    [
-      "^#(\\d+) moved to $",
-      "#$1 foi para "
-    ],
-    [
-      "^#(\\d+) is back in $",
-      "#$1 voltou para "
-    ],
-    [
-      "^Comment posted on #(\\d+)\\.$",
-      "Comentário publicado no #$1."
-    ],
-    [
-      "^#(\\d+) was not moved: $",
-      "#$1 não foi movido: "
-    ],
-    [
-      "^it is no longer in $",
-      "ele não está mais em "
-    ],
-    [
-      "^#(\\d+) is no longer in $",
-      "o #$1 não está mais em "
-    ],
-    [
-      "^#(\\d+) was not reordered: $",
-      "#$1 não foi reordenado: "
-    ],
-    [
-      "^#(\\d+) is now (\\d+) of (\\d+) in $",
-      "#$1 agora é o $2 de $3 em "
-    ],
-    [
-      "^#(\\d+) is back at (\\d+) of (\\d+) in $",
-      "#$1 voltou para $2 de $3 em "
-    ],
-    [
-      "^(\\d+) of (\\d+) in line$",
-      "$1 de $2 na fila"
-    ],
-    [
-      "^Position (\\d+) of (\\d+)$",
-      "Posição $1 de $2"
-    ],
-    [
-      "^Request changes on #(\\d+)$",
-      "Pedir mudanças no #$1"
-    ],
-    [
-      "^Refine #(\\d+) again$",
-      "Refinar o #$1 de novo"
-    ],
-    [
-      "^Move #(\\d+) to $",
-      "Mover #$1 para "
-    ],
-    [
-      "^Comment on #(\\d+)$",
-      "Comentar no #$1"
-    ],
-    [
-      "^Every project, today\\.\\n",
-      "Todos os projetos, hoje.\n"
-    ],
-    [
-      "Estimated from the run transcripts' tokens and ~/\\.shipfloor/prices\\.yml",
-      "Estimado pelos tokens das transcrições e por ~/.shipfloor/prices.yml"
-    ],
-    [
-      "^In use: ",
-      "Em uso: "
-    ],
-    [
-      "^Saved as (.*)\\. Reload the page to see it\\.$",
-      "Salvo como $1. Recarregue a página para ver."
-    ],
-    [
-      "^The language was not changed: (.*)\\. This dashboard stays in (.*)\\.$",
-      "O idioma não foi alterado: $1. Este dashboard continua em $2."
-    ],
-    [
-      "^The language of (\\S+) was not changed: (.*)\\. It still writes in (.*)\\.$",
-      "O idioma de $1 não foi alterado: $2. Ele continua escrevendo em $3."
-    ],
-    [
-      "^As the repository says: (.+)$",
-      "Como o repositório diz: $1"
-    ],
-    [
-      "^set on this machine · the repository says (.+)$",
-      "definido nesta máquina · o repositório diz $1"
-    ],
-    [
-      "^Language the factory writes in for (\\S+)$",
-      "Idioma em que a fábrica escreve em $1"
-    ],
-    [
-      "language must be one of ([A-Za-z, -]+)",
-      "language deve ser um de $1"
-    ],
-    [
-      "· no language key, the factory default",
-      "· sem a chave language, o padrão da fábrica"
-    ],
-    [
-      "^Default \\((.+)\\)$",
-      "Padrão ($1)"
-    ],
-    [
-      "^default is (.+)$",
-      "o padrão é $1"
-    ],
-    [
-      "Claude Code's(\\)?)$",
-      "o do Claude Code$1"
-    ],
-    [
-      "the session's(\\)?)$",
-      "o da sessão$1"
-    ],
-    [
-      "^Model for (.+)$",
-      "Modelo de $1"
-    ],
-    [
-      "per card · (\\d+) cards?, last 7 days",
-      "por card · $1 card(s), últimos 7 dias"
-    ],
-    [
-      "No price for (.+) in prices\\.yml: its cost cannot be estimated\\.",
-      "Sem preço para $1 em prices.yml: não dá para estimar o custo."
-    ],
-    [
-      "config\\.yml says \"(.*)\", which the factory does not know\\. Runs use the default until you pick a model\\.",
-      "O config.yml diz \"$1\", que a fábrica não conhece. As execuções usam o padrão até você escolher um modelo."
-    ],
-    [
-      "config\\.yml names (.+), which is not a stage or an agent here\\. It is ignored\\.",
-      "O config.yml cita $1, que não é um estágio nem um agente daqui. Ele é ignorado."
-    ],
-    [
-      "^(\\S+): \"(.*)\" is not a model the factory knows\\. Nothing was saved\\.$",
-      "$1: \"$2\" não é um modelo que a fábrica conhece. Nada foi salvo."
-    ],
-    [
-      "Project agent · (\\S+), layer (\\S+)",
-      "Agente do projeto · $1, camada $2"
-    ],
-    [
-      "starts again at (\\d\\d:\\d\\d)",
-      "volta a iniciar às $1"
-    ],
-    [
-      "Blocked · cost limit",
-      "Bloqueado · limite de custo"
-    ],
-    [
-      "over \\$(\\d+)\\.(\\d+) est\\.",
-      "acima de $$$1,$2 est."
-    ],
-    [
-      "over \\$(\\d+) est\\.",
-      "acima de $$$1 est."
-    ],
-    [
-      "Today's estimate, \\$(\\d+)\\.(\\d+), passed the day limit of \\$(\\d+)\\.(\\d+)\\. Sessions already running finish; runs start again tomorrow\\. The limit is in Settings, Costs\\.",
-      "A estimativa de hoje, $$$1,$2, passou do limite do dia de $$$3,$4. As sessões em andamento terminam; as execuções voltam amanhã. O limite fica em Configurações, Custos."
-    ],
-    [
-      "Spent \\$(\\d+)\\.(\\d+) est\\. since it was last unblocked; the limit for a card is \\$(\\d+)\\.(\\d+)\\.",
-      "Gastou $$$1,$2 est. desde o último desbloqueio; o limite por card é $$$3,$4."
-    ],
-    [
-      "Spent \\$(\\d+)\\.(\\d+) est\\. since Inbox; the limit for a card is \\$(\\d+)\\.(\\d+)\\.",
-      "Gastou $$$1,$2 est. desde o Inbox; o limite por card é $$$3,$4."
-    ],
-    [
-      "\\$(\\d+)\\.(\\d+) est\\. since Inbox\\.",
-      "$$$1,$2 est. desde o Inbox."
-    ],
-    [
-      "\\$(\\d+)\\.(\\d+) est. so far",
-      "$$$1,$2 est. até agora"
-    ],
-    [
-      "Unblocking lets it spend up to \\$(\\d+)\\.(\\d+) more, counted from now\\.",
-      "Desbloquear deixa o card gastar até mais $$$1,$2, contados a partir de agora."
-    ],
-    [
-      "The warning cannot be above the block \\(\\$(\\d+)\\.(\\d+)\\)\\.",
-      "O aviso não pode ficar acima do bloqueio ($$$1,$2)."
-    ],
-    [
-      "The warning cannot be above the block \\(\\$(\\d+)\\)\\.",
-      "O aviso não pode ficar acima do bloqueio ($$$1)."
-    ],
-    [
-      "(\\d+) cards ran on a model with no price\\. The limits do not count them\\.",
-      "$1 cards rodaram em um modelo sem preço. Os limites não os contam."
-    ],
-    [
-      "(\\d+) card ran on a model with no price\\. The limits do not count it\\.",
-      "$1 card rodou em um modelo sem preço. Os limites não o contam."
-    ],
-    [
-      "Running · last cycle (\\d+d \\d+h|\\S+) ago",
-      "Rodando · último ciclo há $1"
-    ],
-    [
-      "· next cycle in (\\d+) min",
-      "· próximo ciclo em $1 min"
-    ],
-    [
-      "next cycle overdue by (\\d+) min",
-      "próximo ciclo atrasado há $1 min"
-    ],
-    [
-      "· next cycle overdue$",
-      "· próximo ciclo atrasado"
-    ],
-    [
-      "^The pace was not changed: (.*)\\. The dispatcher still looks for work every (\\d+) min\\.$",
-      "O ritmo não mudou: $1. O dispatcher continua procurando trabalho a cada $2 min."
-    ],
-    [
-      "dispatcher\\.every_min must be 1, 3, 5 or 10",
-      "dispatcher.every_min deve ser 1, 3, 5 ou 10"
-    ],
-    [
-      ", it took (\\d+)s",
-      ", levou $1s"
-    ],
-    [
-      " and ended with exit (\\d+)",
-      " e terminou com exit $1"
-    ],
-    [
-      "ended with exit (\\d+)",
-      "terminou com exit $1"
-    ],
-    [
-      "The ceiling for every project together\\.",
-      "O teto para todos os projetos juntos."
-    ],
-    [
-      "Writing specs\\.",
-      "Escrevendo specs."
-    ],
-    [
-      "Building a card\\.",
-      "Construindo um card."
-    ],
-    [
-      "Reviewing and opening the pull request\\.",
-      "Revisando e abrindo o pull request."
-    ],
-    [
-      "Merging and deploying\\. Always one card at a time per project\\.",
-      "Fazendo merge e deploy. Sempre um card por vez em cada projeto."
-    ],
-    [
-      "Usually takes (\\d+) minutes\\.",
-      "Costuma levar $1 minutos."
-    ],
-    [
-      "Now: (\\d+) running\\.",
-      "Agora: $1 rodando."
-    ],
-    [
-      "Each e2e test run takes one, on its own ports\\.",
-      "Cada execução de teste e2e ocupa um, com as próprias portas."
-    ],
-    [
-      "Now: (\\d+) of (\\d+) in use\\.",
-      "Agora: $1 de $2 em uso."
-    ],
-    [
-      "The stages ask for (\\d+) sessions and the pool allows (\\d+): stages will wait for each other\\.",
-      "Os estágios pedem $1 sessões e o pool permite $2: os estágios vão esperar uns pelos outros."
-    ],
-    [
-      "The stages can use (\\d+) sessions at most, so (\\d+) of the pool's (\\d+) are never used\\. Raise a stage, or lower the pool\\.",
-      "Os estágios usam no máximo $1 sessões, então $2 das $3 do pool nunca são usadas. Aumente um estágio ou diminua o pool."
-    ],
-    [
-      "The stages add up to the pool: (\\d+) sessions\\.",
-      "Os estágios somam o pool: $1 sessões."
-    ],
-    [
-      "· the repository says no limit",
-      "· o repositório diz sem limite"
-    ],
-    [
-      "· the repository says (\\d+)",
-      "· o repositório diz $1"
-    ],
-    [
-      "\\bno limit ·",
-      "sem limite ·"
-    ],
-    [
-      "\\bminutes ·",
-      "minutos ·"
-    ],
-    [
-      "\\bfiles ·",
-      "arquivos ·"
-    ],
-    [
-      "\\bin (\\S+) on (\\S+)\\. The dispatcher reads it again on every cycle\\.",
-      "em $1 na $2. O dispatcher lê o arquivo de novo a cada ciclo."
-    ],
-    [
-      "(\\d+) changes? not saved\\.",
-      "$1 mudança(s) não salva(s)."
-    ],
-    [
-      "^Pause (\\S+)$",
-      "Pausar $1"
-    ],
-    [
-      "^Resume (\\S+)$",
-      "Retomar $1"
-    ],
-    [
-      "^Minimize more themes$",
-      "Minimizar mais temas"
-    ],
-    [
-      "^Expand more themes$",
-      "Expandir mais temas"
-    ],
-    [
-      "^Minimize (\\S+)$",
-      "Minimizar $1"
-    ],
-    [
-      "^Expand (\\S+)$",
-      "Expandir $1"
-    ],
-    [
-      "\\bStep (\\d+) of (\\d+)",
-      "Passo $1 de $2"
-    ],
-    [
-      "\\bstep (\\d+) of (\\d+)",
-      "passo $1 de $2"
-    ],
-    [
-      "(\\d+) min in this step",
-      "$1 min neste passo"
-    ],
-    [
-      "· finishing\\b",
-      "· finalizando"
-    ],
-    [
-      "(\\d+) in progress",
-      "$1 em andamento"
-    ],
-    [
-      "(\\d+) running · (\\d+) waiting",
-      "$1 rodando · $2 esperando"
-    ],
-    [
-      "^(\\d+) waits? for you$",
-      "$1 esperando você"
-    ],
-    [
-      "(\\d+) of (\\d+) slots?",
-      "$1 de $2 slots"
-    ],
-    [
-      "(\\d+) queued",
-      "$1 na fila"
-    ],
-    [
-      "(\\d+) for you",
-      "$1 para você"
-    ],
-    [
-      "^(\\d+) cards?$",
-      "$1 cards"
-    ],
-    [
-      "Closest to Done first",
-      "Mais perto do fim primeiro"
-    ],
-    [
-      "board read (\\d+d \\d+h|\\S+) ago",
-      "quadro lido há $1"
-    ],
-    [
-      "project paused",
-      "projeto pausado"
-    ],
-    [
-      "(\\d+) failed\\b",
-      "$1 falharam"
-    ],
-    [
-      "(\\d+) clean\\b",
-      "$1 limpas"
-    ],
-    [
-      "^Approve with (.*)$",
-      "Aprovar com $1"
-    ],
-    [
-      "(\\d+) not reviewed\\b",
-      "$1 não revisados"
-    ],
-    [
-      "^Moving to ",
-      "Movendo para "
-    ],
-    [
-      "^moving to ",
-      "movendo para "
-    ],
-    [
-      "^Next waiting: ",
-      "Próximo esperando: "
-    ],
-    [
-      "waits for you: ready to ship",
-      "espera você: pronto para publicar"
-    ],
-    [
-      "waits for you: spec to review",
-      "espera você: spec para revisar"
-    ],
-    [
-      "\\(before (\\w+)\\)",
-      "(antes de $1)"
-    ],
-    [
-      "^The board snapshot is (\\d+) min old\\. Approve and Request changes read the live board first and stop if the card moved\\.$",
-      "A leitura do quadro tem $1 min. Aprovar e Pedir mudanças leem o quadro ao vivo primeiro e param se o card mudou de coluna."
-    ],
-    [
-      "^The dispatcher skips (.*) since (.*?): (.*)\\. A card you move stays where it lands until that is fixed\\.$",
-      "O dispatcher pula $1 desde $2: $3. Um card que você mover fica onde cair até isso ser corrigido."
-    ],
-    [
-      "^Board (\\d+) min old$",
-      "Quadro com $1 min"
-    ],
-    [
-      "^This stage usually takes about (\\d+) min$",
-      "Este estágio costuma levar cerca de $1 min"
-    ],
-    [
-      "^Maximize the session of ",
-      "Maximizar a sessão de "
-    ],
-    [
-      "^Maximize what waits for you$",
-      "Maximizar o que espera você"
-    ],
-    [
-      "^Maximize what is in progress$",
-      "Maximizar o que está em andamento"
-    ],
-    [
-      "^Maximize the lifecycle$",
-      "Maximizar o ciclo de vida"
-    ],
-    [
-      "^Maximize the history$",
-      "Maximizar o histórico"
-    ],
-    [
-      "^Minimize the lifecycle$",
-      "Minimizar o ciclo de vida"
-    ],
-    [
-      "^Minimize the history$",
-      "Minimizar o histórico"
-    ],
-    [
-      "^Expand the lifecycle$",
-      "Expandir o ciclo de vida"
-    ],
-    [
-      "^Expand the history$",
-      "Expandir o histórico"
-    ],
-    [
-      "^Restore what waits for you$",
-      "Restaurar o que espera você"
-    ],
-    [
-      "^Restore what is in progress$",
-      "Restaurar o que está em andamento"
-    ],
-    [
-      "^Restore the lifecycle$",
-      "Restaurar o ciclo de vida"
-    ],
-    [
-      "^Restore the history$",
-      "Restaurar o histórico"
-    ],
-    [
-      "^Message to the (\\w+) run$",
-      "Mensagem para a execução de $1"
-    ],
-    [
-      "^Tell the (\\w+) run what to change\\. It reads this after its current tool call\\.$",
-      "Diga à execução de $1 o que mudar. Ela lê isto depois da chamada de ferramenta atual."
-    ],
-    [
-      "^Nothing to decide: the card is in (.*)\\. Approval opens in Spec Review and Staged\\.$",
-      "Nada a decidir: o card está em $1. A aprovação abre em Spec Review e Staged."
-    ],
-    [
-      "^What should change in (#\\d+)\\? It is posted on the issue\\.$",
-      "O que deve mudar em $1? Vai para a issue."
-    ],
-    [
-      "^and (\\d+) more lines, in the card's worktree$",
-      "e mais $1 linhas, no worktree do card"
-    ],
-    [
-      "^Failed gate: ",
-      "Gate que falhou: "
-    ],
-    [
-      "^Review page for ",
-      "Página de revisão de "
-    ],
-    [
-      "^Run environments in use",
-      "Ambientes de execução em uso"
-    ],
-    [
-      "(\\d+) of (\\d+) reviewed",
-      "$1 de $2 revisados"
-    ],
-    [
-      "(\\d+) changes?\\b",
-      "$1 mudanças"
-    ],
-    [
-      "(\\d+) items? not reviewed yet",
-      "$1 itens ainda não revisados"
-    ],
-    [
-      "^The review asks for ",
-      "A revisão pede "
-    ],
-    [
-      "^Use the review's ",
-      "Usar as da revisão: "
-    ],
-    [
-      "^(#\\d+) was not approved: the decision did not go through\\.$",
-      "$1 não foi aprovado: a decisão não foi aplicada."
-    ],
-    [
-      "^(#\\d+) was not approved: ",
-      "$1 não foi aprovado: "
-    ],
-    [
-      "^(#\\d+) (.*) in a few seconds\\.$",
-      "$1 $2 em alguns segundos."
-    ],
-    [
-      "\\brunning (\\d+) min\\b",
-      "rodando há $1 min"
-    ],
-    [
-      "\\brunning\\b",
-      "rodando"
-    ],
-    [
-      "\\bwaits for you\\b",
-      "espera você"
-    ],
-    [
-      "\\bqueued\\b",
-      "na fila"
-    ],
-    [
-      "^Nothing waits for you$",
-      "Nada espera você"
-    ],
-    [
-      "· Pick the card( ·|$)",
-      "· Escolher o card$1"
-    ],
-    [
-      "· Plan( ·|$)",
-      "· Plano$1"
-    ],
-    [
-      "· Acceptance tests( ·|$)",
-      "· Testes de aceitação$1"
-    ],
-    [
-      "· Implementation( ·|$)",
-      "· Implementação$1"
-    ],
-    [
-      "· Up to date with main( ·|$)",
-      "· Em dia com a main$1"
-    ],
-    [
-      "· Last gates( ·|$)",
-      "· Últimos gates$1"
-    ],
-    [
-      "· Hand over to validation( ·|$)",
-      "· Entrega para validação$1"
-    ],
-    [
-      "· Report( ·|$)",
-      "· Relatório$1"
-    ],
-    [
-      "· UX\\/UI and architecture( ·|$)",
-      "· UX/UI e arquitetura$1"
-    ],
-    [
-      "· Publish for review( ·|$)",
-      "· Publicar para revisão$1"
-    ],
-    [
-      "· Review( ·|$)",
-      "· Revisão$1"
-    ],
-    [
-      "^Waiting for a (\\w+) slot · (\\d+) of (\\d+) busy$",
-      "Esperando um slot de $1 · $2 de $3 ocupados"
-    ],
-    [
-      "^Waiting for the pool · (\\d+) of (\\d+) busy$",
-      "Esperando o pool · $1 de $2 ocupados"
-    ],
-    [
-      "^Queued for (\\w+)$",
-      "Na fila para $1"
-    ],
-    [
-      "^Staged · ",
-      "Pronto para aprovar · "
-    ],
-    [
-      "^Coding · ",
-      "Codificação · "
-    ],
-    [
-      "^Validation · ",
-      "Validação · "
-    ],
-    [
-      "^Inbox · ",
-      "Entrada · "
-    ],
-    [
-      "Records that you take the acceptance tests as they stand\\. The gate passes them and (\\w+) runs again\\.",
-      "Registra que você aceita os testes de aceitação como estão. O gate os aprova e o $1 roda de novo."
-    ],
-    [
-      "Takes the block off and (\\w+) runs again\\.",
-      "Tira o bloqueio e o $1 roda de novo."
-    ],
-    [
-      "Goes back to (.*?) with your note, posted on the issue\\.",
-      "Volta para $1 com a sua nota, publicada na issue."
-    ],
-    [
-      "Stays in Coding with your note, posted on the issue\\.",
-      "Fica em Coding com a sua nota, publicada na issue."
-    ],
-    [
-      "The pull request stays open\\.",
-      "O pull request continua aberto."
-    ],
-    [
-      "^Goes to (.*?)\\.( |$)",
-      "Vai para $1.$2"
-    ],
-    [
-      "(\\w+) has a free slot, so it can start soon\\.",
-      "$1 tem um slot livre, então pode começar logo."
-    ],
-    [
-      "(\\w+) is full \\((\\d+) of (\\d+)(.*?)\\), so it waits its turn\\.",
-      "$1 está cheio ($2 de $3$4), então espera a vez."
-    ],
-    [
-      "\\bgoes back to ",
-      "volta para "
-    ],
-    [
-      "\\bgoes to ",
-      "vai para "
-    ],
-    [
-      "\\bis unblocked and retries\\b",
-      "é desbloqueado e tenta de novo"
-    ],
-    [
-      "\\btakes the tests and continues\\b",
-      "aceita os testes e continua"
-    ],
-    [
-      "\\bReady for Refinement\\b",
-      "Pronto para refinar"
-    ],
-    [
-      "\\bTechnical Refinement\\b",
-      "Refinamento técnico"
-    ],
-    [
-      "\\bSpec Review\\b",
-      "Revisão da spec"
-    ],
-    [
-      "\\bReady for Dev\\b",
-      "Pronto para dev"
-    ],
-    [
-      "\\bReady for Prod\\b",
-      "Pronto para produção"
-    ],
-    [
-      "^· last (\\d+) days$",
-      "· últimos $1 dias"
-    ],
-    [
-      "^(\\d+) days$",
-      "$1 dias"
-    ],
-    [
-      "^See the (\\d+) days before$",
-      "Ver os $1 dias anteriores"
-    ],
-    [
-      "^nothing in the (\\d+) days before$",
-      "nada nos $1 dias anteriores"
-    ],
-    [
-      "^the same as the (\\d+) days before$",
-      "o mesmo que nos $1 dias anteriores"
-    ],
-    [
-      "^est\\. \\$(\\d+)\\.(\\d+) (more|less) than ",
-      "est. $$$1,$2 $3 than "
-    ],
-    [
-      "^(\\d+) days (faster|slower) than ",
-      "$1 dias $2 than "
-    ],
-    [
-      "^1 day (faster|slower) than ",
-      "1 dia $1 than "
-    ],
-    [
-      "^(.+) more than the day before$",
-      "$1 a mais que no dia anterior"
-    ],
-    [
-      "^(.+) more than the (\\d+) days before$",
-      "$1 a mais que nos $2 dias anteriores"
-    ],
-    [
-      "^(.+) fewer than the day before$",
-      "$1 a menos que no dia anterior"
-    ],
-    [
-      "^(.+) fewer than the (\\d+) days before$",
-      "$1 a menos que nos $2 dias anteriores"
-    ],
-    [
-      "^(.+) less than the day before$",
-      "$1 a menos que no dia anterior"
-    ],
-    [
-      "^(.+) less than the (\\d+) days before$",
-      "$1 a menos que nos $2 dias anteriores"
-    ],
-    [
-      "^(.+) faster than the day before$",
-      "$1 mais rápido que no dia anterior"
-    ],
-    [
-      "^(.+) faster than the (\\d+) days before$",
-      "$1 mais rápido que nos $2 dias anteriores"
-    ],
-    [
-      "^(.+) slower than the day before$",
-      "$1 mais lento que no dia anterior"
-    ],
-    [
-      "^(.+) slower than the (\\d+) days before$",
-      "$1 mais lento que nos $2 dias anteriores"
-    ],
-    [
-      "^Runs that ended by day: ",
-      "Execuções encerradas por dia: "
-    ],
-    [
-      "^Runs that ended by hour: ",
-      "Execuções encerradas por hora: "
-    ],
-    [
-      "^Estimated spend by day, \\$(\\d+)\\.(\\d+) in all$",
-      "Gasto estimado por dia, $$$1,$2 no total"
-    ],
-    [
-      "^Estimated spend by hour, \\$(\\d+)\\.(\\d+) in all$",
-      "Gasto estimado por hora, $$$1,$2 no total"
-    ],
-    [
-      ": no run(\\.|$)",
-      ": nenhuma execução$1"
-    ],
-    [
-      ": \\$(\\d+)\\.(\\d+) est\\.",
-      ": $$$1,$2 est."
-    ],
-    [
-      "\\. Open the day$",
-      ". Abrir o dia"
-    ],
-    [
-      "^(\\d+) of (\\d+) runs$",
-      "$1 de $2 execuções"
-    ],
-    [
-      "^(\\d+) runs$",
-      "$1 execuções"
-    ]
-  ]
+  "_": "Brazilian Portuguese for the dashboard (#122). Machine-written from dashboard.en.json; a key missing here comes out in English.",
+  "name": "Português (Brasil)",
+  "messages": {
+    "col.inbox": "Entrada",
+    "col.ready_refine": "Pronto para refinar",
+    "col.refining": "Refinamento técnico",
+    "col.spec_review": "Revisão da spec",
+    "col.ready_dev": "Pronto para dev",
+    "col.coding": "Codificação",
+    "col.validation": "Validação",
+    "col.staged": "Pronto para aprovar",
+    "col.ready_prod": "Pronto para produção",
+    "col.done": "Concluído",
+    "lane.up": "Upstream",
+    "lane.up.what": "da ideia a uma spec que você aprovou",
+    "lane.down": "Downstream",
+    "lane.down.what": "do código à produção",
+    "stage.refine": "Refinar",
+    "stage.develop": "Desenvolver",
+    "stage.validate": "Validar",
+    "stage.deploy": "Deploy",
+    "weight.light": "Leve",
+    "weight.standard": "Normal",
+    "weight.heavy": "Pesado",
+    "step.pick": "Escolher o card",
+    "step.worktree": "Worktree",
+    "step.po": "Product Owner",
+    "step.ux": "UX/UI e arquitetura",
+    "step.cybersec": "Cybersec",
+    "step.publish": "Publicar para revisão",
+    "step.report": "Relatório",
+    "step.plan": "Plano",
+    "step.acceptance": "Testes de aceitação",
+    "step.implementation": "Implementação",
+    "step.last_gates": "Últimos gates",
+    "step.handover": "Entrega para validação",
+    "step.gates": "Gates",
+    "step.review": "Revisão",
+    "step.pr": "Pull request",
+    "gh.title": "Abrir a issue no GitHub",
+    "kind.run": "rodando",
+    "kind.wait": "na fila",
+    "kind.you": "espera você",
+    "kind.stop": "bloqueado, precisa de você",
+    "kind.infra": "bloqueado por infraestrutura, tentando de novo",
+    "err.offline": "o servidor do dashboard não está respondendo",
+    "refused.h": "Este link não é mais válido",
+    "refused.why": "O dashboard não o aceita mais, então esta página parou de atualizar. Para pegar o link atual, rode no terminal:",
+    "refused.then": "Depois abra a URL que ele imprimir. Esta aba fica como está.",
+    "cost.unpriced": "Um modelo deste card não tem preço, então o custo é desconhecido e os limites de custo não o contam. Adicione em ~/.shipfloor/prices.yml.",
+    "cost.over": "acima de {amount} est.",
+    "cost.over.title": "A estimativa deste card passou do aviso definido em Configurações, Custos. Nada para até o limite de bloqueio.",
+    "cost.est": "est.",
+    "cost.est.title": "Estimado pelos tokens das transcrições e por ~/.shipfloor/prices.yml",
+    "card.untitled": "Título não carregado",
+    "card.untitled.title": "O dashboard não conseguiu ler os títulos das issues no GitHub (gh).",
+    "time.day_at": "{day} {time}",
+    "dur.m": "{m}m",
+    "dur.hm": "{h}h{mm}",
+    "dur.dh": "{d}d {h}h",
+    "clock.hm": "{h}h {mm}m",
+    "board.none": "ainda não há leitura do quadro",
+    "board.read_s": "quadro lido há {s}s",
+    "board.read_min": "quadro lido há {m} min",
+    "stacks.slot": "slot {n}: {state}",
+    "head.project": "Projeto",
+    "head.board": "Quadro no GitHub",
+    "head.pool": "Pool",
+    "head.pool.title": "Sessões rodando agora, sobre o tamanho do pool",
+    "head.stacks": "Stacks",
+    "head.stacks.title": "Ambientes de execução em uso",
+    "head.stacks.queue": "+{n} esperando",
+    "head.runs": "Execuções hoje",
+    "head.runs.title": "Execuções de todos os projetos hoje",
+    "head.runs.failed": "{n} falharam",
+    "head.spent": "Gasto est.",
+    "head.spent.many": "Todos os projetos, hoje.",
+    "alert.resume": "Retomar",
+    "alert.resume_failed": "Continua pausado: a retomada não foi aplicada.",
+    "alert.offline": "Offline",
+    "alert.offline.text": "O servidor do dashboard não está respondendo. O <code>shipfloor dashboard</code> ainda está rodando?",
+    "alert.error": "Sem atualizar",
+    "alert.paused": "Fábrica pausada",
+    "alert.paused.text": "Nenhuma execução nova começa. As sessões que já rodam terminam.",
+    "alert.paused.resume": "Retomar a fábrica",
+    "alert.day_stop": "Execuções paradas por hoje",
+    "alert.day_stop.text": "A estimativa de hoje, {spent}, passou do limite do dia de {limit}. As sessões em andamento terminam; as execuções voltam amanhã. O limite fica em Configurações, Custos.",
+    "alert.project_paused": "{project} pausado",
+    "alert.project_paused.text": "Nenhuma execução nova começa nele. As sessões que já rodam terminam.",
+    "alert.project_paused.resume": "Retomar {project}",
+    "alert.usage": "Limite de uso atingido",
+    "alert.usage.text": "Os agentes esperam o limite voltar.",
+    "alert.hours": "Fora do horário de trabalho:",
+    "alert.hours.text": "volta a iniciar às {at}",
+    "alert.skipped": "{project} pulado desde {since}",
+    "alert.skipped.text": "{reason}. Nada anda nele até isso ser corrigido; o Feed tem o log do dispatcher.",
+    "alert.health": "Saúde",
+    "alert.health.text": "{what}. Histórico em <code>~/.shipfloor/logs/health-*.jsonl</code>.",
+    "alert.orphans": "{n, plural, one {# lock órfão} other {# locks órfãos}}",
+    "alert.stuck": "Stack travada",
+    "alert.stuck.text": "Um ambiente de execução não voltou; passe o mouse em Stacks para ver o slot.",
+    "alert.stale": "Quadro com {m} min",
+    "alert.stale.text": "As colunas podem estar desatualizadas. Aprovar e Pedir mudanças ainda leem o quadro ao vivo antes de mover um card.",
+    "btn.restore_esc": "Restaurar (Esc)",
+    "btn.maximize": "Maximizar",
+    "btn.minimize": "Minimizar",
+    "btn.expand": "Expandir",
+    "panel.band.max": "Maximizar o ciclo de vida",
+    "panel.band.restore": "Restaurar o ciclo de vida",
+    "panel.band.min": "Minimizar o ciclo de vida",
+    "panel.band.expand": "Expandir o ciclo de vida",
+    "panel.yours.max": "Maximizar o que espera você",
+    "panel.yours.restore": "Restaurar o que espera você",
+    "panel.work.max": "Maximizar o que está em andamento",
+    "panel.work.restore": "Restaurar o que está em andamento",
+    "projects.none": "Nenhum projeto registrado. Rode <code>shipfloor add &lt;repo&gt;</code>.",
+    "peek.running": "{stage} rodando",
+    "peek.running_min": "{stage} rodando há {m} min",
+    "step.of": "passo {i} de {n} · {label}",
+    "act.review": "Revisão",
+    "act.log": "Log",
+    "peek.open_session": "Abrir sessão",
+    "peek.open_card": "Abrir card",
+    "dot.over": ", acima do aviso de custo",
+    "band.cards": "{n, plural, one {# card} other {# cards}}",
+    "band.slots": "{i} de {n, plural, one {# slot} other {# slots}}",
+    "band.queued": "{n} na fila",
+    "band.for_you": "{n} para você",
+    "band.yours_empty": "para você · vazio",
+    "band.empty": "vazio",
+    "move.to_refine": "mandar para o refinamento",
+    "move.unqueue": "tirar da fila",
+    "move.approve_spec": "aprovar a spec",
+    "move.changes": "pedir mudanças",
+    "move.refine_again": "refinar de novo",
+    "move.ship": "aprovar e publicar",
+    "lock.run": "uma execução está em andamento",
+    "lock.infra": "bloqueado por infraestrutura, a fábrica tenta de novo",
+    "lock.blocked": "ele está bloqueado e espera sua decisão no card",
+    "chip.moving": "Movendo para {column}",
+    "chip.locked": "travado · {why}",
+    "chip.step": "passo {i} de {n}",
+    "chip.in_line": "{i} de {n} na fila",
+    "chip.position": "Posição {i} de {n}",
+    "chip.up": "Subir",
+    "chip.down": "Descer",
+    "chip.place": "Deixar aqui",
+    "chip.move": "Mover",
+    "toast.comment": "Comentar",
+    "act.undo": "Desfazer",
+    "hold.press": "Aperte {n} para {what}",
+    "hold.tap": "Toque para {what}",
+    "hold.drop": "Solte para {what}",
+    "hold.factory": "a fábrica move",
+    "hold.at": "Segurando o #{n}, {i} de {of} em {column}.",
+    "hold.card": "Segurando o #{n}.",
+    "hold.key": "{n} para {what}",
+    "hold.sep": ", ",
+    "hold.keys": "{place} Aperte {keys}, Esc para soltar.",
+    "hold.keys_order": "{place} Aperte {keys}, seta para cima ou para baixo para reordenar, Enter para deixar no lugar, Esc para soltar.",
+    "hold.locked": "#{n} não pode ser movido: {why}.",
+    "hold.factory_card": "Quem move o #{n} é a fábrica.",
+    "hold.let_go": "#{n} solto. Ele não se moveu.",
+    "hold.step": "#{n}, {i} de {of}.",
+    "toast.moved": "#{n} foi para {column}. O quadro confirma na próxima leitura do dispatcher.",
+    "toast.reordered": "#{n} agora é o {i} de {of} em {column}. O quadro confirma na próxima leitura do dispatcher.",
+    "toast.back_at": "#{n} voltou para {i} de {of} em {column}.",
+    "toast.back_in": "#{n} voltou para {column}.",
+    "toast.commented": "Comentário publicado no #{n}.",
+    "move.failed": "#{n} não foi movido: {why}",
+    "move.failed.why": "a movimentação não foi aplicada",
+    "move.gone": "ele não está mais em {column}.",
+    "move.other_gone": "o #{other} não está mais em {column}.",
+    "reorder.failed": "#{n} não foi reordenado: {why}",
+    "reorder.failed.why": "a reordenação não foi aplicada",
+    "comment.failed": "O comentário não foi publicado.",
+    "box.comment_on": "Comentar no #{n}",
+    "box.refine_again_on": "Refinar o #{n} de novo",
+    "box.changes_on": "Pedir mudanças no #{n}",
+    "note.spec": "O que deve mudar na spec?",
+    "note.refine": "O que o refinamento deve fazer diferente?",
+    "note.change": "O que deve mudar?",
+    "box.post": "Publicar comentário",
+    "act.changes": "Pedir mudanças",
+    "box.refine_again": "Refinar de novo",
+    "act.send_back": "Devolver para Coding",
+    "box.optional": "Opcional: um comentário, publicado na issue",
+    "hint.note_first": "Escreva a nota primeiro: ela vai junto com a decisão.",
+    "hint.undo": "Dá para desfazer por alguns segundos depois de confirmar.",
+    "yours.h": "{n, plural, one {# esperando você} other {# esperando você}}",
+    "yours.none": "Nada espera você",
+    "ask.blocked": "Como esta execução deve continuar?",
+    "ask.spec": "Construir esta spec?",
+    "ask.ship": "Publicar em produção?",
+    "room.free": "{stage} tem um slot livre, então pode começar logo.",
+    "room.full": "{stage} está cheio ({i} de {n}), então espera a vez.",
+    "room.full_queued": "{stage} está cheio ({i} de {n}, {q} na fila), então espera a vez.",
+    "opt.the_stage": "estágio",
+    "opt.accept": "As edições estão certas",
+    "opt.accept.when": "Os testes precisaram mudar, e ainda conferem o que a spec pede.",
+    "opt.accept.then": "Registra que você aceita os testes de aceitação como estão. O gate os aprova e o {stage} roda de novo.",
+    "opt.accept.verb": "Aceitar os testes e continuar",
+    "opt.accept.note": "Por que as edições estão certas? Fica registrado com o aceite.",
+    "opt.accept.done": "aceita os testes e continua",
+    "opt.rework": "Precisa de retrabalho",
+    "opt.rework.when": "Algo no trabalho do card está errado.",
+    "opt.rework.stays": "Fica em Coding com a sua nota, publicada na issue.",
+    "opt.rework.back": "Volta para Coding com a sua nota, publicada na issue.",
+    "opt.rework.note": "O que deve ser feito em vez disso?",
+    "opt.rework.done": "volta para Coding",
+    "opt.retry": "Só tentar de novo",
+    "opt.retry.when": "A causa estava fora do card, ou você já a corrigiu.",
+    "opt.retry.then": "Tira o bloqueio e o {stage} roda de novo.",
+    "opt.retry.caveat": "Já parou {n} vezes; sem nada mudar, para de novo.",
+    "opt.retry.verb": "Desbloquear e tentar de novo",
+    "opt.retry.done": "é desbloqueado e tenta de novo",
+    "act.approve": "Aprovar",
+    "opt.approve_spec.when": "Os critérios descrevem o que você quer.",
+    "opt.goes_to": "Vai para {column}.",
+    "opt.answer": "Opcional: sua resposta à pergunta em aberto, publicada na issue",
+    "opt.done_to": "vai para {column}",
+    "opt.changes_spec.when": "Falta algo ou há algo errado na spec.",
+    "opt.back_note": "Volta para {column} com a sua nota, publicada na issue.",
+    "opt.done_back": "volta para {column}",
+    "opt.approve_pr.when": "A mudança é o que você pediu.",
+    "opt.changes_pr.when": "Algo precisa mudar antes de publicar.",
+    "opt.back_note_pr": "Volta para {column} com a sua nota, publicada na issue. O pull request continua aberto.",
+    "diff.more": "e mais {n} linhas, no worktree do card",
+    "cost.spent_unblocked": "Gastou {spent} est. desde o último desbloqueio; o limite por card é {limit}.",
+    "cost.spent_inbox": "Gastou {spent} est. desde o Inbox; o limite por card é {limit}.",
+    "th.stage": "estágio",
+    "th.est_cost": "custo est.",
+    "th.total": "Total",
+    "cost.since_inbox": "{spent} est. desde o Inbox.",
+    "cost.so_far": "{spent} est. até agora",
+    "fact.blocked": "bloqueado",
+    "fact.blocked_ago": "bloqueado há {ago}",
+    "fact.cost_limit": "limite de custo",
+    "fact.stopped": "parou {n} vezes",
+    "fact.gate": "gate: {gate}",
+    "fact.criteria": "{n, plural, one {# critério de aceitação} other {# critérios de aceitação}}",
+    "fact.questions": "{n, plural, one {# pergunta para você} other {# perguntas para você}}",
+    "fact.ci": "CI {ci}",
+    "fact.pr": "PR #{pr} · {files, plural, one {# arquivo} other {# arquivos}} · +{add} −{del}",
+    "read.cost": "Um card chegou ao limite de custo",
+    "read.blocked": "Uma execução parou e precisa de você",
+    "read.spec": "Uma spec está pronta para a sua aprovação",
+    "read.ship": "Um pull request está pronto para publicar",
+    "read.open": "Abrir o card",
+    "read.true_when": "O que será verdade quando estiver pronto",
+    "read.criteria": "Critérios de aceitação",
+    "read.why": "Por quê",
+    "read.where": "Onde parou",
+    "read.stopped_here": "PAROU AQUI",
+    "read.diff": "O que mudou nos testes de aceitação desde que o QA os escreveu",
+    "read.tried": "O que a fábrica já tentou",
+    "read.no_note": "A fábrica não deixou nota sobre este bloqueio. O log mostra o que a execução fez.",
+    "read.asks": "A spec pergunta a você",
+    "read.problem": "Problema",
+    "read.no_page": "Este card ainda não tem página de revisão.",
+    "read.gates": "Gates",
+    "read.validation": "O que a validação disse",
+    "read.nothing": "Ainda não há nada registrado para este card.",
+    "read.open_log": "Abrir o log",
+    "q.blocked": "Bloqueado",
+    "q.blocked_cost": "Bloqueado · limite de custo",
+    "inbox.soon": "#{n} {done} em alguns segundos.",
+    "inbox.none": "Nada espera você. Os cards aparecem aqui quando uma spec ou um PR pronto precisa da sua decisão, ou quando uma execução bloqueia.",
+    "inbox.unblock_cost": "Desbloquear deixa o card gastar até mais {limit}, contados a partir de agora.",
+    "decision.failed": "a decisão não foi aplicada",
+    "pass.blocked": "Bloqueado · espera a sua decisão",
+    "pass.failed_gate": "Gate que falhou: {gate}",
+    "act.unblock": "Desbloquear e tentar de novo",
+    "pass.details": "Detalhes",
+    "pass.what_change": "O que deve mudar em #{n}? Vai para a issue.",
+    "act.cancel": "Cancelar",
+    "why.infra": "A infraestrutura falhou; a fábrica tenta mais uma vez",
+    "why.paused": "Pausado",
+    "why.day_stop": "Parado por hoje pelo limite de custo",
+    "why.usage": "Esperando o limite de uso voltar",
+    "why.skipped": "O dispatcher está pulando este projeto",
+    "why.slot": "Esperando um slot de {stage} · {i} de {n} ocupados",
+    "why.pool": "Esperando o pool · {i} de {n} ocupados",
+    "why.queued": "Na fila para {stage}",
+    "work.h": "{n} em andamento",
+    "work.sub": "{run} rodando · {wait} esperando",
+    "dur.s": "{s}s",
+    "dur.h": "{h}h",
+    "dur.min": "{m} min",
+    "tile.step": "Passo {i} de {n}",
+    "tile.in_step": "{m} min neste passo",
+    "tile.finishing": "finalizando",
+    "tile.no_step": "Nenhum passo reportado ainda",
+    "tile.no_steps": "Este estágio não reporta passos",
+    "tile.max": "Maximizar a sessão de #{n}",
+    "tile.max.title": "Maximizar a sessão",
+    "tile.long": "demorando",
+    "tile.long.title": "Este estágio costuma levar cerca de {m} min",
+    "work.running": "Rodando",
+    "work.waiting": "Esperando",
+    "work.none": "Nada em andamento.",
+    "work.foot": "Mais perto do fim primeiro",
+    "work.paused": "projeto pausado",
+    "chart.hour": "{h}h",
+    "chart.runs.tip": "{h}h: {ok} limpas, {failed} falharam",
+    "chart.spend.tip": "{h}h: {spent}",
+    "th.ended": "terminou",
+    "th.card": "card",
+    "th.result": "resultado",
+    "th.time": "tempo",
+    "th.cost": "custo",
+    "exit.ok": "ok",
+    "exit.n": "exit {n}",
+    "today.runs": "Execuções encerradas, por hora",
+    "today.runs.sum": "{ok} limpas · {failed} falharam",
+    "today.clean": "limpas",
+    "today.failed": "falharam",
+    "today.spend": "Gasto por hora",
+    "today.spend.sum": "{spent} est.",
+    "today.usual": "Um estágio costuma levar",
+    "pass.not_approved": "#{n} não foi aprovado: {why}",
+    "act.failed": "A ação falhou.",
+    "weight.light.lower": "leve",
+    "weight.standard.lower": "normal",
+    "weight.heavy.lower": "pesado",
+    "tab.live": "Ao vivo",
+    "tab.sessions": "Sessões",
+    "tab.log": "Log",
+    "tab.gates": "Gates",
+    "tab.review": "Revisão",
+    "log.loading": "Carregando…",
+    "weight.none": "A spec não diz o peso, então o card roda como normal.",
+    "weight.tag": "peso: {weight}",
+    "model.default": "o modelo padrão",
+    "weight.saving": "Salvando…",
+    "weight.runs_on": "O Develop vai rodar em {model}.",
+    "weight.label": "Peso",
+    "weight.now": "O peso agora é {weight}. O Develop vai rodar em {model}.",
+    "weight.failed": "O peso não foi alterado: {why}",
+    "weight.failed.why": "o pedido falhou.",
+    "head.moving": "movendo para {column}…",
+    "head.running": "{stage} rodando há {clock}",
+    "head.wait_ship": "espera você: pronto para publicar",
+    "head.wait_spec": "espera você: spec para revisar",
+    "head.issue": "issue no GitHub",
+    "head.before": "(antes de {stage})",
+    "head.cost": "custo, da Entrada até agora",
+    "head.sessions": "sessões",
+    "head.span": "da primeira à última execução",
+    "head.report": "último relatório",
+    "head.report.none": "nenhum ainda",
+    "block.infra": "a infraestrutura falhou; a fábrica tenta mais uma vez",
+    "block.owner": "a fábrica parou e espera a sua decisão",
+    "block.report": "Relatório completo",
+    "decide.h": "Sua decisão",
+    "decide.skipped": "O dispatcher pula {project} desde {since}: {reason}. Um card que você mover fica onde cair até isso ser corrigido.",
+    "decide.stale": "A leitura do quadro tem {m} min. Aprovar e Pedir mudanças leem o quadro ao vivo primeiro e param se o card mudou de coluna.",
+    "decide.changes": "O que deve mudar",
+    "decide.changes.ph": "O que deve mudar (vai para a issue)",
+    "rv.not_reviewed": "{n} não revisados",
+    "rv.asked": "{n, plural, one {# mudança pedida} other {# mudanças pedidas}}",
+    "rv.progress": "{i} de {n} revisados",
+    "rv.changes": "{n, plural, one {# mudança} other {# mudanças}}",
+    "rv.nothing": "nada a marcar na revisão",
+    "rv.no_page": "sem página de revisão",
+    "rv.approve_with": "Aprovar com {doubt}",
+    "rv.again": "Clique de novo para mover mesmo assim.",
+    "rv.items_left": "{n, plural, one {# item ainda não revisado} other {# itens ainda não revisados}}",
+    "rv.asks": "A revisão pede {n, plural, one {# mudança} other {# mudanças}}.",
+    "rv.look_first": "Nada foi aprovado: veja a revisão primeiro.",
+    "rv.use": "Usar as da revisão: {n, plural, one {# mudança} other {# mudanças}}",
+    "sessions.none": "Ainda não há sessão da fábrica para este card. As sessões aparecem aqui quando o dispatcher roda um estágio para ele.",
+    "sessions.cache.title": "lido {read} · escrito {written}",
+    "sessions.subs": "+{n} sub",
+    "sessions.stepped": "subiu de modelo",
+    "sessions.stepped.title": "Rodou um modelo acima depois que o {model} falhou em um gate: {gates}.",
+    "sessions.subagent": "subagente",
+    "sessions.h": "Custo por sessão",
+    "th.start": "início",
+    "th.stage_model": "estágio · modelo",
+    "th.input": "entrada",
+    "th.output": "saída",
+    "th.cache": "cache",
+    "th.cache.title": "Cache lido mais cache escrito; passe o mouse numa linha para ver a divisão",
+    "sessions.total": "Total, da Entrada até agora",
+    "live.aria": "O que a sessão diz e faz",
+    "live.say": "Mensagem para a execução de {stage}",
+    "live.say.ph": "Diga à execução de {stage} o que mudar. Ela lê isto depois da chamada de ferramenta atual.",
+    "live.keys": "Enter envia, Shift+Enter começa uma linha nova.",
+    "live.send": "Enviar",
+    "live.off": "Nenhuma execução trabalha neste card agora. Uma mensagem só chega a uma execução em andamento.",
+    "live.waiting": "esperando: a execução lê isto depois da chamada de ferramenta atual",
+    "live.read_sub": "lido por um subagente às {at}",
+    "live.read_run": "lido pela execução às {at}",
+    "live.nothing": "Ainda não há nada para mostrar. A {tab} tem o que a execução escreveu.",
+    "live.log_tab": "aba Log",
+    "live.reading": "Lendo a sessão…",
+    "live.none": "Ainda não há sessão da fábrica para este card.",
+    "live.not_sent": "A mensagem não foi enviada.",
+    "log.none": "Ainda não há log para este card.",
+    "log.file": "Arquivo de log",
+    "log.follows": "acompanha enquanto aberto",
+    "gates.none": "Ainda não há relatório. Cada estágio escreve um ao terminar.",
+    "gates.stage_none": "Sem gates neste estágio.",
+    "review.pr": "pull request",
+    "review.none_pr": "Não há página de revisão para este pull request. A {tab} tem o que a validação verificou; as mudanças estão no {pr}.",
+    "review.gates_tab": "aba Gates",
+    "review.none_spec": "Ainda não há página de revisão. O refine ainda não a montou para esta spec.",
+    "review.none": "Não há página de revisão para este card.",
+    "review.nothing": "Nada a decidir: o card está em {column}. A aprovação abre em Revisão da spec e Staged.",
+    "review.no_column": "nenhuma coluna",
+    "review.frame": "Página de revisão de #{n}",
+    "act.moved": "Movido para {column}. O quadro confirma na próxima leitura do dispatcher.",
+    "act.next": "Próximo esperando: #{n}",
+    "act.no_next": "Nada mais espera você.",
+    "act.commented": "{why}. O comentário está na issue.",
+    "act.retry": "Tentar mover de novo",
+    "stage.refine.help": "Escrevendo specs.",
+    "stage.develop.help": "Construindo um card.",
+    "stage.validate.help": "Revisando e abrindo o pull request.",
+    "stage.deploy.help": "Fazendo merge e deploy. Sempre um card por vez em cada projeto.",
+    "agent.po": "Escreve a seção Product da spec.",
+    "agent.ux": "Escreve a seção UX e confere as telas na validação.",
+    "agent.qa": "Escreve os testes de aceitação antes do código.",
+    "agent.engineer": "Implementa uma camada que não indica um agente próprio.",
+    "agent.cybersec": "Escreve a seção Security e revisa o diff.",
+    "limit.bad": "Informe um valor acima de 0, ou deixe vazio para sem limite.",
+    "limit.warn_above": "O aviso não pode ficar acima do bloqueio ({block}).",
+    "disp.every_n": "{n, plural, one {# minuto} other {# minutos}}",
+    "disp.paused": "Pausada: nenhuma execução nova começa em nenhum projeto. As sessões que já rodam terminam.",
+    "disp.hours_bad": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora.",
+    "disp.no_cycle": "Nenhum ciclo registrado ainda.",
+    "disp.next_in": "próximo ciclo em {m} min",
+    "disp.overdue": "próximo ciclo atrasado",
+    "disp.overdue_by": "próximo ciclo atrasado há {m} min",
+    "disp.cycle": "Rodando · último ciclo há {ago}",
+    "disp.cycle_took": "Rodando · último ciclo há {ago}, levou {took}s",
+    "disp.cycle_exit": "Rodando · último ciclo há {ago} e terminou com exit {exit}",
+    "disp.cycle_took_exit": "Rodando · último ciclo há {ago}, levou {took}s e terminou com exit {exit}",
+    "set.less": "Menos",
+    "set.more": "Mais",
+    "set.on": "Ligado",
+    "set.off": "Desligado",
+    "disp.hours_help": "Janelas como 08:00-23:00, separadas por vírgula. Vazio significa sempre.",
+    "disp.h": "Dispatcher",
+    "disp.every": "Procura trabalho a cada",
+    "disp.no_task": "Só no Windows: esta máquina não tem a tarefa agendada ShipfloorDispatcher. O ritmo é definido por quem agenda o dispatcher aqui.",
+    "disp.hours": "Horário de trabalho",
+    "disp.always": "sempre",
+    "disp.pause": "Pausar a fábrica",
+    "sec.sessions": "Sessões",
+    "sec.sessions.sub": "quanto roda ao mesmo tempo",
+    "sec.models": "Agentes e modelos",
+    "sec.models.sub": "qual modelo roda cada papel",
+    "sec.projects": "Projetos",
+    "sec.projects.none": "nenhum ainda",
+    "sec.costs": "Custos",
+    "sec.costs.sub": "limites e os preços por trás da estimativa",
+    "sec.themes": "Temas",
+    "sec.themes.sub": "a aparência deste dashboard",
+    "sec.notify": "Notificações",
+    "sec.notify.sub": "quando a fábrica precisa de você",
+    "sec.language": "Idioma",
+    "sec.language.sub": "a página e o que a fábrica escreve",
+    "sessions.lead": "Quantas sessões de agente esta máquina roda ao mesmo tempo, no total e por estágio. Uma mudança vale a partir do próximo ciclo do dispatcher; sessões que já rodam nunca são cortadas.",
+    "sessions.pool": "O pool",
+    "sessions.at_once": "Sessões ao mesmo tempo",
+    "sessions.ceiling": "O teto para todos os projetos juntos.",
+    "sessions.now": "Agora: {n} rodando.",
+    "sessions.usually": "Costuma levar {m} minutos.",
+    "sessions.never": "nunca usado",
+    "sessions.over": "Os estágios pedem {sum} sessões e o pool permite {pool}: os estágios vão esperar uns pelos outros.",
+    "sessions.under": "Os estágios usam no máximo {sum} sessões, então {idle} das {pool} do pool nunca são usadas. Aumente um estágio ou diminua o pool.",
+    "sessions.equal": "Os estágios somam o pool: {pool} sessões.",
+    "sessions.envs": "Ambientes de execução",
+    "sessions.stacks": "Stacks locais ao mesmo tempo",
+    "sessions.stacks.help": "Cada execução de teste e2e ocupa um, com as próprias portas.",
+    "sessions.stacks.now": "Agora: {i} de {n} em uso.",
+    "sessions.wait": "Minutos de espera por um stack livre",
+    "sessions.wait.help": "Uma execução que não consegue um a tempo é bloqueada por infraestrutura e tentada de novo uma vez.",
+    "models.default": "Padrão ({model})",
+    "models.w": "{weight}: {text}",
+    "models.default_is": "o padrão é {model}",
+    "models.no_price": "Sem preço para {model} em prices.yml: não dá para estimar o custo.",
+    "models.unknown": "O config.yml diz \"{value}\", que a fábrica não conhece. As execuções usam o padrão até você escolher um modelo.",
+    "models.aria": "Modelo de {who}",
+    "models.aria.light": "Modelo de {who}, cards leves",
+    "models.aria.standard": "Modelo de {who}, cards normais",
+    "models.aria.heavy": "Modelo de {who}, cards pesados",
+    "models.lead": "Em qual modelo roda a sessão de cada estágio e cada agente. O estágio escolhe o modelo pelo peso do card, que o Refine escreve na spec; um card sem peso roda como normal. Uma execução de Develop que falha em um gate roda mais uma vez, um modelo acima. Padrão mantém o modelo que vem com o plugin. A mudança vale a partir do próximo ciclo do dispatcher; as sessões que já estão rodando continuam no modelo delas.",
+    "models.name.weight": "O config.yml cita {key}, que não é um peso. Ele é ignorado.",
+    "models.name.other": "O config.yml cita {key}, que não é um estágio nem um agente daqui. Ele é ignorado.",
+    "models.stages": "Estágios",
+    "models.no_cost": "Nenhuma execução com preço nos últimos 7 dias.",
+    "models.per_card": "por card · {n, plural, one {# card} other {# cards}}, últimos 7 dias",
+    "models.refine": "Roda antes de o card ter peso, então tem um modelo só.",
+    "models.def.claude": "o do Claude Code",
+    "models.agents": "Agentes",
+    "models.project_agent": "Agente do projeto · {project}, camada {layer}",
+    "models.def.session": "o da sessão",
+    "projects.lead": "Os repositórios em que esta fábrica trabalha. Como a fábrica opera num projeto (a pausa e os quatro limites com botões) se decide aqui, para esta máquina. O que o projeto é (seus arquivos, camadas e comandos) faz parte do repositório dele e aparece como foi lido por último.",
+    "knob.none": "sem limite",
+    "knob.cards": "cards",
+    "knob.minutes": "minutos",
+    "knob.files": "arquivos",
+    "knob.repo": "o repositório diz {v}",
+    "knob.repo_none": "o repositório diz sem limite",
+    "projects.board_n": "quadro #{n}",
+    "projects.board": "quadro no GitHub",
+    "fold.expand": "Expandir {what}",
+    "fold.min": "Minimizar {what}",
+    "projects.paused": "O dispatcher pula este projeto. Os outros projetos seguem rodando, e as sessões que já rodam terminam.",
+    "projects.pause": "Pausar {project}",
+    "projects.wip": "Cards em andamento ao mesmo tempo",
+    "projects.wip.help": "Codificação e Validação contam juntas, para os pull requests não se acumularem contra a main. 0 é sem limite.",
+    "projects.refine": "Specs em refinamento ao mesmo tempo",
+    "projects.refine.help": "Cards sendo refinados, antes de esperarem sua aprovação. 0 é sem limite.",
+    "projects.timeout": "Minutos que o deploy espera pelo CI e pela produção",
+    "projects.timeout.help": "Passado esse tempo o deploy para e o card volta para você.",
+    "projects.conflict": "Maior conflito de merge que um agente pode resolver",
+    "projects.conflict.help": "Em arquivos. Um conflito maior volta para Codificação.",
+    "projects.context": "O que os agentes leem sobre o produto",
+    "projects.context.help": "O product owner, o UX e o tech lead partem destes arquivos.",
+    "projects.context.none": "nada definido",
+    "projects.stack": "Stack local para e2e e checagens de UX",
+    "projects.stack.help": "Onde responde a cópia do app de cada execução.",
+    "projects.stack.none": "nenhum",
+    "projects.ci": "CI que o deploy espera",
+    "projects.ci.help": "O workflow cujo resultado decide se um card vai para produção.",
+    "projects.layers": "Camadas",
+    "th.layer": "camada",
+    "th.path": "caminho",
+    "th.stack": "stack",
+    "th.build": "build",
+    "th.tests": "os testes ficam em",
+    "projects.tests_only": "só testes",
+    "projects.from": "Os limites acima ficam nesta máquina, por cima do que o repositório diz. Para mudar o resto, edite <code>.shipfloor/factory.yml</code> em {repo} na {main}. O dispatcher lê o arquivo de novo a cada ciclo.",
+    "projects.the_repo": "o repositório",
+    "theme.auto.sub": "Fita de piso no escuro, Kraft no claro",
+    "theme.auto": "Automático",
+    "theme.tape": "Fita de piso",
+    "theme.kraft": "Kraft",
+    "theme.contrast": "Alto contraste",
+    "theme.charcoal": "Carvão",
+    "theme.dock": "Doca",
+    "theme.machine": "Verde-máquina",
+    "theme.blueprint": "Planta",
+    "theme.foundry": "Fundição",
+    "theme.night": "Turno da noite",
+    "theme.terminal": "Terminal",
+    "theme.steel": "Aço",
+    "theme.paper": "Papel de desenho",
+    "themes.lead": "A aparência deste dashboard. A escolha fica neste navegador e não muda nada na fábrica.",
+    "themes.more": "Mais temas",
+    "themes.in_use": "Em uso: {theme}",
+    "themes.more.min": "Minimizar mais temas",
+    "themes.more.expand": "Expandir mais temas",
+    "themes.dark": "Escuros",
+    "themes.light": "Claros",
+    "lang.dashboard": "Idioma deste dashboard",
+    "lang.lead": "O idioma deste dashboard e o idioma em que a fábrica escreve em cada projeto. O texto que um produto mostra aos próprios usuários não é uma configuração da fábrica: ele é definido nos arquivos que os agentes daquele projeto leem.",
+    "lang.this": "Este dashboard",
+    "lang.saved": "Salvo como {language}. Recarregue a página para ver.",
+    "lang.dashboard.help": "O texto do próprio dashboard. O que os agentes escreveram aparece como foi escrito. Vale quando a página é recarregada.",
+    "lang.factory": "O que a fábrica escreve",
+    "lang.project": "Idioma em que a fábrica escreve em {project}",
+    "lang.as_repo": "Como o repositório diz: {language}",
+    "lang.no_key": "sem a chave language, o padrão da fábrica",
+    "lang.set_here": "definido nesta máquina · o repositório diz {language}",
+    "lang.from": "Fica nesta máquina, por cima do que o repositório diz; o <code>.shipfloor/factory.yml</code> do repositório não é alterado. Uma mudança vale a partir do próximo ciclo do dispatcher; uma sessão que já roda continua no idioma em que começou.",
+    "notify.lead": "A fábrica avisa quando espera você ou para sozinha. Estas configurações são desta máquina, para todos os projetos. Uma mudança vale a partir do próximo ciclo do dispatcher.",
+    "notify.events": "Eventos",
+    "notify.waiting": "Um card espera a sua decisão",
+    "notify.waiting.help": "Entrou em Revisão da spec ou Staged.",
+    "notify.blocked": "Uma execução bloqueou",
+    "notify.blocked.help": "Ela parou e espera a sua decisão.",
+    "notify.reminder": "Lembrar de um card que ainda espera",
+    "notify.reminder.help": "Uma vez por espera, nunca uma por ciclo.",
+    "notify.reminder_min": "Minutos até o lembrete",
+    "notify.reminder_min.help": "Contados de quando o card começou a esperar.",
+    "notify.stuck": "A fábrica travou",
+    "notify.stuck.help": "O limite de uso foi atingido, um projeto foi pulado ou nenhum card andou em uma hora.",
+    "notify.done": "Um card chegou em produção",
+    "notify.done.help": "Não pede nada de você.",
+    "notify.events_off": "Todos os eventos estão desligados: nada é enviado.",
+    "notify.channels": "Canais",
+    "notify.toast": "Notificação do Windows nesta máquina",
+    "notify.toast.help": "Um aviso nesta área de trabalho.",
+    "notify.windows_only": "Só no Windows",
+    "notify.ntfy": "Push no celular",
+    "notify.ntfy.help": "Pelo ntfy.sh. Envia o projeto e o número, o título e o estado do card para esse serviço, e nada mais.",
+    "notify.ntfy.topic_first": "Defina um tópico para ligar.",
+    "notify.topic": "Tópico do ntfy",
+    "notify.topic.help": "Assine o mesmo tópico no app do ntfy. Quem souber o tópico lê estas notificações: escolha um longo e aleatório.",
+    "notify.channels_off": "Nenhum canal está ligado: nada é enviado.",
+    "notify.quiet": "Horário de silêncio",
+    "notify.quiet.help": "Nada é enviado entre estes horários, no relógio desta máquina. Depois, uma notificação lista o que ainda precisa de você. Deixe os dois vazios para não ter.",
+    "notify.from": "De",
+    "notify.to": "Até",
+    "limit.usd": "US$, est.",
+    "limit.lead": "O dashboard estima o custo de um card pelos tokens das execuções dele e por estes preços, em US$ por milhão de tokens.",
+    "limit.limits": "Limites",
+    "limit.warn": "Avisar em um card",
+    "limit.warn.help": "Marca o card cuja estimativa passa disto. Nada para.",
+    "limit.block": "Bloquear um card",
+    "limit.block.help": "A próxima execução não começa e o card espera sua decisão. Desbloquear libera o mesmo valor de novo.",
+    "limit.day": "Parar o dia",
+    "limit.day.help": "Acima disto, somando todos os projetos, nenhuma execução começa até amanhã. As sessões em andamento terminam.",
+    "limit.unpriced": "{n, plural, one {# card rodou em um modelo sem preço. Os limites não o contam.} other {# cards rodaram em um modelo sem preço. Os limites não os contam.}}",
+    "limit.prices": "Preços",
+    "th.model": "modelo",
+    "th.cache_write": "escrita de cache, 1h",
+    "th.cache_read": "leitura de cache",
+    "limit.from": "Para mudar um preço ou incluir um modelo, edite <code>~/.shipfloor/prices.yml</code> (copie do <code>templates/prices.yml</code> do plugin, se ainda não existir).",
+    "set.unsaved": "{n, plural, one {# mudança não salva.} other {# mudanças não salvas.}}",
+    "set.applied": "Vale a partir do próximo ciclo do dispatcher. As sessões que rodam não são tocadas.",
+    "set.reload": "O idioma aparece depois de recarregar.",
+    "lang.project_failed": "O idioma de {project} não foi alterado: {why}. Ele continua escrevendo em {language}.",
+    "set.failed": "As configurações não foram salvas.",
+    "disp.hours_failed": "Horário de trabalho não salvo: escreva cada janela como HH:MM-HH:MM, separadas por vírgula.",
+    "disp.pace_failed": "O ritmo não mudou: {why}. O dispatcher continua procurando trabalho a cada {every} min.",
+    "lang.failed": "O idioma não foi alterado: {why}. Este dashboard continua em {language}.",
+    "set.pause_failed": "A pausa não foi aplicada.",
+    "feed.gates_failed": "gates que falharam: {gates}",
+    "feed.exit": "terminou com exit {n}",
+    "feed.no_gate": "nenhum gate que falhou foi registrado",
+    "feed.stepped": "subiu de {from} para {to}: a execução anterior falhou em {gates}",
+    "feed.again": "roda de novo em {model}",
+    "feed.pr": "PR #{n}",
+    "feed.now_in": "agora em {column}",
+    "feed.step": "Passo {i} de {n}: {label}",
+    "feed.repeat": "{n}× desde {since}",
+    "feed.lost": "sem fim registrado",
+    "feed.running": "rodando {m}m",
+    "feed.filter": "Filtrar o feed",
+    "feed.f.runs": "Execuções",
+    "feed.f.you": "Espera você",
+    "feed.f.bad": "Falhas",
+    "feed.f.run": "Rodando",
+    "feed.f.sys": "Dispatcher",
+    "feed.newest": "Mais recente em cima",
+    "feed.empty": "Nada aqui.",
+    "feed.none": "Nada registrado ainda.",
+    "block.unblock_failed": "O desbloqueio falhou.",
+    "log.empty": "(vazio)",
+    "msg.slow": "Ainda lendo a fábrica. A primeira leitura processa a transcrição de cada execução e pede ao GitHub os títulos das issues, então pode levar alguns segundos.",
+    "nav.view": "Visão",
+    "nav.factory": "Fábrica",
+    "nav.feed": "Feed",
+    "nav.settings": "Configurações",
+    "nav.docs": "Documentação",
+    "msg.reading": "Lendo a fábrica…",
+    "band.aria": "Onde cada card está no pipeline",
+    "band.h": "Ciclo de vida",
+    "band.only": "Só o que eu posso mover",
+    "band.only.none": "Nada para você mover agora.",
+    "legend.run": "rodando, no passo que reportou (1 a N)",
+    "legend.more": "+N: mais cards do que cabem",
+    "inbox.queue": "O que espera você, do mais antigo ao mais novo",
+    "inbox.note": "Sua nota",
+    "keys.next": "próximo",
+    "keys.approve": "aprovar",
+    "keys.review": "revisar",
+    "keys.log": "log",
+    "keys.choose": "escolher",
+    "keys.close": "fechar",
+    "work.foot.title": "O quadro vem da última leitura do dispatcher. Aprovar e Pedir mudanças leem o quadro ao vivo antes de mover um card.",
+    "peek.aria": "Resumo do card",
+    "set.sections": "Seções das configurações",
+    "set.discard": "Descartar",
+    "set.save": "Salvar",
+    "drawer.tabs": "Seções do card",
+    "drawer.max": "Maximizar ou restaurar o card",
+    "drawer.close": "Fechar",
+    "err.overview": "a visão geral respondeu {status}",
+    "err.language": "language deve ser um de {codes}",
+    "err.reminder": "O lembrete aceita de 15 a 720 minutos.",
+    "err.quiet": "O horário de silêncio precisa dos dois horários, e eles não podem ser iguais.",
+    "err.topic": "O tópico aceita letras, dígitos, - e _, até 64.",
+    "err.ntfy_topic": "O push no celular precisa de um tópico.",
+    "err.model.weight": "{key}: não é um peso ({weights})",
+    "err.model.name": "{key}: não é um estágio nem um agente daqui",
+    "err.model.refine": "{key}: deve ser um modelo só (o Refine roda antes de o card ter peso)",
+    "err.model.shape": "{key}: deve ser um mapeamento",
+    "err.model.unknown": "{key}: \"{value}\" não é um modelo que a fábrica conhece ({models})",
+    "err.model.unknown_short": "{key}: \"{value}\" não é um modelo que a fábrica conhece",
+    "err.unsaved": "{line}. Nada foi salvo.",
+    "err.every_min": "dispatcher.every_min deve ser 1, 3, 5 ou 10",
+    "err.not_spec_review": "o card não está mais em Revisão da spec.",
+    "take.redo": "refazer o código a partir da spec aprovada",
+    "take.refine": "refinar a spec de novo",
+    "take.out": "tirar da fábrica",
+    "take.moved_pr": "#{n} movido para {column}; o pull request foi fechado. O quadro confirma na próxima leitura do dispatcher.",
+    "box.take": "Mover #{n} para {column}? O comentário é opcional; ele é publicado na issue.",
+    "box.take.inbox": "Um pull request aberto é fechado; a branch é mantida.",
+    "hist.h": "Histórico",
+    "panel.history.max": "Maximizar o histórico",
+    "panel.history.restore": "Restaurar o histórico",
+    "panel.history.min": "Minimizar o histórico",
+    "panel.history.expand": "Expandir o histórico",
+    "hist.per.today": "· hoje",
+    "hist.per.yesterday": "· ontem",
+    "hist.per.days": "· últimos {n} dias",
+    "hist.bad.future": "Essa data está no futuro.",
+    "hist.bad.order": "A data final é anterior à inicial.",
+    "hist.bad.long": "Escolha no máximo {n} dias.",
+    "err.history": "o histórico respondeu {status}",
+    "hist.period": "Período",
+    "hist.p.today": "Hoje",
+    "hist.p.days": "{n} dias",
+    "hist.p.custom": "Personalizado",
+    "hist.prev": "Período anterior",
+    "hist.next": "Próximo período",
+    "hist.current": "Este é o período atual",
+    "hist.now": "Voltar para agora",
+    "hist.from": "De",
+    "hist.to": "Até",
+    "hist.reading": "Lendo o histórico…",
+    "hist.empty": "Nenhuma execução terminou neste período.",
+    "hist.see_prev": "{n, plural, one {Ver o dia anterior} other {Ver os # dias anteriores}}",
+    "hist.cmp.nothing": "{n, plural, one {nada no dia anterior} other {nada nos # dias anteriores}}",
+    "hist.cmp.same": "{n, plural, one {o mesmo que no dia anterior} other {o mesmo que nos # dias anteriores}}",
+    "hist.cmp.more": "{d} a mais que {n, plural, one {no dia anterior} other {nos # dias anteriores}}",
+    "hist.cmp.fewer": "{d} a menos que {n, plural, one {no dia anterior} other {nos # dias anteriores}}",
+    "hist.cmp.est_more": "est. {d} a mais que {n, plural, one {no dia anterior} other {nos # dias anteriores}}",
+    "hist.cmp.est_less": "est. {d} a menos que {n, plural, one {no dia anterior} other {nos # dias anteriores}}",
+    "hist.cmp.faster": "{d} mais rápido que {n, plural, one {no dia anterior} other {nos # dias anteriores}}",
+    "hist.cmp.slower": "{d} mais lento que {n, plural, one {no dia anterior} other {nos # dias anteriores}}",
+    "hist.cmp.no_price": "sem comparação: falta um preço",
+    "hist.no_done": "nenhum card chegou a Concluído",
+    "hist.span.h": "{h} h",
+    "hist.span.d": "{n, plural, one {# dia} other {# dias}}",
+    "hist.t.done": "Cards concluídos",
+    "hist.t.runs": "Execuções",
+    "hist.t.median": "Inbox a Concluído, mediana",
+    "hist.clean": "{n} limpas",
+    "hist.chart.runs_h": "Execuções encerradas por hora: {ok} limpas, {failed} falharam",
+    "hist.chart.spend_h": "Gasto estimado por hora, {spent} no total",
+    "hist.chart.runs_d": "Execuções encerradas por dia: {ok} limpas, {failed} falharam",
+    "hist.chart.spend_d": "Gasto estimado por dia, {spent} no total",
+    "hist.runs_d": "Execuções encerradas, por dia",
+    "hist.spend_d": "Gasto por dia",
+    "hist.slot": "{day}: {what}",
+    "hist.slot.open": "{day}: {what}. Abrir o dia",
+    "hist.slot.runs": "{ok} limpas, {failed} falharam",
+    "hist.slot.none": "nenhuma execução",
+    "hist.ended": "Execuções encerradas",
+    "hist.shown": "{i} de {n, plural, one {# execução} other {# execuções}}",
+    "hist.runs_n": "{n, plural, one {# execução} other {# execuções}}",
+    "hist.more": "Mostrar mais execuções",
+    "hist.more_failed": "Não foi possível ler as próximas execuções.",
+    "hist.cards": "Cards do período, por custo est.",
+    "th.column": "coluna",
+    "th.runs": "execuções",
+    "hist.th.cost": "Inbox até agora"
+  }
 }

@@ -75,9 +75,22 @@ hours: ["08:00-23:00"]
 
 ## Language
 
-The factory speaks English unless told otherwise. Two keys change that, each `en` (default) or `pt-BR`:
+The factory speaks English unless told otherwise. Two keys change that, each a code of the twelve languages the dashboard ships in: `en` (default), `zh-CN`, `zh-TW`, `es`, `ja`, `de`, `fr`, `pt-BR`, `ru`, `ko`, `it` and `tr`.
 
-- `language` in a project's `.shipfloor/factory.yml`: what people read about that project. The agents write specs, comments, reports and review pages in it; the gates' messages and what the deploy logs and posts on the card come out in it.
-- `language` in `~/.shipfloor/config.yml`: this machine. The dashboard and the dispatcher's own log lines. It can also be set in Settings > Language, which shows each project's language too (read-only).
+- `language` in a project's `.shipfloor/factory.yml`: what people read about that project. The agents write specs, comments, reports and review pages in it; the gates' messages and what the deploy logs and posts on the card come out in it. This machine can override it per project in Settings > Language.
+- `language` in `~/.shipfloor/config.yml`: this machine. The dashboard and the dispatcher's own log lines. It can also be set in Settings > Language, which lists every language under its own name (`Español`, `日本語`).
 
-What other code reads stays in English whatever the language: commit messages, the spec's `##` headings, the markers on a card (`staged-head:`, `deploy-merge:`, `deploy-fix:`, "Factory report"), labels, and the board's column names on GitHub (the dashboard shows them translated). The scripts and the page are written in English and translated where their text leaves them, by the catalogs in `scripts/lang/` (`<code>.sed` for the scripts, `dashboard.<code>.json` for the page): a phrase with no entry there comes out in English, and a new language is a new pair of files plus its code in `LANGS` (`scripts/shipfloor_config.py`).
+What other code reads stays in English whatever the language: commit messages, the spec's `##` headings, the markers on a card (`staged-head:`, `deploy-merge:`, `deploy-fix:`, "Factory report"), labels, and the board's column names on GitHub (the dashboard shows them translated). What the scripts say is translated by `scripts/lang/<code>.sed` and the notifications by `scripts/lang/notify.<code>.json`; only `pt-BR` has those today, and a language without them has the scripts speak English.
+
+### The dashboard's catalogs
+
+Every string the dashboard shows is a message in `scripts/lang/dashboard.<code>.json`, asked for by a stable key (`"tab.log": "Log"`). English is one of these catalogs, not the key: rewording an English message changes nothing in the others, and a key a catalog lacks comes out in English. A message takes values by name (`"#{n} moved to {column}."`) and plural forms by [`Intl.PluralRules`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules) (`"{n, plural, one {# card} other {# cards}}"`, `#` is the number); it may keep the page's own markup (`<code>`, `<b>`). Dates, times, amounts and token counts are formatted by `Intl` in the page's language, and the page declares that language (`<html lang>`), so the browser picks the right glyphs and case rules. Card titles, logs and what the agents wrote are shown as written.
+
+To add a language:
+
+1. Copy `scripts/lang/dashboard.en.json` to `scripts/lang/dashboard.<code>.json`, with `<code>` a BCP 47 tag (`nl`, `pt-PT`). Set `name` to the language's name written in itself and translate every message of `messages`, keeping each `{value}`, the plural syntax with the forms the language needs, and the markup.
+2. Add the code to `LANGS` in `scripts/shipfloor_config.py`, with its English name: the agents read that name to know what to write in.
+3. Optionally, `scripts/lang/<code>.sed` and `scripts/lang/notify.<code>.json`, as `pt-BR`'s, for what the scripts say.
+4. Run `bash scripts/test/dashboard-catalog.test.sh`. It fails when a catalog lacks a key the English one has, carries one it does not, drops or renames a value, lacks a plural form its language needs (add the language to `NEEDS` there), or changes the markup; and when the English catalog lacks a key the page or the server asks for, or keeps one nothing asks for. A language with a right-to-left script needs a mirrored layout the page does not have yet.
+
+A new string on the page is a new key in `dashboard.en.json`, asked for with `t("key", {values})` (`ta()` inside an attribute), and the same key in every other catalog; a server refusal the page shows carries its key too (`shipfloor_config.Msg`).

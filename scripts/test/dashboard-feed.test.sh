@@ -37,7 +37,8 @@ import json, re, sys
 ev = json.load(open(sys.argv[1], encoding="utf-8"))["events"]
 h = open(sys.argv[2], encoding="utf-8").read()
 cat = json.load(open(sys.argv[3], encoding="utf-8"))
-exact, rx = cat.get("exact", {}), [tuple(x) for x in cat.get("rx", [])]
+pt = cat.get("messages", {})  # the page asks for its text by key (#122)
+en = json.load(open(sys.argv[3].replace("pt-BR", "en"), encoding="utf-8"))["messages"]
 res = []
 
 def chk(ok, good, bad):
@@ -57,9 +58,9 @@ def run(n):
 sysev = [e for e in ev if not e.get("issue")]
 gate, noreport, good = run(21), run(22), run(23)
 isline = (re.search(r"^const FEED_IS = .*$", h, re.M) or [""])[0]
-names = (re.search(r"^const FEED_NAMES = .*$", h, re.M) or [""])[0]
+names = {k[len("feed.f."):]: v for k, v in en.items() if k.startswith("feed.f.")}
 keys = re.findall(r"(\w+):\s*\(", isline)
-rf, left, when, hhmm, dl = block("renderFeed"), block("feedLeft"), block("when"), block("hhmm"), block("dateLocale")
+rf, left, when, hhmm = block("renderFeed"), block("feedLeft"), block("when"), block("hhmm")
 undef = r"toLocale\w*\(\s*(undefined|\))"
 
 # ---- AC-1: only run lines show when the Feed opens
@@ -69,20 +70,20 @@ chk(re.search(r'S\.feedFilter \|\| "runs"', rf) is not None, "AC-1 the Feed open
     "AC-1 the default feed filter is %r and not Runs, so dispatcher lines show when the Feed opens" % (re.search(r'S\.feedFilter \|\| "(\w+)"', rf) or [0, "?"])[1])
 chk(re.search(r"\bruns:\s*\(e\)\s*=>\s*e\.issue\s*[,}]", isline) is not None, "AC-1 Runs is every run line and no dispatcher line (e.issue)",
     "AC-1 FEED_IS has no `runs` filter that keeps run lines only (e.issue); keys are %s" % keys)
-chk('runs: "Runs"' in names and '"All"' not in names, "AC-1 the filter is named Runs and no All is left",
-    "AC-1 FEED_NAMES does not name the filter `Runs` or still names `All`: %s" % names.strip())
-chk(exact.get("Runs") == "Execuções", "AC-1 pt-BR names the filter Execuções",
-    "AC-1 the pt-BR catalog has no exact entry Runs -> Execuções (has %r)" % exact.get("Runs"))
+chk(names.get("runs") == "Runs" and "All" not in names.values() and 't(`feed.f.${k}`)' in rf, "AC-1 the filter is named Runs and no All is left",
+    "AC-1 FEED_NAMES does not name the filter `Runs` or still names `All`: %s" % names)
+chk(pt.get("feed.f.runs") == "Execuções", "AC-1 pt-BR names the filter Execuções",
+    "AC-1 the pt-BR catalog has no feed.f.runs Execuções (has %r)" % pt.get("feed.f.runs"))
 
 # ---- AC-2: the Dispatcher filter is unchanged, and no All beside Runs
 chk(keys == ["runs", "you", "bad", "run", "sys"], "AC-2 the filter row is Runs, Waits for you, Failures, Running, Dispatcher",
     "AC-2 the filter row is %s: `all` is still there and Runs does not come first (want runs, you, bad, run, sys)" % keys)
-chk(re.search(r"\bsys:\s*\(e\)\s*=>\s*!e\.issue\b", isline) is not None and 'sys: "Dispatcher"' in names, "AC-2 Dispatcher keeps the dispatcher and stacks lines (!e.issue)",
+chk(re.search(r"\bsys:\s*\(e\)\s*=>\s*!e\.issue\b", isline) is not None and names.get("sys") == "Dispatcher", "AC-2 Dispatcher keeps the dispatcher and stacks lines (!e.issue)",
     "AC-2 the Dispatcher filter changed: FEED_IS/FEED_NAMES no longer read sys: !e.issue / Dispatcher")
-chk('class="fev f-sys"' in rf and "<span>since</span>" in rf and "e.n > 1" in rf, "AC-2 dispatcher rows keep f-sys, the dash mark and the N× since count",
+chk('class="fev f-sys"' in rf and 't("feed.repeat", { n: e.n, since: hhmm(e.since) })' in rf and "e.n > 1" in rf and en.get("feed.repeat") == "{n}× since {since}", "AC-2 dispatcher rows keep f-sys, the dash mark and the N× since count",
     "AC-2 the dispatcher row in renderFeed lost its f-sys class or its `N× since` count")
-chk(exact.get("Dispatcher", "Dispatcher") == "Dispatcher", "AC-2 Dispatcher stays Dispatcher in pt-BR",
-    "AC-2 the pt-BR catalog translates Dispatcher to %r" % exact.get("Dispatcher"))
+chk(pt.get("feed.f.sys") == "Dispatcher", "AC-2 Dispatcher stays Dispatcher in pt-BR",
+    "AC-2 the pt-BR catalog translates Dispatcher to %r" % pt.get("feed.f.sys"))
 texts = {e["text"]: e for e in sysev}
 chk(set(texts) == {"shipfloor: shop: first", "shipfloor: shop: again", "stacks: stack 1 is free"}
     and texts.get("shipfloor: shop: again", {}).get("n") == 2 and texts["stacks: stack 1 is free"].get("source") == "stacks"
@@ -95,12 +96,12 @@ chk(gate.get("failed") == ["build", "lint"] and gate.get("exit") == 4 and gate.g
     "AC-3 the failed run's event does not carry failed=[build, lint], pr 64 and exit 4: %s" % gate)
 chk("last" not in gate, "AC-3 the failed run's event no longer carries the last log line",
     "AC-3 the failed run's event still carries `last` (%r), the last log line shown under the title" % gate.get("last"))
-i_fail, i_pr = left.find("e.failed"), left.find("PR #")
+i_fail, i_pr = left.find("e.failed"), left.find("feed.pr")
 chk(0 <= i_fail < i_pr, "AC-3 feedLeft puts the gate reason before PR #n",
     "AC-3 feedLeft does not open with the failed gates: PR # comes first (e.failed at %d, PR # at %d)" % (i_fail, i_pr))
-chk(0 <= i_fail < left.find("now in") and "gates failed" in left and "fraw" in left, "AC-3 the reason reads `gates failed: <names>` with raw gate names, before `now in`",
+chk(0 <= i_fail < left.find("feed.now_in") and "feed.gates_failed" in left and "fraw" in left and en.get("feed.gates_failed") == "gates failed: {gates}", "AC-3 the reason reads `gates failed: <names>` with raw gate names, before `now in`",
     "AC-3 feedLeft does not put `gates failed: <names>` (class fraw) before `now in <column>`")
-chk(exact.get("gates failed") == "gates que falharam", "AC-3 pt-BR has `gates failed`",
+chk(pt.get("feed.gates_failed") == "gates que falharam: {gates}", "AC-3 pt-BR has `gates failed`",
     "AC-3 the pt-BR catalog lost `gates failed`")
 
 # ---- AC-4: no gate on record: the exit code; never "ok", never a success log line
@@ -108,20 +109,17 @@ chk(noreport.get("exit") == 3 and "failed" not in noreport and noreport.get("col
     "AC-4 the no-report run's event is not exit 3 with no `failed`: %s" % noreport)
 chk("last" not in noreport and "now in Validation" not in json.dumps(noreport), "AC-4 the run's event carries no log line that could read ok",
     "AC-4 the no-gate failed run's event still carries `last`=%r, a success-looking log line under a failed run" % noreport.get("last"))
-chk("ended with exit" in left and "e.exit" in left and re.search(r"<span>no failed gate recorded</span>", left) is not None,
+chk('`${t("feed.exit", { n: e.exit })} · ${t("feed.no_gate")}`' in left and en.get("feed.exit") == "ended with exit {n}" and en.get("feed.no_gate") == "no failed gate recorded",
     "AC-4 feedLeft says `ended with exit <n>` and `no failed gate recorded` in its own span when no gate is on record",
     "AC-4 feedLeft never says `ended with exit <n> · no failed gate recorded` for a failed run with no gate")
-chk(0 <= left.find("ended with exit") < left.find("PR #"), "AC-4 the exit reason comes before PR #n",
+chk(0 <= left.find("feed.exit") < left.find("feed.pr"), "AC-4 the exit reason comes before PR #n",
     "AC-4 the exit reason is not the start of the second line")
 chk(re.search(r"\be\.last\b", h) is None, "AC-4 the page reads no log line (e.last) anywhere",
     "AC-4 the page still reads e.last, the last log line, which can read ok under a failed run")
-chk(exact.get("no failed gate recorded") == "nenhum gate que falhou foi registrado", "AC-4 pt-BR: no failed gate recorded",
-    "AC-4 the pt-BR catalog has no exact entry `no failed gate recorded` (has %r)" % exact.get("no failed gate recorded"))
-pats = [a for a, _ in rx]
-chk(dict(rx).get(r"ended with exit (\d+)") == "terminou com exit $1" and r" and ended with exit (\d+)" in pats
-    and pats.index(r"ended with exit (\d+)") > pats.index(r" and ended with exit (\d+)") if r"ended with exit (\d+)" in pats else False,
-    "AC-4 pt-BR: `ended with exit N` comes after ` and ended with exit N` in the catalog",
-    "AC-4 the pt-BR catalog has no rx `ended with exit (\\d+)` -> `terminou com exit $1` placed after ` and ended with exit (\\d+)`")
+chk(pt.get("feed.no_gate") == "nenhum gate que falhou foi registrado", "AC-4 pt-BR: no failed gate recorded",
+    "AC-4 the pt-BR catalog has no feed.no_gate (has %r)" % pt.get("feed.no_gate"))
+chk(pt.get("feed.exit") == "terminou com exit {n}" and pt.get("disp.cycle_exit", "").endswith("e terminou com exit {exit}"),
+    "AC-4 pt-BR: `ended with exit N` alone and after a cycle", "AC-4 pt-BR feed.exit is %r" % pt.get("feed.exit"))
 
 # ---- AC-5: a run that ended well keeps today's second line
 chk(good.get("exit") == 0 and "last" not in good and good.get("pr") == 65 and good.get("column") == "Staged" and "failed" not in good,
@@ -129,40 +127,21 @@ chk(good.get("exit") == 0 and "last" not in good and good.get("pr") == 65 and go
     "AC-5 the good run's event changed: %s" % good)
 chk(re.search(r"\be\.last\b", left) is None, "AC-5 feedLeft builds the line without e.last",
     "AC-5 feedLeft still builds the second line with e.last")
-chk(0 <= left.find("PR #") < left.find("now in") < left.find("Step "), "AC-5 the good run's line is PR #n, then now in <column>, then the step",
+chk(0 <= left.find("feed.pr") < left.find("feed.now_in") < left.find("\"feed.step\""), "AC-5 the good run's line is PR #n, then now in <column>, then the step",
     "AC-5 feedLeft lost the order PR #n, now in <column>, step")
-chk(exact.get("now in") is not None, "AC-5 pt-BR keeps `now in`", "AC-5 the pt-BR catalog lost `now in`")
+chk(bool(pt.get("feed.now_in")), "AC-5 pt-BR keeps `now in`", "AC-5 the pt-BR catalog lost `now in`")
 
-# ---- AC-6: English: the day header's weekday and month do not come from the browser
-chk("function dateLocale" in dl or dl.startswith("const dateLocale"), "AC-6 the page has one dateLocale() helper",
-    "AC-6 the page has no dateLocale() helper that picks the locale from the dashboard's language")
-chk("document.documentElement.lang" in dl and '"en-US"' in dl and "navigator" not in dl, "AC-6 dateLocale() reads the page's language and falls back to en-US, never the browser's",
-    "AC-6 dateLocale() does not read document.documentElement.lang with an en-US fallback (got %r)" % dl[:120])
-chk(re.search(r"toLocaleDateString\(\s*dateLocale\(\)\s*,\s*\{[^}]*weekday:\s*\"long\"[^}]*month:\s*\"long\"", rf) is not None and re.search(undef, rf) is None,
-    "AC-6 the day header passes dateLocale() to toLocaleDateString (weekday and month long)",
-    "AC-6 the day header (renderFeed) formats with the browser's locale: toLocaleDateString(undefined, ...) instead of dateLocale()")
-chk('class="fday cap"' in rf and re.search(r'head = d === day \? "" : `<li class="fday cap">', rf) is not None, "AC-6 the day header keeps its shape (head = d === day ? ...)",
-    "AC-6 the day header lost its `head = d === day ? \"\" : <li class=\"fday cap\">` shape")
-
-# ---- AC-7: pt-BR: the same header in Portuguese
-chk(re.search(r'documentElement\.lang\s*===?\s*"pt-BR"', dl) is not None and '"pt-BR"' in dl, "AC-7 dateLocale() returns pt-BR when the page is in pt-BR",
-    "AC-7 dateLocale() does not return pt-BR for a page in pt-BR, so the day header would not be in Portuguese")
-chk(re.search(r"dateLocale\(\)", rf) is not None and "toLocaleDateString(undefined" not in rf, "AC-7 the Feed's day header takes that locale",
-    "AC-7 the Feed's day header does not take its locale from dateLocale()")
-chk(re.search(r"document\.documentElement\.lang\s*=\s*body\.language", h) is not None, "AC-7 loadLang() sets the page's language the helper reads",
-    "AC-7 nothing sets document.documentElement.lang from /api/lang")
-
-# ---- AC-8: when() and hhmm() follow the dashboard's language on the whole page
-chk(when != "" and re.search(undef, when) is None and "dateLocale()" in when, "AC-8 when() formats with dateLocale()",
-    "AC-8 when() formats with the browser's locale: toLocale*(undefined, ...) instead of dateLocale()")
-chk(hhmm != "" and re.search(undef, hhmm) is None and "dateLocale()" in hhmm, "AC-8 hhmm() formats with dateLocale()",
-    "AC-8 hhmm() formats with the browser's locale: toLocaleTimeString(undefined, ...) instead of dateLocale()")
-chk('hourCycle: "h23"' in when and 'hourCycle: "h23"' in hhmm, "AC-8 both times are 24-hour (hourCycle h23) in both languages",
-    "AC-8 when() and hhmm() are not both 24-hour (hourCycle: \"h23\"): an English browser would show AM/PM")
-chk(re.search(r'month:\s*"short"', when) is not None and re.search(r'day:\s*"2-digit"\s*,\s*month:\s*"2-digit"', when) is not None
-    and "pt-BR" in when, "AC-8 when() on another day: `Oct 12` in English, `12/10` in pt-BR",
-    "AC-8 when() on another day does not give a month word in English ({month: short, day: numeric}) and day/month in pt-BR")
-
+# ---- AC-6 / AC-7 / AC-8: dates and times in the page's language, never the browser's (#122: Intl, CODE from the
+# catalog the server put in the page, any of its languages)
+fmts = (re.search(r"^const TIME = .*$", h, re.M) or [""])[0] + (re.search(r"^const DAY_LONG = .*$", h, re.M) or [""])[0]
+chk(re.search(r'^const CODE = LANG\.language \|\| "en"', h, re.M) is not None and "navigator" not in h, "AC-6 the page's language is the catalog's, falling back to English, never the browser's",
+    "AC-6 CODE does not come from the catalog the server put in the page")
+chk('TIME = new Intl.DateTimeFormat(CODE, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })' in fmts and 'DAY_LONG = new Intl.DateTimeFormat(CODE, { weekday: "long", day: "numeric", month: "long" })' in fmts,
+    "AC-6 the day header and the times format in the page's language (weekday and month long, 24-hour)", "AC-6 the Intl formats are not the page's language's")
+chk("DAY_LONG.format(new Date(e.ts))" in rf and 'class="fday cap"' in rf and re.search(r'head = d === day \? "" : `<li class="fday cap">', rf) is not None and re.search(undef, rf) is None,
+    "AC-7 the Feed's day header takes that format, in its shape", "AC-7 the Feed's day header does not take DAY_LONG")
+chk("TIME.format(d)" in when and "DAY.format(d)" in when and "TIME.format(new Date(iso))" in hhmm and re.search(undef, when + hhmm) is None,
+    "AC-8 when() and hhmm() format in the page's language, 24-hour", "AC-8 when() or hhmm() do not use the page's formats")
 print("\n".join(res))
 PY
 )"

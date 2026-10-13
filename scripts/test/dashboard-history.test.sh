@@ -108,54 +108,54 @@ is "$(hq "from=$D20&to=$D20" 'print(d["runs"][0]["cost"], d["buckets"][10]["unpr
 # ---- the page (AC-2, AC-3, AC-4, AC-6, AC-7, AC-8), read as text
 out="$("$FACTORY_PYTHON" - "$FACTORY_DIR/dashboard.html" "$FACTORY_DIR/lang/dashboard.pt-BR.json" "$FACTORY_DIR/dashboard.py" <<'PY'
 import json, re, sys
-h = open(sys.argv[1], encoding="utf-8").read()
-cat = json.load(open(sys.argv[2], encoding="utf-8"))
+sys.path.insert(0, sys.argv[1].rsplit("/", 1)[0] + "/test"); import page_text  # the page asks for its text by key (#122)
+raw = open(sys.argv[1], encoding="utf-8").read()
+h = page_text.english(raw)
+EN = page_text.EN
 py = open(sys.argv[3], encoding="utf-8").read()
 res = []
 def check(name, cond, why=""):
     res.append(("ok " if cond else "no ") + (name if cond else f"{name}: {why}"))
-def src(start):
-    i = h.find(start)
+def src(start, text=h):
+    i = text.find(start)
     if i < 0: return ""
-    j = h.find("\n}", i)
-    return h[i:j + 2]
-tel, ctl, step, setp, telx = src("function renderTelem"), src("function renderHistCtl"), src("function histStep"), src("function histSet"), src("function renderTelem")
-def loc(s):  # the page's own rule: exact first, then every rx in order
-    t = s.strip()
-    if t in cat["exact"]: return s.replace(t, cat["exact"][t])
-    for a, b in cat["rx"]:
-        s = re.sub(a, re.sub(r"\$(\d)", r"\\\1", b.replace("$$", "\x00")), s).replace("\x00", "$")
-    return s
+    j = text.find("\n}", i)
+    return text[i:j + 2]
+tel, ctl, step, setp = src("function renderTelem"), src("function renderHistCtl"), src("function histStep"), src("function histSet")
+rtel, rctl = src("function renderTelem", raw), src("function renderHistCtl", raw)
 # AC-2: the period control, the arrows, the custom range
-check("AC-2 the period group has Today, 7 days, 30 days and Custom with aria-pressed", all(x in ctl for x in ('role="group" aria-label="Period"', '"Today"', '"7 days"', '"30 days"', ">Custom<", "aria-pressed")))
+check("AC-2 the period group has Today, 7 days, 30 days and Custom with aria-pressed", all(x in ctl for x in ('role="group" aria-label="Period"', "[1, 7, 30]", ">Custom<", "aria-pressed"))
+      and 't(n === 1 ? "hist.p.today" : "hist.p.days", { n })' in rctl and EN["hist.p.today"] == "Today" and EN["hist.p.days"] == "{n} days")
 check("AC-2 Previous and Next period arrows", 'aria-label="Previous period"' in ctl and 'aria-label="Next period"' in ctl)
 check("AC-2 Next is unavailable at the present, still focusable", 'aria-disabled="true" title="This is the current period"' in ctl and "disabled>" not in ctl)
-check("AC-2 the arrows step by the period's length and never past today", "shift(from, -n)" in step and "> t ? t" in step)
-check("AC-2 a custom range: two date fields with max today", 'type="date"' in ctl and 'max="${t}"' in ctl and "From<" in ctl and "To<" in ctl)
+check("AC-2 the arrows step by the period's length and never past today", "shift(from, -n)" in step and "> now ? now" in step)
+check("AC-2 a custom range: two date fields with max today", 'type="date"' in ctl and 'max="${now}"' in ctl and "From<" in ctl and "To<" in ctl)
 hd = src("function histDates")
-for m in ("The end date is before the start date.", "That date is in the future.", "Pick 92 days at most."):
+for m in ("The end date is before the start date.", "That date is in the future.", "Pick ${HDAYS} days at most."):
     check(f"AC-2 the custom range refuses with {m!r}", m in hd)
+check("AC-2 the longest range is 92 days", "const HDAYS = 92;" in h)
 check("AC-2 a refused range marks its field and keeps the last valid period", 'aria-invalid", "true"' in hd and "return at.setAttribute" in hd)
 # AC-3: a day opens by hour, Back to now
 check("AC-3 a day of a chart by day is a button that asks for that day", 'class="dslot" data-hday=' in tel and "histSet({ from: t.dataset.hday, to: t.dataset.hday })" in h)
 check("AC-3 opening a day moves the focus to Back to now", re.search(r"dataset\.hday\) \{ histSet[^\n]*data-hnow", h) is not None)
-check("AC-3 Back to now shows only away from the present", "${present ? \"\" : '<button class=\"lnk\" data-hnow>Back to now</button>'}" in ctl)
+check("AC-3 Back to now shows only away from the present", '${present ? "" : `<button class="lnk" data-hnow>Back to now</button>`}' in ctl)
 check("AC-3 Back to now returns to the current period of that length", "histSet({ days: histSpan().n })" in h)
 check("AC-3 the arrow keys, Home and End move between the days", all(k in h for k in ('"ArrowLeft", "ArrowRight", "Home", "End"', 'tabindex="${i === f ? 0 : -1}"')))
 # AC-4: the totals in words, never an arrow
 for l in ("Cards done", "Runs", "Spent est.", "Inbox to Done, median"):
     check(f"AC-4 the total {l!r}", f'["{l}"' in tel)
-for w in ("more", "fewer", "the same as ${P}", "nothing in ${P}", "nothing the day before", "no card reached Done", "faster", "slower", "not comparable: a price is missing"):
-    check(f"AC-4 the comparisons say {w!r}", w in tel)
-check("AC-4 no arrow glyph in the comparisons", not re.search("[↑↓▲▼]", tel))
+for k in ("hist.cmp.more", "hist.cmp.fewer", "hist.cmp.same", "hist.cmp.nothing", "hist.no_done", "hist.cmp.faster", "hist.cmp.slower", "hist.cmp.no_price"):
+    check(f"AC-4 the comparisons say {EN[k]!r}", k in rtel)
+check("AC-4 the comparison names the period before", EN["hist.cmp.more"] == "{d} more than {n, plural, one {the day before} other {the # days before}}" and EN["hist.cmp.nothing"] == "{n, plural, one {nothing the day before} other {nothing in the # days before}}")
+check("AC-4 no arrow glyph in the comparisons", not re.search("[↑↓▲▼]", tel + "".join(EN[k] for k in EN if k.startswith("hist."))))
 check("AC-4 a median with no card done is a dash", 'T.median_s == null ? "–"' in tel)
 check("AC-4 a stage usually takes reads the period's figures", "d.typical_s" in tel and "p.typical_s" not in tel)
 # AC-5: the maximized strip and tables
 check("AC-5 maximized, the totals are a strip of four columns", ".maxed .htot { grid-template-columns: repeat(4, minmax(0, 1fr));" in h)
-check("AC-5 the runs table loads more pages on demand", "Show more runs" in tel and "page=${H.page + 1}" in h and " of ${plural(d.runs_total, \"run\")}" in tel)
+check("AC-5 the runs table loads more pages on demand", '"hist.more")' in rtel and EN["hist.more"] == "Show more runs" and "page=${H.page + 1}" in h and 't("hist.shown", { i: rows.length, n: d.runs_total })' in rtel)
 check("AC-5 the cards table, a row opening the card on Sessions", "Cards of the period, by est. cost" in tel and 'data-go="sessions"' in tel)
 # AC-6: the empty period and the missing price
-check("AC-6 an empty period says so and offers the previous one", "No run ended in this period." in tel and "See the day before" in tel and "See the ${n} days before" in tel)
+check("AC-6 an empty period says so and offers the previous one", "No run ended in this period." in tel and 't("hist.see_prev", { n })' in rtel and EN["hist.see_prev"] == "{n, plural, one {See the day before} other {See the # days before}}")
 check("AC-6 the empty period draws no chart", tel.index("if (d.empty)") < tel.index("const totals"))
 check("AC-6 a missing price shows $ ?", "money(null)" in tel and "$ ?" in h)
 # AC-7: the period survives a reload; the summary line stays about today
@@ -165,35 +165,37 @@ check("AC-7 Today, 7 days and 30 days are kept relative to now", "{ days: v.days
 check("AC-7 the history is read only while the panel is open, at most every 10 s", "!S.show.history" in src("async function loadHistory") and "10000" in src("async function loadHistory"))
 check("AC-7 the summary line still reads today's figures", "o.today.runs" in src("function renderStrip") and "o.today.cost" in src("function renderStrip"))
 check("AC-7 the overview no longer carries hours and ended", '"hours": [dict(' not in py and '"ended": sorted(' not in py)
-# AC-8: History, never Today as the panel's name, in both languages
-check("AC-8 the panel is #history, its toggle data-show=history", 'id="history" data-maxable="the history"' in h and 'data-show="history"' in h and 'id="today"' not in h)
-check("AC-8 the heading is History and the period", '<h1 class="g" id="ht"><span>History</span> <span class="hper" id="hper" aria-live="polite">' in h)
-check("AC-8 the heading names the period", all(x in h for x in ('"· today"', '"· yesterday"', "`· last ${s.days} days`", "formatRange")))
-check("AC-8 nothing calls the panel Today", 'aria-label="Minimize today"' not in h and "S.show.today" not in h and ">Today</h1>" not in h)
-pt = {"History": "Histórico", "· today": "· hoje", "· yesterday": "· ontem", "· last 7 days": "· últimos 7 dias", "· last 30 days": "· últimos 30 dias",
-      "Period": "Período", "Today": "Hoje", "7 days": "7 dias", "Custom": "Personalizado", "Previous period": "Período anterior", "Next period": "Próximo período",
-      "This is the current period": "Este é o período atual", "Back to now": "Voltar para agora", "From": "De", "To": "Até",
-      "The end date is before the start date.": "A data final é anterior à inicial.", "That date is in the future.": "Essa data está no futuro.",
-      "Pick 92 days at most.": "Escolha no máximo 92 dias.", "Maximize the history": "Maximizar o histórico", "Restore the history": "Restaurar o histórico",
-      "Minimize the history": "Minimizar o histórico", "Expand the history": "Expandir o histórico",
-      "Cards done": "Cards concluídos", "Inbox to Done, median": "Inbox a Concluído, mediana",
-      "3 more than the 7 days before": "3 a mais que nos 7 dias anteriores", "2 fewer than the day before": "2 a menos que no dia anterior",
-      "the same as the 30 days before": "o mesmo que nos 30 dias anteriores", "the same as the day before": "o mesmo que no dia anterior",
-      "nothing the day before": "nada no dia anterior", "nothing in the 7 days before": "nada nos 7 dias anteriores",
-      "est. $1.20 more than the 7 days before": "est. $1,20 a mais que nos 7 dias anteriores", "est. $0.50 less than the day before": "est. $0,50 a menos que no dia anterior",
-      "12 min faster than the 7 days before": "12 min mais rápido que nos 7 dias anteriores", "2 days slower than the day before": "2 dias mais lento que no dia anterior",
-      "no card reached Done": "nenhum card chegou a Concluído", "not comparable: a price is missing": "sem comparação: falta um preço",
-      "Runs that ended, by day": "Execuções encerradas, por dia", "Spend by day": "Gasto por dia",
-      "Reading the history…": "Lendo o histórico…", "No run ended in this period.": "Nenhuma execução terminou neste período.",
-      "See the day before": "Ver o dia anterior", "See the 7 days before": "Ver os 7 dias anteriores",
-      "Runs that ended": "Execuções encerradas", "50 of 213 runs": "50 de 213 execuções", "213 runs": "213 execuções", "1 run": "1 execução",
-      "Show more runs": "Mostrar mais execuções", "The next runs could not be read.": "Não foi possível ler as próximas execuções.",
-      "Cards of the period, by est. cost": "Cards do período, por custo est.", "Inbox to now": "Inbox até agora",
-      "seg. 6 de out.: no run. Open the day": "seg. 6 de out.: nenhuma execução. Abrir o dia",
-      "seg. 6 de out.: $1.20 est. Open the day": "seg. 6 de out.: $1,20 est. Abrir o dia"}
-for en, want in pt.items():
-    got = loc(en)
-    check(f"AC-8 pt-BR {en!r}", got == want, f"reads {got!r}")
+# AC-8: History, never Today as the panel's name, in every language
+check("AC-8 the panel is #history, its toggle data-show=history", 'id="history" data-maxable="history"' in h and 'data-show="history"' in h and 'id="today"' not in h)
+check("AC-8 the heading is History and the period", '<h1 class="g" id="ht"><span data-i="hist.h">History</span> <span class="hper" id="hper" aria-live="polite">' in h)
+check("AC-8 the heading names the period", all(x in h for x in ('"· today"', '"· yesterday"', "formatRange")) and 't(s.days === 1 ? "hist.per.today" : "hist.per.days", { n: s.days })' in raw and EN["hist.per.days"] == "· last {n} days")
+check("AC-8 nothing calls the panel Today", 'aria-label="Minimize today"' not in h and "S.show.today" not in h and ">Today</h1>" not in h and "panel.today" not in raw)
+R = page_text.render
+pt = [(("hist.h", {}), "Histórico"), (("hist.per.today", {}), "· hoje"), (("hist.per.yesterday", {}), "· ontem"), (("hist.per.days", {"n": 7}), "· últimos 7 dias"),
+      (("hist.per.days", {"n": 30}), "· últimos 30 dias"), (("hist.period", {}), "Período"), (("hist.p.today", {}), "Hoje"), (("hist.p.days", {"n": 7}), "7 dias"),
+      (("hist.p.custom", {}), "Personalizado"), (("hist.prev", {}), "Período anterior"), (("hist.next", {}), "Próximo período"),
+      (("hist.current", {}), "Este é o período atual"), (("hist.now", {}), "Voltar para agora"), (("hist.from", {}), "De"), (("hist.to", {}), "Até"),
+      (("hist.bad.order", {}), "A data final é anterior à inicial."), (("hist.bad.future", {}), "Essa data está no futuro."),
+      (("hist.bad.long", {"n": 92}), "Escolha no máximo 92 dias."), (("panel.history.max", {}), "Maximizar o histórico"), (("panel.history.restore", {}), "Restaurar o histórico"),
+      (("panel.history.min", {}), "Minimizar o histórico"), (("panel.history.expand", {}), "Expandir o histórico"),
+      (("hist.t.done", {}), "Cards concluídos"), (("hist.t.median", {}), "Inbox a Concluído, mediana"),
+      (("hist.cmp.more", {"d": 3, "n": 7}), "3 a mais que nos 7 dias anteriores"), (("hist.cmp.fewer", {"d": 2, "n": 1}), "2 a menos que no dia anterior"),
+      (("hist.cmp.same", {"n": 30}), "o mesmo que nos 30 dias anteriores"), (("hist.cmp.same", {"n": 1}), "o mesmo que no dia anterior"),
+      (("hist.cmp.nothing", {"n": 1}), "nada no dia anterior"), (("hist.cmp.nothing", {"n": 7}), "nada nos 7 dias anteriores"),
+      (("hist.cmp.est_more", {"d": "$1,20", "n": 7}), "est. $1,20 a mais que nos 7 dias anteriores"), (("hist.cmp.est_less", {"d": "$0,50", "n": 1}), "est. $0,50 a menos que no dia anterior"),
+      (("hist.cmp.faster", {"d": "12 min", "n": 7}), "12 min mais rápido que nos 7 dias anteriores"), (("hist.cmp.slower", {"d": {"key": "hist.span.d", "params": {"n": 2}}, "n": 1}), "2 dias mais lento que no dia anterior"),
+      (("hist.no_done", {}), "nenhum card chegou a Concluído"), (("hist.cmp.no_price", {}), "sem comparação: falta um preço"),
+      (("hist.runs_d", {}), "Execuções encerradas, por dia"), (("hist.spend_d", {}), "Gasto por dia"),
+      (("hist.reading", {}), "Lendo o histórico…"), (("hist.empty", {}), "Nenhuma execução terminou neste período."),
+      (("hist.see_prev", {"n": 1}), "Ver o dia anterior"), (("hist.see_prev", {"n": 7}), "Ver os 7 dias anteriores"),
+      (("hist.ended", {}), "Execuções encerradas"), (("hist.shown", {"i": 50, "n": 213}), "50 de 213 execuções"), (("hist.runs_n", {"n": 213}), "213 execuções"), (("hist.runs_n", {"n": 1}), "1 execução"),
+      (("hist.more", {}), "Mostrar mais execuções"), (("hist.more_failed", {}), "Não foi possível ler as próximas execuções."),
+      (("hist.cards", {}), "Cards do período, por custo est."), (("hist.th.cost", {}), "Inbox até agora"),
+      (("hist.slot.open", {"day": "seg. 6 de out.", "what": {"key": "hist.slot.none"}}), "seg. 6 de out.: nenhuma execução. Abrir o dia"),
+      (("hist.slot.open", {"day": "seg. 6 de out.", "what": R("pt-BR", "today.spend.sum", spent="$1,20").rstrip(".")}), "seg. 6 de out.: $1,20 est. Abrir o dia")]  # the page drops the label's own period
+for (k, v), want in pt:
+    got = R("pt-BR", k, **v)
+    check(f"AC-8 pt-BR {k} {v}", got == want, f"reads {got!r}")
 for r in res: print(r)
 PY
 )"

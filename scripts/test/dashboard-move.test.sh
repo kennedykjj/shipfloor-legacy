@@ -126,18 +126,18 @@ case "$page" in *"overview?.moves"*|*"overview.moves"*) pass "AC-3 page: what a 
 
 # AC-8: every new string is in the pt-BR catalog, and no entry translates a column or lane name inside them
 CAT="$FACTORY_DIR/lang/dashboard.pt-BR.json"
-for s in "Only what I can move" "Só o que eu posso mover" "Nothing for you to move right now." "Nada para você mover agora." "na fila" \
-  "travado · uma execução está em andamento" "travado · bloqueado por infraestrutura, a fábrica tenta de novo" "Solte para " "Aperte \$1 para " "Toque para " \
+for s in "Só o que eu posso mover" "Nada para você mover agora." "na fila" \
+  "travado · {why}" "uma execução está em andamento" "bloqueado por infraestrutura, a fábrica tenta de novo" "Solte para " "Aperte {n} para " "Toque para " \
   "mandar para o refinamento" "tirar da fila" "aprovar a spec" "pedir mudanças" "refinar de novo" "aprovar e publicar" "a fábrica move" "Mover" \
-  "Refinar o #\$1 de novo" "O que o refinamento deve fazer diferente?" "Refinar de novo" "Comentar no #\$1" "Opcional: um comentário, publicado na issue" "Publicar comentário" \
-  " foi para " "O quadro confirma na próxima leitura do dispatcher." "Comentar" " voltou para " "Comentário publicado no #\$1." " não foi movido: " \
-  "Segurando o #\$1." "Esc para soltar." " solto. Ele não se moveu." " não pode ser movido: " "Quem move o #\$1 é a fábrica."; do
+  "Refinar o #{n} de novo" "O que o refinamento deve fazer diferente?" "Refinar de novo" "Comentar no #{n}" "Opcional: um comentário, publicado na issue" "Publicar comentário" \
+  " foi para " "O quadro confirma na próxima leitura do dispatcher." "Comentar" " voltou para " "Comentário publicado no #{n}." " não foi movido: " \
+  "Segurando o #{n}." "Esc para soltar." " solto. Ele não se moveu." " não pode ser movido: " "Quem move o #{n} é a fábrica."; do  # values by name since #122
   grep -qF -- "$s" "$CAT" && pass "AC-8 pt-BR catalog: $s" || fail "AC-8 pt-BR catalog lacks: $s"
 done
 if $PY -I -c '
 import json, re, sys
 cat = json.load(open(sys.argv[1], encoding="utf-8"))
-new = [v for k, v in cat["exact"].items() if "#" in k or k.startswith(("Drop", "Press", "Tap", "Holding"))] + [v for k, v in cat["rx"] if re.search(r"moved|not moved|back in|let go|cannot move|Holding|reorder|is now|is back at", k)]
+new = [v for k, v in cat["messages"].items() if k.startswith(("hold.", "toast.", "move.", "reorder.", "chip.", "box."))]
 bad = [v for v in new if re.search(r"Pronto para|Revisão da spec|Codificação|Entrada\b", v)]
 sys.exit(1 if bad else 0)' "$(nat "$CAT")"; then pass "AC-8 the new entries keep the column names in English"; else fail "AC-8 a new entry translates a column name"; fi
 finish

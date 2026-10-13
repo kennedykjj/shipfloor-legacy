@@ -107,7 +107,7 @@ head="$(git -C "$W/7" rev-parse HEAD)"
 printf 'PVTI_7\t7\t👤 Ready for Dev\n' > "$FAKE_GH_DIR/items.tsv"
 post 7 '{"weight":"heavy"}'
 is "$CODE" 409 "AC-6 a card no longer in Spec Review is refused with 409"
-is "$BODY" '{"error": "the card is no longer in Spec Review."}' "AC-6 the 409 says why"
+is "$BODY" '{"error": "the card is no longer in Spec Review.", "errors": [{"key": "err.not_spec_review", "params": {}}]}' "AC-6 the 409 says why, and its key for the page (#122)"
 printf 'PVTI_7\t7\t👤 Spec Review\n' > "$FAKE_GH_DIR/items.tsv"
 mkdir -p "$P/locks/refine-7.lock"; printf '%s %s 7\n' "$$" "$(date +%s)" > "$P/locks/refine-7.lock/info"
 post 7 '{"weight":"heavy"}'
@@ -130,29 +130,25 @@ case "$(bash "$FACTORY_DIR/shipfloor" 2>&1)" in *"weight <slug> <n> <light|stand
 
 # the page carries the drawer's weight, the Sessions tag and the Feed's pieces; the pt-BR catalog has them
 page="$(curl -s "$base/")"
-for s in 'id="weight"' "weight: " "Develop will run on " "Saving…" "Weight is now " "The weight was not changed: " "stepped up" "Ran one model up after " "stepped up from " "runs again on " "/weight\`"; do
+for s in 'id="weight"' "weight: " "Develop will run on " "Saving…" "Weight is now " "The weight was not changed: " "stepped up" "Ran one model up after " "stepped up from " "runs again on " "/weight\`"; do  # the English catalog is in the page (#122)
   case "$page" in *"$s"*) pass "AC-8 the page carries '$s'" ;; *) fail "AC-8 the page has no '$s'" ;; esac
 done
-got="$($PY -I -c '
-import json, re, sys
+got="$($PY -c '
+import sys
 sys.stdout.reconfigure(encoding="ascii", errors="backslashreplace")
-cat = json.load(open(sys.argv[1], encoding="utf-8"))
-def tr(s):
-    if s in cat["exact"]:
-        return cat["exact"][s]
-    for pat, to in cat["rx"]:
-        s = re.sub(pat, re.sub(r"\$(\d)", r"\\\1", to), s)
-    return s
-for s, want in (("weight: heavy", "peso: pesado"), ("weight: standard", "peso: normal"), ("Light (weight)", "Leve"), ("Standard (weight)", "Normal"),
-                ("Heavy (weight)", "Pesado"), ("Weight", "Peso"), ("stepped up", "subiu de modelo"),
-                ("Develop will run on Sonnet.", "O Develop vai rodar em Sonnet."),
-                ("Weight is now heavy. Develop will run on Opus.", "O peso agora " + chr(233) + " pesado. O Develop vai rodar em Opus."),
-                ("The weight was not changed: the card is no longer in Spec Review.", "O peso n" + chr(227) + "o foi alterado: o card n" + chr(227) + "o est" + chr(225) + " mais em Revis" + chr(227) + "o da spec."),
-                ("stepped up from Sonnet to Opus: the run before failed", "subiu de Sonnet para Opus: a execu" + chr(231) + chr(227) + "o anterior falhou em"),
-                ("runs again on Opus", "roda de novo em Opus"), ("Model for Develop, heavy cards", "Modelo de Develop, cards pesados"),
-                ("Heavy: default is Opus", "Pesado: o padr" + chr(227) + "o " + chr(233) + " Opus"),
-                ("The spec names no weight, so the card runs as standard.", "A spec n" + chr(227) + "o diz o peso, ent" + chr(227) + "o o card roda como normal.")):
-    print("ok" if tr(s) == want else "%r comes out %r, want %r" % (s, tr(s), want))' "$(nat "$FACTORY_DIR/lang/dashboard.pt-BR.json")" 2>&1)"
+sys.path.insert(0, sys.argv[1]); from page_text import render  # the page asks for its text by key (#122)
+W = lambda w: {"key": f"weight.{w}.lower"}
+for (k, v), want in ((("weight.tag", {"weight": W("heavy")}), "peso: pesado"), (("weight.tag", {"weight": W("standard")}), "peso: normal"),
+                     (("weight.light", {}), "Leve"), (("weight.standard", {}), "Normal"), (("weight.heavy", {}), "Pesado"), (("weight.label", {}), "Peso"),
+                     (("sessions.stepped", {}), "subiu de modelo"), (("weight.runs_on", {"model": "Sonnet"}), "O Develop vai rodar em Sonnet."),
+                     (("weight.now", {"weight": W("heavy"), "model": "Opus"}), "O peso agora " + chr(233) + " pesado. O Develop vai rodar em Opus."),
+                     (("weight.failed", {"why": {"key": "err.not_spec_review"}}), "O peso n" + chr(227) + "o foi alterado: o card n" + chr(227) + "o est" + chr(225) + " mais em Revis" + chr(227) + "o da spec."),
+                     (("feed.stepped", {"from": "Sonnet", "to": "Opus", "gates": "tests"}), "subiu de Sonnet para Opus: a execu" + chr(231) + chr(227) + "o anterior falhou em tests"),
+                     (("feed.again", {"model": "Opus"}), "roda de novo em Opus"), (("models.aria.heavy", {"who": "Develop"}), "Modelo de Develop, cards pesados"),
+                     (("models.w", {"weight": "Pesado", "text": {"key": "models.default_is", "params": {"model": "Opus"}}}), "Pesado: o padr" + chr(227) + "o " + chr(233) + " Opus"),
+                     (("weight.none", {}), "A spec n" + chr(227) + "o diz o peso, ent" + chr(227) + "o o card roda como normal.")):
+    got = render("pt-BR", k, **v)
+    print("ok" if got == want else "%s comes out %r, want %r" % (k, got, want))' "$(nat "$FACTORY_DIR/test")" 2>&1)"
 while IFS= read -r line; do
   line="${line%$'\r'}"
   [ "$line" = ok ] && pass "AC-8 pt-BR catalog entry" || fail "AC-8 pt-BR catalog: $line"
