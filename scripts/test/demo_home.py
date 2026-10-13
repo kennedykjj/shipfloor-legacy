@@ -165,7 +165,7 @@ def main():
     # atlas: the busy project
     a = "atlas"
     A = home / "projects" / a
-    write(A / "overrides.yml", "limits:\n  develop:\n    wip: 3\n")
+    write(A / "overrides.yml", "limits:\n  develop:\n    wip: 3\nlanguage: pt-BR\n")  # set on this machine: Settings shows the hint
     B0 = max((NOW - timedelta(minutes=90)).replace(minute=0, second=0), MIDNIGHT)  # the hour with a clean and a failed run
     r124 = (today(B0 - timedelta(minutes=55)), today(B0 - timedelta(minutes=35)), 0)
     r129 = (B0 + timedelta(minutes=2), B0 + timedelta(minutes=11), 0)

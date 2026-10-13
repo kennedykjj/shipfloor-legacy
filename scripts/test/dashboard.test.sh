@@ -193,6 +193,31 @@ assert_contains "$(FACTORY_CONFIG="$P/factory.yml" bash "$FACTORY_DIR/shipfloor-
 cp "$P/overrides.yml.keep" "$P/overrides.yml"; rm "$P/overrides.yml.bad" "$P/overrides.yml.keep"
 [ "$(post -d '{"project":"shop","values":{"limits.develop.wip":null,"deploy.timeout_min":null}}' "$base/api/settings/project" -H "$H_TOK")" = 200 ] && [ ! -e "$P/overrides.yml" ] && pass "back to the repository's values" || fail "the overrides were not removed"
 assert_contains "$(knobs)" "$was"
+# the language the factory writes in for a project is an override too (#129): a code of LANGS, or null to go back to the
+# repository; overrides.yml goes when it holds nothing else, and stays with its other keys otherwise
+plang() { curl -s -H "$H_TOK" "$base/api/settings" | $PY -c 'import json,sys; l=json.load(sys.stdin)["projects"][0]["language"]; print(l["code"], l["repo"], l["from"], l["set"])'; }
+cp "$P/factory.yml" "$P/factory.yml.before"
+[ "$(post -d '{"project":"shop","values":{"language":"pt-BR"}}' "$base/api/settings/project" -H "$H_TOK")" = 200 ] && pass "AC-3 a project's language overridden" || fail "AC-3 overriding the language failed"
+assert_contains "$(plang)" "pt-BR en machine False"
+assert_contains "$(cat "$P/overrides.yml")" "language: pt-BR"
+[ "$(post -d '{"project":"shop","values":{"language":null}}' "$base/api/settings/project" -H "$H_TOK")" = 200 ] && [ ! -e "$P/overrides.yml" ] && pass "AC-3 back to the repository's language: overrides.yml deleted" || fail "AC-3 overrides.yml was kept: $(cat "$P/overrides.yml" 2>&1)"
+assert_contains "$(plang)" "en en repository False"
+post -d '{"project":"shop","values":{"language":"pt-BR","deploy.timeout_min":45}}' "$base/api/settings/project" -H "$H_TOK" >/dev/null
+[ "$(post -d '{"project":"shop","values":{"language":null}}' "$base/api/settings/project" -H "$H_TOK")" = 200 ] && [ -e "$P/overrides.yml" ] && pass "AC-3 overrides.yml kept with its other keys" || fail "AC-3 overrides.yml was deleted with a limit still in it"
+if grep -q '^language:' "$P/overrides.yml"; then fail "AC-3 the language override stayed: $(cat "$P/overrides.yml")"; else pass "AC-3 the language override is gone"; fi
+assert_contains "$(cat "$P/overrides.yml")" "timeout_min: 45"
+cp "$P/overrides.yml" "$P/overrides.yml.before"
+# AC-6: a language the factory does not have is refused before any file is written
+for bad in '"xx"' '7' '["en"]' '""'; do
+  resp="$(curl -s -w '\n%{http_code}' -X POST -H 'Content-Type: application/json' -H "$H_TOK" -d "{\"project\":\"shop\",\"values\":{\"language\":$bad}}" "$base/api/settings/project")"
+  [ "${resp##*$'\n'}" = 400 ] && pass "AC-6 language $bad is refused" || fail "AC-6 language $bad answered: $resp"
+  assert_contains "${resp%$'\n'*}" "language must be one of en, pt-BR"
+done
+cmp -s "$P/overrides.yml" "$P/overrides.yml.before" && pass "AC-6 overrides.yml is byte-identical after the refusals" || fail "AC-6 overrides.yml changed: $(cat "$P/overrides.yml")"
+cmp -s "$P/factory.yml" "$P/factory.yml.before" && pass "AC-6 factory.yml was never written" || fail "AC-6 factory.yml changed"
+post -d '{"project":"shop","values":{"deploy.timeout_min":null}}' "$base/api/settings/project" -H "$H_TOK" >/dev/null
+rm -f "$P/overrides.yml.before" "$P/factory.yml.before"
+[ ! -e "$P/overrides.yml" ] && pass "AC-3 no override left" || fail "AC-3 overrides.yml left: $(cat "$P/overrides.yml")"
 # the overview lists the runs that ended today, newest first (the Today panel), and the deploy script's own
 # lock inside a deploy run is not a second run
 printf '== start /sf:refine 12 %sT08:00:00-03:00 pid=1
