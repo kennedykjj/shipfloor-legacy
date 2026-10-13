@@ -9,7 +9,6 @@
 #   accept <slug> <n> <reason>    owner only: take card <n>'s acceptance tests as they stand (acceptance-intact)
 #   weight <slug> <n> <light|standard|heavy>  owner only: card <n>'s weight, in Spec Review (the model its runs take)
 #   dashboard [--port N] [--no-open] [--token T]  local dashboard: pool, runs, logs, cost per card, reviews
-#   migrate-home [OLD]            move the old ~/.aghanim home here (one-time, after the rename; legacy aghanim)
 set -uo pipefail
 HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
@@ -90,7 +89,7 @@ cmd_install() {
     case "$PUT" in replaced) nrep=$((nrep+1)) ;; added) nadd=$((nadd+1)) ;; failed) nbad=$((nbad+1)); echo "shipfloor: could not replace templates/${f#./}" >&2 ;; esac
   done < <(cd "$src/templates" && find . -type f -print)
   mkdir -p "$INSTALLED/templates"
-  # drop what the plugin no longer ships (e.g. the legacy aghanim scripts carried over by migrate-home): scripts, then templates
+  # drop what the plugin no longer ships (a script or template it renamed or removed): scripts, then templates
   while IFS= read -r f; do
     [ -f "$src/scripts/$f" ] || { if rm -f "$INSTALLED/$f" && [ ! -e "$INSTALLED/$f" ]; then ndel=$((ndel+1)); else nbad=$((nbad+1)); echo "shipfloor: could not replace ${f#./}" >&2; fi; }
   done < <(cd "$INSTALLED" && find . -type f ! -name .source ! -name .origin ! -name '.*.install-tmp' ! -path './templates/*' -print)
@@ -121,9 +120,6 @@ cmd_doctor() {
   for t in git gh claude; do command -v "$t" >/dev/null && echo "ok   $t" || { echo "FAIL $t not found"; bad=1; }; done
   if shipfloor_python -c 'import yaml' 2>/dev/null; then echo "ok   python + PyYAML"; else echo "FAIL python 3 with PyYAML (pip install pyyaml)"; bad=1; fi
   gh auth status >/dev/null 2>&1 && echo "ok   gh authenticated" || { echo "FAIL gh auth login"; bad=1; }
-  if [ -d "$HOME/.aghanim" ] && [ ! -e "$SHIPFLOOR_HOME" ]; then  # legacy aghanim home
-    echo "WARN found $HOME/.aghanim from before the rename; run: shipfloor migrate-home"  # legacy aghanim
-  fi
   src="$(source_dir)"
   if [ ! -d "$INSTALLED" ]; then echo "FAIL not installed (shipfloor install)"; bad=1
   elif diff -rq -x test -x .source -x .origin "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
@@ -275,27 +271,6 @@ cmd_dashboard() {  # dashboard [--port N] [--no-open] [--token T]: serves the lo
     --home "$(shipfloor_native "$SHIPFLOOR_HOME")" "$@"
 }
 
-cmd_migrate_home() {  # migrate-home [OLD]: move the legacy aghanim home to $SHIPFLOOR_HOME and relink its worktrees
-  local old="${1:-$HOME/.aghanim}" d  # legacy aghanim home
-  [ -d "$old" ] || die "nothing to migrate: $old does not exist"
-  [ ! -e "$SHIPFLOOR_HOME" ] || die "$SHIPFLOOR_HOME already exists; move or remove it first"
-  if [ -n "$(find "$old/locks" "$old"/projects/*/locks -mindepth 1 -maxdepth 1 -name '*.lock' 2>/dev/null)" ]; then
-    die "runs in progress in $old (locks present); wait for them to end"
-  fi
-  mkdir -p "$(dirname "$SHIPFLOOR_HOME")"
-  mv "$old" "$SHIPFLOOR_HOME" || die "cannot move $old to $SHIPFLOOR_HOME"
-  if [ -f "$REGISTRY" ]; then  # worktree roots inside the old home move with it
-    awk -F'	' -v OFS='	' -v a="$old" -v b="$(shipfloor_native "$old")" -v n="$SHIPFLOOR_HOME" '
-      { for (p in pre) delete pre[p]; pre[a]; pre[b]
-        for (p in pre) if (index($3, p "/") == 1 || $3 == p) { $3 = n substr($3, length(p) + 1); break }
-        print }' "$REGISTRY" > "$REGISTRY.tmp" && mv "$REGISTRY.tmp" "$REGISTRY"
-  fi
-  for d in "$SHIPFLOOR_HOME"/projects/*/control "$SHIPFLOOR_HOME"/projects/*/reports-wt "$SHIPFLOOR_HOME"/projects/*/wt/*; do
-    [ -e "$d/.git" ] && { git -C "$d" worktree repair >/dev/null 2>&1 || echo "shipfloor: could not relink $d (git worktree repair)" >&2; }
-  done
-  echo "moved $old to $SHIPFLOOR_HOME; run 'shipfloor install' and the dispatcher installer next"
-}
-
 cmd_accept() {  # accept <slug> <n> <reason...>: the owner reviewed how card <n>'s acceptance files changed after the QA commit
   # (a merge from main resolved by hand, a setup line main forced, a stub deleted) and takes them as they stand. The gate
   # then passes those exact contents; any later edit blocks again. Recorded in the project's home.
@@ -370,7 +345,6 @@ case "$cmd" in
   pause) cmd_pause "$@" ;;
   resume) cmd_resume "$@" ;;
   setup-board) use "${1:-}"; cd "$FACTORY_HOME/control" && exec bash "$HERE/setup-board.sh" ;;
-  migrate-home) cmd_migrate_home "$@" ;;
   dashboard) cmd_dashboard "$@" ;;
   metrics) use "${1:-}"; exec bash "$HERE/metrics.sh" ;;
   *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;

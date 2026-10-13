@@ -70,10 +70,18 @@ assert_exit 1 bash "$M" pool stage validate 9
 assert_exit 1 bash "$M" pool stage review 1
 assert_contains "$(bash "$M" pool)" "validate: 3"
 
-# doctor tells a machine that still has the old home to migrate it
-fake="$(mktemp -d)"; mkdir -p "$fake/.aghanim"
+# AC-3: doctor says nothing about a leftover ~/.aghanim and leaves it alone
+fake="$(mktemp -d)"; mkdir -p "$fake/.aghanim"; echo keep > "$fake/.aghanim/marker"
 out="$(HOME="$fake" SHIPFLOOR_HOME="$fake/.shipfloor" bash "$M" doctor 2>&1)"
-assert_contains "$out" "shipfloor migrate-home"
+case "$out" in *[Aa]ghanim*|*migrate-home*) fail "AC-3 doctor still warns about ~/.aghanim: $out" ;; *) pass "AC-3 doctor has no warning about ~/.aghanim" ;; esac
+[ "$(cat "$fake/.aghanim/marker" 2>/dev/null)" = keep ] && [ ! -e "$fake/.shipfloor" -o -d "$fake/.shipfloor" ] && pass "AC-3 the ~/.aghanim directory is untouched" || fail "AC-3 doctor touched ~/.aghanim"
+
+# AC-2: migrate-home is gone: unknown command (exit 2), not in help
+assert_exit 2 bash "$M" migrate-home
+help_out="$(bash "$M" help 2>&1; bash "$M" 2>&1 || true)"
+case "$help_out" in *migrate-home*) fail "AC-2 help still lists migrate-home" ;; *) pass "AC-2 help does not list migrate-home" ;; esac
+# the usage is the script's header, so the header and the command table must not carry it either
+grep -q 'migrate-home' "$M" && fail "AC-2 scripts/shipfloor still mentions migrate-home: $(grep -n 'migrate-home' "$M" | head -3)" || pass "AC-2 scripts/shipfloor no longer mentions migrate-home"
 
 # clean removes tmp/<n>/ of cards that are Done or off the board, and keeps the active ones
 assert_exit 0 bash "$M" add "$r"
