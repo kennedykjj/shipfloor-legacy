@@ -221,7 +221,7 @@ main { min-height: 0; display: grid; }
 /* below the line: what waits for the owner, and what the factory is doing */
 .cols { display: grid; grid-template-columns: minmax(320px, 410px) minmax(0, 1fr); gap: 20px; min-height: 0; }
 .side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
-.yours, .work, .telem { padding: 18px 20px 14px; display: flex; flex-direction: column; min-height: 0; } .yours { flex: 0 1000 auto; } .yours:not(.maxed) { min-height: var(--ymin, 0px); } .telem { flex: 0 1 auto; max-height: 60%; min-height: 100px; overflow-y: auto; }  /* Yours gives way first, down to its heading, two cards and foot (fit sets --ymin); then Today, down to its floor, and scrolls inside itself */
+.yours, .work, .telem { padding: 18px 20px 14px; display: flex; flex-direction: column; min-height: 0; } .yours { flex: 0 1000 auto; } .yours:not(.maxed) { min-height: var(--ymin, 0px); } .telem { flex: 0 1 auto; max-height: 60%; min-height: 100px; overflow-y: auto; }  /* Yours gives way first, down to its heading, two cards and foot (fit sets --ymin); then History, down to its floor, and scrolls inside itself */
 .side h1 { font-size: 28px; }
 h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-weight: 500; }
 #list { list-style: none; margin: 12px -6px 0; overflow-y: auto; min-height: var(--two, 0px); padding: 0 6px; }  /* --two: the first two cards whole, set by fit */
@@ -269,8 +269,8 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 @media (max-width: 1180px) { .yours.maxed .inbox { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .ique, .idec { border: 0; overflow: visible; } .iread { overflow: visible; padding-inline: 0; } }
 #list.cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); }
 .telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); }
-/* the shortest column: fit puts .tight on .side only with Today open, when the list floor, the gap and Today's floor do not fit */
-.side.tight { gap: 10px; } .side.tight .yours:not(.maxed) .foot { display: none; } .side.tight #telem h2:first-child { margin-top: 6px; }
+/* the shortest column: fit puts .tight on .side only with History open, when the list floor, the gap and History's floor do not fit */
+.side.tight { gap: 10px; } .side.tight .yours:not(.maxed) .foot { display: none; } .side.tight #telem > :first-child { margin-top: 6px; }
 .pass { border-top: 1px solid var(--hair); padding: 10px 2px 12px; } .pass.hot { background: color-mix(in srgb, var(--ov) 3.5%, transparent); }
 .ptitle { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
 .ptitle .row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -316,6 +316,25 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .chart { display: block; width: 100%; height: 62px; overflow: visible; } .chart text { font: 12px var(--sans); fill: var(--faint); } .chart .base { stroke: color-mix(in srgb, var(--ov) 14.9%, transparent); }
 .key { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 2px; } .key i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--k); }
 .usual { display: grid; grid-template-columns: auto 1fr auto; gap: 5px 10px; align-items: center; font-size: 13px; } .usual i { height: 4px; border-radius: 2px; background: var(--muted); min-width: 2px; } .usual span:last-child { color: var(--soft); }
+/* History: the period control under the heading, the totals over the charts, the day slots that open a day */
+.hper { color: var(--muted); } .telem > h1 { padding-right: 64px; } .telem.maxed > h1 { padding-right: 40px; }
+.hctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 4px; } .hctl .ftools { margin: 0; justify-content: flex-start; gap: 4px 16px; }
+.hnav { display: flex; align-items: center; gap: 4px; } .hnav .max { position: static; color: var(--muted); } .hnav .max[aria-disabled="true"] { opacity: .4; cursor: not-allowed; } .hnav .lnk { margin-left: 8px; font-size: 13px; }
+.hcus { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; } .hcus[hidden] { display: none; } .hcus label { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.hbad { margin: 4px 0 0; font-size: 12px; } .hbad:empty { display: none; }
+.htot { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin: 16px 0 2px; } .htot div { min-width: 0; } .htot dt { font-size: 12px; color: var(--muted); }
+.htot dd { margin: 2px 0 0; font: 500 20px/1.15 var(--cond); } .htot dd.cmp { font: 12px/1.35 var(--sans); color: var(--muted); margin-top: 3px; } .htot .sand { color: var(--sand); }
+.maxed .htot { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; } .maxed .htot div { padding: 0 18px; border-left: 1px solid var(--hair); } .maxed .htot div:first-child { padding-left: 0; border-left: 0; }
+@media (max-width: 860px) { .maxed .htot { grid-template-columns: 1fr 1fr; gap: 12px 0; } .maxed .htot div:nth-child(3) { padding-left: 0; border-left: 0; } }
+.dchart { display: flex; align-items: stretch; width: 100%; } .dslot { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; padding: 0 1px; background: none; border: 0; border-radius: 4px; cursor: pointer; color: var(--faint); font: 12px var(--sans); }
+.dslot:hover, .dslot:focus-visible { background: color-mix(in srgb, var(--ov) 6.0%, transparent); } .dslot:focus-visible { outline: 2px solid var(--sand); outline-offset: 0; }
+.dslot .bars { flex: 1 1 0; min-height: 0; width: 100%; position: relative; border-bottom: 1px solid color-mix(in srgb, var(--ov) 14.9%, transparent); }
+.dslot .stk { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: min(18px, 70%); display: flex; flex-direction: column; gap: 2px; } .maxed .dslot .stk { width: min(64px, 70%); }
+.dslot .stk i { display: block; min-height: 2px; border-radius: 2px; } .dslot .lab { flex: none; line-height: 15px; height: 15px; white-space: nowrap; }
+.dslot i.ok { background: var(--ok); } .dslot i.fl { background: repeating-linear-gradient(45deg, var(--bad) 0 2px, color-mix(in srgb, var(--bad) 22.0%, transparent) 2px 4px); } .dslot i.sp { background: var(--sand); }
+.maxed .dchart { overflow-x: auto; } .maxed .dslot { min-width: 24px; }
+.hmore { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 8px; font-size: 12.5px; color: var(--muted); } .hmore .btn[disabled] { cursor: progress; }
+.hscroll { overflow-x: auto; }
 .clock { margin-left: auto; color: var(--muted); font-size: 12px; }
 /* a block note: the one line that explains, the failed gate, the full report folded */
 .block-note { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--edge-hi); border-radius: 6px; font-size: 12.5px; display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; align-items: start; }
@@ -588,7 +607,7 @@ body.refused .views, body.refused .stats, body.refused #alerts, body.refused #ba
   .yours:not(.maxed) #list, .work:not(.maxed) .tiles, .telem:not(.maxed) .tiles { overflow: visible; }
   .work:not(.maxed) .tiles, .telem:not(.maxed) .tiles { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
   .yours:not(.maxed) #list { min-height: 0; }
-  .side.tight { gap: normal; } .side.tight .yours:not(.maxed) .foot:not([hidden]) { display: flex; } .side.tight #telem h2:first-child { margin-top: 16px; }
+  .side.tight { gap: normal; } .side.tight .yours:not(.maxed) .foot:not([hidden]) { display: flex; } .side.tight #telem > :first-child { margin-top: 16px; }
   .telem:not(.maxed).cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: none; mask-image: none; }
   .drawer.open, .drawer.wide { width: 100%; }
   .disp .hrs { flex-basis: 100%; order: 1; } .disp .hrs input { width: 100%; max-width: 26ch; }
@@ -625,7 +644,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
               <div class="iconf" id="ic" hidden><textarea id="inote" aria-label="Your note" data-i-aria="inbox.note"></textarea><button class="btn approve" id="igo"></button><p class="ihint" id="ihint"></p></div>
               <div class="itoast" id="itoast" role="status" hidden><span id="imsg"></span><button id="iundo" data-i="act.undo">Undo</button></div><p class="pnote" id="ierr" role="status"></p></aside></div>
           <p class="foot cap"><span class="keys-list"><span><kbd>N</kbd><span data-i="keys.next">next</span></span><span><kbd>A</kbd><span data-i="keys.approve">approve</span></span><span><kbd>R</kbd><span data-i="keys.review">review</span></span><span><kbd>L</kbd><span data-i="keys.log">log</span></span></span><span class="keys-inbox"><span><kbd>1–9</kbd><span data-i="keys.choose">choose</span></span><span><kbd>Esc</kbd><span data-i="keys.close">close</span></span></span></p></section>
-        <section class="telem panel" id="today" data-maxable="today" aria-labelledby="ht" hidden><h1 class="g" id="ht" data-i="today.h">Today</h1><button class="max fold" data-show="today" aria-controls="telem" aria-expanded="true" aria-label="Minimize today" title="Minimize" data-i-aria="panel.today.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div id="telem"></div></section>
+        <section class="telem panel" id="history" data-maxable="history" aria-labelledby="ht" hidden><h1 class="g" id="ht"><span data-i="hist.h">History</span> <span class="hper" id="hper" aria-live="polite"></span></h1><button class="max fold" data-show="history" aria-controls="telem" aria-expanded="true" aria-label="Minimize the history" title="Minimize" data-i-aria="panel.history.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="hctl" id="hctl"></div><div class="hcus" id="hcus" hidden></div><p class="bad hbad" id="hbad" role="status"></p><div id="telem"></div></section>
       </div>
       <section class="work panel" data-maxable="work" aria-labelledby="hw"><h1 class="g" id="hw"></h1><div class="tiles" id="tiles"></div>
         <p class="cap" id="wfoot" style="padding-top:12px;margin:auto 0 0" title="The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card." data-i-title="work.foot.title"></p></section>
@@ -696,7 +715,7 @@ const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
 const S = { view: "board", overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "", refused: false,
   expanded: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {}, resuming: null, resumeErr: null,
-  show: { band: true, today: true } };  // what the owner left open on the Factory view: in memory only, open at every load
+  show: { band: true, history: true } };  // what the owner left open on the Factory view: in memory only, open at every load
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
@@ -904,7 +923,7 @@ const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" ? "s
 function renderBoard() {
   if (S.refused) return;
   const p = project();
-  $("cols").hidden = !p; $("band").hidden = $("today").hidden = !p; $("msg").hidden = !!p; $("msg").removeAttribute("role");  // the line follows #cols; the band and Today fold where they sit (show)
+  $("cols").hidden = !p; $("band").hidden = $("history").hidden = !p; $("msg").hidden = !!p; $("msg").removeAttribute("role");  // the line follows #cols; the band and History fold where they sit (show)
   if (!p) { if (S.overview) setHTML($("msg"), t("projects.none")); return; }
   const key = (c) => `${p.slug}/${c.issue}`, by = Object.fromEntries(COLS.map((c) => [c.name, []])), now = Date.now();
   for (const c of p.cards) {
@@ -916,7 +935,7 @@ function renderBoard() {
 }
 // The fold button inside a panel minimizes it to its heading, or opens it again, where it sits. Focus stays on the button.
 function show(which, on) {
-  const el = $(which === "band" ? "band" : "today"), btn = el.querySelector(":scope > .fold");
+  const el = $(which === "band" ? "band" : "history"), btn = el.querySelector(":scope > .fold");
   if (!on && el.classList.contains("maxed")) maximize(el, false);  // restored first, then closed
   if (!on && which === "band" && S.peek) { S.peek = null; $("peek").hidden = true; }  // the peek hangs from a dot of the band
   S.show[which] = on; el.classList.toggle("min", !on); btn.setAttribute("aria-expanded", on);
@@ -998,17 +1017,25 @@ const L = { hold: null, only: false, toast: null, note: "", status: "", box: nul
 const MEANING = { "Inbox>Ready for Refinement": "move.to_refine", "Ready for Refinement>Inbox": "move.unqueue", "Spec Review>Ready for Dev": "move.approve_spec",
   "Spec Review>Ready for Refinement": "move.changes", "Ready for Dev>Ready for Refinement": "move.refine_again", "Staged>Ready for Prod": "move.ship", "Staged>Coding": "move.changes" };
 const meaning = (from, to) => t(MEANING[`${from}>${to}`]);
+// A card blocked for the owner can be taken back (#127): where it may go comes from the overview's take_back (the server
+// holds the table, "*" for every column but Coding and Validation), never its own column; what each drop means.
+const TAKE = { "Ready for Dev": "take.redo", "Ready for Refinement": "take.refine", "Inbox": "take.out" };
+const takeOf = (c) => c.blocked === "owner" ? (S.overview?.take_back?.[c.column] || S.overview?.take_back?.["*"] || []).filter((to) => to !== c.column) : [];
+const means = (h, x) => x.take ? t(TAKE[x.to]) : meaning(h.from, x.to);
 const locked = (lock) => t(`lock.${lock}`);  // run, infra, blocked
 const LOCK = '<svg class="lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
 const LINED = ["Inbox", "Ready for Refinement", "Ready for Dev", "Ready for Prod"];  // a card there shows its place in line
 const cn = (name) => `<span class="cn">${esc(name)}</span>`;  // a column name inside a message: in English in every language
 const movesOf = (col) => S.overview?.moves?.[col] || [];
 const ordered = (col) => (S.overview?.ordered || []).includes(col);
+const queue = (h) => !h.take && ordered(h.from);  // the held card can be reordered in its own column: a blocked card cannot
 const numOf = (k) => +k.split("/")[1];
-// a card the owner can pick up: a From column of the table, no lock, no move of its own on the way (a reorder may go on)
-const movable = (slug, c) => { const k = `${slug}/${c.issue}`, e = S.pending[k]; return movesOf(c.column).length > 0 && !c.lock && !(k in S.moving) && !(e && !e.reorder); };
+// a card the owner can pick up: a From column of the table and no lock, or blocked for the owner and taken back (#127); no
+// move of its own on the way (a reorder may go on)
+const movable = (slug, c) => { const k = `${slug}/${c.issue}`, e = S.pending[k];
+  return (c.lock === "blocked" ? takeOf(c).length > 0 : movesOf(c.column).length > 0 && !c.lock) && !(k in S.moving) && !(e && !e.reorder); };
 // the columns a held card may go to, numbered left to right in board order
-const targets = (h) => movesOf(h.from).map((m) => ({ ...m })).sort((a, b) => COLUMNS.indexOf(a.to) - COLUMNS.indexOf(b.to)).map((m, i) => ({ ...m, n: i + 1 }));
+const targets = (h) => (h.take ? h.take.map((to) => ({ to, take: true })) : movesOf(h.from).map((m) => ({ ...m }))).sort((a, b) => COLUMNS.indexOf(a.to) - COLUMNS.indexOf(b.to)).map((m, i) => ({ ...m, n: i + 1 }));
 function orderFor(slug, col) {  // the order the page shows in a queue until the board agrees: the held card's, a pending reorder's, a sent one's
   const h = L.hold; if (h?.order && h.slug === slug && h.from === col) return h.order;
   const e = Object.values(S.pending).find((v) => v.reorder && v.slug === slug && v.column === col);
@@ -1032,7 +1059,7 @@ function laneCards(p, by, key) {
 function renderLanes(p, by, key, labels) {
   const shown = laneCards(p, by, key), h = L.hold; let any = false;
   const chip = (c, i, list) => { const k = key(c), kind = c.moving ? "wait" : kindOf(k, c), run = kind === "run" && runOf(p.slug, c), of = STEP_COUNT[c.running];
-    const can = !c.moving && movable(p.slug, c), lock = !c.moving && movesOf(c.column).length > 0 && c.lock, bits = [];
+    const can = !c.moving && movable(p.slug, c), lock = !c.moving && !can && (movesOf(c.column).length > 0 || c.lock === "infra") && c.lock, bits = [];
     if (can) any = true;
     if (c.moving) bits.push(t("chip.moving", { column: cn(c.column) }));
     else {
@@ -1045,7 +1072,7 @@ function renderLanes(p, by, key, labels) {
     }
     if (warnSpan(c)) bits.push(warnSpan(c));
     const pos = ordered(c.column) ? `<span class="pos num" aria-hidden="true">${i + 1}</span><span class="vh">${t("chip.position", { i: i + 1, n: list.length })}</span>` : "";
-    const rord = h?.key === k && h.via === "touch" && ordered(h.from) ? `<div class="rord"><button class="btn ghost" data-rord="up"${i ? "" : " disabled"}>${t("chip.up")}</button><button class="btn ghost" data-rord="down"${i < list.length - 1 ? "" : " disabled"}>${t("chip.down")}</button><button class="btn ghost" data-rord="place">${t("chip.place")}</button></div>` : "";
+    const rord = h?.key === k && h.via === "touch" && queue(h) ? `<div class="rord"><button class="btn ghost" data-rord="up"${i ? "" : " disabled"}>${t("chip.up")}</button><button class="btn ghost" data-rord="down"${i < list.length - 1 ? "" : " disabled"}>${t("chip.down")}</button><button class="btn ghost" data-rord="place">${t("chip.place")}</button></div>` : "";
     return `<div class="cw" data-cw="${esc(k)}"><button class="chip ${c.column === "Done" ? "" : kind}${lock ? " locked" : ""}${L.only && !can ? " dimc" : ""}" data-key="${esc(k)}" data-open="${esc(k)}"${can ? ' draggable="true"' : ""}${can ? ' data-mvok aria-pressed="false"' : ""}${lock ? ' aria-disabled="true"' : ""}>${pos}<b class="g">#${c.issue}</b>${c.title ? esc(c.title) : UNTITLED}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}</button>${can ? `<button class="btn ghost mvb" data-mv="${esc(k)}">${t("chip.move")}</button>` : ""}${rord}</div>`; };
   const was = Object.fromEntries([...$("lanes").querySelectorAll(".chip")].map((el) => [el.dataset.key, el.getBoundingClientRect()]));
   const changed = setHTML($("lanes"), LANES.map(([lane, a, b]) => `<h2 class="lane g">${t(lane)}<small>${t(`${lane}.what`)}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
@@ -1067,9 +1094,9 @@ function paintHold() {
   const lanes = $("lanes"), h = L.hold, ts = h ? targets(h) : [];
   lanes.classList.toggle("holding", !!h); lanes.classList.toggle("dragging", h?.via === "drag");
   lanes.querySelectorAll(".lcol").forEach((col) => {
-    const name = col.dataset.col, tg = ts.find((x) => x.to === name), own = !!h && ordered(h.from) && name === h.from;
-    col.classList.toggle("acc", !!tg); col.classList.toggle("off", !!h && !t && !own); if (!tg) col.classList.remove("over");
-    const html = tg ? `<button class="btn ghost acl" data-acc="${esc(tg.to)}">${h.via === "key" ? `<kbd>${tg.n}</kbd>` : ""}<span>${t(h.via === "key" ? "hold.press" : h.via === "touch" ? "hold.tap" : "hold.drop", { n: tg.n, what: meaning(h.from, tg.to) })}</span></button>`
+    const name = col.dataset.col, tg = ts.find((x) => x.to === name), own = !!h && queue(h) && name === h.from;
+    col.classList.toggle("acc", !!tg); col.classList.toggle("off", !!h && !tg && !own); if (!tg) col.classList.remove("over");
+    const html = tg ? `<button class="btn ghost acl" data-acc="${esc(tg.to)}">${h.via === "key" ? `<kbd>${tg.n}</kbd>` : ""}<span>${t(h.via === "key" ? "hold.press" : h.via === "touch" ? "hold.tap" : "hold.drop", { n: tg.n, what: means(h, tg) })}</span></button>`
       : h && !own && col.dataset.stage ? `<span class="fm">${t("hold.factory")}</span>` : "";
     const slot = col.querySelector(".accl"); if (slot._h !== html) { slot._h = html; slot.innerHTML = html; }
   });
@@ -1082,17 +1109,17 @@ function focusChip(k) {
 }
 const shownKeys = (col) => [...$("lanes").querySelectorAll(`.lcol[data-col="${CSS.escape(col)}"] .chip`)].map((el) => el.dataset.key);
 function holdLine(h) {
-  const ks = h.order || h.base, place = ordered(h.from) ? t("hold.at", { n: h.n, i: ks.indexOf(h.key) + 1, of: ks.length, column: cn(h.from) }) : t("hold.card", { n: h.n });
+  const ks = h.order || h.base, place = queue(h) ? t("hold.at", { n: h.n, i: ks.indexOf(h.key) + 1, of: ks.length, column: cn(h.from) }) : t("hold.card", { n: h.n });
   if (h.via !== "key") return place;
-  const ts = targets(h).map((x) => t("hold.key", { n: x.n, what: meaning(h.from, x.to) })).join(t("hold.sep"));
-  return t(ordered(h.from) ? "hold.keys_order" : "hold.keys", { place, keys: ts });
+  const ts = targets(h).map((x) => t("hold.key", { n: x.n, what: means(h, x) })).join(t("hold.sep"));
+  return t(queue(h) ? "hold.keys_order" : "hold.keys", { place, keys: ts });
 }
 // Picks up a card, or says why it cannot be: false when nothing is held.
 function tryHold(k, via) {
   const [slug, n] = k.split("/"), c = cardOf(slug, +n); if (!c || slug !== S.project) return false;
   L.note = "";
   if (!movable(slug, c)) {
-    tell(c.lock && movesOf(c.column).length ? t("hold.locked", { n, why: locked(c.lock) }) : t("hold.factory_card", { n }));
+    tell(c.lock && (movesOf(c.column).length || c.lock === "infra") ? t("hold.locked", { n, why: locked(c.lock) }) : t("hold.factory_card", { n }));
     return false;
   }
   if (L.hold) {  // another card was held: let go of it without drawing, a drag may be starting
@@ -1100,10 +1127,10 @@ function tryHold(k, via) {
     if (pe?.reorder) pe.timer = setTimeout(() => sendPending(old.key), 5000);
   }
   const e = S.pending[k]; if (e?.reorder) clearTimeout(e.timer);  // holding it again continues its reorder: the 5 s start over when it lands
-  L.hold = { key: k, slug, n: +n, from: c.column, via, base: shownKeys(c.column), order: null };
+  L.hold = { key: k, slug, n: +n, from: c.column, via, base: shownKeys(c.column), order: null, take: c.lock === "blocked" ? takeOf(c) : null };
   tell(holdLine(L.hold));
   if (via === "drag") paintHold(); else renderBoard();
-  if (via !== "drag" && !ordered(c.column) && matchMedia("(max-width: 860px)").matches)  // the first column that takes it comes into view
+  if (via !== "drag" && !queue(L.hold) && matchMedia("(max-width: 860px)").matches)  // the first column that takes it comes into view
     $("lanes").querySelector(".lcol.acc")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   return true;
 }
@@ -1117,6 +1144,7 @@ function letGo(quiet) {
 function drop(to) {
   const h = L.hold, t = h && targets(h).find((x) => x.to === to); if (!t) return letGo();
   L.hold = null; L.status = "";
+  if (t.take) { renderBoard(); return openBox({ key: h.key, from: h.from, to, take: true }); }
   if (!t.note && OWNER[h.from]?.[0] === to) {  // an approval asks the drawer's question, as the list's Approve does
     const r = S.review[h.key], doubt = reviewDoubt(r), unseen = !r && cardOf(h.slug, h.n)?.review;
     if (doubt || unseen) { renderBoard(); return lookFirst(h.key, doubt); }
@@ -1188,21 +1216,26 @@ function settleLanes() {
   const t = L.toast; if (t && (t.sent && !(t.key in S.moving) && !(t.ck && L.order[t.ck]) || t.done && Date.now() - (t.at ||= Date.now()) > 6000)) L.toast = null;
   const h = L.hold, c = h && cardOf(h.slug, h.n); if (h && (!c || c.column !== h.from)) { L.hold = null; L.status = ""; }  // it moved on the board meanwhile
 }
-// The note box: required for M4, M5 and M7; optional for the toast's Comment.
+// The note box: required for M4, M5 and M7; optional for the toast's Comment and for a blocked card taken back (#127),
+// whose "Move" is the confirmation: it is never disabled and no Undo follows.
 function openBox(b) {
   L.box = b; const n = numOf(b.key), m = `${b.from}>${b.to}`, el = $("mbox");
-  $("mbox-h").textContent = t(b.optional ? "box.comment_on" : m === "Ready for Dev>Ready for Refinement" ? "box.refine_again_on" : "box.changes_on", { n });
+  if (b.take) $("mbox-h").innerHTML = t("box.take", { n, column: cn(b.to) });
+  else $("mbox-h").textContent = t(b.optional ? "box.comment_on" : m === "Ready for Dev>Ready for Refinement" ? "box.refine_again_on" : "box.changes_on", { n });
   $("mnote").value = ""; $("mnote").placeholder = b.optional ? "" : t({ "Spec Review>Ready for Refinement": "note.spec", "Ready for Dev>Ready for Refinement": "note.refine" }[m] || "note.change");
-  $("mgo").textContent = t(b.optional ? "box.post" : { "Spec Review>Ready for Refinement": "act.changes", "Ready for Dev>Ready for Refinement": "box.refine_again" }[m] || "act.send_back");
+  $("mgo").textContent = t(b.take ? "chip.move" : b.optional ? "box.post" : { "Spec Review>Ready for Refinement": "act.changes", "Ready for Dev>Ready for Refinement": "box.refine_again" }[m] || "act.send_back");
   boxHint(); el.hidden = false;
   const lab = $("lanes").querySelector(`.lcol[data-col="${CSS.escape(b.to)}"] .lab`)?.getBoundingClientRect() || { left: 12, bottom: 80 };
   el.style.left = `${Math.max(12, Math.min(lab.left, innerWidth - el.offsetWidth - 12))}px`; el.style.top = `${Math.min(lab.bottom + 8, innerHeight - el.offsetHeight - 12)}px`;
   $("mnote").focus();
 }
-function boxHint() { const empty = !$("mnote").value.trim(); $("mgo").disabled = empty; $("mhint").textContent = t(L.box?.optional ? "box.optional" : empty ? "hint.note_first" : "hint.undo"); }
+function boxHint() {
+  if (L.box?.take) { $("mgo").disabled = false; $("mhint").textContent = L.box.to === "Inbox" ? t("box.take.inbox") : ""; return; }
+  const empty = !$("mnote").value.trim(); $("mgo").disabled = empty; $("mhint").textContent = t(L.box?.optional ? "box.optional" : empty ? "hint.note_first" : "hint.undo"); }
 function closeBox() { const b = L.box; L.box = null; $("mbox").hidden = true; if (b) focusChip(b.key); }
 async function sendBox() {
-  const b = L.box, text = $("mnote").value.trim(); if (!b || !text) return;
+  const b = L.box, text = $("mnote").value.trim(); if (!b || !text && !b.take) return;
+  if (b.take) { L.box = null; $("mbox").hidden = true; return takeBack(b, text); }
   closeBox();
   if (!b.optional) return pendMove(b.key, b.from, b.to, text, false);
   const e = S.pending[b.key]; if (e?.move) { e.text = text; return; }  // the move has not left: the comment goes with it, and Undo drops both
@@ -1210,6 +1243,19 @@ async function sendBox() {
   if (status === 200) L.toast = { key: b.key, html: t("toast.commented", { n }), done: true }; else L.note = esc(told(body, "comment.failed"));
 
   renderBoard();
+}
+// A blocked card taken back (#127): it sits in its new column, "Moving to", until the answer; a failure puts it back, still
+// blocked, with the reason kept until the next pick-up.
+async function takeBack(b, text) {
+  const [p, n] = b.key.split("/"); S.moving[b.key] = b.to; L.note = ""; renderBoard();
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/take-back`, { method: "POST", body: JSON.stringify({ to: b.to, text }) });
+  if (status === 200) {
+    L.toast = { key: b.key, html: t(body.pr_closed ? "take.moved_pr" : "toast.moved", { n, column: cn(b.to) }), done: true };
+    focusChip(b.key); return loadOverview();
+  }
+  delete S.moving[b.key];
+  L.note = t("move.failed", { n, why: status === 409 && body.column && body.column !== b.from ? t("move.gone", { column: cn(b.from) }) : esc(told(body, "move.failed.why")) });
+  renderBoard(); focusChip(b.key);
 }
 // a pointer drop in its own queue goes before the chip under the pointer, or last below the last one; null where it changes nothing
 function dropAt(col, y) {
@@ -1230,7 +1276,7 @@ document.addEventListener("dragover", (e) => {
   $("lanes").querySelectorAll(".lcol.over").forEach((el) => { if (el !== col) el.classList.remove("over"); });
   if (!col) return;
   if (col.classList.contains("acc")) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; col.classList.add("over"); return; }
-  if (col.dataset.col !== h.from || !ordered(h.from)) return;
+  if (col.dataset.col !== h.from || !queue(h)) return;
   e.preventDefault(); e.dataTransfer.dropEffect = "move";
   const r = col.getBoundingClientRect(); if (e.clientY - r.top < 24) col.scrollTop -= 8; else if (r.bottom - e.clientY < 24) col.scrollTop += 8;
   const at = dropAt(col, e.clientY); if (at) at.el.classList.add(at.before ? "bar-before" : "bar-after");
@@ -1239,16 +1285,16 @@ document.addEventListener("drop", (e) => {
   const h = L.hold; if (h?.via !== "drag") return;
   e.preventDefault(); const col = e.target.closest?.("#lanes .lcol"); endDrag();
   if (col?.classList.contains("acc")) return drop(col.dataset.col);
-  const at = col && col.dataset.col === h.from && ordered(h.from) && dropAt(col, e.clientY);
+  const at = col && col.dataset.col === h.from && queue(h) && dropAt(col, e.clientY);
   if (at) return reorderTo(h, at.before);
   letGo(true);  // on its own place: nothing to say
 });
 document.addEventListener("dragend", () => { if (L.hold?.via === "drag") { endDrag(); letGo(); } });
-// Fits the column below the line. The list keeps its first two cards whole (--two), Yours keeps room for them (--ymin) and Today
-// gives way, scrolling inside itself. .tight compacts the column only when Today is open and even that does not fit; the call
+// Fits the column below the line. The list keeps its first two cards whole (--two), Yours keeps room for them (--ymin) and History
+// gives way, scrolling inside itself. .tight compacts the column only when History is open and even that does not fit; the call
 // decides from the measure with .tight off, so it does not flip between refreshes. It never scrolls and never moves focus.
 function fit() {
-  const l = $("list"), t = $("today"), w = $("tiles"), side = document.querySelector(".side"), yours = document.querySelector(".yours");
+  const l = $("list"), t = $("history"), w = $("tiles"), side = document.querySelector(".side"), yours = document.querySelector(".yours");
   side.classList.remove("tight");
   const ps = [...l.querySelectorAll(".pass")], mark = ps.length > 1 ? ps[1] : ps[0];
   const two = mark ? Math.ceil(mark.getBoundingClientRect().bottom - l.getBoundingClientRect().top + l.scrollTop) : 0;
@@ -1256,7 +1302,7 @@ function fit() {
   const foot = yours.querySelector(".foot"), footH = foot.offsetHeight;
   const chrome = Math.ceil(l.getBoundingClientRect().top - yours.getBoundingClientRect().top + parseFloat(getComputedStyle(yours).paddingBottom));
   const narrow = matchMedia("(max-width: 1180px)").matches;
-  const tight = !narrow && S.show.today && !maxed() && side.clientHeight > 0 && side.clientHeight <chrome + footH + two + 20 + (parseFloat(getComputedStyle(t).minHeight) || 100);
+  const tight = !narrow && S.show.history && !maxed() && side.clientHeight > 0 && side.clientHeight <chrome + footH + two + 20 + (parseFloat(getComputedStyle(t).minHeight) || 100);
   side.classList.toggle("tight", tight);
   yours.style.setProperty("--ymin", `${chrome + (tight ? 0 : footH) + two}px`);
   for (const el of [l, t, w]) el.classList.toggle("cut", el.scrollHeight - el.scrollTop - el.clientHeight > 8);
@@ -1447,28 +1493,188 @@ function renderWork(p, key, fresh) {
   $("wfoot").textContent = `${t("work.foot")} · ${ago(p.board_age_s)}${p.paused ? ` · ${t("work.paused")}` : ""}`;
   fit();
 }
-// Today by the hour: runs that ended (clean or failed) and what the sessions cost, then how long a stage usually takes.
+// History: the factory's runs over a period the owner picks (Today, 7 days, 30 days, two dates, or a day opened from a chart).
+// /api/history computes every figure; the page draws them and words the comparisons. The period is kept in this browser
+// only: Today, 7 days and 30 days stay relative to now, a stepped or custom period keeps its dates.
+const HDAYS = 92;  // the longest period: the server refuses more too
+const H = { sel: { days: 1 }, custom: false, data: null, key: "", rows: [], page: 1, at: 0, busy: false, more: false, moreErr: false, bad: "", focus: {} };
+try {
+  const v = JSON.parse(localStorage.getItem("shipfloor.history")), day = /^\d{4}-\d\d-\d\d$/;
+  if (v && Number.isInteger(v.days) && v.days >= 1 && v.days <= HDAYS) H.sel = { days: v.days };
+  else if (v && day.test(v.from) && day.test(v.to)) { H.sel = { from: v.from, to: v.to, ...(v.custom ? { custom: true } : {}) }; H.custom = !!v.custom; }
+} catch (e) { /* storage blocked, or nothing kept: Today */ }
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayIso = () => isoDay(new Date());
+const dayOf = (iso) => new Date(`${iso}T12:00:00`);  // noon: the day's own date whatever the clock does at midnight
+const shift = (iso, k) => { const d = dayOf(iso); d.setDate(d.getDate() + k); return isoDay(d); };
+const spanDays = (a, b) => Math.round((dayOf(b) - dayOf(a)) / 86400000) + 1;
+const histQuery = (sel) => sel.days ? `days=${sel.days}` : `from=${sel.from}&to=${sel.to}`;
+const histKey = () => `${S.project}|${histQuery(H.sel)}`;
+function histSpan() { const s = H.sel, now = todayIso(); return s.days ? { from: shift(now, 1 - s.days), to: now, n: s.days } : { from: s.from, to: s.to, n: spanDays(s.from, s.to) }; }
+const hLocale = () => CODE === "en" ? "en-GB" : CODE;  // "Thu 8 Oct", as the design writes a day; every other language its own way
+function dayName(iso, o, year = true) {
+  const d = dayOf(iso), l = hLocale(), out = new Intl.DateTimeFormat(l, { ...o, ...(year && d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}) }).format(d);
+  return l === "en-GB" ? out.replace(",", "") : out;
+}
+const longDay = (iso) => dayName(iso, { weekday: "short", day: "numeric", month: "short" });
+// the heading's period: a word is a message, a date is already in the page's language
+function periodName() {
+  const s = H.sel, now = todayIso();
+  if (s.days) return t(s.days === 1 ? "hist.per.today" : "hist.per.days", { n: s.days });
+  if (s.from === s.to) return s.from === now ? t("hist.per.today") : s.from === shift(now, -1) ? t("hist.per.yesterday") : `· <time>${esc(longDay(s.from))}</time>`;
+  const a = dayOf(s.from), b = dayOf(s.to), y = new Date().getFullYear(), old = a.getFullYear() !== y || b.getFullYear() !== y;
+  return `· <time>${esc(new Intl.DateTimeFormat(hLocale(), { day: "numeric", month: "short", ...(old ? { year: "numeric" } : {}) }).formatRange(a, b))}</time>`;
+}
+function histSet(sel, custom = false) {
+  if (!sel.days && sel.from === sel.to && sel.to === todayIso() && !custom) sel = { days: 1 };
+  H.sel = custom ? { ...sel, custom: true } : sel; H.custom = custom; H.bad = "";
+  try { localStorage.setItem("shipfloor.history", JSON.stringify(H.sel)); } catch (e) { /* storage blocked: the period lasts for this page */ }
+  renderTelem(project());
+}
+// the arrows: the period of the same length before, or after (never past today, where it becomes the relative one)
+function histStep(dir) {
+  const { from, to, n } = histSpan(), now = todayIso();
+  if (dir < 0) return histSet({ from: shift(from, -n), to: shift(from, -1) });
+  if (to >= now) return;
+  const b = shift(to, n) > now ? now : shift(to, n);
+  histSet(b === now ? { days: n } : { from: shift(b, 1 - n), to: b });
+}
+function histDates(e) {
+  const a = $("hfrom"), b = $("hto"), now = todayIso(); if (!a || !b) return;
+  let bad = "", at = null;
+  for (const x of [a, b]) x.removeAttribute("aria-invalid");
+  if (!a.value || !b.value) return;
+  if (a.value > now || b.value > now) { bad = t("hist.bad.future"); at = a.value > now ? a : b; }
+  else if (b.value < a.value) { bad = t("hist.bad.order"); at = b; }
+  else if (spanDays(a.value, b.value) > HDAYS) { bad = t("hist.bad.long", { n: HDAYS }); at = e.target; }
+  H.bad = bad; $("hbad").textContent = bad;
+  if (at) return at.setAttribute("aria-invalid", "true");  // the panel keeps the last valid period
+  histSet({ from: a.value, to: b.value }, true);
+}
+async function loadHistory(force) {
+  if (!S.project || !S.show.history || H.busy || S.view !== "board") return;
+  const key = histKey(); if (!force && key === H.key && Date.now() - H.at < 10000) return;  // the panel's own refresh, every 10 s
+  H.busy = true;
+  const { status, body } = await api(`/api/history/${encodeURIComponent(S.project)}?${histQuery(H.sel)}`);
+  H.busy = false;
+  if (key !== histKey()) return loadHistory(true);  // the period changed while this one was read
+  H.at = Date.now();
+  if (status === 200) {
+    const same = key === H.key, rk = (r) => `${r.log}|${r.start}`, fresh = new Set(body.runs.map(rk));
+    H.rows = same ? [...body.runs, ...H.rows.filter((r) => !fresh.has(rk(r)))].slice(0, body.runs_total) : body.runs;  // pages loaded survive the refresh
+    if (!same) { H.page = 1; H.moreErr = false; }
+    H.data = body; H.key = key;
+  } else if (status === 400) return histSet({ days: 1 });  // a kept period the server refuses: back to Today
+  else if (status) { setError(told(body, "err.history", { status })); return; }  // the old content stays
+  renderTelem(project());
+}
+async function histMore() {
+  const d = H.data, key = H.key; if (H.more || !d || key !== histKey()) return;
+  H.more = true; H.moreErr = false; renderTelem(project());
+  const { status, body } = await api(`/api/history/${encodeURIComponent(S.project)}?${histQuery(H.sel)}&page=${H.page + 1}`);
+  H.more = false; if (key !== histKey()) return;
+  const rk = (r) => `${r.log}|${r.start}`;
+  let first = null;
+  if (status === 200) { const seen = new Set(H.rows.map(rk)), add = body.runs.filter((r) => !seen.has(rk(r))); H.rows.push(...add); H.page = body.page; first = add[0] && rk(add[0]); }
+  else H.moreErr = true;
+  renderTelem(project());
+  if (first) document.querySelector(`#telem tr[data-hrow="${CSS.escape(first)}"] .lnk`)?.focus();
+}
+const pressedPeriod = () => H.custom ? '[data-hp="custom"]' : [1, 7, 30].includes(H.sel.days) ? `[data-hp="${H.sel.days}"]` : '[data-hstep="prev"]';
+function renderHistCtl() {
+  const s = H.sel, present = histSpan().to >= todayIso(), el = $("hctl"), at = document.activeElement;
+  const was = at && el.contains(at) ? ["data-hp", "data-hstep", "data-hnow"].map((a) => at.hasAttribute(a) ? `[${a}${at.getAttribute(a) ? `="${at.getAttribute(a)}"` : ""}]` : "").join("") : "";
+  const chev = (d) => `<svg viewBox="0 0 14 14" aria-hidden="true"><path d="${d}"/></svg>`;
+  setHTML(el, `<div class="ftools" role="group" aria-label="${ta("hist.period")}">${[1, 7, 30].map((n) => `<button data-hp="${n}" aria-pressed="${!H.custom && s.days === n}">${t(n === 1 ? "hist.p.today" : "hist.p.days", { n })}</button>`).join("")}<button data-hp="custom" aria-pressed="${H.custom}">${t("hist.p.custom")}</button></div>`
+    + `<span class="hnav"><button class="max" data-hstep="prev" aria-label="${ta("hist.prev")}" title="${ta("hist.prev")}">${chev("M9 3 5 7l4 4")}</button>`
+    + `<button class="max" data-hstep="next" aria-label="${ta("hist.next")}" ${present ? `aria-disabled="true" title="${ta("hist.current")}"` : `title="${ta("hist.next")}"`}>${chev("M5 3l4 4-4 4")}</button>`
+    + `${present ? "" : `<button class="lnk" data-hnow>${t("hist.now")}</button>`}</span>`);
+  if (was && !el.contains(document.activeElement)) (el.querySelector(was) || el.querySelector(pressedPeriod()))?.focus({ preventScroll: true });  // the control just used keeps the focus
+  const c = $("hcus"); c.hidden = !H.custom;
+  if (!H.custom) c.textContent = "";
+  else if (!c.childElementCount) {  // written once per opening, so what the owner types stays
+    const { from, to } = histSpan(), now = todayIso();
+    c.innerHTML = `<label>${t("hist.from")}<input type="date" class="nf" id="hfrom" max="${now}" value="${from}"></label><label>${t("hist.to")}<input type="date" class="nf" id="hto" max="${now}" value="${to}"></label>`;
+  }
+  $("hbad").textContent = H.bad;
+}
+// History: the totals of the period against the one before it, runs and spend by hour (one day) or by day, how long a
+// stage took, and maximized every run of the period and its cards by cost.
+// History: the totals of the period against the one before it, runs and spend by hour (one day) or by day, how long a
+// stage took, and maximized every run of the period and its cards by cost.
 function renderTelem(p) {
-  if (!S.show.today) return;  // closed: the summary line carries the day
-  const big = $("telem").parentElement.classList.contains("maxed");  // maximized: charts at full width, and the day's runs one by one
-  const hs = p.hours || [], W = big ? 1100 : 360, H = big ? Math.round(Math.min(170, innerHeight * .2)) : 62, top = 4, floor = H - 16, band = W / Math.max(hs.length, 6), bw = Math.min(big ? 64 : 18, band - 4);
-  const chart = (label, max, marks) => `<svg class="chart" style="height:${H}px" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}"><defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="color-mix(in srgb, var(--bad) 22.0%, transparent)"/><rect width="2" height="4" fill="var(--bad)"/></pattern></defs><line class="base" x1="0" x2="${W}" y1="${floor + .5}" y2="${floor + .5}"/>${hs.map((h, i) => {
-    const x = i * band + (band - bw) / 2, sc = (v) => v / max * (floor - top);
-    return `<g>${marks(h, x, sc)}${big || i === 0 || i === hs.length - 1 || h.h % 3 === 0 ? `<text x="${x + bw / 2}" y="${H - 3}" text-anchor="middle">${t("chart.hour", { h: h.h })}</text>` : ""}</g>`; }).join("")}</svg>`;
-  const rect = (x, y, h, fill, tip) => h > 0 ? `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${fill}"><title>${esc(tip)}</title></rect>` : "";
-  const ok = hs.reduce((n, h) => n + h.ok, 0), failed = hs.reduce((n, h) => n + h.failed, 0), spent = hs.reduce((n, h) => n + h.cost, 0);
-  const runs = chart(t("chart.runs", { ok, failed }), Math.max(1, ...hs.map((h) => h.ok + h.failed)), (h, x, sc) => {
-    const a = sc(h.ok), b = sc(h.failed), gap = a && b ? 2 : 0, tip = t("chart.runs.tip", { h: h.h, ok: h.ok, failed: h.failed });
-    return rect(x, floor - a, a, "var(--ok)", tip) + rect(x, floor - a - gap - b, b, "url(#hatch)", tip); });  // failed runs are hatched as well as coloured
-  const cost = chart(t("chart.spend", { spent: usd(spent) }), Math.max(.01, ...hs.map((h) => h.cost)), (h, x, sc) => rect(x, floor - sc(h.cost), sc(h.cost), "var(--sand)", t("chart.spend.tip", { h: h.h, spent: usd(h.cost) })));
-  const usual = STAGES.filter((st) => p.typical_s?.[st]), most = Math.max(1, ...usual.map((st) => p.typical_s[st]));
-  const ended = big && p.ended?.length ? `<h2>${t("today.ended")}</h2><table class="ended"><thead><tr><th class="l">${t("th.ended")}</th><th class="l">${t("th.card")}</th><th class="l">${t("th.stage")}</th><th class="l">${t("th.result")}</th><th>${t("th.time")}</th><th>${t("th.cost")} ${EST}</th></tr></thead><tbody>${p.ended.map((r) =>
-    `<tr><td class="l num">${when(r.end)}</td><td class="l"><button class="lnk" data-open="${esc(p.slug)}/${r.issue}" data-log="${esc(r.log)}">#${r.issue}</button> ${esc(cardOf(p.slug, r.issue)?.title || "")}</td><td class="l">${esc(r.stage)}</td><td class="l">${r.exit === 0 ? `<span class="ok">${t("exit.ok")}</span>` : `<span class="bad">${t("exit.n", { n: r.exit })}</span>`}</td><td class="num">${dur(r.start, r.end)}</td><td class="num gold">${r.cost == null ? "–" : money(r.cost)}</td></tr>`).join("")}</tbody></table>` : "";
-  setHTML($("telem"), `${hs.length ? `<h2>${t("today.runs")} <span>${t("today.runs.sum", { ok: `<b>${ok}</b>`, failed: `<b>${failed}</b>` })}</span></h2>${runs}<div class="key"><span style="--k:var(--ok)"><i></i>${t("today.clean")}</span><span><i style="background:repeating-linear-gradient(45deg, var(--bad) 0 2px, color-mix(in srgb, var(--bad) 22.0%, transparent) 2px 4px)"></i>${t("today.failed")}</span></div>
-    <h2>${t("today.spend")} <span>${t("today.spend.sum", { spent: `<b>${usd(spent)}</b>` })}</span></h2>${cost}` : `<p class="empty">${t("today.none")}</p>`}
-    ${usual.length ? `<h2>${t("today.usual")}</h2><div class="usual">${usual.map((st) => `<span>${esc(stageName(st))}</span><i style="width:${(p.typical_s[st] / most * 100).toFixed(0)}%"></i><span>${t("dur.min", { m: Math.max(1, Math.round(p.typical_s[st] / 60)) })}</span>`).join("")}</div>` : ""}${ended}`);
+  if (!S.show.history || !p) return;  // closed: the summary line carries the day
+  renderHistCtl();
+  setHTML($("hper"), periodName());
+  loadHistory();
+  const d = H.key === histKey() ? H.data : null, el = $("telem"), at = document.activeElement?.closest?.("#telem .dslot");
+  if (!d) { setHTML(el, `<p class="empty">${t("hist.reading")}</p>`); return fit(); }
+  const n = d.days;
+  if (d.empty) {
+    setHTML(el, `<p class="empty">${t("hist.empty")} <button class="lnk" data-hstep="prev">${t("hist.see_prev", { n })}</button></p>`);
+    return fit();
+  }
+  const big = el.parentElement.classList.contains("maxed");  // maximized: charts at full width, the period's runs and cards one by one
+  const T = d.totals, V = d.previous, none = V.ok + V.failed === 0, nothing = t("hist.cmp.nothing", { n });
+  // a comparison with the period before, of the same length: "3 more than the 7 days before"
+  const cmp = (a, b, more, fewer, show = String) => none ? nothing : a === b ? t("hist.cmp.same", { n }) : t(a > b ? more : fewer, { d: show(Math.abs(a - b)), n });
+  const span = (s) => s < 5400 ? t("dur.min", { m: Math.max(1, Math.round(s / 60)) }) : s < 172800 ? t("hist.span.h", { h: Math.round(s / 3600) }) : t("hist.span.d", { n: Math.round(s / 86400) });
+  const cents = (v) => Math.round(v * 100);
+  const median = T.median_s == null ? t("hist.no_done") : none || V.median_s == null ? nothing
+    : Math.abs(T.median_s - V.median_s) < 60 ? t("hist.cmp.same", { n }) : t(T.median_s < V.median_s ? "hist.cmp.faster" : "hist.cmp.slower", { d: span(Math.abs(T.median_s - V.median_s)), n });
+  const tot = [[t("hist.t.done"), `${T.done}`, cmp(T.done, V.done, "hist.cmp.more", "hist.cmp.fewer")],
+    [t("hist.t.runs"), `${t("hist.clean", { n: T.ok })}${T.failed ? ` · <span class="bad">${t("head.runs.failed", { n: T.failed })}</span>` : ""}`, cmp(T.ok + T.failed, V.ok + V.failed, "hist.cmp.more", "hist.cmp.fewer")],
+    [t("head.spent"), T.unpriced ? money(null) : `<span class="sand">${usd(T.cost)}</span>`, T.unpriced || V.unpriced ? t("hist.cmp.no_price") : none ? nothing : cents(T.cost) === cents(V.cost) ? t("hist.cmp.same", { n }) : t(T.cost > V.cost ? "hist.cmp.est_more" : "hist.cmp.est_less", { d: usd(Math.abs(T.cost - V.cost)), n })],
+    [t("hist.t.median"), T.median_s == null ? "–" : dur(new Date(0), new Date(T.median_s * 1000)), median]];
+  const totals = `<dl class="htot">${tot.map(([l, f, c]) => `<div><dt>${l}</dt><dd>${f}</dd><dd class="cmp">${c}</dd></div>`).join("")}</dl>`;
+  const bs = d.buckets, ok = T.ok, failed = T.failed, spent = T.cost, Hh = big ? Math.round(Math.min(170, innerHeight * .2)) : 62;
+  const spentTxt = T.unpriced ? money(null) : `<b>${usd(spent)}</b>`;
+  let charts;
+  if (d.unit === "hour") {
+    const W = big ? 1100 : 360, top = 4, floor = Hh - 16, band = W / Math.max(bs.length, 6), bw = Math.min(big ? 64 : 18, band - 4);
+    const chart = (label, max, marks) => `<svg class="chart" style="height:${Hh}px" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${esc(label)}"><defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="color-mix(in srgb, var(--bad) 22.0%, transparent)"/><rect width="2" height="4" fill="var(--bad)"/></pattern></defs><line class="base" x1="0" x2="${W}" y1="${floor + .5}" y2="${floor + .5}"/>${bs.map((h, i) => {
+      const x = i * band + (band - bw) / 2, sc = (v) => v / max * (floor - top);
+      return `<g>${marks(h, x, sc)}${big || i === 0 || i === bs.length - 1 || h.h % 3 === 0 ? `<text x="${x + bw / 2}" y="${Hh - 3}" text-anchor="middle">${t("chart.hour", { h: h.h })}</text>` : ""}</g>`; }).join("")}</svg>`;
+    const rect = (x, y, h, fill, tip) => h > 0 ? `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${fill}"><title>${esc(tip)}</title></rect>` : "";
+    const runs = chart(t("hist.chart.runs_h", { ok, failed }), Math.max(1, ...bs.map((h) => h.ok + h.failed)), (h, x, sc) => {
+      const a = sc(h.ok), b = sc(h.failed), gap = a && b ? 2 : 0, tip = t("chart.runs.tip", { h: h.h, ok: h.ok, failed: h.failed });
+      return rect(x, floor - a, a, "var(--ok)", tip) + rect(x, floor - a - gap - b, b, "url(#hatch)", tip); });  // failed runs are hatched as well as coloured
+    const cost = chart(t("hist.chart.spend_h", { spent: usd(spent) }), Math.max(.01, ...bs.map((h) => h.cost)), (h, x, sc) => rect(x, floor - sc(h.cost), sc(h.cost), "var(--sand)", t("chart.spend.tip", { h: h.h, spent: usd(h.cost) })));
+    charts = [t("today.runs"), runs, t("today.spend"), cost];
+  } else {
+    // by day each slot is a button that opens the day: one tab stop per chart, the arrows move between the days
+    const many = bs.length > 7;
+    const lab = (b, i) => !many ? dayName(b.day, { weekday: "short", day: "numeric" }, false) : i === 0 || i === bs.length - 1 || i % 7 === 0 ? dayName(b.day, { day: "numeric", month: "short" }, false) : "";
+    const bar = (parts, max) => { const all = parts.reduce((s, [, v]) => s + v, 0);  // one stack per day, its parts in proportion
+      return all > 0 ? `<span class="stk" style="height:${(all / max * 100).toFixed(1)}%">${parts.filter(([, v]) => v > 0).map(([cls, v]) => `<i class="${cls}" style="flex:${v} 1 0"></i>`).join("")}</span>` : ""; };
+    const dchart = (kind, label, name, bars) => { const f = Math.min(H.focus[kind] ?? bs.length - 1, bs.length - 1);
+      return `<div class="dchart" role="group" aria-label="${esc(label)}" data-hkind="${kind}" style="height:${Hh}px">${bs.map((b, i) => `<button class="dslot" data-hday="${b.day}" tabindex="${i === f ? 0 : -1}" aria-label="${ta("hist.slot.open", { day: longDay(b.day), what: name(b).replace(/[.。]$/, "") })}" title="${ta("hist.slot", { day: longDay(b.day), what: name(b) })}"><span class="bars">${bars(b)}</span><span class="lab" aria-hidden="true">${esc(lab(b, i))}</span></button>`).join("")}</div>`; };
+    const most = Math.max(1, ...bs.map((b) => b.ok + b.failed)), dear = Math.max(.01, ...bs.map((b) => b.cost));
+    const runs = dchart("runs", t("hist.chart.runs_d", { ok, failed }), (b) => b.ok + b.failed ? t("hist.slot.runs", { ok: b.ok, failed: b.failed }) : t("hist.slot.none"), (b) => bar([["fl", b.failed], ["ok", b.ok]], most));
+    const cost = dchart("cost", t("hist.chart.spend_d", { spent: usd(spent) }), (b) => b.ok + b.failed ? t("today.spend.sum", { spent: b.unpriced ? "$ ?" : usd(b.cost) }) : t("hist.slot.none"), (b) => bar([["sp", b.cost]], dear));
+    charts = [t("hist.runs_d"), runs, t("hist.spend_d"), cost];
+  }
+  const typ = d.typical_s || {}, usual = STAGES.filter((st) => typ[st]), most = Math.max(1, ...usual.map((st) => typ[st]));
+  const rows = H.rows, left = d.runs_total - rows.length;
+  const ended = !big ? "" : `<h2>${t("hist.ended")}</h2><div class="hscroll"><table class="ended"><thead><tr><th class="l">${t("th.ended")}</th><th class="l">${t("th.card")}</th><th class="l">${t("th.stage")}</th><th class="l">${t("th.result")}</th><th>${t("th.time")}</th><th>${t("th.cost")} ${EST}</th></tr></thead><tbody>${rows.map((r) =>
+    `<tr data-hrow="${esc(`${r.log}|${r.start}`)}"><td class="l num">${when(r.end)}</td><td class="l"><button class="lnk" data-open="${esc(p.slug)}/${r.issue}" data-log="${esc(r.log)}">#${r.issue}</button> ${esc(r.title || cardOf(p.slug, r.issue)?.title || "")}</td><td class="l">${esc(r.stage)}</td><td class="l">${r.exit === 0 ? `<span class="ok">${t("exit.ok")}</span>` : `<span class="bad">${t("exit.n", { n: r.exit })}</span>`}</td><td class="num">${dur(r.start, r.end)}</td><td class="num gold">${money(r.cost)}</td></tr>`).join("")}</tbody></table></div>`
+    + `<p class="hmore"><span>${left > 0 ? t("hist.shown", { i: rows.length, n: d.runs_total }) : t("hist.runs_n", { n: d.runs_total })}</span>${left > 0 ? `<button class="btn ghost" data-hmore${H.more ? " disabled" : ""}>${t(H.more ? "log.loading" : "hist.more")}</button>` : ""}${H.moreErr ? `<span class="bad">${t("hist.more_failed")}</span>` : ""}</p>`
+    + `<h2>${t("hist.cards")}</h2><div class="hscroll"><table class="ended"><thead><tr><th class="l">${t("th.card")}</th><th class="l">${t("th.column")}</th><th>${t("th.runs")}</th><th>${t("hist.th.cost")} ${EST}</th></tr></thead><tbody>${d.cards.map((c) =>
+    `<tr><td class="l"><button class="lnk" data-open="${esc(p.slug)}/${c.issue}" data-go="sessions">#${c.issue}</button> ${c.title ? esc(c.title) : UNTITLED}</td><td class="l">${esc(colName(c.column) || "–")}</td><td class="num">${c.runs}</td><td class="num gold">${money(c.cost)}</td></tr>`).join("")}</tbody></table></div>`;
+  setHTML(el, `${totals}<h2>${charts[0]} <span>${t("today.runs.sum", { ok: `<b>${ok}</b>`, failed: `<b>${failed}</b>` })}</span></h2>${charts[1]}<div class="key"><span style="--k:var(--ok)"><i></i>${t("today.clean")}</span><span><i style="background:repeating-linear-gradient(45deg, var(--bad) 0 2px, color-mix(in srgb, var(--bad) 22.0%, transparent) 2px 4px)"></i>${t("today.failed")}</span></div>
+    <h2>${charts[2]} <span>${t("today.spend.sum", { spent: spentTxt })}</span></h2>${charts[3]}
+    ${usual.length ? `<h2>${t("today.usual")}</h2><div class="usual">${usual.map((st) => `<span>${esc(stageName(st))}</span><i style="width:${(typ[st] / most * 100).toFixed(0)}%"></i><span>${t("dur.min", { m: Math.max(1, Math.round(typ[st] / 60)) })}</span>`).join("")}</div>` : ""}${ended}`);
+  if (at && !el.contains(document.activeElement)) el.querySelector(`.dchart[data-hkind="${at.parentElement.dataset.hkind}"] .dslot[tabindex="0"]`)?.focus({ preventScroll: true });  // a refresh keeps the day in focus
   fit();
 }
+$("telem").addEventListener("keydown", (e) => {  // a chart by day is one tab stop: the arrows, Home and End move between its days
+  const b = e.target.closest?.(".dslot"); if (!b || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+  const all = [...b.parentElement.querySelectorAll(".dslot")], i = all.indexOf(b);
+  const j = e.key === "Home" ? 0 : e.key === "End" ? all.length - 1 : Math.max(0, Math.min(all.length - 1, i + (e.key === "ArrowRight" ? 1 : -1)));
+  e.preventDefault(); e.stopPropagation(); H.focus[b.parentElement.dataset.hkind] = j;
+  all.forEach((x, k) => { x.tabIndex = k === j ? 0 : -1; }); all[j].focus();
+});
+$("hcus").addEventListener("change", histDates);
 // The owner's quick actions on a pass. Approve waits five seconds so a wrong click can be undone.
 function quick(q, k) {
   const [p, n] = k.split("/"), moves = OWNER[cardOf(p, +n)?.column];
@@ -2174,9 +2380,14 @@ function selectTab(id) { S.auto = false; if (id === "live" && S.tab !== "live") 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
   if (L.hold && L.hold.via !== "drag" && !e.target.closest("[data-acc],[data-rord],[data-mv],#lstat")) { const onChip = e.target.closest("#lanes .chip"); letGo(); if (onChip) return; }  // a tap elsewhere lets go
-  const t = e.target.closest("[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-hp],[data-hstep],[data-hnow],[data-hday],[data-hmore],[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
-  if (t.dataset.mv) { if (L.hold?.key !== t.dataset.mv) tryHold(t.dataset.mv, "touch"); }
+  if (t.dataset.hp) { if (t.dataset.hp === "custom") { H.custom = true; renderTelem(project()); $("hfrom")?.focus(); } else histSet({ days: +t.dataset.hp }); }
+  else if (t.dataset.hstep) { if (t.getAttribute("aria-disabled") !== "true") histStep(t.dataset.hstep === "prev" ? -1 : 1); }
+  else if (t.hasAttribute("data-hnow")) { histSet({ days: histSpan().n }); $("hctl").querySelector(pressedPeriod())?.focus(); }
+  else if (t.dataset.hday) { histSet({ from: t.dataset.hday, to: t.dataset.hday }); ($("hctl").querySelector("[data-hnow]") || $("hctl").querySelector(pressedPeriod()))?.focus(); }
+  else if (t.hasAttribute("data-hmore")) histMore();
+  else if (t.dataset.mv) { if (L.hold?.key !== t.dataset.mv) tryHold(t.dataset.mv, "touch"); }
   else if (t.dataset.acc) drop(t.dataset.acc);
   else if (t.dataset.rord) { if (t.dataset.rord === "place") placeHeld(); else step(t.dataset.rord === "up" ? -1 : 1); }
   else if (t.dataset.lt === "undo") undoLane();
@@ -2262,8 +2473,8 @@ document.addEventListener("keydown", (e) => {
       if (/^[1-9]$/.test(e.key)) { const t = targets(h).find((x) => x.n === +e.key); e.preventDefault(); if (t) drop(t.to); return; }  // a digit discards the arrows
       if (["ArrowUp", "ArrowDown", "Enter", " "].includes(e.key)) {  // taken from the page while a card is held: no scroll, the card does not open
         e.preventDefault();
-        if (ordered(h.from) && e.key.startsWith("Arrow")) step(e.key === "ArrowUp" ? -1 : 1);
-        else if (ordered(h.from) && e.key === "Enter") placeHeld();
+        if (queue(h) && e.key.startsWith("Arrow")) step(e.key === "ArrowUp" ? -1 : 1);
+        else if (queue(h) && e.key === "Enter") placeHeld();
         return;
       }
     }
@@ -2306,7 +2517,7 @@ window.addEventListener("message", (e) => {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushMarks(); });
 // a page that never says "ready" does not take the theme: show it plain; one that did is never left hidden
 $("pane").addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
-for (const id of ["list", "today", "tiles"]) $(id).addEventListener("scroll", fit);
+for (const id of ["list", "history", "tiles"]) $(id).addEventListener("scroll", fit);
 window.addEventListener("resize", fit);
 window.addEventListener("resize", renderPeek); document.addEventListener("scroll", () => { if (S.peek) renderPeek(); }, true);
 // a card's pass, its row and its dot light up together

@@ -59,7 +59,7 @@ def target(label, pats, full):
 # Controls of the Factory view (AC-1) and of the Feed, Settings and the drawer (AC-2): the selectors the spec names.
 factory = [
     ("the view buttons (.views button)", [r"\.views button"], False),
-    ("the Maximize buttons and the Lifecycle and Today folds (.max)", [r"\.max"], False),
+    ("the Maximize buttons and the Lifecycle and History folds (.max)", [r"\.max"], False),
     ("the project select (.proj select)", [r"\.proj select"], False),
     ("Board on GitHub (a.cap in .stats)", [r"(\.stats )?a\.cap", r"\.stats a"], True),
     ("the Log link in .tfoot (.lnk)", [r"\.lnk", r"\.tfoot \.lnk", r"\.tfoot button"], True),

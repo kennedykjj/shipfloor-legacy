@@ -3,7 +3,7 @@ factory's runs. Read-only, except the owner's decisions on a card that waits, me
 settings (the pool and the pauses)."""
 import argparse, hashlib, json, os, re, secrets, shlex, shutil, statistics, subprocess, sys, threading, time, webbrowser
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -94,6 +94,13 @@ OWNER_MOVES = {"Inbox": [("Ready for Refinement", False)],
 AWAITING = ("Spec Review", "Staged")  # the columns where the factory waits for the owner's decision
 ORDERED = ("Inbox", "Ready for Refinement", "Ready for Dev")  # the owner sets their order (#128); the dispatcher takes from the top
 LINED = (*ORDERED, "Ready for Prod")  # a card there shows its place in line
+# Where a card blocked for the owner can be taken back (#127): from Coding or Validation there is code to redo from the
+# approved spec; from any other column ("*") only the spec or the Inbox. The card's own column is never a target.
+BLOCKED_MOVES = {"Coding": ("Inbox", "Ready for Refinement", "Ready for Dev"),
+                 "Validation": ("Inbox", "Ready for Refinement", "Ready for Dev"),
+                 "*": ("Inbox", "Ready for Refinement")}
+HISTORY_DAYS = 92  # the longest period the History shows: past a quarter the bars of a day are too thin to read or click
+HISTORY_PAGE = 50  # runs per page of the maximized History's table
 LOCKED = {"run": "a run is in progress", "infra": "blocked by infrastructure, the factory retries",
           "blocked": "it is blocked and waits for your call in the card"}
 
@@ -125,6 +132,39 @@ def catalog(code):
 
 def number(s):  # ASCII digits only: str.isdigit() also accepts "²" and the like, which int() rejects
     return bool(re.fullmatch(r"[0-9]+", s))
+
+
+def history_period(today, days=None, start=None, end=None):
+    """The period a History query asks for and its neighbours, as ISO dates: (period, None), or (None, why it is refused).
+    days: the N days that end today; or start and end, both included. A day is a calendar day of this machine."""
+    if start is not None or end is not None:
+        if not all(isinstance(x, str) and re.fullmatch(r"\d{4}-\d\d-\d\d", x) for x in (start, end)):
+            return None, "from and to must both be dates as YYYY-MM-DD"
+        try:
+            a, b = date.fromisoformat(start), date.fromisoformat(end)
+        except ValueError:
+            return None, "from and to must both be dates as YYYY-MM-DD"
+        if b < a:
+            return None, "the end date is before the start date"
+        if b > today:
+            return None, "that date is in the future"
+    else:
+        if days is not None and not (isinstance(days, str) and number(days)):
+            return None, f"days must be 1 to {HISTORY_DAYS}"
+        n = int(days or 1)
+        if not 1 <= n <= HISTORY_DAYS:
+            return None, f"days must be 1 to {HISTORY_DAYS}"
+        a, b = today - timedelta(days=n - 1), today
+    n = (b - a).days + 1
+    if n > HISTORY_DAYS:
+        return None, f"pick {HISTORY_DAYS} days at most"
+    span = lambda x, y: {"from": x.isoformat(), "to": y.isoformat()}
+    present = b == today
+    last = min(b + timedelta(days=n), today)  # the next period never passes today: it ends there, the same length
+    return {**span(a, b), "days": n, "unit": "hour" if n == 1 else "day", "present": present,
+            "prev": span(a - timedelta(days=n), a - timedelta(days=1)),
+            "next": None if present else span(last - timedelta(days=n - 1), last),
+            "now": None if present else span(today - timedelta(days=n - 1), today)}, None
 
 
 def read_yaml(path):
@@ -1002,24 +1042,13 @@ class Factory:
         for p in self.projects():
             runs = self.live(p)
             live += runs
-            doing, hours = {}, {}
-            hour = lambda ts: parse_ts(ts).astimezone().hour
-            all_runs, spent = self.runs(p), {}  # spent: what each of today's runs cost, by (log, start)
-            sessions = self.sessions(p)
+            doing, all_runs, sessions = {}, self.runs(p), self.sessions(p)
             estimate, base = dashboard_cost.spend(sessions, prices, today), dashboard_cost.baselines(self.pdir(p))
             per_card = {n: c["total"] for n, c in estimate["cards"].items()}
             warned = dashboard_cost.over(estimate, limits, base)["warn"]
             today_cost += estimate["today"]
             for s in sessions:
                 doing[(s["issue"], s["stage"])] = s["activity"]  # sessions come oldest first: the latest wins
-                c = dashboard_cost.session_cost(s, prices)
-                if c and parse_ts(s["start"]).astimezone().date().isoformat() == today:
-                    # as in card(): a session belongs to the last run of its stage that started before it
-                    run = next((r for r in reversed(all_runs) if r["issue"] == s["issue"] and r["stage"] == s["stage"]
-                                and parse_ts(r["start"]).timestamp() <= parse_ts(s["start"]).timestamp() + 120), None)
-                    if run:
-                        spent[(run["log"], run["start"])] = spent.get((run["log"], run["start"]), 0.0) + c
-                    hours.setdefault(hour(s["start"]), {"ok": 0, "failed": 0, "cost": 0.0})["cost"] += c
             for r in runs:
                 r["activity"] = doing.get((r["issue"], r["stage"]), [])
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
@@ -1034,18 +1063,11 @@ class Factory:
             for r in all_runs:
                 if r["end"]:
                     since[r["issue"]] = r["end"]
-                    if r["log"].startswith(today):
-                        hours.setdefault(hour(r["end"]), {"ok": 0, "failed": 0, "cost": 0.0})["ok" if r["exit"] == 0 else "failed"] += 1
                     if r["exit"] == 0:
                         took.setdefault(r["stage"], []).append((parse_ts(r["end"]) - parse_ts(r["start"])).total_seconds())
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "board_age_s": age,
                              "skipped": self.skipped(p),
                              "typical_s": {st: round(statistics.median(v)) for st, v in took.items()},
-                             "hours": [dict(hours.get(h, {"ok": 0, "failed": 0, "cost": 0.0}), h=h)
-                                       for h in range(min(hours, default=0), datetime.now().hour + 1)] if hours else [],
-                             "ended": sorted((dict(r, cost=rounded(spent.get((r["log"], r["start"])))) for r in all_runs
-                                              if r["end"] and r["log"].startswith(today)),
-                                             key=lambda r: parse_ts(r["end"]), reverse=True)[:80],  # newest first
                              "repo": (self.config(p).get("project") or {}).get("repo"), "board_url": self.board_url(p),
                              "cards": [{"issue": n, "title": titles.get(n, ""), "column": col, "since": since.get(n),
                                         "cost": rounded(per_card.get(n, 0.0)),
@@ -1067,9 +1089,93 @@ class Factory:
                 "alerts": shipfloor_health.alerts(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "moves": {f: [{"to": to, "note": note} for to, note in m] for f, m in OWNER_MOVES.items()}, "ordered": list(ORDERED),
+                "take_back": {f: list(m) for f, m in BLOCKED_MOVES.items()},
                 "today": {"runs": len(finished), "ok": sum(r["exit"] == 0 for r in finished),
                           "failed": sum(r["exit"] != 0 for r in finished), "cost": round(today_cost, 2)},
                 "costs": dict(limits, day_stopped=day_stopped)}
+
+    def run_costs(self, runs, sessions, prices):
+        """{(log, start): US$} of each run that ended, from its sessions; None when one of them has no price. As in card(),
+        a session belongs to the last run of its card and stage that started before it; a run still going has none yet."""
+        by, out = {}, {}
+        for r in runs:
+            by.setdefault((r["issue"], r["stage"]), []).append(r)
+        for s in sessions:
+            at = parse_ts(s["start"]).timestamp() + 120
+            run = next((r for r in reversed(by.get((s["issue"], s["stage"]), [])) if parse_ts(r["start"]).timestamp() <= at), None)
+            if run and run["end"]:
+                key, c = (run["log"], run["start"]), dashboard_cost.session_cost(s, prices)
+                out[key] = None if c is None or out.get(key, 0.0) is None else out.get(key, 0.0) + c
+        return out
+
+    def history(self, p, per, page=1):
+        """The History panel over a period (history_period): the runs that ended in it by hour or by day, its totals and
+        the previous period's, how long a stage took, one page of its runs (newest first) and its cards by cost.
+        A run belongs to the day and hour its end falls in, on this machine's clock, and carries its sessions' cost."""
+        prices, runs, sessions = self.prices(), self.runs(p), self.sessions(p)
+        costs, day = self.run_costs(runs, sessions, prices), lambda r: parse_ts(r["end"]).astimezone()
+        cost = lambda r: costs.get((r["log"], r["start"]), 0.0)  # a run with no session cost nothing; rounded, so the totals equal the rows
+        ended = sorted((dict(r, cost=None if cost(r) is None else round(cost(r), 2)) for r in runs if r["end"]),
+                       key=lambda r: parse_ts(r["end"]).timestamp(), reverse=True)
+        within = lambda span: [r for r in ended if span["from"] <= day(r).date().isoformat() <= span["to"]]
+        mine, before = within(per), within(per["prev"])
+        columns, _ = self.board(p)
+        titles = self.titles(p, [*columns, *(r["issue"] for r in mine + before)])
+        opened = self._opened.get(p, {})
+
+        def figures(rs):
+            done = {}
+            for r in rs:  # newest first: a card's clean deploy is the last one it had in the period
+                if r["stage"] == "deploy" and r["exit"] == 0:
+                    done.setdefault(r["issue"], r["end"])
+            waits = []
+            for n, end in done.items():
+                try:  # a card whose creation GitHub did not give is left out of the median
+                    if opened.get(n):
+                        waits.append((parse_ts(end) - parse_ts(opened[n])).total_seconds())
+                except (TypeError, ValueError):
+                    continue
+            return {"done": len(done), "ok": sum(r["exit"] == 0 for r in rs), "failed": sum(r["exit"] != 0 for r in rs),
+                    "cost": round(sum(r["cost"] for r in rs if r["cost"] is not None), 2),
+                    "unpriced": sum(r["cost"] is None for r in rs),
+                    "median_s": round(statistics.median(waits)) if waits else None, "median_of": len(waits)}
+
+        if per["unit"] == "hour":
+            now = datetime.now()
+            slots = [{"h": h} for h in range(0, now.hour + 1 if per["present"] else 24)]
+            slot = lambda r: day(r).hour
+        else:
+            a = date.fromisoformat(per["from"])
+            slots = [{"day": (a + timedelta(days=i)).isoformat()} for i in range(per["days"])]
+            slot = lambda r: (day(r).date() - a).days
+        for b in slots:
+            b.update(ok=0, failed=0, cost=0.0, unpriced=0)
+        for r in mine:
+            i = slot(r)
+            if 0 <= i < len(slots):
+                b = slots[i]
+                b["ok" if r["exit"] == 0 else "failed"] += 1
+                if r["cost"] is None:
+                    b["unpriced"] += 1
+                else:
+                    b["cost"] = round(b["cost"] + r["cost"], 2)
+        took = {}
+        for r in mine:
+            if r["exit"] == 0:
+                took.setdefault(r["stage"], []).append((parse_ts(r["end"]) - parse_ts(r["start"])).total_seconds())
+        pages = max(1, -(-len(mine) // HISTORY_PAGE))
+        page = min(max(1, page), pages)
+        estimate = dashboard_cost.spend(sessions, prices, date.today().isoformat())["cards"]
+        cards = [{"issue": n, "title": titles.get(n, ""), "column": columns.get(n), "runs": sum(r["issue"] == n for r in mine),
+                  "cost": rounded((estimate.get(n) or {"total": 0.0})["total"])} for n in sorted({r["issue"] for r in mine})]
+        cards.sort(key=lambda c: (c["cost"] is None, -(c["cost"] or 0), c["issue"]))  # the costliest first, unpriced last
+        return {**{k: per[k] for k in ("from", "to", "days", "unit", "present", "prev", "next", "now")},
+                "buckets": slots, "totals": figures(mine), "previous": figures(before),
+                "typical_s": {st: round(statistics.median(v)) for st, v in took.items()},
+                "runs": [{"issue": r["issue"], "title": titles.get(r["issue"], ""), "stage": r["stage"], "start": r["start"],
+                          "end": r["end"], "exit": r["exit"], "log": r["log"], "cost": r["cost"]}
+                         for r in mine[(page - 1) * HISTORY_PAGE:page * HISTORY_PAGE]],
+                "runs_total": len(mine), "page": page, "pages": pages, "cards": cards, "empty": not mine}
 
     def board_rows(self, p):
         """(every row of the live board in board order: number, column, item id), or (None, error)."""
@@ -1186,6 +1292,65 @@ class Factory:
             return 502, {"error": err, "commented": commented}
         self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
         return 200, {"moved_to": to}
+
+    def take_back(self, p, n, to, text):
+        """A card blocked for the owner goes back to Ready for Dev, Ready for Refinement or the Inbox (#127), in this order:
+        the comment (when there is one), the card's open pull request closed (Inbox only, its branch kept), the move, the
+        block off. A failure stops there and leaves the card blocked where it was, so the same move can be repeated."""
+        if not isinstance(to, str) or to not in BLOCKED_MOVES["Coding"]:
+            return 400, {"error": f"a blocked card goes to {', '.join(BLOCKED_MOVES['Coding'])}, not {to or 'nowhere'}"}
+        rows, err = self.board_rows(p)
+        if err:
+            return 502, {"error": err}
+        row = next((r for r in rows if r[0] == str(n)), None)
+        if not row:
+            return 409, {"error": f"#{n} is not on the board", "column": None}
+        column = row[1]
+        locked, err = self.lock(p, n)  # read now: a card unblocked a moment ago must not be moved as blocked
+        if err:
+            return 502, {"error": err}
+        if locked != "blocked":
+            why = LOCKED[locked] if locked else "it is not blocked now"
+            return 409, {"error": why, "column": column, "locked": locked}
+        if to == column or to not in BLOCKED_MOVES.get(column, BLOCKED_MOVES["*"]):
+            return 409, {"error": f"a card blocked in {column} does not go to {to}", "column": column}
+        cfg = self.config(p)
+        owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
+        commented, closed = False, None
+        if text.strip():
+            r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
+            if r.returncode != 0:
+                return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip(), "commented": False, "pr_closed": None}
+            commented = True
+        if to == "Inbox":  # the card's pull request, found by its branch feat/<n>-...; none open is not an error
+            prs, err = gh_json("pr", "list", "--repo", str(repo), "--state", "open", "--json", "number,headRefName", "--limit", "200")
+            if err:
+                return 502, {"error": "cannot read the pull requests, nothing moved: " + err, "commented": commented, "pr_closed": None}
+            for pr in prs or []:
+                if isinstance(pr, dict) and str(pr.get("headRefName") or "").startswith(f"feat/{n}-"):
+                    r = gh("pr", "close", str(pr.get("number")), "--repo", str(repo))  # no --delete-branch: the branch stays
+                    if r.returncode != 0:
+                        return 502, {"error": "closing the pull request failed, nothing moved: " + r.stderr.strip(),
+                                     "commented": commented, "pr_closed": closed}
+                    closed = closed or pr.get("number")
+        rest = [r for r in rows if r is not row]
+        last = [r for r in rest if r[1] == to][-1:]
+        if to in ORDERED and last:  # as owner_move: a Status change keeps the item's place, which may be the top of the queue
+            err = self.place(p, owner, num, row[2], last[0][2])
+            if err:
+                return 502, {"error": err, "commented": commented, "pr_closed": closed}
+            rest.insert(rest.index(last[0]) + 1, row)
+        else:
+            rest = rows
+        err = self.move(p, owner, num, row[2], to)
+        if err:
+            return 502, {"error": err, "commented": commented, "pr_closed": closed}
+        self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
+        code, body = self.unblock(p, n)
+        if code != 200:
+            return 502, {"error": "moved, but the block did not come off: " + body.get("error", ""), "commented": commented,
+                         "pr_closed": closed, "moved_to": to}
+        return 200, {"moved_to": to, "commented": commented, "pr_closed": closed, "unblocked": True}
 
     def owner_reorder(self, p, n, seen, before):
         """The card goes right before `before` in its column, or last for None (#128). `seen` and `before` are what the
@@ -1446,6 +1611,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, f.settings())
             if parts == ["api", "feed"]:
                 return self.send(200, f.feed())
+            if known and len(parts) == 3 and parts[:2] == ["api", "history"]:
+                one = lambda k: q[k][0] if k in q else None
+                per, why = history_period(datetime.now().date(), one("days"), one("from"), one("to"))
+                if why:
+                    return self.send(400, {"error": why})
+                page = one("page") or "1"
+                return self.send(200, f.history(parts[2], per, int(page) if number(page) else 1))
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and number(parts[3]):
                 return self.send(200, f.card(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and number(parts[3]):
@@ -1501,7 +1673,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "unblock", "message", "accept", "send-back", "weight")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "take-back", "unblock", "message", "accept", "send-back", "weight")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -1522,6 +1694,8 @@ class Handler(BaseHTTPRequestHandler):
                                                           str(body.get("text") or ""), bool(body.get("move_only"))))
             if parts[4] == "reorder":
                 return self.send(*self.factory.owner_reorder(parts[2], int(parts[3]), body.get("column"), body.get("before")))
+            if parts[4] == "take-back":
+                return self.send(*self.factory.take_back(parts[2], int(parts[3]), body.get("to"), str(body.get("text") or "")))
             if parts[4] == "comment":
                 return self.send(*self.factory.comment(parts[2], int(parts[3]), str(body.get("text") or "")))
             self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),

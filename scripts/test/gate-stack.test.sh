@@ -8,7 +8,7 @@ printf 'stacks: 2\nports: {base: 21000, span: 10}\nstack_wait: 3\nstack_stale: 9
 cfg="$(mktemp)"; sed '/^stack:/d' "$FACTORY_DIR/test/fixture/factory.yml" > "$cfg"
 cat >> "$cfg" <<EOF
 stack:
-  up: 'echo "up \$SHIPFLOOR_SLOT \$SHIPFLOOR_STACK \$SHIPFLOOR_PORT_WEB \$SHIPFLOOR_PORT_API" >> "$bin/calls"; echo "old \$AGHANIM_STACK \$AGHANIM_STACK_URL \$AGHANIM_PORT_WEB" >> "$bin/old"'
+  up: 'echo "up \$SHIPFLOOR_SLOT \$SHIPFLOOR_STACK \$SHIPFLOOR_PORT_WEB \$SHIPFLOOR_PORT_API" >> "$bin/calls"; { echo seen; env | grep "^AGHANIM_" | cut -d= -f1; } >> "$bin/old"'
   down: 'echo "down \$SHIPFLOOR_SLOT" >> "$bin/calls"'
   ports: [web, api]
   url: "http://localhost:{web}"
@@ -26,8 +26,11 @@ r="$(new_repo)"; cd "$r"
 assert_contains "$(up validate-1)" "http://localhost:21000"
 assert_contains "$(up validate-2)" "http://localhost:21010"
 assert_contains "$(cat "$bin/calls")" "up 0 shipfloor-shop-0 21000 21001"
-# card branches cut before the rename read the old names for a while
-assert_contains "$(cat "$bin/old")" "old shipfloor-shop-0 http://localhost:21000 21000"
+# AC-1: the slot's environment has the SHIPFLOOR_* names (checked above and below) and no AGHANIM_* name
+assert_contains "$(cat "$bin/calls")" "up 0 shipfloor-shop-0 21000 21001"
+[ -s "$bin/old" ] || fail "AC-1 the fake up never ran"
+old_names="$(grep '^AGHANIM_' "$bin/old" | tr '\n' ' ')"
+[ -z "$old_names" ] && pass "AC-1 no AGHANIM_* variable in the slot environment" || fail "AC-1 AGHANIM_* still exported: $old_names"
 assert_contains "$(cat "$bin/calls")" "up 1 shipfloor-shop-1 21010 21011"
 assert_contains "$(bash "$GATE" stack status)" "busy	validate-1"
 # a third waits, then gives up after stack_wait with exit 3
@@ -54,8 +57,9 @@ echo ok > "$bin/health"
 up a >/dev/null; up b >/dev/null
 # each waiter is in the queue before the next step: a fixed sleep let "second" take its ticket first on a busy machine
 queued() { local i; for i in $(seq 1 150); do ls "$L/stack-queue" 2>/dev/null | grep -q -- "-$1\$" && return 0; sleep 0.1; done; return 1; }
-( up first > "$bin/first" ) & queued first || fail "first never took a ticket"
-( up second > "$bin/second" 2>/dev/null ) & queued second || fail "second never took a ticket"
+# the waiters wait long enough for a slow machine to start the second and release a; second's wait bounds the final "wait"
+( FACTORY_STACK_WAIT=60 up first > "$bin/first" ) & queued first || fail "first never took a ticket"
+( FACTORY_STACK_WAIT=15 up second > "$bin/second" 2>/dev/null ) & queued second || fail "second never took a ticket"
 down a; wait
 assert_contains "$(cat "$bin/first")" "http://localhost:21000"
 [ ! -s "$bin/second" ] && pass "the later waiter did not jump the queue" || fail "second got a slot first: $(cat "$bin/second")"
