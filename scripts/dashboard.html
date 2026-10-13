@@ -179,6 +179,31 @@ main { min-height: 0; display: grid; }
 .chip b { font-size: 15px; margin-right: 6px; color: var(--text); letter-spacing: .02em; } .chip small { display: block; color: var(--muted); font-size: 11.5px; }
 .chip.run { border-color: var(--text); } .chip.you { border-color: var(--sand); } .chip.stop { border-color: var(--bad); } .chip.infra { border-color: var(--warn); } .chip.wait { border-style: dashed; color: var(--muted); }
 .chip.hot, .chip:hover { background: var(--panel-hi); }
+/* the owner's moves in the maximized line (#125) and the order of the queues (#128) */
+.lhead, .ltoast, #lnote { display: none; }
+.band.maxed .lhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; margin-top: 10px; }
+.band.maxed .ltoast:not([hidden]) { display: flex; margin-top: 10px; } .band.maxed #lnote { display: block; }
+.ltoast .ta { display: flex; gap: 12px; flex-wrap: wrap; }
+.mvonly { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.lhead .empty { padding: 0; } .lhead .empty[hidden] { display: none; }
+.lstat { margin: 0; font-size: 12.5px; color: var(--muted); flex: 1 1 320px; }
+.cw { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.cw.bar-before::before, .cw.bar-after::after { content: ""; position: absolute; left: 0; right: 0; height: 2px; border-radius: 2px; background: var(--sand); }
+.cw.bar-before::before { top: -4px; } .cw.bar-after::after { bottom: -4px; }
+.chip .pos { display: inline-block; width: 2ch; margin-right: 6px; text-align: right; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.chip .lock { width: 12px; height: 12px; margin-right: 4px; vertical-align: -1px; fill: none; stroke: currentColor; stroke-width: 1.3; color: var(--muted); }
+.chip[draggable="true"] { cursor: grab; } .chip.locked { cursor: not-allowed; } .chip.dimc { opacity: .45; }
+.chip.held { outline: 2px solid var(--sand); outline-offset: 2px; background: var(--panel-hi); } .lanes.dragging .chip.held { opacity: .5; }
+.lcol.acc { outline: 1px dashed var(--sand); outline-offset: -1px; border-radius: 6px; background: color-mix(in srgb, var(--sand) 7%, transparent); }
+.lcol.acc.over { outline-style: solid; background: var(--panel-hi); } .lcol.off { opacity: .45; } .lanes.holding .lcol:first-child { padding-left: 8px; }
+.accl:empty { display: none; } .accl .acl { white-space: normal; text-align: left; } .accl .fm { font-size: 11.5px; color: var(--faint); }
+.mvb, .rord { display: none; }
+@media (pointer: coarse) { .mvb { display: block; min-height: 44px; align-self: flex-end; } .rord { display: flex; flex-wrap: wrap; gap: 6px; } .rord .btn { min-height: 44px; } }
+.peek.mbox { z-index: 6; } .mbox h3 { font-size: 14.5px; } .mbox .iconf { padding-top: 0; border-top: 0; } .mbox .macts { display: flex; gap: 8px; }
+@media (max-width: 860px) {
+  .lcols { grid-template-columns: repeat(5, minmax(168px, 1fr)); overflow-x: auto; scroll-snap-type: x proximity; } .lcol { scroll-snap-align: start; }
+  .mbox { width: calc(100vw - 24px); }
+}
 
 /* below the line: what waits for the owner, and what the factory is doing */
 .cols { display: grid; grid-template-columns: minmax(320px, 410px) minmax(0, 1fr); gap: 20px; min-height: 0; }
@@ -567,7 +592,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <main>
   <section class="board" id="board" aria-label="Factory">
     <p class="placeholder" id="msg">Reading the factory…</p>
-    <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><button class="max fold" data-show="band" aria-controls="cells" aria-expanded="true" aria-label="Minimize the lifecycle" title="Minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div>
+    <nav class="band panel" id="band" data-maxable="the lifecycle" aria-label="Where every card is in the pipeline" hidden><h1 class="g">Lifecycle</h1><div class="lhead"><label class="mvonly"><span class="sw sand"><input type="checkbox" id="mvonly" aria-label="Only what I can move"><i></i></span>Only what I can move</label><p class="empty" id="lempty" hidden>Nothing for you to move right now.</p><p class="lstat" id="lstat" role="status"></p></div><button class="max fold" data-show="band" aria-controls="cells" aria-expanded="true" aria-label="Minimize the lifecycle" title="Minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div><div class="itoast ltoast" id="ltoast" role="status" hidden></div><p class="pnote" id="lnote" role="status"></p>
       <div class="legend"><span><i></i>running, on the step it reported (1 to N)</span><span class="o"><i></i>queued</span><span style="--k:var(--sand)"><i></i>waits for you</span><span style="--k:var(--bad)"><i></i>blocked</span><span>+N: more cards than fit</span></div></nav>
     <div class="cols" id="cols" hidden>
       <div class="side">
@@ -585,6 +610,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
   </section>
   <section class="feed panel" id="feed" aria-label="Feed" tabindex="0" hidden></section>
   <div class="peek" id="peek" role="dialog" aria-label="Card summary" hidden></div>
+  <div class="peek mbox" id="mbox" role="dialog" aria-labelledby="mbox-h" hidden><h3 id="mbox-h" data-t></h3><div class="iconf"><textarea id="mnote" aria-labelledby="mbox-h"></textarea><p class="ihint" id="mhint"></p><div class="macts"><button class="btn approve" id="mgo"></button><button class="btn ghost" id="mcancel">Cancel</button></div></div></div>
   <section class="settings" id="settings" aria-label="Settings" hidden>
     <div class="disp panel" id="disp"></div>
     <div class="set-cols"><nav class="set-nav" id="set-nav" aria-label="Settings sections"></nav>
@@ -618,7 +644,14 @@ const gh = (slug, n) => { const u = issueUrl(slug, n); return u ? `<a href="${es
 const runOf = (slug, c) => S.overview?.runs.find((r) => r.project === slug && r.issue === c.issue && r.stage === c.running && !r.orphan);
 const mins = (iso) => Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
 const KIND = { run: "running", wait: "queued", you: "waits for you", stop: "blocked, needs you", infra: "blocked by infrastructure, retrying" };
-const OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
+// A decision column's [Approve, Request changes] targets: its move without a note and its move with one, from the overview's
+// moves (the server holds the one table); this default serves until the first overview arrives.
+let OWNER = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
+function decisions(moves) {
+  const out = {};
+  for (const [from, list] of Object.entries(moves || {})) { const a = list.find((m) => !m.note), r = list.find((m) => m.note); if (a && r) out[from] = [a.to, r.to]; }
+  return out;
+}
 const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged", "shipped"]);
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
@@ -641,7 +674,7 @@ function setHTML(el, html) { if (el._html === html) return false; if (el.id === 
 // text the page shows goes through the catalog the server sends, as it enters the document: 'exact' for a whole piece,
 // 'rx' for a phrase inside one. What the factory did not write (titles, logs, what the agents said) is left alone.
 const LANG = { exact: {}, rx: [] };
-const RAW = ".ttitle, .ptext, .pwhy, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code";
+const RAW = ".ttitle, .ptext, .pwhy, #tip-title, .peek h3, .says, .did, .lv, .md, pre, .fraw, iframe, textarea, code, .cn, .lcol > .lab .q";
 function loc(s) {
   const t = s.trim(); if (!t || !/[A-Za-z]{2}/.test(t)) return s;
   if (Object.hasOwn(LANG.exact, t)) return s.replace(t, LANG.exact[t]);
@@ -678,7 +711,7 @@ async function loadLang() {
   const watch = () => seen.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["title", "aria-label", "placeholder"] });
   localize(document.body); watch();
 }
-function tick(root = document) { root.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }); }
+function tick(root = document) { root.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }); root.querySelectorAll("[data-dur]").forEach((el) => { el.textContent = dur(el.dataset.dur, new Date()); }); }
 
 async function api(path, opts = {}) {
   if (S.refused) return { status: 403, body: {} };
@@ -745,10 +778,12 @@ async function loadOverview() {
   setError("");
   S.overview = body;
   if (!S.project || !body.projects.some((p) => p.slug === S.project)) S.project = body.projects[0]?.slug || null;
+  if (body.moves) OWNER = decisions(body.moves);
   for (const key of Object.keys(S.moving)) {
     const [p, n] = key.split("/"); const card = cardOf(p, +n);
     if (!card || card.column === S.moving[key]) delete S.moving[key];
   }
+  settleLanes();
   renderStrip(); renderBoard(); if (S.open) renderDrawer();
 }
 const project = () => S.overview?.projects.find((p) => p.slug === S.project);
@@ -815,6 +850,7 @@ function grow(el, change, from) {
 }
 function maximize(panel, on) {
   if (panel.classList.contains("maxed") === on) return;
+  if (!on && panel.id === "band") { L.hold = null; L.status = ""; if (L.box) closeBox(); }
   grow(panel, () => { panel.classList.toggle("maxed", on); renderBoard(); });
   const b = panel.querySelector(":scope > [data-max]"); b.title = on ? "Restore (Esc)" : "Maximize"; b.setAttribute("aria-label", `${on ? "Restore" : "Maximize"} ${panel.dataset.maxable}`);
 }
@@ -902,21 +938,265 @@ function renderBand(p, by, key) {
     labels[col.name] = d;
     return `<div class="cell ${col.kind}${col.kind === "y" && cs.length ? " on" : ""}" style="flex:${col.flex} 0 0" title="${esc(col.name)}"><div class="lab">${col.stage ? `<b class="g">${STAGE_NAME[col.stage]}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${d}</span></div><div class="track">${dots}</div></div>`;
   }).join("");
-  if ($("band").classList.contains("maxed")) renderLanes(p, by, key, labels);
+  if ($("band").classList.contains("maxed") && L.hold?.via !== "drag") renderLanes(p, by, key, labels);  // a drag would end if its chip were drawn again
   if (!setHTML($("cells"), html)) return;
   document.querySelectorAll(".dot").forEach((d) => {  // a dot slides from where it was
     const dx = was[d.dataset.key] - d.getBoundingClientRect().left; if (!dx) return;
     d.style.transform = `translateX(${dx}px)`; d.getBoundingClientRect(); d.style.transition = "transform .9s cubic-bezier(.3, 0, .2, 1)"; d.style.transform = "";
   });
 }
-// The line maximized: upstream over downstream, each column listing its cards by name.
-function renderLanes(p, by, key, labels) {
-  const chip = (c) => { const k = key(c), kind = kindOf(k, c), run = kind === "run" && runOf(p.slug, c), of = STEP_COUNT[c.running];
-    const sub = (run ? `${run.step && of ? `step ${run.step.i} of ${of} · ` : ""}${clock(run.started, true)}` : kind === "wait" ? "" : KIND[kind]) + (warnSpan(c) ? `${run || kind !== "wait" ? " · " : ""}${warnSpan(c)}` : "");
-    return `<button class="chip ${c.column === "Done" ? "" : kind}" data-key="${esc(k)}" data-open="${esc(k)}"><b class="g">#${c.issue}</b>${c.title ? esc(c.title) : UNTITLED}${sub ? `<small>${sub}</small>` : ""}</button>`; };
-  setHTML($("lanes"), LANES.map(([name, what, a, b]) => `<h2 class="lane g">${name}<small>${what}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
-    `<div class="lcol"><div class="lab">${col.stage ? `<b class="g">${STAGE_NAME[col.stage]}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${labels[col.name]}</span></div>${by[col.name].map(chip).join("")}</div>`).join("")}</div>`).join(""));
+// The line maximized: upstream over downstream, each column listing its cards by name. The owner moves their cards here
+// (#125: M1 to M7, the table the overview's moves carry) and orders the three queues (#128) by drag, M + a digit or the
+// arrows, or the Move button on a touch screen. Nothing leaves for 5 s, so Undo leaves the board as it was.
+const L = { hold: null, only: false, toast: null, note: "", status: "", box: null, order: {} };
+const MEANING = { "Inbox>Ready for Refinement": "send it to refinement", "Ready for Refinement>Inbox": "take it out of the queue", "Spec Review>Ready for Dev": "approve the spec",
+  "Spec Review>Ready for Refinement": "request changes", "Ready for Dev>Ready for Refinement": "refine again", "Staged>Ready for Prod": "approve and ship", "Staged>Coding": "request changes" };
+const LOCKED = { run: "a run is in progress", infra: "blocked by infrastructure, the factory retries", blocked: "it is blocked and waits for your call in the card" };
+const LOCK = '<svg class="lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
+const LINED = ["Inbox", "Ready for Refinement", "Ready for Dev", "Ready for Prod"];  // a card there shows its place in line
+const cn = (name) => `<span class="cn">${esc(name)}</span>`;  // a column name inside a message: in English in every language
+const coarse = matchMedia("(pointer: coarse)");
+const movesOf = (col) => S.overview?.moves?.[col] || [];
+const ordered = (col) => (S.overview?.ordered || []).includes(col);
+const numOf = (k) => +k.split("/")[1];
+// a card the owner can pick up: a From column of the table, no lock, no move of its own on the way (a reorder may go on)
+const movable = (slug, c) => { const k = `${slug}/${c.issue}`, e = S.pending[k]; return movesOf(c.column).length > 0 && !c.lock && !(k in S.moving) && !(e && !e.reorder); };
+// the columns a held card may go to, numbered left to right in board order
+const targets = (h) => movesOf(h.from).map((m) => ({ ...m })).sort((a, b) => COLUMNS.indexOf(a.to) - COLUMNS.indexOf(b.to)).map((m, i) => ({ ...m, n: i + 1 }));
+function orderFor(slug, col) {  // the order the page shows in a queue until the board agrees: the held card's, a pending reorder's, a sent one's
+  const h = L.hold; if (h?.order && h.slug === slug && h.from === col) return h.order;
+  const e = Object.values(S.pending).find((v) => v.reorder && v.slug === slug && v.column === col);
+  return e ? e.order : L.order[`${slug}|${col}`]?.order || null;
 }
+// The columns as the page shows them: a card on its way sits last in its To column, a queue in the order the owner set.
+function laneCards(p, by, key) {
+  const out = Object.fromEntries(COLS.map((c) => [c.name, []])), away = [];
+  for (const col of COLS) for (const c of by[col.name]) {
+    const k = key(c), e = S.pending[k], to = e && !e.reorder ? e.to : S.moving[k] && S.moving[k] !== c.column ? S.moving[k] : null;
+    if (to && out[to]) away.push({ ...c, column: to, from: c.column, moving: true }); else out[col.name].push(c);
+  }
+  for (const c of away) out[c.column].push(c);
+  for (const name of Object.keys(out)) {
+    const want = orderFor(p.slug, name); if (!want) continue;
+    const at = (c) => { const i = want.indexOf(key(c)); return i < 0 ? 1e9 : i; };
+    out[name] = out[name].map((c, i) => [c, i]).sort((a, b) => at(a[0]) - at(b[0]) || a[1] - b[1]).map(([c]) => c);
+  }
+  return out;
+}
+function renderLanes(p, by, key, labels) {
+  const shown = laneCards(p, by, key), h = L.hold; let any = false;
+  const chip = (c, i, list) => { const k = key(c), kind = c.moving ? "wait" : kindOf(k, c), run = kind === "run" && runOf(p.slug, c), of = STEP_COUNT[c.running];
+    const can = !c.moving && movable(p.slug, c), lock = !c.moving && movesOf(c.column).length > 0 && c.lock, bits = [];
+    if (can) any = true;
+    if (c.moving) bits.push(`<span>Moving to </span>${cn(c.column)}`);
+    else {
+      if (lock) bits.push(`${LOCK}<span>locked · ${LOCKED[c.lock]}</span>`);
+      if (run) bits.push(`${run.step && of ? `step ${run.step.i} of ${of} · ` : ""}${clock(run.started, true)}`);
+      else if (!lock && kind !== "wait" && c.column !== "Done") bits.push(KIND[kind]);
+      const since = c.since || c.opened;
+      if (!run && since && c.column !== "Done") bits.push(`<span class="num" data-dur="${esc(since)}"></span>`);
+      if (c.column === "Ready for Prod") bits.push(`<span>${i + 1} of ${list.length} in line</span>`);
+    }
+    if (warnSpan(c)) bits.push(warnSpan(c));
+    const pos = ordered(c.column) ? `<span class="pos num" aria-hidden="true">${i + 1}</span><span class="vh">Position ${i + 1} of ${list.length}</span>` : "";
+    const rord = h?.key === k && h.via === "touch" && ordered(h.from) ? `<div class="rord"><button class="btn ghost" data-rord="up"${i ? "" : " disabled"}>Up</button><button class="btn ghost" data-rord="down"${i < list.length - 1 ? "" : " disabled"}>Down</button><button class="btn ghost" data-rord="place">Place here</button></div>` : "";
+    return `<div class="cw" data-cw="${esc(k)}"><button class="chip ${c.column === "Done" ? "" : kind}${lock ? " locked" : ""}${L.only && !can ? " dimc" : ""}" data-key="${esc(k)}" data-open="${esc(k)}"${can && !coarse.matches ? ' draggable="true"' : ""}${can ? ' data-mvok aria-pressed="false"' : ""}${lock ? ' aria-disabled="true"' : ""}>${pos}<b class="g">#${c.issue}</b>${c.title ? esc(c.title) : UNTITLED}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}</button>${can ? `<button class="btn ghost mvb" data-mv="${esc(k)}">Move</button>` : ""}${rord}</div>`; };
+  const was = Object.fromEntries([...$("lanes").querySelectorAll(".chip")].map((el) => [el.dataset.key, el.getBoundingClientRect()]));
+  const changed = setHTML($("lanes"), LANES.map(([name, what, a, b]) => `<h2 class="lane g">${name}<small>${what}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
+    `<div class="lcol" data-col="${esc(col.name)}"${col.stage ? ` data-stage="${col.stage}"` : ""}><div class="lab">${col.stage ? `<b class="g">${STAGE_NAME[col.stage]}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${labels[col.name]}</span></div><div class="accl"></div>${shown[col.name].map(chip).join("")}</div>`).join("")}</div>`).join(""));
+  if (changed && !still.matches) $("lanes").querySelectorAll(".chip").forEach((el) => {  // a chip that changed place slides there
+    const a = was[el.dataset.key]; if (!a) return; const z = el.getBoundingClientRect(), dx = a.left - z.left, dy = a.top - z.top;
+    if (dx || dy) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 150, easing: "ease-out" });
+  });
+  $("mvonly").checked = L.only; $("lempty").hidden = !(L.only && !any);
+  const t = L.toast;
+  $("ltoast").hidden = !t;
+  if (t) setHTML($("ltoast"), `<span>${t.html}</span><span class="ta">${t.comment ? '<button data-lt="comment">Comment</button>' : ""}${S.pending[t.key] && t.undo ? '<button data-lt="undo">Undo</button>' : ""}</span>`);
+  setHTML($("lnote"), L.note);
+  setHTML($("lstat"), L.status);
+  paintHold();
+}
+// The held card's marks, set on the drawn columns rather than drawn: a drag would end if its chip were drawn again.
+function paintHold() {
+  const lanes = $("lanes"), h = L.hold, ts = h ? targets(h) : [];
+  lanes.classList.toggle("holding", !!h); lanes.classList.toggle("dragging", h?.via === "drag");
+  lanes.querySelectorAll(".lcol").forEach((col) => {
+    const name = col.dataset.col, t = ts.find((x) => x.to === name), own = !!h && ordered(h.from) && name === h.from;
+    col.classList.toggle("acc", !!t); col.classList.toggle("off", !!h && !t && !own); if (!t) col.classList.remove("over");
+    const html = t ? `<button class="btn ghost acl" data-acc="${esc(t.to)}">${h.via === "key" ? `<kbd>${t.n}</kbd><span>Press ${t.n} to </span>` : `<span>${h.via === "touch" ? "Tap" : "Drop"} to </span>`}<span>${MEANING[`${h.from}>${t.to}`]}</span></button>`
+      : h && !own && col.dataset.stage ? '<span class="fm">the factory moves</span>' : "";
+    const slot = col.querySelector(".accl"); if (slot._h !== html) { slot._h = html; slot.innerHTML = html; }
+  });
+  lanes.querySelectorAll(".chip[data-mvok]").forEach((el) => { const on = el.dataset.key === h?.key; el.classList.toggle("held", on); el.setAttribute("aria-pressed", on); });
+}
+function tell(html) { L.status = html; setHTML($("lstat"), html); }
+function focusChip(k) {
+  const el = $("lanes").querySelector(`.chip[data-key="${CSS.escape(k)}"]`); if (!el) return;
+  el.focus({ preventScroll: true }); el.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+const shownKeys = (col) => [...$("lanes").querySelectorAll(`.lcol[data-col="${CSS.escape(col)}"] .chip`)].map((el) => el.dataset.key);
+function holdLine(h) {
+  const ks = h.order || h.base, place = ordered(h.from) ? `<span>Holding #${h.n}, ${ks.indexOf(h.key) + 1} of ${ks.length} in </span>${cn(h.from)}<span>.</span>` : `<span>Holding #${h.n}.</span>`;
+  if (h.via !== "key") return place;
+  const ts = targets(h).map((t, i) => `<span>${i ? `, ${t.n} to ` : `Press ${t.n} to `}</span><span>${MEANING[`${h.from}>${t.to}`]}</span>`).join("");
+  return `${place} ${ts}<span>${ordered(h.from) ? ", Up or Down to reorder, Enter to place it, Esc to let go." : ", Esc to let go."}</span>`;
+}
+// Picks up a card, or says why it cannot be: false when nothing is held.
+function tryHold(k, via) {
+  const [slug, n] = k.split("/"), c = cardOf(slug, +n); if (!c || slug !== S.project) return false;
+  L.note = "";
+  if (!movable(slug, c)) {
+    tell(c.lock && movesOf(c.column).length ? `<span>#${n} cannot move: </span><span>${LOCKED[c.lock]}</span><span>.</span>` : `<span>#${n} is the factory's to move.</span>`);
+    return false;
+  }
+  if (L.hold) {  // another card was held: let go of it without drawing, a drag may be starting
+    const old = L.hold, pe = S.pending[old.key]; L.hold = null;
+    if (pe?.reorder) pe.timer = setTimeout(() => sendPending(old.key), 5000);
+  }
+  const e = S.pending[k]; if (e?.reorder) clearTimeout(e.timer);  // holding it again continues its reorder: the 5 s start over when it lands
+  L.hold = { key: k, slug, n: +n, from: c.column, via, base: shownKeys(c.column), order: null };
+  tell(holdLine(L.hold));
+  if (via === "drag") paintHold(); else renderBoard();
+  if (via !== "drag" && !ordered(c.column) && matchMedia("(max-width: 860px)").matches)  // the first column that takes it comes into view
+    $("lanes").querySelector(".lcol.acc")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  return true;
+}
+function letGo(quiet) {
+  const h = L.hold; if (!h) return; L.hold = null;
+  const e = S.pending[h.key]; if (e?.reorder) e.timer = setTimeout(() => sendPending(h.key), 5000);
+  L.status = quiet ? "" : `<span>#${h.n} let go. It did not move.</span>`;
+  renderBoard(); paintHold(); focusChip(h.key);
+}
+// A drop on a column that takes the card: at once (5 s to undo), the note box first, or the drawer's confirmation (#50).
+function drop(to) {
+  const h = L.hold, t = h && targets(h).find((x) => x.to === to); if (!t) return letGo();
+  L.hold = null; L.status = "";
+  if (!t.note && OWNER[h.from]?.[0] === to) {  // an approval asks the drawer's question, as the list's Approve does
+    const r = S.review[h.key], doubt = reviewDoubt(r), unseen = !r && cardOf(h.slug, h.n)?.review;
+    if (doubt || unseen) { renderBoard(); return lookFirst(h.key, doubt); }
+  }
+  if (t.note) { renderBoard(); return openBox({ key: h.key, from: h.from, to, need: true }); }
+  pendMove(h.key, h.from, to, "", true);
+}
+function flushToast(k) { const t = L.toast; if (t && t.key !== k && S.pending[t.key]) sendPending(t.key); }  // a new move sends the one before it
+function pendMove(k, from, to, text, comment) {
+  flushToast(k);
+  S.pending[k] = { move: true, from, to, text, timer: setTimeout(() => sendPending(k), 5000) };
+  L.toast = { key: k, from, html: `<span>#${numOf(k)} moved to </span>${cn(to)}<span>. The board confirms it on the dispatcher's next read.</span>`, undo: true, comment };
+  L.note = ""; renderBoard(); focusChip(k);
+}
+function reorderTo(h, before) {  // before: the key of the card it goes before, or null for the end of the column
+  const order = h.base.filter((k) => k !== h.key); order.splice(before ? order.indexOf(before) : order.length, 0, h.key);
+  if (order.join() === h.base.join()) return letGo(true);
+  commitReorder(h, order);
+}
+function commitReorder(h, order) {
+  const k = h.key, i = order.indexOf(k), prev = S.pending[k]?.reorder ? S.pending[k] : null;
+  if (prev) clearTimeout(prev.timer); else flushToast(k);
+  S.pending[k] = { reorder: true, slug: h.slug, column: h.from, before: order[i + 1] ? numOf(order[i + 1]) : null, order, orig: prev ? prev.orig : h.base, timer: setTimeout(() => sendPending(k), 5000) };
+  L.hold = null; L.status = ""; L.note = "";
+  L.toast = { key: k, html: `<span>#${h.n} is now ${i + 1} of ${order.length} in </span>${cn(h.from)}<span>. The board confirms it on the dispatcher's next read.</span>`, undo: true };
+  renderBoard(); focusChip(k);
+}
+function step(d) {  // an arrow: the held card one place up or down, on the page only
+  const h = L.hold, ks = h.order || h.base, i = ks.indexOf(h.key), j = i + d; if (j < 0 || j >= ks.length) return;
+  h.order = [...ks]; [h.order[i], h.order[j]] = [h.order[j], h.order[i]];
+  L.status = `<span>#${h.n}, ${j + 1} of ${ks.length}.</span>`; renderBoard(); focusChip(h.key);
+}
+function placeHeld() { const h = L.hold, ks = h.order || h.base; if (ks.join() === h.base.join()) return letGo(); commitReorder(h, ks); }
+function undoLane() {
+  const t = L.toast, e = t && S.pending[t.key]; if (!e) return;
+  clearTimeout(e.timer); delete S.pending[t.key];
+  L.toast = { key: t.key, html: e.reorder ? `<span>#${numOf(t.key)} is back at ${e.orig.indexOf(t.key) + 1} of ${e.orig.length} in </span>${cn(e.column)}<span>.</span>` : `<span>#${numOf(t.key)} is back in </span>${cn(e.from)}<span>.</span>`, done: true };
+  if (e.reorder && e.orig) L.order[`${e.slug}|${e.column}`] = { order: e.orig, at: Date.now() };  // its old place, until the board says it
+  renderBoard(); focusChip(t.key);
+}
+async function sendMove(k, e, keep) {
+  const [p, n] = k.split("/");
+  if (!keep) renderBoard();
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/move`, { method: "POST", keepalive: !!keep, body: JSON.stringify({ column: e.from, to: e.to, text: e.text, move_only: false }) });
+  if (status === 200) { S.moving[k] = body.moved_to; if (L.toast?.key === k) L.toast.sent = true; return loadOverview(); }
+  if (L.toast?.key === k) L.toast = null;
+  L.note = `<span>#${n} was not moved: </span>${status === 409 ? `<span>it is no longer in </span>${cn(e.from)}<span>.</span>` : `<span>${esc(body.error || "the move did not go through")}</span>`}`;
+  renderBoard();
+}
+async function sendReorder(k, e, keep) {
+  const [p, n] = k.split("/"), ck = `${e.slug}|${e.column}`;
+  L.order[ck] = { order: e.order, at: Date.now() };  // the page keeps the new order until the overview agrees
+  if (!keep) renderBoard();
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/reorder`, { method: "POST", keepalive: !!keep, body: JSON.stringify({ column: e.column, before: e.before }) });
+  if (status === 200) { L.order[ck].at = Date.now(); if (L.toast?.key === k) Object.assign(L.toast, { sent: true, ck }); return loadOverview(); }
+  delete L.order[ck]; if (L.toast?.key === k) L.toast = null;
+  const why = status === 409 && body.gone === +n ? `<span>it is no longer in </span>${cn(e.column)}<span>.</span>`
+    : status === 409 && body.gone ? `<span>#${+body.gone} is no longer in </span>${cn(e.column)}<span>.</span>` : `<span>${esc(body.error || "the reorder did not go through")}</span>`;
+  L.note = `<span>#${n} was not reordered: </span>${why}`;
+  renderBoard();
+}
+// What the page shows ahead of the board stays until the overview agrees, or 30 s at most; then the toast goes too.
+function settleLanes() {
+  for (const [ck, o] of Object.entries(L.order)) {
+    const [slug, col] = ck.split("|"), now = (S.overview.projects.find((x) => x.slug === slug)?.cards || []).filter((c) => c.column === col).map((c) => `${slug}/${c.issue}`);
+    const want = o.order.filter((k) => now.includes(k));
+    if (Date.now() - o.at > 30000 || now.filter((k) => want.includes(k)).join() === want.join()) delete L.order[ck];
+  }
+  const t = L.toast; if (t && (t.sent && !(t.key in S.moving) && !(t.ck && L.order[t.ck]) || t.done && Date.now() - (t.at ||= Date.now()) > 6000)) L.toast = null;
+  const h = L.hold, c = h && cardOf(h.slug, h.n); if (h && (!c || c.column !== h.from)) { L.hold = null; L.status = ""; }  // it moved on the board meanwhile
+}
+// The note box: required for M4, M5 and M7; optional for the toast's Comment.
+function openBox(b) {
+  L.box = b; const n = numOf(b.key), m = `${b.from}>${b.to}`, el = $("mbox");
+  $("mbox-h").textContent = b.optional ? `Comment on #${n}` : m === "Ready for Dev>Ready for Refinement" ? `Refine #${n} again` : `Request changes on #${n}`;
+  $("mnote").value = ""; $("mnote").placeholder = b.optional ? "" : { "Spec Review>Ready for Refinement": "What should change in the spec?", "Ready for Dev>Ready for Refinement": "What should the refinement do differently?" }[m] || "What should change?";
+  $("mgo").textContent = b.optional ? "Post comment" : { "Spec Review>Ready for Refinement": "Request changes", "Ready for Dev>Ready for Refinement": "Refine again" }[m] || "Send back to Coding";
+  boxHint(); el.hidden = false;
+  const lab = $("lanes").querySelector(`.lcol[data-col="${CSS.escape(b.to)}"] .lab`)?.getBoundingClientRect() || { left: 12, bottom: 80 };
+  el.style.left = `${Math.max(12, Math.min(lab.left, innerWidth - el.offsetWidth - 12))}px`; el.style.top = `${Math.min(lab.bottom + 8, innerHeight - el.offsetHeight - 12)}px`;
+  $("mnote").focus();
+}
+function boxHint() { const empty = !$("mnote").value.trim(); $("mgo").disabled = empty; $("mhint").textContent = L.box?.optional ? "Optional: a comment, posted on the issue" : empty ? "Write the note first: it goes with the decision." : "You can undo for a few seconds after confirming."; }
+function closeBox() { const b = L.box; L.box = null; $("mbox").hidden = true; if (b) focusChip(b.key); }
+async function sendBox() {
+  const b = L.box, text = $("mnote").value.trim(); if (!b || !text) return;
+  closeBox();
+  if (!b.optional) return pendMove(b.key, b.from, b.to, text, false);
+  const e = S.pending[b.key]; if (e?.move) { e.text = text; return; }  // the move has not left: the comment goes with it, and Undo drops both
+  const [p, n] = b.key.split("/"), { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/comment`, { method: "POST", body: JSON.stringify({ text }) });
+  if (status === 200) L.toast = { key: b.key, html: `<span>Comment posted on #${n}.</span>`, done: true }; else L.note = `<span>${esc(body.error || "The comment did not go through.")}</span>`;
+  renderBoard();
+}
+// a pointer drop in its own queue goes before the chip under the pointer, or last below the last one; null where it changes nothing
+function dropAt(col, y) {
+  const h = L.hold, cws = [...col.querySelectorAll(".cw")], hit = cws.find((el) => el.getBoundingClientRect().bottom >= y);
+  const before = hit ? hit.dataset.cw : null, ks = h.base, i = ks.indexOf(h.key);
+  return before === h.key || before === (ks[i + 1] ?? null) ? null : { before, el: hit || cws[cws.length - 1] };
+}
+const clearBars = () => $("lanes").querySelectorAll(".bar-before, .bar-after").forEach((el) => el.classList.remove("bar-before", "bar-after"));
+function endDrag() { clearBars(); $("lanes").querySelectorAll(".lcol.over").forEach((el) => el.classList.remove("over")); $("lanes").classList.remove("dragging"); }
+document.addEventListener("dragstart", (e) => {
+  const el = e.target.closest?.("#lanes .chip[draggable]"); if (!el) return;
+  if (!tryHold(el.dataset.key, "drag")) { e.preventDefault(); return; }
+  e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", el.dataset.key);
+});
+document.addEventListener("dragover", (e) => {
+  const h = L.hold; if (h?.via !== "drag") return;
+  const col = e.target.closest?.("#lanes .lcol"); clearBars();
+  $("lanes").querySelectorAll(".lcol.over").forEach((el) => { if (el !== col) el.classList.remove("over"); });
+  if (!col) return;
+  if (col.classList.contains("acc")) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; col.classList.add("over"); return; }
+  if (col.dataset.col !== h.from || !ordered(h.from)) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = "move";
+  const r = col.getBoundingClientRect(); if (e.clientY - r.top < 24) col.scrollTop -= 8; else if (r.bottom - e.clientY < 24) col.scrollTop += 8;
+  const at = dropAt(col, e.clientY); if (at) at.el.classList.add(at.before ? "bar-before" : "bar-after");
+});
+document.addEventListener("drop", (e) => {
+  const h = L.hold; if (h?.via !== "drag") return;
+  e.preventDefault(); const col = e.target.closest?.("#lanes .lcol"); endDrag();
+  if (col?.classList.contains("acc")) return drop(col.dataset.col);
+  const at = col && col.dataset.col === h.from && ordered(h.from) && dropAt(col, e.clientY);
+  if (at) return reorderTo(h, at.before);
+  letGo(true);  // on its own place: nothing to say
+});
+document.addEventListener("dragend", () => { if (L.hold?.via === "drag") { endDrag(); letGo(); } });
 // Fits the column below the line. The list keeps its first two cards whole (--two), Yours keeps room for them (--ymin) and Today
 // gives way, scrolling inside itself. .tight compacts the column only when Today is open and even that does not fit; the call
 // decides from the measure with .tight off, so it does not flip between refreshes. It never scrolls and never moves focus.
@@ -1156,7 +1436,10 @@ function quick(q, k) {
   if (q === "changes") $("qc")?.focus();
 }
 // An entry leaves S.pending before it is sent, by the timer or by leaving the page, so it goes out once.
-function sendPending(k, keep) { const e = S.pending[k]; if (!e) return; clearTimeout(e.timer); delete S.pending[k]; return post(k, "approve", "", keep); }
+function sendPending(k, keep) {
+  const e = S.pending[k]; if (!e) return; clearTimeout(e.timer); delete S.pending[k];
+  return e.move ? sendMove(k, e, keep) : e.reorder ? sendReorder(k, e, keep) : post(k, "approve", "", keep);
+}
 // The list asks the drawer's question: with doubt (or marks never seen) it opens the confirmation and sends nothing.
 function lookFirst(k, doubt) {
   openCard(k, "review");
@@ -1781,9 +2064,17 @@ function selectTab(id) { S.auto = false; if (id === "live" && S.tab !== "live") 
 
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
-  const t = e.target.closest("[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  if (L.hold && L.hold.via !== "drag" && !e.target.closest("[data-acc],[data-rord],[data-mv],#lstat")) { const onChip = e.target.closest("#lanes .chip"); letGo(); if (onChip) return; }  // a tap elsewhere lets go
+  const t = e.target.closest("[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
-  if (t.hasAttribute("data-resume")) resume(t.dataset.resume);
+  if (t.dataset.mv) { if (L.hold?.key !== t.dataset.mv) tryHold(t.dataset.mv, "touch"); }
+  else if (t.dataset.acc) drop(t.dataset.acc);
+  else if (t.dataset.rord) { if (t.dataset.rord === "place") placeHeld(); else step(t.dataset.rord === "up" ? -1 : 1); }
+  else if (t.dataset.lt === "undo") undoLane();
+  else if (t.dataset.lt === "comment") openBox({ key: L.toast.key, from: L.toast.from, to: S.pending[L.toast.key]?.to || S.moving[L.toast.key] || L.toast.from, optional: true });
+  else if (t.id === "mgo") sendBox();
+  else if (t.id === "mcancel") closeBox();
+  else if (t.hasAttribute("data-resume")) resume(t.dataset.resume);
   else if (t.dataset.step) setStep(t);
   else if (t.dataset.show) show(t.dataset.show, !S.show[t.dataset.show]);
   else if (t.dataset.themePick) { const id = t.dataset.themePick; theme(id); renderSettings(); themeReview(); document.querySelector(`[data-theme-pick="${id}"]`)?.focus(); }  // the rewrite took the focus with it
@@ -1821,7 +2112,7 @@ document.addEventListener("click", (e) => {
 document.addEventListener("submit", (e) => { if (e.target.id === "compose") { e.preventDefault(); say(); } });
 document.addEventListener("keydown", (e) => { if (e.target.id === "say" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); say(); } });
 document.addEventListener("keydown", (e) => { if (e.target.id === "hours-in" && e.key === "Enter") { e.preventDefault(); if (Object.keys(SET.draft).length) setSave(); } });
-document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "changes") syncDecide(); if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "inote") renderInbox(); if (e.target.dataset?.cost) setCost(e.target); });
+document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "changes") syncDecide(); if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "inote") renderInbox(); if (e.target.id === "mnote") boxHint(); if (e.target.dataset?.cost) setCost(e.target); });
 document.addEventListener("change", (e) => {
   if (e.target.matches?.("[data-pause]")) setPause(e.target);
   if (e.target.dataset?.nk && e.target.type !== "text") setNotify(e.target);
@@ -1834,6 +2125,7 @@ document.addEventListener("change", (e) => {
     if (e.target.value === setWas("language")) delete SET.draft.language; else SET.draft.language = e.target.value;
     SET.err = ""; renderSettings(); $("lang")?.focus();
   }
+  if (e.target.id === "mvonly") { L.only = e.target.checked; renderBoard(); }
   if (e.target.id === "logsel") { S.log = e.target.value; S.logNext = -1; S.logText = ""; renderDrawer(); followLog(); }
   if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
 });
@@ -1849,6 +2141,21 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (e.key === "Escape" && S.peek && !S.open) { peek(S.peek); return; }
+  if (e.key === "Escape" && L.box) { closeBox(); return; }  // Esc: the note box, the held card, then the maximized panel
+  if (!typing && $("band").classList.contains("maxed") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const h = L.hold, chip = document.activeElement?.closest?.("#lanes .chip");
+    if (e.key.toLowerCase() === "m" && chip) { e.preventDefault(); if (h?.key === chip.dataset.key) letGo(); else tryHold(chip.dataset.key, "key"); return; }
+    if (h && h.via !== "drag") {
+      if (e.key === "Escape") { e.preventDefault(); return letGo(); }
+      if (/^[1-9]$/.test(e.key)) { const t = targets(h).find((x) => x.n === +e.key); e.preventDefault(); if (t) drop(t.to); return; }  // a digit discards the arrows
+      if (["ArrowUp", "ArrowDown", "Enter", " "].includes(e.key)) {  // taken from the page while a card is held: no scroll, the card does not open
+        e.preventDefault();
+        if (ordered(h.from) && e.key.startsWith("Arrow")) step(e.key === "ArrowUp" ? -1 : 1);
+        else if (ordered(h.from) && e.key === "Enter") placeHeld();
+        return;
+      }
+    }
+  }
   if (!typing && inboxOn() && /^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); document.querySelector(`[data-io="${+e.key - 1}"]`)?.click(); return; }
   if (e.key === "Escape" && !typing && maxed()) { maximize(maxed(), false); return; }
   if (e.key === "Escape" && S.open && !typing) { closeCard(); return; }

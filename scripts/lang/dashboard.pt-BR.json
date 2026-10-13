@@ -411,9 +411,132 @@
     "always": "sempre",
     "Windows like 08:00-23:00, separated by commas. Empty means always.": "Janelas como 08:00-23:00, separadas por vírgula. Vazio significa sempre.",
     "Working hours not saved: write each window as HH:MM-HH:MM, separated by commas.": "Horário de trabalho não salvo: escreva cada janela como HH:MM-HH:MM, separadas por vírgula.",
-    "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora."
+    "The hours in config.yml are not valid, so the dispatcher runs at all hours.": "O horário em config.yml não é válido, então o dispatcher roda a qualquer hora.",
+    "Only what I can move": "Só o que eu posso mover",
+    "Nothing for you to move right now.": "Nada para você mover agora.",
+    "locked · a run is in progress": "travado · uma execução está em andamento",
+    "locked · blocked by infrastructure, the factory retries": "travado · bloqueado por infraestrutura, a fábrica tenta de novo",
+    "locked · it is blocked and waits for your call in the card": "travado · ele está bloqueado e espera sua decisão no card",
+    "a run is in progress": "uma execução está em andamento",
+    "blocked by infrastructure, the factory retries": "bloqueado por infraestrutura, a fábrica tenta de novo",
+    "it is blocked and waits for your call in the card": "ele está bloqueado e espera sua decisão no card",
+    "send it to refinement": "mandar para o refinamento",
+    "take it out of the queue": "tirar da fila",
+    "approve the spec": "aprovar a spec",
+    "request changes": "pedir mudanças",
+    "refine again": "refinar de novo",
+    "approve and ship": "aprovar e publicar",
+    "the factory moves": "a fábrica move",
+    "Move": "Mover",
+    "Up": "Subir",
+    "Down": "Descer",
+    "Place here": "Deixar aqui",
+    "What should the refinement do differently?": "O que o refinamento deve fazer diferente?",
+    "Refine again": "Refinar de novo",
+    "Optional: a comment, posted on the issue": "Opcional: um comentário, publicado na issue",
+    "Post comment": "Publicar comentário",
+    "Comment": "Comentar",
+    ". The board confirms it on the dispatcher's next read.": ". O quadro confirma na próxima leitura do dispatcher.",
+    ", Esc to let go.": ", Esc para soltar.",
+    ", Up or Down to reorder, Enter to place it, Esc to let go.": ", seta para cima ou para baixo para reordenar, Enter para deixar no lugar, Esc para soltar."
   },
   "rx": [
+    [
+      "^Holding #(\\d+), (\\d+) of (\\d+) in $",
+      "Segurando o #$1, $2 de $3 em "
+    ],
+    [
+      "^Holding #(\\d+)\\.$",
+      "Segurando o #$1."
+    ],
+    [
+      "^Press (\\d) to $",
+      "Aperte $1 para "
+    ],
+    [
+      "^Drop to $",
+      "Solte para "
+    ],
+    [
+      "^Tap to $",
+      "Toque para "
+    ],
+    [
+      "^, (\\d) to $",
+      ", $1 para "
+    ],
+    [
+      "^#(\\d+), (\\d+) of (\\d+)\\.$",
+      "#$1, $2 de $3."
+    ],
+    [
+      "^#(\\d+) let go\\. It did not move\\.$",
+      "#$1 solto. Ele não se moveu."
+    ],
+    [
+      "^#(\\d+) cannot move: $",
+      "#$1 não pode ser movido: "
+    ],
+    [
+      "^#(\\d+) is the factory's to move\\.$",
+      "Quem move o #$1 é a fábrica."
+    ],
+    [
+      "^#(\\d+) moved to $",
+      "#$1 foi para "
+    ],
+    [
+      "^#(\\d+) is back in $",
+      "#$1 voltou para "
+    ],
+    [
+      "^Comment posted on #(\\d+)\\.$",
+      "Comentário publicado no #$1."
+    ],
+    [
+      "^#(\\d+) was not moved: $",
+      "#$1 não foi movido: "
+    ],
+    [
+      "^it is no longer in $",
+      "ele não está mais em "
+    ],
+    [
+      "^#(\\d+) is no longer in $",
+      "o #$1 não está mais em "
+    ],
+    [
+      "^#(\\d+) was not reordered: $",
+      "#$1 não foi reordenado: "
+    ],
+    [
+      "^#(\\d+) is now (\\d+) of (\\d+) in $",
+      "#$1 agora é o $2 de $3 em "
+    ],
+    [
+      "^#(\\d+) is back at (\\d+) of (\\d+) in $",
+      "#$1 voltou para $2 de $3 em "
+    ],
+    [
+      "^(\\d+) of (\\d+) in line$",
+      "$1 de $2 na fila"
+    ],
+    [
+      "^Position (\\d+) of (\\d+)$",
+      "Posição $1 de $2"
+    ],
+    [
+      "^Request changes on #(\\d+)$",
+      "Pedir mudanças no #$1"
+    ],
+    [
+      "^Refine #(\\d+) again$",
+      "Refinar o #$1 de novo"
+    ],
+    [
+      "^Comment on #(\\d+)$",
+      "Comentar no #$1"
+    ],
     [
       "^Every project, today\\.\\n",
       "Todos os projetos, hoje.\n"
