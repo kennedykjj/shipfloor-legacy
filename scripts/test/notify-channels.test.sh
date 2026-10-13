@@ -65,7 +65,7 @@ lacks "secret_topic_xyz" "AC-6 the topic is neither pushed in the text nor logge
 setup; conf "$BOTH"; board '13\tSpec Review\tI13\n'
 cycle 2026-10-11T10:00:00
 line="$(grep -F 'shop · #13 waits for you' "$SENT" | grep '^ntfy' | head -1)"; body="${line##*$'\t'}"; first="${body%%|*}"
-if [ -n "$line" ] && [[ "$first" == abcdefghijabcdefghij* ]] && [ "${first: -1}" = "…" ] && [ "${#first}" -ge 70 ] && [ "${#first}" -le 83 ]; then
+if [ -n "$line" ] && [[ "$first" == abcdefghijabcdefghij* ]] && [[ "$first" == *"…" ]] && [ "${#first}" -ge 70 ] && [ "${#first}" -le 83 ]; then
   pass "AC-6 a title of 100 characters is cut at 80 with an ellipsis"
 else
   fail "AC-6 a title of 100 characters is cut at 80 with an ellipsis: ntfy line was '$line'"

@@ -46,8 +46,9 @@ setup; export Q_REF=25 W_SR=0 Q_DEV= Q_PROD=
 mkdir -p "$FACTORY_HOME/locks/refine-25.lock"; echo "1 $(date +%s) 26" > "$FACTORY_HOME/locks/refine-25.lock/info"
 run_dispatch; [ -z "$(launched)" ] && pass "fresh lock respected" || fail "ignored fresh lock"
 
-setup; export Q_REF=25 W_SR=0 Q_DEV= Q_PROD=
-mkdir -p "$FACTORY_HOME/locks/refine-25.lock"; echo "1 $(( $(date +%s) - 20000 )) 26" > "$FACTORY_HOME/locks/refine-25.lock/info"
+# an old lock whose process is gone: the pid of a process that already ended (pid 1 is alive, and root may signal it)
+setup; export Q_REF=25 W_SR=0 Q_DEV= Q_PROD=; sh -c ':' & dead=$!; wait "$dead"
+mkdir -p "$FACTORY_HOME/locks/refine-25.lock"; echo "$dead $(( $(date +%s) - 20000 )) 26" > "$FACTORY_HOME/locks/refine-25.lock/info"
 run_dispatch; assert_contains "$(launched)" "/sf:refine 25"
 
 setup; export Q_REF=25 W_SR=0 BOARD_FAIL=1
