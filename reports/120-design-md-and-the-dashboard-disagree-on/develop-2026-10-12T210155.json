@@ -1,0 +1,17 @@
+{
+  "issue": 120,
+  "slug": "design-md-and-the-dashboard-disagree-on",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T20:51:00-03:00",
+  "finished_at": "2026-10-12T21:01:28-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "engineer", "tokens": 50879, "duration_s": 136}
+  ],
+  "rounds": {"4": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [],
+  "manual_edit": false
+}
