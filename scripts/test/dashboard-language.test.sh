@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Settings > Language: the page's language (language in config.yml) and, read-only, the language the factory writes
-# in for each project (language in factory.yml). Every server here runs with SHIPFLOOR_SCHEDULER set to a stub:
+# Settings > Language: the page's language (language in config.yml) and the language the factory writes in for each
+# project (language in factory.yml, or this machine's override in the project's overrides.yml, #129). Every server here runs with SHIPFLOOR_SCHEDULER set to a stub:
 # a test never touches the real ShipfloorDispatcher task, nor the real ~/.shipfloor.
 source "$(dirname "$0")/lib.sh"
 nat() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
@@ -48,7 +48,7 @@ got="$(jget "$s" '[(p["slug"], p["language"]["code"], p["language"]["set"], p["l
 [ "$got" = "('blog', 'pt-BR', True, '.shipfloor/factory.yml')" ] && pass "AC-2 a project with the key shows its language, set, and .shipfloor/factory.yml" || fail "AC-2 blog language was: $got (want ('blog', 'pt-BR', True, '.shipfloor/factory.yml'))"
 [ "$(jget "$s" 'len([p for p in d["projects"] if "language" in p])')" = "2" ] && pass "AC-2 every registered project carries a language" || fail "AC-2 projects with a language: $(jget "$s" 'len([p for p in d["projects"] if "language" in p])') (want 2)"
 page_has "What the factory writes" "AC-2"
-page_has "Read-only here" "AC-2"
+if curl -s "$base/" | grep -qF "Read-only here"; then fail "AC-2 the page still says a project's language is read-only"; else pass "AC-2 a project's language is no longer read-only"; fi
 page_has ".shipfloor/factory.yml" "AC-2"
 
 # --- AC-4: the options are the keys of LANGS, each with its name; the page lists no language of its own
@@ -102,4 +102,44 @@ resp="$(post '{"language":"pt-BR"}')"; code="${resp##*$'\n'}"
 # --- AC-7: the section says the text a product shows its own users is not a factory setting
 page_has "text a product shows its own users is not a factory setting" "AC-7"
 cat_has "não é uma configuração da fábrica" "AC-7"
+
+# --- #129 AC-1: each project has a select with LANGS plus "as the repository says", showing the language in effect
+ppost() { curl -s -w '\n%{http_code}' -X POST -H 'Content-Type: application/json' -H "X-Shipfloor-Token: $tok" -d "$1" "$base/api/settings/project"; }
+plang() { jget "$(get /api/settings)" "[(p['language']['code'], p['language']['repo'], p['language']['from']) for p in d['projects'] if p['slug']=='$1'][0]"; }
+fresh_home; printf 'language: en\n' > "$H/config.yml"; start_dash e "$OK_CMD"
+[ "$(plang shop)" = "('en', 'en', 'repository')" ] && pass "#129 AC-1 shop: en in effect, en from the repository" || fail "#129 AC-1 shop was: $(plang shop)"
+[ "$(plang blog)" = "('pt-BR', 'pt-BR', 'repository')" ] && pass "#129 AC-1 blog: pt-BR in effect, from the repository" || fail "#129 AC-1 blog was: $(plang blog)"
+page_has 'data-plang=' "#129 AC-1"
+page_has '<option value="">As the repository says: ${said(p.language.repo)}</option>' "#129 AC-1"
+page_has 'aria-label="Language the factory writes in for ${esc(p.slug)}"' "#129 AC-1"
+page_has "a session already running keeps the language it started in" "#129 AC-7"
+cat_has "Como o repositório diz: \$1" "#129 AC-1"
+cat_has "Idioma em que a fábrica escreve em \$1" "#129 AC-1"
+cat_has "uma sessão que já roda continua no idioma em que começou" "#129 AC-7"
+cat_has "Fica nesta máquina, por cima do que o repositório diz; o" "#129 AC-7"
+if grep -qF "Read-only here" "$FACTORY_DIR/lang/dashboard.pt-BR.json"; then fail "#129 the catalog keeps the read-only sentence"; else pass "#129 the catalog dropped the read-only sentence"; fi
+
+# --- #129 AC-4: an override that differs from factory.yml: the row says what the repository says
+resp="$(ppost '{"project":"blog","values":{"language":"en"}}')"
+[ "${resp##*$'\n'}" = 200 ] && pass "#129 AC-4 blog set to en on this machine" || fail "#129 AC-4 saving blog's language answered: $resp"
+[ "$(plang blog)" = "('en', 'pt-BR', 'machine')" ] && pass "#129 AC-4 blog: en in effect, pt-BR in the repository, from this machine" || fail "#129 AC-4 blog was: $(plang blog)"
+page_has 'set on this machine · the repository says ${said(p.language.repo)}' "#129 AC-4"
+page_has 'aria-describedby="${id}"' "#129 AC-4"
+cat_has "definido nesta máquina · o repositório diz \$1" "#129 AC-4"
+# the refusal of a project's language reads in the page's sentence, in both languages
+page_has 'The language of ${slug} was not changed: ' "#129 AC-6"
+cat_has "O idioma de \$1 não foi alterado: \$2. Ele continua escrevendo em \$3." "#129 AC-6"
+
+# --- #129 AC-5: the dashboard's language and a project's are independent: changing one never changes the other
+[ "$(cfglang)" = "en" ] && pass "#129 AC-5 a project's language left config.yml's alone" || fail "#129 AC-5 config.yml language is: $(cfglang)"
+[ "$(jget "$(get /api/lang)" 'd.get("language")')" = "en" ] && pass "#129 AC-5 the dashboard is still in English" || fail "#129 AC-5 /api/lang moved"
+resp="$(post '{"language":"pt-BR"}')"
+[ "${resp##*$'\n'}" = 200 ] && pass "#129 AC-5 the dashboard set to pt-BR" || fail "#129 AC-5 saving the dashboard's language answered: $resp"
+[ "$(plang blog)" = "('en', 'pt-BR', 'machine')" ] && pass "#129 AC-5 blog still writes in en with the dashboard in pt-BR" || fail "#129 AC-5 blog was: $(plang blog)"
+[ "$(plang shop)" = "('en', 'en', 'repository')" ] && pass "#129 AC-5 shop still writes in en with the dashboard in pt-BR" || fail "#129 AC-5 shop was: $(plang shop)"
+resp="$(ppost '{"project":"shop","values":{"language":"pt-BR"}}')"
+[ "$(plang shop)" = "('pt-BR', 'en', 'machine')" ] && [ "$(cfglang)" = "pt-BR" ] && pass "#129 AC-5 shop in pt-BR, the dashboard still pt-BR" || fail "#129 AC-5 shop $(plang shop), dashboard $(cfglang)"
+post '{"language":"en"}' >/dev/null
+[ "$(plang shop)" = "('pt-BR', 'en', 'machine')" ] && [ "$(cfglang)" = "en" ] && pass "#129 AC-5 the dashboard back in English, shop still pt-BR" || fail "#129 AC-5 shop $(plang shop), dashboard $(cfglang)"
+[ -z "$(cat "$C/stub-ok" 2>/dev/null)" ] && pass "#129 a project's language does not call the scheduler" || fail "#129 the scheduler was called: $(cat "$C/stub-ok")"
 finish

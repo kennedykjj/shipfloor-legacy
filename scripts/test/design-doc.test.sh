@@ -156,6 +156,57 @@ check("AC-6 every sidecar typography entry is in the front matter", not badt, "n
 gen = str(sidecar.get("generatedAt", ""))[:10]
 check("AC-6 generatedAt is on or after 2026-10-11", gen >= "2026-10-11", f"generatedAt is {gen or 'missing'}")
 
+# ---- #120: the twelve values the detector reported
+# AC-2: the six font sizes are gone from the page; 28px is a step of the ramp
+for px in ("16px", "21px", "22px", "24px", "26px", "30px"):
+    sels = uses["font-size"].get(px, [])
+    check(f"AC-2 no rule uses font-size {px}", not sels, f"{px} is still used by {', '.join(sels[:4])}")
+check("AC-2 28px is a step of the type ramp (typography.section)", "28px" in ramp,
+      f"the ramp is {sorted(ramp)}; typography.section is {typo.get('section', 'missing')}")
+check("AC-2 typography.section is 28px", norm(str((typo.get("section") or {}).get("fontSize", ""))) == "28px",
+      f"typography.section.fontSize is {(typo.get('section') or {}).get('fontSize', 'missing')}")
+
+# AC-3: the radii 1, 10, 14px are gone from the page; 40px is the named step rounded.pill
+for px in ("1px", "10px", "14px"):
+    sels = uses["border-radius"].get(px, [])
+    check(f"AC-3 no rule uses border-radius {px}", not sels, f"{px} is still used by {', '.join(sels[:4])}")
+check("AC-3 rounded.pill is 40px", str(rounded.get("pill", "")).strip() == "40px", f"rounded.pill is {rounded.get('pill', 'missing')}")
+check("AC-3 40px is a step of the radius scale", "40px" in scale, f"the scale is {sorted(scale)}")
+check("AC-3 Shapes names the pill step", re.search(r"^#+[ \t]*Shapes[ \t]*\n(?:(?!^#{1,3}[ \t]).)*\bpill\b", design, flags=re.S | re.M | re.I) is not None,
+      "the Shapes section never names the pill")
+
+# AC-4: the decision column's well and the pill's hover come from tokens
+lit = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(|\b(?:white|black|gray|grey|red|green|blue|silver|yellow|orange|purple|navy|teal|maroon|olive|lime|aqua|fuchsia)\b", re.I)
+idec = [b for s, b in rules if s == ".idec"]
+check("AC-4 the .idec rule exists", len(idec) == 1, f"found {len(idec)} rules for .idec")
+body_idec = idec[0] if idec else ""
+check("AC-4 .idec holds no color literal", not lit.search(body_idec), "the .idec rule has a literal color: " + ", ".join(m.group(0) for m in lit.finditer(body_idec)))
+check("AC-4 .idec background is var(--well)", re.search(r"(?<![\w-])background\s*:\s*var\(--well\)\s*[;}]?", body_idec) is not None,
+      "the .idec background is " + (re.search(r"(?<![\w-])background\s*:\s*([^;]+)", body_idec).group(1).strip() if re.search(r"(?<![\w-])background\s*:", body_idec) else "missing"))
+hov = [b for s, b in rules if ".pill:hover" in s]
+check("AC-4 the Approve pill has a hover rule", len(hov) >= 1, "no rule for .pill:hover")
+for i, b in enumerate(hov):
+    check("AC-4 the .pill:hover rule holds no color literal", not lit.search(b), "the .pill:hover rule has a literal color: " + ", ".join(m.group(0) for m in lit.finditer(b)))
+    bg = re.search(r"(?<![\w-])background\s*:\s*([^;]+)", b)
+    bgv = bg.group(1).strip() if bg else ""
+    check("AC-4 the .pill:hover background is a color-mix over tokens",
+          bool(re.fullmatch(r"color-mix\(\s*in srgb\s*,\s*var\(--[a-z-]+\)[^,]*,\s*var\(--[a-z-]+\)[^,]*\)", bgv)),
+          f"the .pill:hover background is {bgv or 'missing'}")
+
+# AC-6: Known deviations lists only values the page still uses, and none this issue resolved
+devtxt = dev.group(1) if dev else ""
+items = re.findall(r"`([^`]+)`\s*[—–-]+\s*`([^`]+)`", devtxt)
+check("AC-6 Known deviations lists no value this issue resolved",
+      not [v for v, _ in items if norm(v) in {"16px", "21px", "22px", "24px", "26px", "30px", "1px", "10px", "14px", "40px"}],
+      "still listed: " + ", ".join(v for v, _ in items if norm(v) in {"16px", "21px", "22px", "24px", "26px", "30px", "1px", "10px", "14px", "40px"}))
+for v, s in items:
+    n = norm(v)
+    sels = [x for p in uses for x in uses[p].get(n, [])] if n else []
+    sel = re.sub(r"\s+", " ", s).strip()
+    check(f"AC-6 Known deviations `{v}` is used by {sel} on the page", any(sel == x or sel in x or x in sel for x in sels),
+          f"{v} is listed for {sel} but the page uses it in: {', '.join(sels) or 'no rule'}")
+check("AC-6 Known deviations keeps 15.5px (.isec .plain)", any(norm(v) == "15.5px" for v, _ in items), "the 15.5px line is gone")
+
 # AC-7: the waiting tile and the pool bar are described as the page draws them (#115)
 def section(title, level):
     s = re.search(r"^#{%d}[ \t]*%s[ \t]*\n(.*?)(?=^#{1,%d}[ \t]|\Z)" % (level, re.escape(title), level), design, flags=re.S | re.M)
@@ -180,6 +231,41 @@ check("AC-7 the Settings pool bar sentence names the hue of every stage (refine,
       "the Settings pool bar sentence misses one of `refine`, `text`, `validate`, `ok`")
 check("AC-7 the Themes token list ends with refine, validate", re.search(r"`refine`,\s*`validate`", tsec) is not None,
       "the Themes section's token list does not end with `refine`, `validate`")
+
+# AC-8 (#117): the caption is 12px / 0.1em, no 11px or 11.5px role is left, the 24x24px target, the switch's word
+cap = typo.get("caption") if isinstance(typo.get("caption"), dict) else {}
+check("AC-8 front matter Caption is 12px with 0.1em tracking",
+      norm(str(cap.get("fontSize", ""))) == "12px" and str(cap.get("letterSpacing", "")).replace("0.1em", ".1em") == ".1em",
+      "typography.caption is %s / %s, want 12px / 0.1em" % (cap.get("fontSize", "missing"), cap.get("letterSpacing", "missing")))
+cline = next((l for l in design.splitlines() if re.match(r"\s*-\s*\*\*Caption\*\*", l)), "")
+check("AC-8 Hierarchy gives Caption as 12px and 0.1em",
+      "12px" in cline and "0.1em" in cline and "11px" not in cline and "0.14em" not in cline,
+      "the Caption line of Hierarchy is: " + (cline or "missing"))
+small = sorted({k for k, t in typo.items() if isinstance(t, dict) and norm(str(t.get("fontSize", ""))) in ("11px", "11.5px")})
+check("AC-8 the type ramp has no 11px or 11.5px role", not small and "note" not in typo,
+      "typography still has " + ", ".join(small or ["note"]))
+check("AC-8 DESIGN.md names no 11px or 11.5px size", re.search(r"(?<![\d.])11(\.5)?px", design) is None,
+      "DESIGN.md still mentions " + ", ".join(sorted(set(re.findall(r"(?<![\d.])11(?:\.5)?px", design)))))
+check("AC-8 Meta is named Meta (12px), with no separate note role", "Meta (12px)" in design and re.search(r"Meta\*\* and \*\*note", design) is None,
+      "Hierarchy does not read \"Meta (12px)\" or still has \"Meta and note\"")
+btn = re.search(r"^#+[ \t]*Buttons[ \t]*\n(.*?)(?=^#{1,3}[ \t]|\Z)", design, flags=re.S | re.M)
+check("AC-8 Buttons names the 24x24px minimum target", bool(btn) and re.search(r"24\s*x\s*24\s*px", btn.group(1)) is not None
+      and re.search(r"Target", btn.group(1)) is not None,
+      "the Buttons section has no \"Target\" rule of at least 24x24px")
+check("AC-8 says a Settings switch shows its state as a word",
+      any("switch" in l.lower() and re.search(r"\bwords?\b", l) and re.search(r"\bstate\b", l) for l in design.splitlines()),
+      "no line of DESIGN.md says a switch shows its state as a word")
+check("AC-8 Today says the chart labels are 12px", re.search(r"Chart labels are 12px", design) is not None,
+      "Today does not read \"Chart labels are 12px\"")
+dscap = next((c.get("css", "") for c in (sidecar.get("components") or []) if isinstance(c, dict) and ".ds-cap{" in str(c.get("css", ""))), "")
+if not dscap:
+    m2 = re.search(r"\.ds-cap\{[^}]*\}", sidecar_text)
+    dscap = m2.group(0) if m2 else ""
+check("AC-8 the sidecar agrees on the caption size",
+      bool(dscap) and "12px" in dscap and ".1em" in dscap and "11px" not in dscap and ".14em" not in dscap,
+      "the sidecar's .ds-cap is: " + (dscap[:120] or "missing"))
+check("AC-8 the sidecar has no 11px or 11.5px size", re.search(r"(?<![\d.])11(\.5)?px", sidecar_text) is None,
+      "the sidecar still mentions 11px or 11.5px")
 
 print("\n".join(res))
 PY
