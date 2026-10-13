@@ -1,0 +1,22 @@
+{
+  "issue": 125,
+  "slug": "lifecycle-maximized-the-owner-moves-thei",
+  "pipeline": "develop",
+  "started_at": "2026-10-12T21:05:00-03:00",
+  "finished_at": "2026-10-12T22:06:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 97755, "duration_s": 535},
+    {"role": "engineer (factory, task 1)", "tokens": 226169, "duration_s": 1482},
+    {"role": "qa-engineer (amend)", "tokens": 16083, "duration_s": 85},
+    {"role": "engineer (factory, task 1, round 2)", "tokens": 29130, "duration_s": 353}
+  ],
+  "rounds": {"1": 1, "2": 1, "3": 1, "4": 2, "5": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [
+    {"file": "scripts/test/dashboard-move.test.sh", "commit": "bc59424", "reason": "the test's gh stand-in answered [] to every list-by-label read (it took the label from all the arguments, not from the URL); no assertion changed"}
+  ],
+  "manual_edit": false
+}
