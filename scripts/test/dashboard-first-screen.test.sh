@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The Factory view's first screen: the lifecycle band and "Today" open, each minimized by a button of its own; no summary line
+# The Factory view's first screen: the lifecycle band and "History" open, each minimized by a button of its own; no summary line
 # above them (#119: the header carries the pool, the runs and the spend, once).
 # AC-1 and AC-4 are pixel measures, checked by UX/UI in validation; the rest is read from the page's text.
 source "$(dirname "$0")/lib.sh"
@@ -25,24 +25,24 @@ def tag(attr, val):  # every opening tag that carries attr="val"
     return [t for t in re.findall(r"<[a-z][^>]*>", h) if re.search(rf'\b{attr}\s*=\s*["\']{re.escape(val)}["\']', t)]
 def has(t, a): return re.search(rf"(?<![\w-]){a}(?![\w-])", t) is not None
 
-band, today = tag("id", "band"), tag("id", "today")
+band, today = tag("id", "band"), tag("id", "history")
 sumline = tag("id", "sumline")
 btn_band = [t for t in tag("data-show", "band") if t.startswith("<button")]
-btn_today = [t for t in tag("data-show", "today") if t.startswith("<button")]
+btn_today = [t for t in tag("data-show", "history") if t.startswith("<button")]
 
-# AC-2: the view opens with the band and "Today" open, each with its fold button inside
+# AC-2: the view opens with the band and "History" open, each with its fold button inside
 check("AC-2 the lifecycle band is hidden in the static markup", bool(band) and has(band[0], "hidden"), "nav#band is not hidden")
-check("AC-2 Today is a hidden section with id=today", bool(today) and has(today[0], "hidden") and "telem" in today[0], 'section.telem has no id="today" with hidden')
+check("AC-2 History is a hidden section with id=history", bool(today) and has(today[0], "hidden") and "telem" in today[0], 'section.telem has no id="history" with hidden')
 check("AC-2 no summary line above the panels", not sumline and not tag("id", "sum"), "#sumline or #sum is still in the page")
-for nm, bt, ctl in (("band", btn_band, "band"), ("today", btn_today, "today")):
+for nm, bt, ctl in (("band", btn_band, "band"), ("history", btn_today, "history")):
     check(f"AC-2 the {nm} button starts open", bool(bt) and 'aria-expanded="true"' in bt[0] and "aria-controls=" in bt[0] and "aria-label=" in bt[0], f'no button[data-show="{nm}"] with aria-expanded="true", aria-controls and aria-label')
     at, start = h.find(f'data-show="{nm}"'), h.find(f'id="{ctl}"')
     check(f"AC-2 the {nm} button sits inside #{ctl}", 0 <= start < at < h.find("</nav>" if nm == "band" else "</section>", start), f'button[data-show="{nm}"] is not inside #{ctl}')
-check("AC-2 the state starts as S.show = {band: true, today: true}", bool(re.search(r"show\s*:\s*\{\s*band\s*:\s*true\s*,\s*today\s*:\s*true\s*\}", h)), "S.show is not declared open")
+check("AC-2 the state starts as S.show = {band: true, history: true}", bool(re.search(r"show\s*:\s*\{\s*band\s*:\s*true\s*,\s*history\s*:\s*true\s*\}", h)), "S.show is not declared open")
 check("AC-2 renderSum is gone", "renderSum" not in h, "the page still has renderSum")
 rb = src("function renderBoard")
 check("AC-2 a refresh leaves the fold alone", "S.show" not in rb and ".min" not in rb, "renderBoard rewrites what the owner minimized")
-for k, v in (("^Minimize the lifecycle$", "Minimizar o ciclo de vida"), ("^Minimize today$", "Minimizar hoje"), ("^Expand the lifecycle$", "Expandir o ciclo de vida"), ("^Expand today$", "Expandir hoje")):
+for k, v in (("^Minimize the lifecycle$", "Minimizar o ciclo de vida"), ("^Minimize the history$", "Minimizar o histórico"), ("^Expand the lifecycle$", "Expandir o ciclo de vida"), ("^Expand the history$", "Expandir o histórico")):
     check("AC-2 pt-BR fold label " + ascii(v), [k, v] in cat["rx"], "rx entry " + k + " is missing")
 check("AC-2 the board grid is the band, then the columns", bool(re.search(r"grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)", h)), "the .board rows are not auto minmax(0, 1fr)")
 check("AC-2 the line stays out of localStorage", "shipfloor.show" not in h and "localStorage" not in src("function show("), "the open state is stored")
@@ -61,7 +61,7 @@ check("AC-3 show restores a maximized panel first", "maxed" in sh, "show does no
 check("AC-3 closing the band closes the peek", "peek" in sh.lower(), "show does not close an open peek")
 check("AC-3 the click handler has a [data-show] branch that toggles", bool(re.search(r"\[data-show\]", h)) and bool(re.search(r"dataset\.show", h)) and bool(re.search(r"show\(\s*[\w.]*dataset\.show\s*,\s*!", h)), "no [data-show] branch toggling through show()")
 check("AC-3 a refresh never rewrites the buttons", "data-show" not in rb, "renderBoard touches the data-show buttons")
-check("AC-3 renderTelem returns early while Today is closed", bool(re.search(r"S\.show\.today", src("function renderTelem"))), "renderTelem does not look at S.show.today")
+check("AC-3 renderTelem returns early while History is closed", bool(re.search(r"S\.show\.history", src("function renderTelem"))), "renderTelem does not look at S.show.history")
 
 # AC-7: nothing waits
 ry = src("function renderYours")

@@ -88,7 +88,7 @@ if not narrow:
 else:
     narrow_found = True
 
-# AC-1: one column, in the order band, waits for you, in progress, Today
+# AC-1: one column, in the order band, waits for you, in progress, History
 cols = last(hits(narrow, ".cols"), "grid-template-columns")
 ok(cols is not None and len(split_top(cols, " ")) - split_top(cols, " ").count("") == 1,
    "AC-1 narrow block: .cols is one column", f".cols grid-template-columns is {cols!r}")
