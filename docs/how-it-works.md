@@ -17,6 +17,10 @@ The gates (`scripts/gate.sh`) do not depend on the model: file scope per role, f
 
 A dispatcher (a scheduled task, every 3 minutes by default) goes through every registered project and starts pipelines with `claude -p`, within the machine's agent pool, each stage's slots and the project's WIP. It takes the cards of Ready for Refinement and Ready for Dev from the top: the order is the items' position in the GitHub Project, which the owner sets by dragging them in the dashboard (or on GitHub), and a card that cannot start (blocked) is skipped for the next one down.
 
+Each run's model comes from the card's **weight**. Refine ends by writing `**Weight:** light|standard|heavy` in the spec header, from what the spec says (layers touched, files, acceptance criteria, security or UX work), and the `weight` gate refuses a spec without one. The owner sees it in Spec Review and can change it there (`shipfloor weight <project> <n> <weight>`, or the drawer's decision); the next run follows it. Settings, Agents and models maps each stage and weight to a model: by default Develop runs light and standard cards on Sonnet and heavy ones on Opus. A card refined before weights existed runs as `standard`.
+
+A Develop run that ends on a failed gate **steps up**: the dispatcher reads the verdict the gate left in the run's lock (never the agent's report), takes the block off and resumes the card on its next cycle one model up (Sonnet to Opus), once per card while it stays in Coding. A run already stepped up, on the top model, or ended on an infrastructure failure stays blocked as before. The run's log (`== step-up ...`), the Feed and the card's Sessions tab name both models and the gate.
+
 ## Parallel work
 
 Cards built at the same time do not break `main`:

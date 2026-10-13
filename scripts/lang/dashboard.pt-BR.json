@@ -398,7 +398,6 @@
     "The reminder takes 15 to 720 minutes.": "O lembrete aceita de 15 a 720 minutos.",
     "Agents and models": "Agentes e modelos",
     "which model runs each role": "qual modelo roda cada papel",
-    "Which model each stage's session and each agent runs on. Default keeps the model the plugin ships with. A change takes effect on the dispatcher's next cycle; sessions already running keep their model.": "Em qual modelo roda a sessão de cada estágio e cada agente. Padrão mantém o modelo que vem com o plugin. A mudança vale a partir do próximo ciclo do dispatcher; as sessões que já estão rodando continuam no modelo delas.",
     "Stages": "Estágios",
     "Agents": "Agentes",
     "No priced run in the last 7 days.": "Nenhuma execução com preço nos últimos 7 dias.",
@@ -439,9 +438,104 @@
     "Comment": "Comentar",
     ". The board confirms it on the dispatcher's next read.": ". O quadro confirma na próxima leitura do dispatcher.",
     ", Esc to let go.": ", Esc para soltar.",
-    ", Up or Down to reorder, Enter to place it, Esc to let go.": ", seta para cima ou para baixo para reordenar, Enter para deixar no lugar, Esc para soltar."
+    ", Up or Down to reorder, Enter to place it, Esc to let go.": ", seta para cima ou para baixo para reordenar, Enter para deixar no lugar, Esc para soltar.",
+    "Which model each stage's session and each agent runs on. A stage picks its model from the card's weight, which Refine writes in the spec; a card with no weight runs as standard. A Develop run that fails a gate runs once more, one model up. Default keeps the model the plugin ships with. A change takes effect on the dispatcher's next cycle; sessions already running keep their model.": "Em qual modelo roda a sessão de cada estágio e cada agente. O estágio escolhe o modelo pelo peso do card, que o Refine escreve na spec; um card sem peso roda como normal. Uma execução de Develop que falha em um gate roda mais uma vez, um modelo acima. Padrão mantém o modelo que vem com o plugin. A mudança vale a partir do próximo ciclo do dispatcher; as sessões que já estão rodando continuam no modelo delas.",
+    "Weight": "Peso",
+    "weight: light": "peso: leve",
+    "weight: standard": "peso: normal",
+    "weight: heavy": "peso: pesado",
+    "The spec names no weight, so the card runs as standard.": "A spec não diz o peso, então o card roda como normal.",
+    "Saving…": "Salvando…",
+    "stepped up": "subiu de modelo",
+    "Light (weight)": "Leve",
+    "Standard (weight)": "Normal",
+    "Heavy (weight)": "Pesado"
   },
   "rx": [
+    [
+      "^Light: ",
+      "Leve: "
+    ],
+    [
+      "^Standard: ",
+      "Normal: "
+    ],
+    [
+      "^Heavy: ",
+      "Pesado: "
+    ],
+    [
+      "^(Leve|Normal|Pesado): default is (.+)$",
+      "$1: o padrão é $2"
+    ],
+    [
+      "^Model for (\\w+), light cards$",
+      "Modelo de $1, cards leves"
+    ],
+    [
+      "^Model for (\\w+), standard cards$",
+      "Modelo de $1, cards normais"
+    ],
+    [
+      "^Model for (\\w+), heavy cards$",
+      "Modelo de $1, cards pesados"
+    ],
+    [
+      "Runs before the card has a weight, so it has one model\\.",
+      "Roda antes de o card ter peso, então tem um modelo só."
+    ],
+    [
+      "config\\.yml names (\\S+), which is not a weight\\. It is ignored\\.",
+      "O config.yml cita $1, que não é um peso. Ele é ignorado."
+    ],
+    [
+      "^Develop will run on (\\w+)\\.$",
+      "O Develop vai rodar em $1."
+    ],
+    [
+      "^Weight is now light\\. ",
+      "O peso agora é leve. "
+    ],
+    [
+      "^Weight is now standard\\. ",
+      "O peso agora é normal. "
+    ],
+    [
+      "^Weight is now heavy\\. ",
+      "O peso agora é pesado. "
+    ],
+    [
+      "Develop will run on (\\w+)\\.$",
+      "O Develop vai rodar em $1."
+    ],
+    [
+      "^The weight was not changed: ",
+      "O peso não foi alterado: "
+    ],
+    [
+      "the card is no longer in Spec Review\\.",
+      "o card não está mais em Spec Review."
+    ],
+    [
+      "^Ran one model up after (\\w+) failed a gate: ",
+      "Rodou um modelo acima depois que o $1 falhou em um gate: "
+    ],
+    [
+      "^stepped up from (\\w+) to (\\w+): the run before failed$",
+      "subiu de $1 para $2: a execução anterior falhou em"
+    ],
+    [
+      "^runs again on (\\w+)$",
+      "roda de novo em $1"
+    ],
+    [
+      "^(\\S+): not a weight \\(light, standard, heavy\\)\\. Nothing was saved\\.$",
+      "$1: não é um peso (light, standard, heavy). Nada foi salvo."
+    ],
+    [
+      "^(\\S+): must be one model \\(Refine runs before the card has a weight\\)\\. Nothing was saved\\.$",
+      "$1: deve ser um modelo só (o Refine roda antes de o card ter peso). Nada foi salvo."
+    ],
     [
       "^Holding #(\\d+), (\\d+) of (\\d+) in $",
       "Segurando o #$1, $2 de $3 em "

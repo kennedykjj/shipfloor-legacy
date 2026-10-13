@@ -421,6 +421,8 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .thp.two { display: grid; grid-template-columns: 1fr 1fr; padding: 0; background: none; } .thp.two > span { position: relative; padding: 11px 7px; background: var(--ground); } .thp.two .s { right: 13px; }
 .sknob select { height: 34px; min-width: 12ch; max-width: 100%; border-radius: 4px; border-color: var(--edge-hi); } .sknob select.dirty { color: var(--sand); border-color: var(--sand); }
 .sknob small.warn { color: var(--warn); max-width: 40ch; text-align: right; } .set-body > .note.warn { margin: 14px 0 0; font-size: 13px; color: var(--warn); }
+.trio { display: flex; gap: 10px; } .trio label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); } .trio select { min-width: 11ch; }
+@media (max-width: 600px) { .trio { flex-direction: column; align-items: stretch; } .trio label { flex-direction: row; align-items: center; gap: 8px; } .trio label span { min-width: 9ch; } }
 @media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow > .stp { justify-self: start; } .srow .sv { text-align: left; } .nf.topic { width: 100%; } .sknob { align-items: flex-start; } .sknob small.warn { text-align: left; } }
 /* feed: every project's runs and the dispatcher's own lines, newest first; a run's line opens its card on that run's log */
 .feed { overflow: auto; min-width: 0; min-height: 0; padding: 14px clamp(14px, 2.2vw, 28px) 28px; scrollbar-color: var(--edge-hi) transparent; }
@@ -511,6 +513,9 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .decide-k { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; color: var(--muted); }
 .decide-k b { color: var(--text); font-weight: 600; }
 .decide-a { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.decide-w { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 13px; } .decide-w label { color: var(--muted); }
+.decide-w select { height: 32px; border-radius: 8px; border-color: var(--edge-hi); min-width: 12ch; } .decide-w select:disabled { cursor: progress; }
+.decide-w select:focus-visible { outline: 2px solid var(--sand); outline-offset: 2px; }
 .decide .hint, .edit .hint { font-size: 12.5px; color: var(--muted); }
 .decide .stale { margin: 0; font-size: 12.5px; color: var(--warn); overflow-wrap: anywhere; }
 .decide .stale.skipped { color: var(--bad); }
@@ -533,7 +538,7 @@ textarea:focus, textarea.filled { height: 96px; }
 textarea::placeholder { color: var(--faint); }
 .notice { font-size: 12.5px; color: var(--bad); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .notice:empty { display: none; }
-.notice.good { color: var(--ok); }
+.notice.good { color: var(--ok); } .notice.bad { color: var(--bad); }
 .notice .btn, .alerts .btn { color: var(--text); } .alerts .btn:disabled { color: var(--faint); } .alerts .btn { margin-left: 10px; vertical-align: middle; }
 iframe { flex: 1; width: 100%; border: 0; background: var(--panel); min-height: 0; visibility: hidden; opacity: 0; transition: opacity 150ms ease-out; }  /* hidden until the page has the theme (.themed), or is known not to take it (.plain) */
 iframe.themed { visibility: visible; opacity: 1; }
@@ -551,6 +556,7 @@ body.refused .views, body.refused .stats, body.refused #alerts, body.refused #ba
 
 @container (max-width: 540px) {
   .decide-b { grid-template-columns: 1fr; }
+  .decide-w .hint { flex-basis: 100%; }
   .decide-b .acts { flex-direction: row; flex-wrap: wrap; }
   .decide .btn { white-space: normal; text-align: left; }
   .tip-stats { grid-template-columns: repeat(2, auto); gap: 8px 28px; }
@@ -642,6 +648,10 @@ const MAX = '<svg class="out" viewBox="0 0 16 16" aria-hidden="true"><path d="M9
 const LANES = [["Upstream", "from the idea to a spec you approved", 0, 5], ["Downstream", "from the code to production", 5, 10]];
 const STAGE_OF = { "Ready for Refinement": "refine", "Technical Refinement": "refine", "Ready for Dev": "develop", "Coding": "develop", "Validation": "validate", "Ready for Prod": "deploy" };  // the stage that takes a card of each factory column
 const STAGE_NAME = { refine: "Refine", develop: "Develop", validate: "Validate", deploy: "Deploy" };
+const WEIGHTS = ["light", "standard", "heavy"], WEIGHT_CAP = { light: "Light", standard: "Standard", heavy: "Heavy" };
+const WEIGHT_ARIA = { light: "light cards", standard: "standard cards", heavy: "heavy cards" };
+// a weight's caption: "Light" alone already names the light themes in the catalog, so the weight asks under its own key
+const wcap = (w) => { const k = `${WEIGHT_CAP[w]} (weight)`; return Object.hasOwn(LANG.exact, k) ? LANG.exact[k] : WEIGHT_CAP[w]; };
 const STEP_COUNT = { refine: 7, develop: 7, validate: 5 };  // the steps a run announces, as dashboard.py names them
 const EXT = '<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg>';
 const issueUrl = (slug, n) => { const repo = S.overview?.projects.find((p) => p.slug === slug)?.repo; return repo ? `https://github.com/${repo}/issues/${n}` : ""; };
@@ -1513,6 +1523,30 @@ function renderDrawer() {
   if (fresh && S.tab === "log" && $("log")) $("log").textContent = S.logText || "Loading…";
   if (fresh) paintLive(true);
 }
+// The card's weight, from its spec header (none yet before Refine ends): it picks the model of each run.
+const NO_WEIGHT = "The spec names no weight, so the card runs as standard.";
+const weightTag = (c) => c?.weight ? `<span class="tag"${c.weight_set ? "" : ` title="${NO_WEIGHT}"`}>weight: ${esc(c.weight)}</span>` : "";
+const capModel = (m) => m ? m[0].toUpperCase() + m.slice(1) : "the default model";
+function weightLine(key, column) {  // Spec Review only: the owner changes the weight here, one POST per choice
+  if (column !== "Spec Review") return "";
+  const c = S.card && `${S.card.project}/${S.card.issue}` === key ? S.card : null, saving = S.weightSaving?.key === key;
+  const w = saving ? S.weightSaving.weight : c?.weight, ready = !!c?.weight;
+  const hint = saving ? "Saving…" : !ready ? "" : c.weight_set ? `Develop will run on ${capModel(c.weight_models?.[c.weight])}.` : NO_WEIGHT;
+  return `<div class="decide-w"><label for="weight">Weight</label><select id="weight" aria-describedby="weight-hint"${!ready || saving || S.busy ? " disabled" : ""}>${WEIGHTS.map((x) => `<option value="${x}"${x === w ? " selected" : ""}>${wcap(x)}</option>`).join("")}</select><span class="hint" id="weight-hint">${hint}</span></div>`;
+}
+async function setWeight(sel) {
+  const key = S.open, [p, n] = key.split("/"), c = S.card, was = c?.weight, w = sel.value;
+  if (!c || w === was && c.weight_set) return;
+  S.weightSaving = { key, weight: w }; delete S.notice[key]; S.forceDecide = true; renderDrawer(); $("weight")?.focus();
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/weight`, { method: "POST", body: JSON.stringify({ weight: w }) });
+  S.weightSaving = null;
+  if (status === 200 && S.card === c) {
+    c.weight = body.weight; c.weight_set = true;
+    S.notice[key] = { cls: "good", html: `Weight is now ${esc(body.weight)}. Develop will run on ${esc(capModel(body.model))}.` };
+  } else if (status !== 200) S.notice[key] = { cls: "bad", html: `The weight was not changed: ${esc(body.error || "the request failed.")}` };
+  S.forceDecide = true; renderDrawer(); $("weight")?.focus();
+  if (status === 409) await loadCard();
+}
 const stepOf = (slug, c) => { const st = runOf(slug, c)?.step; return st ? `<span>step ${st.i} of ${STEP_COUNT[c.running]} · ${esc(st.label)}</span>` : ""; };
 function headHtml(c, ov, p, n, column) {
   const sessions = c?.sessions || [];
@@ -1526,7 +1560,7 @@ function headHtml(c, ov, p, n, column) {
   const issue = c?.repo ? `<a href="https://github.com/${esc(c.repo)}/issues/${n}" target="_blank" rel="noopener">issue on GitHub</a>` : "";
   const earlier = rep && ov?.running && rep.pipeline !== ov.running ? ` <span class="muted">(before ${esc(ov.running)})</span>` : "";
   return `<div class="tip-head"><div class="row1"><h3 id="tip-title" tabindex="-1"><span class="num">#${n}</span>${title ? esc(title) : UNTITLED}</h3></div>
-    <div class="meta"><span>${esc(column || "–")}</span>${state}${issue ? `<span>${issue}</span>` : ""}</div>
+    <div class="meta"><span>${esc(column || "–")}</span>${state}${issue ? `<span>${issue}</span>` : ""}${weightTag(c)}</div>
     <dl class="tip-stats">
       <div class="total"><dt>cost, Inbox to now ${EST}</dt><dd class="num gold">${c ? money(c.total) : "–"}</dd></div>
       <div><dt>sessions</dt><dd class="num">${c ? sessions.length : "–"}</dd></div>
@@ -1577,6 +1611,7 @@ function renderDecide(p, n, column) {
   const html = S.moving[key] ? `<div class="decide">${notice}</div>`
     : moves ? `<div class="decide" role="group" aria-labelledby="decide-k">
       <div class="decide-k"><b id="decide-k">Your decision</b><span id="rv-progress" class="num"></span></div>
+      ${weightLine(key, column)}
       ${project()?.skipped ? `<p class="stale skipped">The dispatcher skips ${esc(project().slug)} since ${when(project().skipped.since)}: ${esc(project().skipped.reason)}. A card you move stays where it lands until that is fixed.</p>` : ""}
       ${stale(project()) ? `<p class="stale">The board snapshot is ${Math.round(project().board_age_s / 60)} min old. Approve and Request changes read the live board first and stop if the card moved.</p>` : ""}
       <div class="decide-a"><button class="btn approve" id="approve" aria-describedby="approve-to approve-hint" data-act="approve" data-label="Approve">Approve</button><span class="hint" id="approve-to">→ ${esc(moves[0])}</span><span class="hint" id="approve-hint"></span></div>
@@ -1585,7 +1620,9 @@ function renderDecide(p, n, column) {
       ${notice}</div>`
     : note ? `<div class="decide">${notice}</div>` : "";
   const text = $("changes")?.value; const focused = document.activeElement?.id;
-  if (setHTML(el, html)) {
+  // the 5-second refresh never rewrites the weight while it is focused or open (as #every and #lang)
+  const hold = focused === "weight" && !S.forceDecide && el.contains($("weight")); S.forceDecide = false;
+  if (!hold && setHTML(el, html)) {
     if (text && $("changes")) { $("changes").value = text; $("changes").classList.add("show"); }
     if (focused && el.contains($(focused))) $(focused).focus();
   }
@@ -1610,7 +1647,7 @@ function syncDecide() {
   t.classList.toggle("filled", typed);
   // a narrow drawer folds the textarea behind Request changes: the first click opens it
   const folded = getComputedStyle(t).display === "none";
-  a.disabled = S.busy; $("request").disabled = S.busy || (!typed && !folded);
+  a.disabled = S.busy || S.weightSaving?.key === S.open; $("request").disabled = S.busy || (!typed && !folded);
   const f = $("fill"); f.hidden = !r?.changes.length;
   if (r?.changes.length) f.textContent = `Use the review's ${plural(r.changes.length, "change")}`;
 }
@@ -1631,7 +1668,7 @@ function sessionsPane(c) {
     const subs = s.subagents.length ? `<button class="subtoggle" data-sub="${esc(s.id)}" aria-expanded="${!!S.expanded[s.id]}">+${s.subagents.length} sub</button>` : "";
     const live = s.exit == null && s.log && s === last(c.sessions, s.stage) && liveRun(c.project, c.issue, s.stage);
     const exit = s.exit == null ? (s.log ? '<span class="muted">running</span>' : "–") : s.exit === 0 ? '<span class="ok">ok</span>' : `<span class="bad">exit ${s.exit}</span>`;
-    let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(new Date(s.start).toLocaleString())}">${when(s.start)}</td><td class="l">${esc(s.stage)} <span class="muted">${esc(m.map(model).join(", "))}</span>${subs}</td>
+    let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(new Date(s.start).toLocaleString())}">${when(s.start)}</td><td class="l">${esc(s.stage)} <span class="muted">${esc(m.map(model).join(", "))}</span>${s.stepped ? ` <span class="tag" title="Ran one model up after ${esc(capModel(s.stepped.from))} failed a gate: ${esc((s.stepped.gates || []).join(", "))}.">stepped up</span>` : ""}${subs}</td>
       <td class="num">${tok(t.input)}</td><td class="num">${tok(t.output)}</td><td class="num" title="${cacheTitle(t)}">${cache(t)}</td>
       <td class="num">${live ? clock(live, true) : dur(s.start, s.end)}</td><td>${exit}</td><td class="num gold">${money(s.cost)}</td></tr>`;
     if (S.expanded[s.id]) html += s.subagents.map((a) => { const u = sum(a.tokens); return `<tr class="sub"><td class="l"></td><td class="l">subagent <span class="muted">${esc(Object.keys(a.tokens).map(model).join(", "))}</span></td>
@@ -1762,7 +1799,7 @@ const knobOf = (k) => {  // "p|<project>|<knob>"; "p|<project>|language" is this
   return key === "language" ? p && { value: p.language.from === "machine" ? p.language.code : null, repo: p.language.repo } : p?.knobs[key];
 };
 const notifyWas = (k) => { const n = SET.data.machine.notify, [g, name] = k.split("."); return k.startsWith("quiet_") ? n.quiet.split("-")[k === "quiet_from" ? 0 : 1] || "" : name ? n[g][name] : n[g]; };  // "n|<setting>"
-const modelOf = (k) => { const [, group, name] = k.split("|"); return SET.data.models[group][name]; };  // "m|stages|<stage>" or "m|agents|<agent>"
+const modelOf = (k) => { const [, group, name, w] = k.split("|"), x = SET.data.models[group][name]; return w ? { value: x.value[w] } : x; };  // "m|stages|<stage>[|<weight>]" or "m|agents|<agent>"
 const AGENT_HELP = { "product-owner": "Writes the Product section of a spec.", "ux-designer": "Writes the UX section and checks the screens in validation.", "qa-engineer": "Writes the acceptance tests before the code.", engineer: "Implements a layer that names no agent of its own.", cybersec: "Writes the Security section and reviews the diff." };
 const setWas = (k) => k === "hours" ? hoursText(SET.data) : k.startsWith("n|") ? notifyWas(k.slice(2)) : k.startsWith("p|") ? knobOf(k).value : k.startsWith("m|") ? modelOf(k).value : k.startsWith("costs.") ? SET.data.machine.costs?.[k.slice(6)] ?? null : k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : k === "every_min" ? SET.data.dispatcher.every_min : SET.data.machine[k];
 const setVal = (k) => k in SET.draft ? SET.draft[k] : setWas(k);
@@ -1837,18 +1874,27 @@ function renderSettings() {
         ${row("Minutes to wait for a free stack", "A run that cannot get one in time is blocked as infrastructure and retried once.", stepper("stack_wait", 5, 240, 5))}</div>`;
   } else if (SET.sec === "models") {
     const m = d.models, cap = (x) => x[0].toUpperCase() + x.slice(1), priced = (x) => Object.keys(d.prices || {}).some((p) => p.startsWith(`claude-${x}-`));
+    const sel = (k, label, def) => { const v = setVal(k), mine = k in SET.draft;
+      return `<select data-model="${esc(k)}"${mine ? ' class="dirty"' : ""} aria-label="${esc(label)}"><option value="">Default (${def})</option>${m.choices.map((c) => `<option value="${c}"${c === v ? " selected" : ""}>${cap(c)}</option>`).join("")}</select>`; };
+    const notes = (k, x, def, xpriced, bad, pre = "") => { const v = setVal(k), mine = k in SET.draft;
+      return `${v ? `<small>${pre}default is ${def}</small>` : ""}${v && !(mine ? priced(v) : xpriced) ? `<small class="warn">${pre}No price for ${cap(v)} in prices.yml: its cost cannot be estimated.</small>` : ""}${bad && !mine ? `<small class="warn">${pre}config.yml says "${esc(bad.value)}", which the factory does not know. Runs use the default until you pick a model.</small>` : ""}`; };
+    const badOf = (key) => m.problems.find((p) => p.key === key && p.why === "model");
     const pick = (group, name, html, text, def, more = "") => {
-      const k = `m|${group}|${name}`, v = setVal(k), x = m[group][name], mine = k in SET.draft;
-      const bad = !mine && m.problems.find((p) => p.key === `models.${group}.${name}` && p.why === "model");
-      return row(html, text, `<span class="sknob"><select data-model="${esc(k)}"${mine ? ' class="dirty"' : ""} aria-label="Model for ${esc(group === "stages" ? STAGE_NAME[name] : name)}"><option value="">Default (${def})</option>${m.choices.map((c) => `<option value="${c}"${c === v ? " selected" : ""}>${cap(c)}</option>`).join("")}</select>
-        ${v ? `<small>default is ${def}</small>` : ""}${more}${v && !(mine ? priced(v) : x.priced) ? `<small class="warn">No price for ${cap(v)} in prices.yml: its cost cannot be estimated.</small>` : ""}${bad ? `<small class="warn">config.yml says "${esc(bad.value)}", which the factory does not know. Runs use the default until you pick a model.</small>` : ""}</span>`);
+      const k = `m|${group}|${name}`, x = m[group][name];
+      return row(html, text, `<span class="sknob">${sel(k, `Model for ${group === "stages" ? STAGE_NAME[name] : name}`, def)}
+        ${notes(k, x, def, x.priced, badOf(`models.${group}.${name}`))}${more}</span>`);
+    };
+    const trio = (st, x, more) => {  // a stage per weight: three selects, a caption over each
+      const whole = badOf(`models.stages.${st}`);
+      return row(STAGE_NAME[st], STAGE_HELP[st], `<span class="sknob"><span class="trio">${WEIGHTS.map((w) => `<label><span>${wcap(w)}</span>${sel(`m|stages|${st}|${w}`, `Model for ${STAGE_NAME[st]}, ${WEIGHT_ARIA[w]}`, cap(x.default[w]))}</label>`).join("")}</span>
+        ${WEIGHTS.map((w) => notes(`m|stages|${st}|${w}`, x, cap(x.default[w]), x.priced[w], whole ? null : badOf(`models.stages.${st}.${w}`), `${WEIGHT_CAP[w]}: `)).join("")}${whole && !WEIGHTS.some((w) => `m|stages|${st}|${w}` in SET.draft) ? `<small class="warn">config.yml says "${esc(whole.value)}", which the factory does not know. Runs use the default until you pick a model.</small>` : ""}${more}</span>`);
     };
     const own = Object.entries(m.agents).filter(([, a]) => a.projects.length).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
-    body = `<h1 class="g">Agents and models</h1><p class="lead">Which model each stage's session and each agent runs on. Default keeps the model the plugin ships with. A change takes effect on the dispatcher's next cycle; sessions already running keep their model.</p>
-      ${m.problems.filter((p) => p.why === "name").map((p) => `<p class="note warn">config.yml names ${esc(p.key)}, which is not a stage or an agent here. It is ignored.</p>`).join("")}
+    body = `<h1 class="g">Agents and models</h1><p class="lead">Which model each stage's session and each agent runs on. A stage picks its model from the card's weight, which Refine writes in the spec; a card with no weight runs as standard. A Develop run that fails a gate runs once more, one model up. Default keeps the model the plugin ships with. A change takes effect on the dispatcher's next cycle; sessions already running keep their model.</p>
+      ${m.problems.filter((p) => p.why === "name").map((p) => `<p class="note warn">config.yml names ${esc(p.key)}, ${p.key.split(".").length === 4 ? "which is not a weight" : "which is not a stage or an agent here"}. It is ignored.</p>`).join("")}
       <div class="sgroup panel"><h2>Stages <code>config.yml · models.stages</code></h2>
-        ${Object.entries(m.stages).map(([st, x]) => pick("stages", st, STAGE_NAME[st], STAGE_HELP[st], x.default ? cap(x.default) : "Claude Code's",
-          `<small>${x.cost.avg == null ? "No priced run in the last 7 days." : `<span class="coin num gold">${x.cost.avg.toFixed(2)}</span>${EST}<span> per card · ${plural(x.cost.cards, "card")}, last 7 days</span>`}</small>`)).join("")}</div>
+        ${Object.entries(m.stages).map(([st, x]) => { const more = `<small>${x.cost?.avg == null ? "No priced run in the last 7 days." : `<span class="coin num gold">${x.cost.avg.toFixed(2)}</span>${EST}<span> per card · ${plural(x.cost.cards, "card")}, last 7 days</span>`}</small>`;
+          return x.default && typeof x.default === "object" ? trio(st, x, more) : pick("stages", st, STAGE_NAME[st], st === "refine" ? `${STAGE_HELP[st]} Runs before the card has a weight, so it has one model.` : STAGE_HELP[st], x.default ? cap(x.default) : "Claude Code's", more); }).join("")}</div>
       <div class="sgroup panel"><h2>Agents <code>config.yml · models.agents</code></h2>
         ${[...Object.entries(m.agents).filter(([, a]) => !a.projects.length), ...own].map(([name, a]) => pick("agents", name, `<code>${esc(name)}</code>`,
           a.projects.length ? esc(a.projects.map((x) => `Project agent · ${x.project}, layer ${x.layer}`).join(" / ")) : AGENT_HELP[name] || "", a.default ? cap(a.default) : "the session's")).join("")}</div>`;
@@ -1979,7 +2025,7 @@ async function setSave() {
   const body = { stages: {} }, per = {};  // this machine's limits in one request, then each project's overrides
   for (const [k, v] of Object.entries(SET.draft)) {
     if (k === "hours") body.hours = v.trim() ? v.split(",").map((w) => w.trim()) : null;  // an empty field clears it
-    else if (k.startsWith("m|")) { const [, group, name] = k.split("|"); ((body.models ||= { stages: {}, agents: {} })[group])[name] = v; }
+    else if (k.startsWith("m|")) { const [, group, name, w] = k.split("|"), g = (body.models ||= { stages: {}, agents: {} })[group]; if (w) (g[name] ||= {})[w] = v; else g[name] = v; }
     else if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = key !== "language" && v === knobOf(k).repo ? null : v; }
     else if (k.startsWith("costs.")) (body.costs ||= {})[k.slice(6)] = costVal(v);  // an empty field is null: the limit is removed
     else if (k.startsWith("n|")) { const [g, name] = k.slice(2).split("."); if (!g.startsWith("quiet_")) { const n = body.notify ||= {}; if (name) (n[g] ||= {})[name] = v; else n[g] = v; } }
@@ -2031,7 +2077,8 @@ const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString(dateLocale(), { hou
 function feedLeft(e) {  // what a run left behind, each piece from its source: the report, the board, the run's lock; a failed run says why first
   const why = e.failed ? `<span>gates failed</span>: <span class="fraw">${esc(e.failed.join(", "))}</span>`
     : e.end && e.exit !== 0 ? `<span>ended with exit ${e.exit}</span> · <span>no failed gate recorded</span>` : "";
-  return [why, e.pr && `PR #${e.pr}`,
+  const up = e.stepped && `<span>stepped up from ${esc(capModel(e.stepped.from))} to ${esc(capModel(e.stepped.to))}: the run before failed</span> <span class="fraw">${esc((e.stepped.gates || []).join(", "))}</span>`;
+  return [up, why, e.again && `<span>runs again on ${esc(capModel(e.again))}</span>`, e.pr && `PR #${e.pr}`,
     e.column && `<span>now in</span> <span>${esc(e.column)}</span>`,
     e.step && `Step ${e.step.i} of ${e.step.of}: <span>${esc(e.step.label)}</span>`].filter(Boolean).join(" · ");
 }
@@ -2140,6 +2187,7 @@ document.addEventListener("change", (e) => {
   if (e.target.matches?.("[data-pause]")) setPause(e.target);
   if (e.target.dataset?.nk && e.target.type !== "text") setNotify(e.target);
   if (e.target.matches?.("[data-model]")) setModel(e.target);
+  if (e.target.id === "weight") setWeight(e.target);
   if (e.target.matches?.("[data-plang]")) setPlang(e.target);
   if (e.target.id === "every") {  // a draft like a stepper's: Save applies it, picking the saved value again drops it
     if (+e.target.value === setWas("every_min")) delete SET.draft.every_min; else SET.draft.every_min = +e.target.value;

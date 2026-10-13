@@ -18,6 +18,7 @@ usage() {
   cat <<'EOF'
 usage: gate.sh [-C <worktree>] <gate> ...
   test-plan <spec>                         every AC of the spec has a test its layer's runner can run
+  weight <spec>                            the spec's header names one weight: light, standard or heavy
   scope <po|ux|techlead|qa|layer> <base>   only that role's files changed since <base>
   qa-commit <n> [--head]                   prints card <n>'s QA commit; --head: it must be the last commit
   qa-amend <n>                             QA's amendment of its own acceptance tests is honest
@@ -30,6 +31,7 @@ usage: gate.sh [-C <worktree>] <gate> ...
   stack up <owner> | down <owner> | status
 <base> and <qa> are commits. Exit: 0 pass, 1 blocked, 2 bad usage or revision, 3 infrastructure.
 A gate's last line on stderr is its verdict: "gate <name>: pass", "FAIL (exit 1)" or "INFRA (exit 3)".
+In a factory run (SHIPFLOOR_RUN_LOCK), the verdict is also written to <lock>/last-gate for the dispatcher.
 EOF
 }
 case "${1:-}" in -h|--help|help) usage; exit 0 ;; "") usage >&2; exit 2 ;; esac
@@ -417,6 +419,16 @@ gate_test_plan() {  # every AC in the spec has a row whose test file its layer's
   printf '%b\n' "${bad#\\n}" >&2; return 1
 }
 
+gate_weight() {  # weight <spec>: exactly one "**Weight:** light|standard|heavy" line before the first "## "
+  local spec="${1:-}" lines
+  [ -f "$spec" ] || { echo "weight: spec '${spec}' not found" >&2; return 2; }
+  lines="$(awk '/^## /{exit} /^\*\*Weight:\*\*/' "$spec" | tr -d '\r')"
+  if [ -z "$lines" ]; then echo "weight: the spec header has no '**Weight:** light|standard|heavy' line ($spec)" >&2; return 1; fi
+  if [ "$(printf '%s\n' "$lines" | wc -l)" -gt 1 ]; then echo "weight: the spec header has more than one weight line:" >&2; printf '%s\n' "$lines" >&2; return 1; fi
+  [[ "$lines" =~ ^\*\*Weight:\*\*[[:space:]]*\`?(light|standard|heavy)\`?[[:space:]]*$ ]] && return 0
+  echo "weight: '$lines' names no weight the factory knows (light, standard, heavy)" >&2; return 1
+}
+
 gate_stack() {  # gate.sh stack up <owner> | down <owner> | status (lib/stack.sh)
   case "${1:-}" in
     up)     [ -n "${2:-}" ] || return 2; stack_up "$2" ;;
@@ -514,6 +526,7 @@ run() {
     red)               gate_red "$@" ;;
     green)             gate_green "$@" ;;
     test-plan)         gate_test_plan "$@" ;;
+    weight)            gate_weight "$@" ;;
     stack)             gate_stack "$@" ;;
     *) usage >&2; exit 2 ;;
   esac
@@ -522,7 +535,14 @@ run() {
 # shortcut: the key is read straight from the YAML (a top-level scalar the config check already validated), not through
 # shipfloor_cfg: one more python start per gate call is what every pipeline step would pay
 # A gate says its own verdict last, so a caller never needs `; echo $?` (headless runs refuse a `$` in a command).
-case "$cmd" in acceptance-own|stack) ;; *) trap 'rc=$?; case $rc in 0) echo "gate $cmd: pass" >&2 ;; 3) echo "gate $cmd: INFRA (exit 3)" >&2 ;; *) echo "gate $cmd: FAIL (exit $rc)" >&2 ;; esac' EXIT ;; esac
+# In a factory run it is also left in the run's lock (<lock>/last-gate): the dispatcher reads how a run ended from there,
+# never from the agent's own report.
+verdict() {  # verdict <exit code>
+  local v=FAIL; case $1 in 0) v=pass; echo "gate $cmd: pass" >&2 ;; 3) v=INFRA; echo "gate $cmd: INFRA (exit 3)" >&2 ;; *) echo "gate $cmd: FAIL (exit $1)" >&2 ;; esac
+  [ -n "${SHIPFLOOR_RUN_LOCK:-}" ] && [ -d "$SHIPFLOOR_RUN_LOCK" ] && printf '%s\t%s\n' "$cmd" "$v" > "$SHIPFLOOR_RUN_LOCK/last-gate" 2>/dev/null
+  return 0
+}
+case "$cmd" in acceptance-own|stack) ;; *) trap 'verdict $?' EXIT ;; esac
 # The language a run started with (FACTORY_LANGUAGE, set at launch) wins; else this machine's overrides.yml, then factory.yml.
 GLANG="${FACTORY_LANGUAGE:-}"; LANG_RE='^language:[[:space:]]*["'"'"']?([A-Za-z-]*)'
 for GFILE in "${FACTORY_CONFIG%[/\\]*}/overrides.yml" "$FACTORY_CONFIG"; do

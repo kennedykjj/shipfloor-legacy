@@ -39,6 +39,10 @@ COST_BLOCK = "Cost limit: blocked."  # how the dispatcher opens the note of a bl
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:sf|aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy aghanim, legacy mylos
+RUN_MODEL = re.compile(r" model=([a-z0-9.-]+)")  # the start line's model, when the dispatcher passed one
+# the dispatcher's note that a develop run ended on a failed gate and the next one runs one model up
+STEPUP_LINE = re.compile(r"^== step-up /sf:([a-z]+) (\d+) (\S+) -> (\S+): gate (\S+) failed")
+WEIGHT_LINE = re.compile(r"^\*\*Weight:\*\*")
 # The review page inside the dashboard's drawer: the drawer already carries the title and the one
 # action, so the embedded page drops its header, takes the dashboard's palette and type, and posts
 # its review marks to the drawer.
@@ -288,8 +292,9 @@ class Factory:
         return sorted(out, key=lambda s: s["start"] or "")
 
     def runs(self, p, issue=None, day=None):
-        """Runs as the dispatcher logged them: == start / == end lines."""
-        out = []
+        """Runs as the dispatcher logged them: == start / == end lines, the model each one started with, and the
+        step-up between a run that failed a gate and the one that ran again one model up."""
+        out, pending = [], {}
         for log in sorted((self.pdir(p) / "logs").glob("*.log")):
             if issue is not None and not re.fullmatch(rf"\d{{4}}-\d\d-\d\d-{issue}-[a-z]+\.log", log.name):
                 continue
@@ -298,12 +303,20 @@ class Factory:
             with open(log, encoding="utf-8", errors="replace") as f:
                 for line in f:
                     m = RUN_LINE.match(line)
+                    up = None if m else STEPUP_LINE.match(line)
+                    if up:
+                        stage, n, frm, to, gate = up.groups()
+                        pending[(stage, int(n))] = {"from": frm, "to": to, "gates": [gate]}
+                        if out and out[-1]["log"] == log.name:
+                            out[-1]["again"] = to
+                        continue
                     if not m:
                         continue
                     kind, stage, n, rc, ts = m.groups()
                     if kind == "start":
-                        out.append({"stage": LEGACY_STAGES.get(stage, stage), "issue": int(n), "start": ts,
-                                    "end": None, "exit": None, "log": log.name})
+                        stage, model = LEGACY_STAGES.get(stage, stage), RUN_MODEL.search(line)
+                        out.append({"stage": stage, "issue": int(n), "start": ts, "end": None, "exit": None, "log": log.name,
+                                    "model": model and model.group(1), "stepped": pending.pop((stage, int(n)), None), "again": None})
                     elif out and out[-1]["log"] == log.name and out[-1]["end"] is None:
                         out[-1].update(end=ts, exit=int(rc))
         return out
@@ -592,19 +605,79 @@ class Factory:
             run = next((r for r in reversed(runs) if r["stage"] == s["stage"]
                         and parse_ts(r["start"]).timestamp() <= start.timestamp() + 120), None)
             c = dashboard_cost.session_cost(s, prices)
+            main = max(s["tokens"].items(), key=lambda kv: sum(v or 0 for v in kv[1].values()), default=(None, {}))[0]
             sessions.append({"id": s["id"], "stage": s["stage"], "start": s["start"], "end": s["end"],
                              "tokens": s["tokens"], "cost": None if c is None else round(c, 4),
                              "subagents": [{"tokens": a["tokens"], "cost": cost(a["tokens"], prices)} for a in s["subagents"]],
-                             "exit": run and run["exit"], "log": run and run["log"]})
+                             "exit": run and run["exit"], "log": run and run["log"],
+                             "model": (run and run.get("model")) or main, "stepped": run and run.get("stepped")})
         total = dashboard_cost.spend(found, prices, datetime.now().date().isoformat())["cards"].get(n, {"total": 0.0})["total"]
         columns, _ = self.board(p)
         reports = self.reports(p, n)
+        weight, weight_set = self.weight(p, n)
         return {"project": p, "issue": n, "title": self.titles(p, [*columns, n]).get(n, ""), "column": columns.get(n),
+                "weight": weight, "weight_set": weight_set, "weight_models": self.weight_models(),
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
                 "total": rounded(total), "baseline": dashboard_cost.baselines(self.pdir(p)).get(n, 0.0), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                 "blocked": self.blocked(p).get(n),
                 "block_reason": self.block_reason(p, n) if self.blocked(p).get(n) else ""}
+
+    def card_spec(self, p, n):
+        """The card's spec in its worktree (<worktrees>/<n>/<specs>*-<slug>-design.md, the slug from the worktree's
+        branch), as lib/project.sh's shipfloor_card_spec finds it; None when there is none yet."""
+        row = next((c for c in (l.split("\t") for l in self.registry()) if c[0] == p), [])
+        wt = Path(row[2] if len(row) > 2 and row[2] else self.pdir(p) / "wt") / str(n)
+        try:
+            head = (wt / ".git").read_text(encoding="utf-8").strip()
+            git = Path(head[len("gitdir:"):].strip()) if head.startswith("gitdir:") else wt / ".git"
+            branch = (git / "HEAD").read_text(encoding="utf-8").strip()
+        except OSError:
+            try:
+                branch = ((wt / ".git" / "HEAD").read_text(encoding="utf-8").strip())
+            except OSError:
+                return None
+        prefix = f"ref: refs/heads/feat/{n}-"
+        if not branch.startswith(prefix) or len(branch) == len(prefix):
+            return None
+        specs = shipfloor_config.dotted(self.config(p), "paths.specs") or shipfloor_config.DEFAULTS["paths"]["specs"]
+        found = sorted((wt / specs).glob(f"*-{branch[len(prefix):]}-design.md"))
+        return found[0] if found else None
+
+    def weight(self, p, n):
+        """(weight, set): the weight the card's spec header names, standard when it names none (set False);
+        (None, False) before the card has a spec."""
+        spec = self.card_spec(p, n)
+        if spec is None:
+            return None, False
+        try:
+            lines = []
+            for line in spec.read_text(encoding="utf-8").splitlines():
+                if line.startswith("## "):
+                    break
+                if WEIGHT_LINE.match(line):
+                    lines.append(line[len("**Weight:**"):].strip().strip("`"))
+        except OSError:
+            return None, False
+        ok = len(lines) == 1 and lines[0] in shipfloor_config.WEIGHTS
+        return (lines[0], True) if ok else ("standard", False)
+
+    def weight_models(self):
+        """{weight: model} Develop starts with now, from the machine config."""
+        return dict(shipfloor_config.models_of(read_yaml(self.home / "config.yml"))["stages"]["develop"])
+
+    def set_weight(self, p, n, weight):
+        """The owner's weight for a card in Spec Review: `shipfloor weight` writes, commits and pushes the spec line."""
+        if weight not in shipfloor_config.WEIGHTS:
+            return 400, {"error": f"the weight is one of {', '.join(shipfloor_config.WEIGHTS)}"}
+        r = subprocess.run([bash(), (HERE / "shipfloor").as_posix(), "weight", p, str(n), weight],
+                           env=dict(os.environ, SHIPFLOOR_HOME=str(self.home)), capture_output=True, text=True, encoding="utf-8", errors="replace")
+        why = re.sub(r"^shipfloor: ", "", (r.stderr.strip() or r.stdout.strip()).splitlines()[-1] if (r.stderr.strip() or r.stdout.strip()) else "")
+        if r.returncode == 3:
+            return 409, {"error": why or "the card is no longer in Spec Review."}
+        if r.returncode != 0:
+            return (400 if r.returncode == 2 else 500), {"error": why or f"shipfloor weight exited {r.returncode}"}
+        return 200, {"weight": weight, "model": self.weight_models().get(weight)}
 
     def pool(self):
         m = shipfloor_config.merged(read_yaml(self.home / "config.yml"), shipfloor_config.MACHINE_DEFAULTS)
@@ -679,10 +752,15 @@ class Factory:
         raw, agents, prices = read_yaml(self.home / "config.yml"), self.project_agents(), self.prices()
         problems = shipfloor_config.model_problems(raw, agents)
         bad, configured = {p["key"] for p in problems}, raw.get("models") if isinstance(raw.get("models"), dict) else {}
+        priced = lambda value: value is None or any(k.startswith(f"claude-{value}-") for k in prices)
         def row(group, name, default):
             entries = configured.get(group) if isinstance(configured.get(group), dict) else {}
             value = None if f"models.{group}.{name}" in bad else entries.get(name)
-            return {"value": value, "default": default, "priced": value is None or any(k.startswith(f"claude-{value}-") for k in prices)}
+            if isinstance(default, dict):  # a stage per weight: a single model fills the three
+                value = {w: None if f"models.{group}.{name}.{w}" in bad else value.get(w) if isinstance(value, dict) else value
+                         for w in shipfloor_config.WEIGHTS}
+                return {"value": value, "default": dict(default), "priced": {w: priced(v) for w, v in value.items()}}
+            return {"value": value, "default": default, "priced": priced(value)}
         since, runs = datetime.now(timezone.utc) - timedelta(days=7), {s: [] for s in shipfloor_config.STAGES}
         for p in self.projects():
             for s in self.sessions(p):
@@ -744,15 +822,21 @@ class Factory:
             models = new["models"] if isinstance(new.get("models"), dict) else {}
             for group in ("stages", "agents"):
                 if isinstance(changes["models"].get(group), dict):
-                    rows = dict(models[group] if isinstance(models.get(group), dict) else {}, **changes["models"][group])
+                    rows = dict(models[group] if isinstance(models.get(group), dict) else {})
+                    for name, ch in changes["models"][group].items():
+                        if group == "stages" and isinstance(ch, dict) and name != "refine":  # per weight; null removes that weight
+                            had = rows.get(name)
+                            had = dict(had) if isinstance(had, dict) else dict.fromkeys(shipfloor_config.WEIGHTS, had) if isinstance(had, str) else {}
+                            had.update(ch)
+                            ch = {w: m for w, m in had.items() if m is not None} or None
+                        rows[name] = ch
                     models[group] = {n: m for n, m in rows.items() if m is not None}
             new["models"] = {g: rows for g, rows in models.items() if rows != {}}
             if not new["models"]:
                 del new["models"]
             agents = self.project_agents()
             before = shipfloor_config.model_problems(old, agents)
-            errs += [f"{p['key']}: not a stage or an agent here. Nothing was saved." if p["why"] == "name"
-                     else f"{p['key']}: must be a mapping. Nothing was saved." if p["why"] == "shape"
+            errs += [f"{shipfloor_config.model_problem_line(p)}. Nothing was saved." if p["why"] in ("name", "shape")
                      else f"{p['key']}: \"{p['value']}\" is not a model the factory knows. Nothing was saved."
                      for p in shipfloor_config.model_problems(new, agents) if p not in before]
         if errs:
@@ -1257,6 +1341,12 @@ class Factory:
                  "end": r["end"], "exit": r["exit"] if r["end"] else None, "ts": r["end"] or r["start"], "text": f"{r['stage']} #{n}"}
             if key in spent:
                 e["cost"] = None if spent[key] is None else round(spent[key], 2)
+            if r.get("model"):
+                e["model"] = r["model"]
+            if r.get("stepped"):
+                e["stepped"] = {"from": r["stepped"]["from"], "to": r.get("model") or r["stepped"]["to"], "gates": r["stepped"]["gates"]}
+            if r.get("again"):
+                e["again"] = r["again"]
             if r["end"]:
                 rep = report(r)
                 if isinstance(rep.get("pr"), int):
@@ -1377,7 +1467,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "unblock", "message", "accept", "send-back")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "unblock", "message", "accept", "send-back", "weight")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -1391,6 +1481,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(*fn(parts[2], int(parts[3]), str(body.get("text", ""))))
             if parts[4] == "unblock":
                 return self.send(*self.factory.unblock(parts[2], int(parts[3])))
+            if parts[4] == "weight":
+                return self.send(*self.factory.set_weight(parts[2], int(parts[3]), body.get("weight")))
             if parts[4] == "move":
                 return self.send(*self.factory.owner_move(parts[2], int(parts[3]), body.get("column"), body.get("to"),
                                                           str(body.get("text") or ""), bool(body.get("move_only"))))

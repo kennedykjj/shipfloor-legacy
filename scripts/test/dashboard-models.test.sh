@@ -71,8 +71,8 @@ is() {  # is <got> <want> <label>
 # AC-2 / AC-6: the API lists every stage and agent with today's model as the default
 printf 'pool: 6\n' > "$cfgf"
 is "$(q 'list(s["models"]["stages"]) == ["refine","develop","validate","deploy"] and s["models"]["choices"] == ["opus","sonnet","haiku","fable"]')" True "AC-6 settings.models lists the choices and the four stages in factory order"
-is "$(q '[s["models"]["stages"][k]["default"] for k in ("refine","develop","validate","deploy")]')" "[None, None, 'sonnet', 'sonnet']" "AC-2 the stage defaults are today's models (none for refine and develop)"
-is "$(q '[s["models"]["stages"][k]["value"] for k in s["models"]["stages"]]')" "[None, None, None, None]" "AC-2 nothing configured: every stage value is null"
+is "$(q '[s["models"]["stages"][k]["default"] for k in ("refine","develop","validate","deploy")]')" "['sonnet', {'light': 'sonnet', 'standard': 'sonnet', 'heavy': 'opus'}, {'light': 'sonnet', 'standard': 'sonnet', 'heavy': 'sonnet'}, {'light': 'sonnet', 'standard': 'sonnet', 'heavy': 'sonnet'}]" "AC-2 the stage defaults are the shipped models: refine one, the others per weight (#133)"
+is "$(q '[s["models"]["stages"][k]["value"] for k in s["models"]["stages"]]')" "[None, {'light': None, 'standard': None, 'heavy': None}, {'light': None, 'standard': None, 'heavy': None}, {'light': None, 'standard': None, 'heavy': None}]" "AC-2 nothing configured: every stage value is null"
 is "$(q 'list(s["models"]["agents"])')" "['product-owner', 'ux-designer', 'qa-engineer', 'engineer', 'cybersec', 'reviewer']" "AC-4 the five plugin agents, then the project's own agent"
 is "$(q 's["models"]["agents"]["engineer"]["default"], s["models"]["agents"]["product-owner"]["default"], s["models"]["agents"]["reviewer"]["default"]')" "('sonnet', 'opus', None)" "AC-2 an agent's default is its frontmatter model, a project agent has none"
 is "$(q 's["models"]["agents"]["reviewer"]["projects"]')" "[{'project': 'shop', 'layer': 'docs'}]" "AC-4 a project agent lists the project and layer that use it"
@@ -92,14 +92,14 @@ save '{"models":{"stages":{"develop":"sonnet"},"agents":{"engineer":"haiku"}}}'
 is "$CODE" 200 "AC-6 saving models answers 200"
 is "$(cfg 'c["models"]')" "{'stages': {'develop': 'sonnet'}, 'agents': {'engineer': 'haiku'}}" "AC-6 config.yml holds the chosen models"
 is "$(cfg 'c["pool"]')" 6 "AC-6 the rest of config.yml stays"
-is "$(sm)" "|sonnet|sonnet|sonnet|" "AC-6 the next cycle's stage-models reads the saved develop model"
-is "$(q '(s["models"]["stages"]["develop"]["value"], s["models"]["agents"]["engineer"]["value"])')" "('sonnet', 'haiku')" "AC-6 Settings shows the saved values"
+is "$(sm)" "sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|" "AC-6 the next cycle's stage-models reads the saved develop model, for every weight"
+is "$(q '(s["models"]["stages"]["develop"]["value"], s["models"]["agents"]["engineer"]["value"])')" "({'light': 'sonnet', 'standard': 'sonnet', 'heavy': 'sonnet'}, 'haiku')" "AC-6 Settings shows the saved values (a single model fills the three weights)"
 save '{"models":{"stages":{"validate":"opus"}}}'
 is "$(cfg 'c["models"]')" "{'stages': {'develop': 'sonnet', 'validate': 'opus'}, 'agents': {'engineer': 'haiku'}}" "AC-6 keys not in the request are left as they are"
 save '{"models":{"stages":{"develop":null,"validate":null}}}'
 is "$CODE" 200 "AC-6 null (Default) answers 200"
 is "$(cfg 'c["models"]')" "{'agents': {'engineer': 'haiku'}}" "AC-6 null removes the key and prunes the empty map"
-is "$(sm)" "||sonnet|sonnet|" "AC-6 back to today's models for the stages"
+is "$(sm)" "sonnet|sonnet|sonnet|sonnet|sonnet|opus|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|" "AC-6 back to the shipped models for the stages"
 save '{"models":{"agents":{"engineer":null}}}'
 is "$(cfg '"models" in c')" False "AC-6 no models left: the key is gone from config.yml"
 
@@ -130,12 +130,38 @@ is "$(cfg 'c["models"]["agents"]["engineer"], c["models"]["stages"]["review"], c
 rm -f "$cfgf"
 save '{"models":{"stages":{"deploy":"fable","develop":"sonnet"},"agents":{"engineer":"fable"}}}'
 is "$CODE" 200 "AC-8 a model with no price can still be saved"
-is "$(q '(s["models"]["stages"]["deploy"]["value"], s["models"]["stages"]["deploy"]["priced"], s["models"]["agents"]["engineer"]["priced"])')" "('fable', False, False)" "AC-8 fable has no entry in prices.yml: priced is false for the stage and the agent"
-is "$(q '(s["models"]["stages"]["develop"]["priced"], s["models"]["stages"]["refine"]["priced"], s["models"]["agents"]["cybersec"]["priced"])')" "(True, True, True)" "AC-8 sonnet is priced; a row on Default is not flagged"
+is "$(q '(s["models"]["stages"]["deploy"]["value"], s["models"]["stages"]["deploy"]["priced"], s["models"]["agents"]["engineer"]["priced"])')" "({'light': 'fable', 'standard': 'fable', 'heavy': 'fable'}, {'light': False, 'standard': False, 'heavy': False}, False)" "AC-8 fable has no entry in prices.yml: priced is false for the stage and the agent"
+is "$(q '(s["models"]["stages"]["develop"]["priced"], s["models"]["stages"]["refine"]["priced"], s["models"]["agents"]["cybersec"]["priced"])')" "({'light': True, 'standard': True, 'heavy': True}, True, True)" "AC-8 sonnet is priced; a row on Default is not flagged"
+
+# #133 AC-7: a model per weight for develop, validate and deploy, saved to config.yml and read by the next cycle
+rm -f "$cfgf"
+save '{"models":{"stages":{"develop":{"light":"haiku","heavy":"sonnet"}}}}'
+is "$CODE" 200 "#133 AC-7 saving a model per weight answers 200"
+is "$(cfg 'c["models"]["stages"]["develop"]')" "{'light': 'haiku', 'heavy': 'sonnet'}" "#133 AC-7 config.yml holds the weights sent, and only them"
+is "$(sm)" "sonnet|sonnet|sonnet|haiku|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|" "#133 AC-7 the next cycle's stage-models gives develop light haiku, standard its default, heavy sonnet"
+is "$(q 's["models"]["stages"]["develop"]["value"]')" "{'light': 'haiku', 'standard': None, 'heavy': 'sonnet'}" "#133 AC-7 Settings shows each weight's value, the one left out on Default"
+save '{"models":{"stages":{"develop":{"light":null}}}}'
+is "$(cfg 'c["models"]["stages"]["develop"]')" "{'heavy': 'sonnet'}" "#133 AC-7 null removes that weight only"
+save '{"models":{"stages":{"develop":{"heavy":null}}}}'
+is "$(cfg '"models" in c')" False "#133 AC-7 the last weight removed: the stage and the empty map go"
+printf 'pool: 6\nmodels:\n  stages: {validate: opus}\n' > "$cfgf"
+save '{"models":{"stages":{"develop":{"heavy":"haiku"}}}}'
+is "$(cfg 'c["models"]["stages"]["validate"]')" "opus" "#133 AC-7 a hand-written single model of a stage not in the request stays as it is"
+save '{"models":{"stages":{"validate":{"heavy":"haiku"}}}}'
+is "$(cfg 'c["models"]["stages"]["validate"]')" "{'light': 'opus', 'standard': 'opus', 'heavy': 'haiku'}" "#133 AC-7 a weight changed on a single-model stage keeps the other two on that model"
+before="$(cat "$cfgf")"
+save '{"models":{"stages":{"develop":{"huge":"opus"}}}}'
+is "$CODE" 400 "#133 AC-7 an unknown weight is refused"
+case "$BODY" in *"models.stages.develop.huge: not a weight"*) pass "#133 AC-7 the 400 names the weight" ;; *) fail "#133 AC-7 the 400 does not name the weight: ${BODY:0:300}" ;; esac
+save '{"models":{"stages":{"refine":{"light":"opus"}}}}'
+is "$CODE" 400 "#133 AC-7 refine takes one model, not a mapping"
+save '{"models":{"stages":{"deploy":{"light":"gpt"}}}}'
+is "$CODE" 400 "#133 AC-7 an unknown model for a weight is refused"
+is "$(cat "$cfgf")" "$before" "#133 AC-7 a refused save leaves config.yml as it was"
 
 # AC-6 / AC-7 / AC-8: the page carries the section, and the pt-BR catalog has its strings
 page="$(curl -s "$base/")"
-for s in "Agents and models" "which model runs each role" "models.stages" "models.agents" "Model for " "No priced run in the last 7 days." "cannot be estimated" "which the factory does not know" "is not a stage or an agent here"; do
+for s in "Agents and models" "which model runs each role" "models.stages" "models.agents" "Model for " "No priced run in the last 7 days." "cannot be estimated" "which the factory does not know" "is not a stage or an agent here" "Model for \${STAGE_NAME[st]}, \${WEIGHT_ARIA[w]}" "which Refine writes in the spec"; do
   case "$page" in *"$s"*) pass "AC-6 the page carries '$s'" ;; *) fail "AC-6 the page has no '$s'" ;; esac
 done
 got="$($PY -I -c '

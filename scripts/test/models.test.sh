@@ -7,7 +7,8 @@ CFG="$FACTORY_DIR/shipfloor-config.sh"
 M="$FACTORY_DIR/shipfloor"
 cfgf="$SHIPFLOOR_HOME/config.yml"
 m() { bash -c "source '$FACTORY_DIR/lib/project.sh'; shipfloor_machine \"\$@\"" _ "$@"; }
-sm() { m stage-models 2>&1 | tr '\0' '|'; }     # refine|develop|validate|deploy|  (empty = no --model flag)
+sm() { m stage-models 2>&1 | tr '\0' '|'; }     # each stage x light|standard|heavy, refine develop validate deploy (#133)
+DEF="sonnet|sonnet|sonnet|sonnet|sonnet|opus|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|"  # the shipped models: develop's heavy on opus
 conf() { printf '%s\n' "$1" > "$cfgf"; }
 AC=""   # the AC the checks below belong to, named in every assertion's label
 assert_contains() { case "$1" in *"$2"*) pass "$AC contains $2" ;; *) fail "$AC missing '$2' in: $1" ;; esac; }
@@ -30,17 +31,19 @@ no_line() { case "$1" in *"agent models:"*) fail "$2: describe printed an agent 
 # AC-2: no models key, or a stage left out: the model each run uses today
 AC="AC-2"
 rm -f "$cfgf"
-[ "$(sm)" = "||sonnet|sonnet|" ] && pass "AC-2 no config file: refine and develop keep Claude Code's default, validate and deploy sonnet" || fail "AC-2 no config file: stage-models printed '$(sm)', want '||sonnet|sonnet|'"
+[ "$(sm)" = "$DEF" ] && pass "AC-2 no config file: the shipped models (refine sonnet, develop sonnet with heavy on opus, validate and deploy sonnet)" || fail "AC-2 no config file: stage-models printed '$(sm)', want '$DEF'"
 conf 'pool: 4'
-[ "$(sm)" = "||sonnet|sonnet|" ] && pass "AC-2 no models key: today's models" || fail "AC-2 no models key: stage-models printed '$(sm)', want '||sonnet|sonnet|'"
+[ "$(sm)" = "$DEF" ] && pass "AC-2 no models key: today's models" || fail "AC-2 no models key: stage-models printed '$(sm)', want '$DEF'"
 conf 'models: {}'
-[ "$(sm)" = "||sonnet|sonnet|" ] && pass "AC-2 empty models map: today's models" || fail "AC-2 empty models map: stage-models printed '$(sm)', want '||sonnet|sonnet|'"
+[ "$(sm)" = "$DEF" ] && pass "AC-2 empty models map: today's models" || fail "AC-2 empty models map: stage-models printed '$(sm)', want '$DEF'"
 conf $'models:\n  agents: {engineer: haiku}'
-[ "$(sm)" = "||sonnet|sonnet|" ] && pass "AC-2 only agents set: stages keep today's models" || fail "AC-2 only agents set: stage-models printed '$(sm)', want '||sonnet|sonnet|'"
+[ "$(sm)" = "$DEF" ] && pass "AC-2 only agents set: stages keep today's models" || fail "AC-2 only agents set: stage-models printed '$(sm)', want '$DEF'"
 conf $'models:\n  stages: {develop: sonnet}'
-[ "$(sm)" = "|sonnet|sonnet|sonnet|" ] && pass "AC-2 a stage left out keeps its model, the one set changes" || fail "AC-2 develop: sonnet: stage-models printed '$(sm)', want '|sonnet|sonnet|sonnet|'"
+want="sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|"
+[ "$(sm)" = "$want" ] && pass "AC-2 a stage left out keeps its model, the one set changes (every weight)" || fail "AC-2 develop: sonnet: stage-models printed '$(sm)', want '$want'"
 conf $'models:\n  stages: {validate: opus, deploy: haiku, refine: fable}'
-[ "$(sm)" = "fable||opus|haiku|" ] && pass "AC-2 every stage can be set; develop stays unset" || fail "AC-2 three stages set: stage-models printed '$(sm)', want 'fable||opus|haiku|'"
+want="fable|fable|fable|sonnet|sonnet|opus|opus|opus|opus|haiku|haiku|haiku|"
+[ "$(sm)" = "$want" ] && pass "AC-2 every stage can be set; develop keeps its shipped models" || fail "AC-2 three stages set: stage-models printed '$(sm)', want '$want'"
 # the frontmatter model of each plugin agent is the default PLUGIN_AGENTS says (it feeds validation and the "Default (...)" label)
 got="$(cd "$FACTORY_DIR" && "$FACTORY_PYTHON" -I -c '
 import re, sys, pathlib
@@ -58,7 +61,7 @@ got="$(cd "$FACTORY_DIR" && "$FACTORY_PYTHON" -I -c '
 import sys; sys.path.insert(0, ".")
 import shipfloor_config as c
 print(getattr(c, "MODELS", None), getattr(c, "STAGE_MODELS", None))' 2>&1)"
-assert_contains "$got" "('opus', 'sonnet', 'haiku', 'fable') {'refine': None, 'develop': None, 'validate': 'sonnet', 'deploy': 'sonnet'}"
+assert_contains "$got" "('opus', 'sonnet', 'haiku', 'fable') {'refine': 'sonnet', 'develop': {'light': 'sonnet', 'standard': 'sonnet', 'heavy': 'opus'}, 'validate': {'light': 'sonnet', 'standard': 'sonnet', 'heavy': 'sonnet'}, 'deploy': {'light': 'sonnet', 'standard': 'sonnet', 'heavy': 'sonnet'}}"
 
 # AC-3: describe tells the stage skills which model to pass as the Agent tool's model
 AC="AC-3"
@@ -103,20 +106,21 @@ out="$(m models-check 2>&1)"
 assert_contains "$out" 'models.stages.develop: "gpt" is not a model the factory knows (opus, sonnet, haiku, fable)'
 assert_contains "$out" 'models.stages.validate: "gpt"'
 assert_exit 0 m validate
-[ "$(sm)" = "||sonnet|sonnet|" ] && pass "AC-5 a stage with an unknown model runs on today's model" || fail "AC-5 stage-models printed '$(sm)' for an unknown model, want '||sonnet|sonnet|'"
+[ "$(sm)" = "$DEF" ] && pass "AC-5 a stage with an unknown model runs on today's model" || fail "AC-5 stage-models printed '$(sm)' for an unknown model, want '$DEF'"
 conf $'models:\n  stages: {develop: opus, deploy: gpt}'
-[ "$(sm)" = "|opus|sonnet|sonnet|" ] && pass "AC-5 the valid stage keeps its model, the bad one falls back" || fail "AC-5 stage-models printed '$(sm)', want '|opus|sonnet|sonnet|'"
+want="sonnet|sonnet|sonnet|opus|opus|opus|sonnet|sonnet|sonnet|sonnet|sonnet|sonnet|"
+[ "$(sm)" = "$want" ] && pass "AC-5 the valid stage keeps its model, the bad one falls back" || fail "AC-5 stage-models printed '$(sm)', want '$want'"
 conf $'models:\n  stages: {review: opus}'
 out="$(m models-check 2>&1)"; assert_contains "$out" 'models.stages.review: not a stage or an agent here'
 assert_exit 0 m validate
-[ "$(sm)" = "||sonnet|sonnet|" ] && pass "AC-5 an unknown stage is ignored" || fail "AC-5 stage-models printed '$(sm)' with an unknown stage, want '||sonnet|sonnet|'"
+[ "$(sm)" = "$DEF" ] && pass "AC-5 an unknown stage is ignored" || fail "AC-5 stage-models printed '$(sm)' with an unknown stage, want '$DEF'"
 conf $'models:\n  agents: {nobody: opus}'
 out="$(m models-check 2>&1)"; assert_contains "$out" 'models.agents.nobody: not a stage or an agent here'
 assert_exit 0 m validate
 conf 'models: 3'
 assert_exit 1 m models-check
 assert_exit 0 m validate
-[ "$(sm)" = "||sonnet|sonnet|" ] && pass "AC-5 models that is not a mapping: today's models" || fail "AC-5 stage-models printed '$(sm)' for models: 3, want '||sonnet|sonnet|'"
+[ "$(sm)" = "$DEF" ] && pass "AC-5 models that is not a mapping: today's models" || fail "AC-5 stage-models printed '$(sm)' for models: 3, want '$DEF'"
 conf $'models:\n  stages: 3'
 assert_exit 1 m models-check
 assert_exit 0 m validate

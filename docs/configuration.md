@@ -31,11 +31,14 @@ The same file picks the model each stage's session and each agent runs on, in tw
 
 ```yaml
 models:
-  stages: {develop: sonnet}   # refine, develop, validate, deploy
+  stages:
+    refine: opus                                       # one model: Refine runs before the card has a weight
+    develop: {light: haiku, standard: sonnet, heavy: opus}   # develop, validate, deploy: a model per weight
+    validate: sonnet                                   # or one model for every weight
   agents: {engineer: haiku}   # a plugin agent, or the agent a project's layer names
 ```
 
-A model is `opus`, `sonnet`, `haiku` or `fable`. A stage or agent left out keeps the model the plugin ships with (validate and deploy on Sonnet, refine and develop on Claude Code's default, each agent on its frontmatter model). A bad model or name does not stop the factory: `shipfloor doctor` warns about it, the run uses the shipped model, and the dashboard's Settings section "Agents and models" edits it, with the average cost per card of the last 7 days next to each stage.
+A model is `opus`, `sonnet`, `haiku` or `fable`. A card's weight (`light`, `standard` or `heavy`) is the `**Weight:**` line Refine writes in its spec header, which the owner can change in Spec Review; a card with no weight line runs as `standard`. A stage, weight or agent left out keeps the model the plugin ships with: refine on Sonnet; develop on Sonnet for light and standard cards and Opus for heavy ones; validate and deploy on Sonnet for every weight; each agent on its frontmatter model. A develop run that ends on a failed gate runs once more one model up (haiku → sonnet → opus; `fable` is not on the ladder), from the next dispatcher cycle; the run's log, the Feed and the card's Sessions tab say so. A bad model, weight or name does not stop the factory: `shipfloor doctor` warns about it, the run uses the shipped model, and the dashboard's Settings section "Agents and models" edits it, with the average cost per card of the last 7 days next to each stage.
 
 ## Notifications
 
