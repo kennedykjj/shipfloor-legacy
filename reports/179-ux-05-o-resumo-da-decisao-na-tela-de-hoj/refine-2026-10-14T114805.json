@@ -1,0 +1,1 @@
+{"issue":179,"slug":"ux-05-o-resumo-da-decisao-na-tela-de-hoj","pipeline":"refine","started_at":null,"finished_at":"2026-10-14T00:00:00Z","outcome":"ok","agents":[{"role":"product-owner","tokens":14582,"duration_s":20},{"role":"ux-designer","tokens":42157,"duration_s":48}],"rounds":{"po":1,"ux":1,"techlead":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":false}
