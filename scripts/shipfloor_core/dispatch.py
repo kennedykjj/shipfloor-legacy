@@ -1,7 +1,7 @@
 """dispatch: one dispatcher cycle for one project (docs/superpowers/specs/2026-10-14-port-dispatch-sh-to-python-design.md).
 
 Starts factory pipelines for the project's cards waiting in the owner's queues. Run every 3 min by shipfloor-dispatch.sh,
-once per registered project, through the wrapper scripts/dispatch.sh. Pipelines run from the project's control checkout
+and as soon as a run ends where the scheduler can be asked (wake_dispatcher), once per registered project, through the wrapper scripts/dispatch.sh. Pipelines run from the project's control checkout
 of origin/main, never from a worktree an agent can edit.
 
 usage: dispatch.sh
@@ -952,7 +952,27 @@ def supervise(spec):
     owner = first[0].split()[0] if first and first[0].split() else ""
     if owner == str(pid):
         _rmtree(d)
+        wake_dispatcher()
     return 0
+
+
+def wake_dispatcher():
+    """The run's lock is gone and its slot free: ask the machine's scheduler for a cycle now, not at its next tick. The
+    installer writes the command, one argument a line, to <shipfloor home>/dispatcher.wake: systemd starts the cycle's
+    service, launchd kickstarts its agent. cron and the Windows task have none (started there beside a running cycle, a
+    second one would stop as an overlap and alert the owner) and keep their interval alone. It only asks: the cycle still decides (PAUSE, the limits, the slots). A
+    request while a cycle runs joins that one, and the interval catches what it misses. Never waited on."""
+    try:
+        with open(os.path.join(project.shipfloor_home(), "dispatcher.wake"), encoding="utf-8") as f:
+            argv = [a for a in f.read().splitlines() if a]
+    except OSError:
+        return
+    if not argv:
+        return
+    try:
+        subprocess.Popen(argv, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, close_fds=True)
+    except OSError as e:
+        _write(sys.stderr, "dispatch: cannot ask for a cycle: %s\n" % (e.strerror or e))
 
 
 def _work(spec, agent, deploy, log):

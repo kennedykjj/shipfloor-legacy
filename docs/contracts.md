@@ -294,6 +294,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `PAUSE` (here and in `<home>`) | empty file | `shipfloor pause`, the dashboard | `shipfloor-dispatch.sh`, `dispatch.sh`, `run-dispatcher.sh`, `shipfloor_health.py`, `shipfloor_notify.py`, `dashboard.py` |
 | `dispatch.pid` | the cycle's pid | `shipfloor-dispatch.sh` | the same script, to detect an overlap |
 | `dispatcher.path` | a PATH prefix, first line | the installer | `run-dispatcher.sh` |
+| `dispatcher.wake` | the command that asks the scheduler for a cycle now, one argument a line (systemd, launchd; absent on cron and Windows) | the installer | `dispatch.py` (a run that ended, after its lock is gone) |
 | `factory/` | the installed copy of `scripts/` and `templates/`; `factory/.source` the plugin checkout path, `factory/.origin` `<commit><TAB><branch><TAB>verified|forced` | `shipfloor install` | `dispatch.sh` (`.source`), `shipfloor doctor`, `dashboard.py` |
 | `<home>/factory.yml` | the config snapshot of `origin/main` | `shipfloor-dispatch.sh`, `shipfloor add` | every script, through `FACTORY_CONFIG` |
 | `<home>/control/` | worktree of `origin/<main>`, where runs start | `shipfloor add`, the dispatcher | pipelines (cwd) |

@@ -35,4 +35,5 @@ Dispatcher on Windows: `powershell -File <plugin>/installer/install-dispatcher.p
 Dispatcher on Linux and macOS: `bash <plugin>/installer/install-dispatcher.sh` registers it. On Linux it is a systemd user timer when there is a systemd user session, else a crontab line. On macOS it is a launchd user agent. To remove it, run `bash <plugin>/installer/install-dispatcher.sh --uninstall`.
 - On systemd the dispatcher stops at logout unless lingering is on (`loginctl enable-linger <user>`); the installer says which.
 - The pace comes from `--every-min` or `dispatcher.every_min`. To change it, run the installer again. The dashboard's pace control is Windows only.
+- On systemd and launchd a run that ends also asks for a cycle at once, so a freed slot does not wait for the next tick; the pace is the net for the rest (a card moved by hand on the board). cron and Windows keep the pace alone. An install from before this needs the installer run again.
 - The installer records your shell's `PATH` for the timer. Run it again after PATH changes.
