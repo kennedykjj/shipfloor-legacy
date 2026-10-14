@@ -1,0 +1,1 @@
+{"issue":177,"slug":"incremental-re-review","pipeline":"refine","started_at":null,"finished_at":null,"outcome":"ok","agents":[{"role":"product-owner","tokens":16335,"duration_s":29},{"role":"ux-designer","tokens":44077,"duration_s":51}],"rounds":{"po":1,"ux":1,"techlead":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":null}
