@@ -946,7 +946,7 @@ function renderStatus() {
   $("rrow").hidden = !(dead && RESTART.open);
   setHTML($("rrow"), dead && RESTART.open ? (dead.reinstall
     ? `<p>${t("status.restart.what")}</p><code>${esc(dead.reinstall)}</code><button class="btn ghost" data-copy>${t(Date.now() - RESTART.copiedAt < 2000 ? "status.copied" : "status.copy")}</button>`
-    : `<a class="lnk" href="https://github.com/kennedykjj/shipfloor/blob/main/docs/install.md" target="_blank" rel="noopener">${t("status.unknown")}</a>`) : "");
+    : `<a class="lnk" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener">${t("status.unknown")}</a>`) : "");
   if (was === "copy" && RESTART.open) $("rrow").querySelector("[data-copy]")?.focus({ preventScroll: true });
   else if (was === "btn") $("rbtn").querySelector("button")?.focus({ preventScroll: true });
 }
