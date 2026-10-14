@@ -183,24 +183,7 @@ def _env(name):
 
 def _alive(held):
     """kill -0 <held>: the pid exists and may be signalled by this user."""
-    if not re.fullmatch(r"[0-9]+", held or ""):
-        return False
-    pid = int(held)
-    if os.name == "nt":
-        import ctypes
-        k = ctypes.windll.kernel32
-        h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not h:
-            return False
-        code = ctypes.c_ulong()
-        ok = k.GetExitCodeProcess(h, ctypes.byref(code))
-        k.CloseHandle(h)
-        return bool(ok) and code.value == 259  # STILL_ACTIVE
-    try:
-        os.kill(pid, 0)
-    except (OSError, OverflowError):
-        return False
-    return True
+    return proc.pid_alive(held)
 
 
 def _bounded(secs, argv, cwd, out):
