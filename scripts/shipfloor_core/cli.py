@@ -437,8 +437,9 @@ def cmd_install(args):
     if counts["bad"] == 0:
         origin = os.path.join(inst, ".origin")
         if st["git"]:
-            with open(origin, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as f:
-                f.write("%s\t%s\t%s\n" % (st["commit"], st["branch"] or "detached", kind))
+            line = "%s\t%s\t%s\n" % (st["commit"], st["branch"] or "detached", kind)
+            if _put_text(line.encode("utf-8", "surrogateescape"), origin) == "failed":
+                bad(".origin")
         else:
             try:
                 os.unlink(origin)
@@ -894,10 +895,15 @@ def cmd_accept(args):
         die('no QA commit ("acceptance tests for #%s") on %s' % (n, _git("-C", wt, "rev-parse", "--abbrev-ref", "HEAD")[1]))
     accepted = os.path.join(home, "accepted.tsv")
     took = False
-    files = _git("-C", wt, "-c", "core.quotePath=false", "show", "--name-only", "--format=", "--diff-filter=d", qa)[1]
-    for f in files.split("\n"):
-        if not f:
-            continue
+    # every QA commit's files, each with the newest QA commit that wrote it: acceptance-intact guards them all, so a
+    # file only an earlier QA round wrote (and a merge from main later deleted or rewrote) must be acceptable too
+    qas = _git("-C", wt, "log", "--format=%H", "-E", "--grep", "acceptance tests for #%s([^0-9]|$)" % n, "HEAD")[1].split() or [qa]
+    owner_of = {}
+    for c in qas:
+        for f in _git("-C", wt, "-c", "core.quotePath=false", "show", "--name-only", "--format=", "--diff-filter=d", c)[1].split("\n"):
+            if f and f not in owner_of:
+                owner_of[f] = c
+    for f, qa in owner_of.items():
         if _run(["git", "-C", wt, "diff", "--quiet", qa, "HEAD", "--", f])[0] == 0:
             continue  # untouched since QA
         rc, blob = _git("-C", wt, "rev-parse", "-q", "--verify", "HEAD:" + f)
@@ -1027,6 +1033,12 @@ def cmd_metrics(args):
     return _run(["bash", os.path.join(HERE, "metrics.sh")])[0]
 
 
+def cmd_init(args):
+    """init [<repo>] [--yes]: install, config, add, board, dispatcher and doctor in one guided run (#174)."""
+    from . import init
+    return init.run(args)
+
+
 def usage():
     """The wrapper's header lines 2-10, comment marks off, on stderr."""
     data = _read_bytes(os.path.join(HERE, "shipfloor"))
@@ -1036,7 +1048,13 @@ def usage():
     return 2
 
 
-COMMANDS = {"install": cmd_install, "doctor": cmd_doctor, "add": cmd_add, "remove": cmd_remove, "list": cmd_list,
+def cmd_demo(args):
+    """demo [--no-dashboard] [--keep]: a fake card crosses the factory on a temporary home (no network, no LLM)."""
+    from . import demo
+    return demo.main(args)
+
+
+COMMANDS = {"demo": cmd_demo, "init": cmd_init, "install": cmd_install, "doctor": cmd_doctor, "add": cmd_add, "remove": cmd_remove, "list": cmd_list,
             "pool": cmd_pool, "clean": cmd_clean, "accept": cmd_accept, "weight": cmd_weight, "pause": cmd_pause,
             "resume": cmd_resume, "setup-board": cmd_setup_board, "dashboard": cmd_dashboard, "metrics": cmd_metrics}
 

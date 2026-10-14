@@ -101,6 +101,8 @@ One dispatcher cycle for one project: starts pipelines for cards waiting in the 
 
 **What it does, in order:** reads the board once into `board.tsv` (a temp file per process, then renamed) and exports `FACTORY_BOARD_SNAPSHOT=<home>/board.tsv`; stops when a log under the home's `logs/` was written in the last 30 min and holds `hit your session limit` after its last `== start`; removes `cost/<n>.json` and `stepup/<n>` markers of cards that left the board or Coding; applies the machine's `costs` limits through `dashboard_cost.py`; retries `blocked:infra` cards once; unless outside the working hours, runs the pipelines `refine`, `develop`, `validate` and `deploy` in that order; optionally refreshes Staged cards when `deploy.refresh_staged` is true; sweeps stale `tmp/` folders.
 
+**Dependencies:** for the pipelines `develop`, `validate` and `deploy` (never `refine`), before it labels a card or takes a slot, it makes one call per candidate per cycle, `gh api repos/<repo>/issues/<n>/dependencies/blocked_by?per_page=100` (`<repo>` is `project.repo`), through `shipfloor_core/deps.py`. If a dependency is open, or the call fails or does not answer a JSON array, the card is not started: no label, no slot, no failed cycle; the next cycle asks again. A closed dependency (merged or not planned) never blocks. The owner declares one with GitHub's native "Blocked by" relation; text in the issue body is not read. At the end of the cycle it writes `<home>/deps.json` (see the files table).
+
 **Log lines, on stdout** (the dispatcher's own, `dispatch: ...` or `<ISO> dispatch: ...`, translated by the machine's `language`): e.g. `dispatch: outside working hours; runs start again at <hh:mm>`, `dispatch: #<n> reached costs.card_block; blocked`, `<ISO> dispatch: #<n> failed gate <gate> on <from>; the next run is on <to>`. They are free text, read by people only.
 
 **The run's own log** is `logs/<YYYY-MM-DD>-<n>-<stage>.log` of the project's home, with these lines written by the dispatcher (the dashboard reads them with regular expressions in `dashboard.py`: `RUN_LINE` and `STEPUP_LINE`):
@@ -158,7 +160,25 @@ A wrapper of `sf.py report`: the logic is `shipfloor_core/report.py` (the commit
 
 ## review-page.sh
 
-**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html>`. No subcommands. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). `FACTORY_PROJECT` is passed through.
+**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html> [--request-file F]` and `review-page.sh --diff <old.md> <new.md>`. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). Beside the page it keeps `<issue>.published.md` (the spec as last built) and `<issue>.read.md` (the previous published spec, once the spec changes); with a `.read.md` the page marks each statement new, changed or untouched against it and quotes the request in `F`. `--diff` prints the JSON entries `{section, status, old, new}` and writes nothing. `FACTORY_PROJECT` is passed through.
+
+## brief.sh
+
+**Interface:** `brief.sh` `build` `<n> --column "Spec Review"|Staged --spec <spec> --head <sha> --notes <file> [--since <json>] [--out <file>]`. A wrapper of `sf.py brief`: the logic is `shipfloor_core/brief.py`. The refine skill runs it before moving a card to Spec Review, the validate skill before moving it to Staged.
+
+**Output:** writes `<reviews>/<n>.brief.json` (or `--out`), atomically; nothing on stdout. The dashboard reads it. Fields:
+- `card`: the issue number. `column`: `Spec Review` or `Staged`. `built`: the UTC time.
+- `verdict`: `routine` or `look`; `look` when `flags` or `since_request` is not empty. Computed by the script.
+- `flags`: a list of `{id, kind, title, detail, hunk, source, suggestion}`, computed by the script from the diff against `origin/<main>`, the spec, the develop `report.json` and the `infra/<n>` marker. The kinds are `migration`, `outside-architecture`, `qa-amended`, `open-question`, `security` and `infra-retry`; `suggestion` is the only text taken from the notes file.
+- `proven`: the gates (`build`, `green ...`) with a recorded pass for `--head`, from `gate-passes/`. Computed by the script.
+- `facts`: `{pr, files, added, removed, statements}` from `git diff --numstat` and `gh pr view`; `statements` is 0 for now. Computed by the script.
+- `since_request`: a list of `{old, new}` pairs. It is an input: the `--since` file (a JSON list) is copied in, and the field is an empty list when `--since` is absent or unreadable. A non-empty `since_request` makes the verdict `look`.
+- `what`: `{text, by}`; `text` is the notes file's `what` (at most 280 characters), `by` is `agent`.
+- `rest`: an empty list, reserved.
+
+**The notes file** (`--notes`, `<tmp>/brief-notes.json`, written by the agent) holds only `what` (a sentence) and `suggestions` (an object from a flag kind to one line, at most 120 characters). Anything else in it is ignored; an absent or unreadable file gives an empty `what` and no suggestions. The agent never writes `verdict`, `flags`, `proven` or `facts`: they come from the script.
+
+**Exit codes:** always 0. Any problem (bad usage, no spec, git failing, an unwritable output) is one `brief: skipped: <reason>` line on stderr and no file: a brief never blocks a card.
 
 ## setup-board.sh
 
@@ -231,6 +251,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). A 
 - `accept` `<slug> <n> <reason>`
 - `weight` `<slug> <n> <weight>`, the weight being `light`, `standard` or `heavy`
 - `dashboard` `[--port N] [--no-open] [--token T]`
+- `demo` `[--no-dashboard] [--keep]`
 
 **Per command:**
 - `install`: copies `scripts/` (not `test/`) and `templates/` into `~/.shipfloor/factory` by rename (so a running script keeps its inode), removes what the plugin no longer ships, writes `.source` (the plugin checkout) and, when it is a git clone, `.origin` (`<commit><TAB><branch|detached><TAB>verified|forced`). Refuses (exit 1, reasons on stderr, `install anyway: shipfloor install --force`) when the clone is not a clean, current `main`, unless `--force`. Prints `installed <src> → <dest>: <n> replaced, <n> added, <n> removed` and a `next:` line on stdout; with `--force` a `WARN installed copy is not a verified <main>: ...` line. Exit 0 when nothing failed.
@@ -242,6 +263,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). A 
 - `accept <slug> <n> <reason>`: owner only. For each file of card `<n>`'s QA commit that changed since, records a line `<file><TAB><blob or own:<hash>|deleted><TAB>#<n><TAB><ISO><TAB><reason>` in the project's `accepted.tsv` and prints `accepted <file> at <12 hex>` or `accepted the deletion of <file>`; `nothing to accept: acceptance-intact already passes for card <n>` when nothing differs. Exit 2 on a usage error, 1 on any other refusal.
 - `weight <slug> <n> <weight>`: owner only. Rewrites the one `**Weight:** <w>` line of the card's spec header, commits it on the card's branch as `docs(<scope>): weight <w> for #<n>` and pushes (reset on a failed push); prints `weight <w>`. Exit 3 when the card is no longer in Spec Review or a run is working on it; 2 on usage; 1 otherwise.
 - `dashboard`: runs `dashboard.py` with `--home`; its first stdout line is `shipfloor dashboard: <url>  (Ctrl+C stops it)`, which the dashboard skill reads and gives back as the one link; the URL carries the machine's token. When it cannot bind, it exits with `shipfloor dashboard: ports <a>-<b> are taken`.
+- `demo`: plays one fake card through refine, develop, validate and deploy on a temporary home (`SHIPFLOOR_HOME` and `HOME` of its processes point there, `FACTORY_GH` at the stand-in `scripts/demo/gh`): the board moves, `gate.sh` red, green and build, git and `report.sh` are real, what the agents write is recorded, and the screen says no LLM ran. Without `--no-dashboard` it serves the dashboard on the temporary home, prints its URL, opens the browser and waits for Enter or Ctrl+C; the temporary home is removed at the end unless `--keep`, which prints its path. Exit 0 when the card reached Done, 1 on an error, 130 on Ctrl+C, 2 on an unknown flag. The caller's `~/.shipfloor` is never read or written.
 
 ## GitHub markers
 
@@ -286,6 +308,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `<home>/stepup/<n>` | `<from model><TAB><to model><TAB><gate>` | `dispatch.sh` | `dispatch.sh`, `dashboard.py` |
 | `<home>/infra/<n>` | `<epoch>`; the retry's marker | `dispatch.sh` | `dispatch.sh` (the run gets `SHIPFLOOR_INFRA_RETRY=1`), `dashboard.py` |
 | `<home>/cost/<n>.json` | the baseline of a cost block | `dashboard_cost.py` | `dashboard_cost.py`, `dispatch.sh` (removes it when the card leaves the board) |
+| `<home>/deps.json` | `{"<n>": {"read": true\|false, "deps": [{"n", "title", "state": "open"\|"closed"}]}}`, per card the cycle examined; `read` false when GitHub did not answer. Written atomically (a temp file, then `os.replace`); entries of cards not examined this cycle are kept while the card is on the board and not Done | `dispatch.py` | `shipfloor_health.py` (a card with an open dependency or `read` false is not counted as waiting), `dashboard.py` (the "Depends on" block and the reason a card waits) |
 | `<home>/tmp/<n>/` | a run's scratch: `fix.round`, `fix.parent`, `fix.findings`, `resolve.parents`, `resolve.files`, `gates.txt`, `merge.txt`, `merge-pr.txt`, `local-ci.txt`, `report.json`, `report.md`, worktrees | the pipelines, `deploy.sh` | the same; removed with the run, and by the dispatcher's sweep |
 | `<home>/gate-passes/<sha1>` | `<ISO><TAB><head><TAB><gate><TAB><arguments>` | `gate.sh` | `gate.sh` |
 | `~/.shipfloor/locks/stack-<k>.lock/` | see `lib/stack.sh` | `lib/stack.sh` | `lib/stack.sh`, `shipfloor pool`, `dashboard.py` |
@@ -295,6 +318,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `~/.shipfloor/logs/dispatcher.log` | the scheduler's output | `run-dispatcher.sh` | people |
 | `~/.shipfloor/logs/stacks.log` | `<ISO> reclaimed slot <k> from <owner> <reason>` | `lib/stack.sh` | people |
 | `~/.shipfloor/logs/health-<YYYY-MM>.jsonl` | one JSON object per cycle | `shipfloor_health.py record` | `shipfloor doctor`, `shipfloor_notify.py`, `dashboard.py` |
+| `<reviews>/<n>.brief.json` | the card's brief: `verdict`, `flags`, `proven`, `facts`, `since_request`, `what`, `rest` (see `brief.sh`) | `brief.sh build`, from the refine and validate skills | `dashboard.py` |
 | `<home>/reports-wt/` | worktree of the `factory-reports` branch | `report.sh` | `metrics.sh`, `dashboard.py` |
 | `~/.shipfloor/cost-cache.json`, `notify.json` | caches | `dashboard_cost.py`, `shipfloor_notify.py` | the same |
 
@@ -331,6 +355,8 @@ Readers that parse what the scripts write, which a port must not break:
 | `SHIPFLOOR_BASH`, `SHIPFLOOR_SCHEDULER` | `dashboard.py` | the bash it uses to run scripts; the scheduler it asks |
 | `SHIPFLOOR_NOTIFY_SEND` | `shipfloor_notify.py` | a script that sends a notification; it receives channel, title and body |
 | `SNAPSHOT` | `setup-board.sh` | where the board's item-status snapshot goes |
+| `FAKE_GH_FAIL_AT` | `fake-gh`, `fake-gh-deploy` (tests) | `<n>`: the n-th call to the fake (counted in its `fail-count` file) exits 1 with `gh: injected failure`; unset: no effect |
+| `FAKE_GH_FAIL_CMD` | `fake-gh`, `fake-gh-deploy` (tests) | an ERE: every call whose argument line matches it exits 1 with `gh: injected failure`; unset: no effect |
 
 **Test seams** (a test sets these to put a stand-in where the real thing would be): `FACTORY_GH` (the `gh` command: `board.sh`, `deploy.sh`, `dispatch.sh`), `FACTORY_CLAUDE` (`claude`, `dispatch.sh`), `FACTORY_BOARD` (the `board.sh` path: `dispatch.sh`, `deploy.sh`), `FACTORY_DEPLOY` (the `deploy.sh` path: `dispatch.sh`), `SHIPFLOOR_DISPATCH` (the `dispatch.sh` path: `shipfloor-dispatch.sh`), `FACTORY_CURL` (`curl`: `deploy.sh`), `FACTORY_POLL`, `SHIPFLOOR_NOW`, `FACTORY_PYTHON` (the python binary), `FACTORY_BOARD_SNAPSHOT` (a file standing in for the board), `FACTORY_CONTROL_REFRESH=0`, `SHIPFLOOR_HOME` and `FACTORY_CONFIG`. A script with a seam reads it with a default of the real thing; the seam is not a feature of production runs.
 
@@ -359,6 +385,22 @@ The skills and agents parse nothing of this; the dashboard parses the `== ` line
 - A fork's PR is never deployed. `deploy.sh` merges with `--match-head-commit`.
 - A run reads, and never writes, the factory's scripts and the reports' worktree (`--allowedTools Read(...)`); it does not load the owner's own plugins, MCP servers or memory.
 - PII never goes to a log or a report.
+
+## Failure invariant
+
+After any failure (a `gh` call, a `git` step, a killed run, a full disk), the next cycle repairs the state or the card is labelled `blocked` or `blocked:infra` with a comment saying why. Nothing stays half-done and silent. The checkable form, after a cycle:
+
+- No `locks/*.lock` whose `info` pid is dead and which is older than `FACTORY_LOCK_TTL` survives.
+- No card in a WIP column (`Technical Refinement`, `Coding`, `Validation`) lacks both a live lock and a `blocked*` label.
+- No `*.tmp`, `.*.install-tmp` or `tmp/<n>` is left for a card with no run.
+- `dashboard.py`'s readers load `~/.shipfloor` without an exception.
+
+It is proven by the `scripts/test/chaos-*.test.sh` suites, which fail the n-th `gh` call (`FAKE_GH_FAIL_AT`) or a matching one (`FAKE_GH_FAIL_CMD`) and check the state afterwards with `scripts/test/py/chaos_invariant.py`.
+
+Two decisions that the suites pin:
+
+- A lock younger than the TTL stays live even when its pid is dead (by design: the run may be starting or ending). A live pid past the TTL cannot be told from a reused pid, so it keeps its lock (`dispatch-lock` pins this).
+- `deploy.sh`'s `block` labels the card only once its reason comment landed. If the comment fails, the card stays unlabelled and the next deploy retries, so a `blocked` label never comes without its reason.
 
 ## Known quirks kept on purpose
 

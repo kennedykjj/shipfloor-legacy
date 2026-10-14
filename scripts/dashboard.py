@@ -14,6 +14,7 @@ sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
 from shipfloor_core.defaults import DEPLOY_DEFAULTS
 import shipfloor_health
+from shipfloor_core import deps
 import dashboard_cost
 from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, per_card, rounded
 import yaml
@@ -85,6 +86,12 @@ addEventListener("load",function(){
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
+# The labels a returned card's review page shows (#177), with their English text: the embedded page gets them in the
+# machine's language with the theme (labels_block); the standalone page carries the English ones itself.
+RV_LABELS = (shipfloor_config.Msg("rv.new", "New"), shipfloor_config.Msg("rv.changed", "Changed"),
+             shipfloor_config.Msg("rv.removed", "Removed"), shipfloor_config.Msg("rv.before", "Before"),
+             shipfloor_config.Msg("rv.request", "Your request"),
+             shipfloor_config.Msg("rv.since", "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"))
 # The moves the owner makes from the dashboard, M1 to M7 of #125: from -> [(to, a note is required)]. Nothing else moves
 # a card from here. In Spec Review and Staged the move without a note is Approve, the one with a note Request changes.
 OWNER_MOVES = {"Inbox": [("Ready for Refinement", False)],
@@ -233,6 +240,26 @@ def scheduler():
             str(Path(source) / "installer" / "install-dispatcher.ps1"), "-EveryMin"], None
 
 
+def silent_banner(home):
+    """The overview's "silent": how long the dispatcher has been quiet and the platform's commands to check and
+    reinstall its scheduled job; None while the newest health line is within 3x the pace."""
+    s = shipfloor_health.silence(home)
+    if not s:
+        return None
+    try:  # as scheduler(): the installed copy records the checkout it came from
+        source = (HERE / ".source").read_text(encoding="utf-8").strip() or str(HERE.parent)
+    except OSError:
+        source = str(HERE.parent)
+    installer = Path(source) / "installer"
+    if os.name == "nt":
+        check = "Get-ScheduledTask -TaskName ShipfloorDispatcher"
+        reinstall = f"powershell -File {installer / 'install-dispatcher.ps1'}"
+    else:
+        check = f"bash {installer / 'install-dispatcher.sh'} --status"
+        reinstall = f"bash {installer / 'install-dispatcher.sh'}"
+    return {"min": round(s["min"]), "every": s["every"], "check": check, "reinstall": reinstall}
+
+
 def gh(*args, input=None):  # through bash, so FACTORY_GH can be a script on Windows too
     # Never --jq: started from Python on Windows, gh crashes on it (0xC0000005). Read JSON with gh_json.
     return subprocess.run([bash(), "-c", 'exec "${FACTORY_GH:-gh}" "$@"', "gh", *args],
@@ -287,6 +314,15 @@ class Factory:
             pass
         j = json.dumps({"rev": rev, "marks": marks}).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
         return f"<script>window.__shipfloorMarks={j}</script>"
+
+    def labels_block(self):
+        """The <script> that hands the embedded page the labels of a returned card (RV_LABELS) in the machine's language,
+        English where its catalog lacks one: the page is sandboxed and cannot read the dashboard's catalogs itself."""
+        lang = self.lang()
+        messages = {m.key: lang["messages"].get(m.key) or lang["en"].get(m.key) or str(m) for m in RV_LABELS}
+        j = json.dumps({"language": lang["language"], "messages": messages}, ensure_ascii=False)
+        j = j.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+        return f"<script>window.__shipfloorLabels={j}</script>"
 
     def save_marks(self, p, n, body):
         """Keeps the Keep/Change marks of a review page (reviews/<n>.marks.json). Nothing is stored on a refusal."""
@@ -663,6 +699,23 @@ class Factory:
                         "notes": "\n".join(r["notes"]) if isinstance(r.get("notes"), list) else r.get("notes") or ""})
         return out
 
+    def brief(self, p, n):
+        """The decision brief of a card (reviews/<n>.brief.json, made by #178): the parsed object, or None when the file
+        is missing, unreadable, unparseable or not an object. Never raises."""
+        try:
+            b = json.loads((self.pdir(p) / "reviews" / f"{n}.brief.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return b if isinstance(b, dict) else None
+
+    def brief_row(self, p, n, col):
+        """The one-word verdict and the number of flags for the list row; only for the cards waiting on the owner."""
+        b = self.brief(p, n) if col in AWAITING else None
+        if not b:
+            return {"verdict": None, "flags": 0}
+        v, f = b.get("verdict"), b.get("flags")
+        return {"verdict": v if v in ("routine", "look") else None, "flags": len(f) if isinstance(f, list) else 0}
+
     def card(self, p, n):
         prices, runs = self.prices(), self.runs(p, issue=n)
         sessions, found = [], self.sessions(p, n)
@@ -686,7 +739,7 @@ class Factory:
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
                 "total": rounded(total), "baseline": dashboard_cost.baselines(self.pdir(p)).get(n, 0.0), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
-                "blocked": self.blocked(p).get(n),
+                "blocked": self.blocked(p).get(n), "brief": self.brief(p, n),
                 "block_reason": self.block_reason(p, n) if self.blocked(p).get(n) else ""}
 
     def card_spec(self, p, n):
@@ -1041,6 +1094,21 @@ class Factory:
                     return True
         return False
 
+    @staticmethod
+    def card_deps(record, columns, n):
+        """A card's dependencies from the dispatcher's record (deps.json), each in its board column, "closed", or "open"
+        when open but off the board; deps_unread when the dispatcher could not read them. The dashboard asks GitHub nothing."""
+        entry = record.get(str(n))
+        if not isinstance(entry, dict):
+            return {"deps": [], "deps_unread": False}
+        out = []
+        for d in entry.get("deps") or []:
+            if not isinstance(d, dict) or not isinstance(d.get("n"), int):
+                continue
+            state = "closed" if d.get("state") == "closed" else columns.get(d["n"]) or "open"
+            out.append({"n": d["n"], "title": str(d.get("title") or ""), "state": state})
+        return {"deps": out, "deps_unread": entry.get("read") is False}
+
     def overview(self):
         size, slots = self.pool()
         prices, today, limits = self.prices(), datetime.now().date().isoformat(), self.costs()
@@ -1059,7 +1127,7 @@ class Factory:
                 r["activity"] = doing.get((r["issue"], r["stage"]), [])
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
-            titles, blocked = self.titles(p, columns), self.blocked(p)
+            titles, blocked, record = self.titles(p, columns), self.blocked(p), deps.load(str(self.pdir(p)))
             opened, place, line = self._opened.get(p, {}), {}, {}
             for n, col in columns.items():  # columns come in board order: a card's place in line is its rank there
                 if col in LINED:
@@ -1083,7 +1151,9 @@ class Factory:
                                         "review": col in AWAITING and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                                         "lock": "run" if n in running else {"infra": "infra", "owner": "blocked"}.get(blocked.get(n)),
                                         "opened": opened.get(n), "position": place.get(n),
-                                        "blocked": blocked.get(n), **self.block_brief(p, n, blocked.get(n))}
+                                        "blocked": blocked.get(n), **self.brief_row(p, n, col),
+                                        **self.block_brief(p, n, blocked.get(n)),
+                                        **self.card_deps(record, columns, n)}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
@@ -1092,7 +1162,7 @@ class Factory:
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
-                "alerts": shipfloor_health.alerts(self.home),
+                "alerts": shipfloor_health.alerts(self.home, skip_silence=True), "silent": silent_banner(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "moves": {f: [{"to": to, "note": note} for to, note in m] for f, m in OWNER_MOVES.items()}, "ordered": list(ORDERED),
                 "take_back": {f: list(m) for f, m in BLOCKED_MOVES.items()},
@@ -1640,7 +1710,7 @@ class Handler(BaseHTTPRequestHandler):
                 if page.is_file():
                     html = page.read_bytes()
                     if q.get("embed") == ["1"]:
-                        html = html.replace(b"</head>", f.marks_block(parts[1], int(parts[2])).encode() + EMBED_CSS.encode() + b"</head>", 1)
+                        html = html.replace(b"</head>", f.marks_block(parts[1], int(parts[2])).encode() + f.labels_block().encode() + EMBED_CSS.encode() + b"</head>", 1)
                     # agents write these pages: sandboxed, they get an opaque origin and cannot call the API
                     return self.send(200, html, "text/html; charset=utf-8",
                                      [("Content-Security-Policy", "sandbox allow-scripts")])
