@@ -73,6 +73,7 @@ class Board:
     def __init__(self, owner, num, repo):
         self.owner, self.num, self.repo = owner, num, repo
         self._ids = None
+        self._rest_field, self._rest_kind = None, "users"
 
     # ------------------------------------------------------------------------------------------------ ids
     def board_ids(self, quiet=False):
@@ -157,12 +158,44 @@ class Board:
                 break
         return rows
 
+    def rest_field(self):
+        """(numeric id of the Status field, {plain column name: option id}) by the REST Projects API; None on failure.
+
+        REST names a field by its numeric id, not the PVTSSF_ node id that `project field-list` (and board-ids) carry.
+        The owner may be a user or an organization: the first prefix that answers is kept for the other calls."""
+        if self._rest_field is not None:
+            return self._rest_field or None
+        self._rest_field = False
+        for kind in ("users", "orgs"):
+            rc, out, _ = _gh("api", "%s/%s/projectsV2/%s/fields?per_page=100" % (kind, self.owner, self.num))
+            if rc != 0:
+                continue
+            try:
+                fields = json.loads(out)
+            except ValueError:
+                return None
+            status = next((f for f in fields if isinstance(f, dict) and f.get("name") == "Status"), None) \
+                if isinstance(fields, list) else None
+            if not status or status.get("id") is None:
+                return None
+            options = {}
+            for o in status.get("options") or []:
+                name = o.get("name") if isinstance(o, dict) else None
+                if isinstance(name, dict):
+                    name = name.get("raw")
+                if isinstance(name, str) and o.get("id"):
+                    options[strip_mark(name)] = str(o["id"])
+            self._rest_kind, self._rest_field = kind, (str(status["id"]), options)
+            return self._rest_field
+        return None
+
     def rest_rows(self):
-        """Every card, by the REST Projects API with the Link headers: [[number, status, numeric id, node id]]; None on failure."""
-        ids = self.board_ids(quiet=True)
-        if not ids:
+        """Every card, by the REST Projects API with the Link headers: [[number, status, node id, numeric id]];
+        None on failure. The node id stays third, where the dashboard and GraphQL item-edit read an item id."""
+        field = self.rest_field()
+        if not field:
             return None
-        url = "users/%s/projectsV2/%s/items?fields=%s&per_page=100" % (self.owner, self.num, ids[1])
+        url = "%s/%s/projectsV2/%s/items?fields=%s&per_page=100" % (self._rest_kind, self.owner, self.num, field[0])
         rows, seen = [], set()
         for _ in range(_MAX_PAGES):
             rc, out, _ = _gh("api", "-i", url)
@@ -191,7 +224,9 @@ class Board:
                 number = content.get("number")
                 if number is None:
                     continue
-                rows.append([str(number), strip_mark(_rest_status(it)), key, str(it.get("node_id") or "")])
+                if not it.get("node_id"):
+                    return None
+                rows.append([str(number), strip_mark(_rest_status(it)), str(it["node_id"]), key])
             nxt = None
             for line in head.split("\n"):
                 if line.lower().startswith("link:"):
@@ -253,7 +288,7 @@ class Board:
         rows = self.fetch_rows(rest=True)
         if rows is None:
             return 1
-        _out("".join("%s\t%s\t%s\n" % (r[0], r[1], r[2]) for r in rows))
+        _out("".join("\t".join(r) + "\n" for r in rows))
         return 0
 
     def eligible_list(self, status):
@@ -310,12 +345,12 @@ class Board:
         return 2
 
     def _patch(self, item_id, field_id, option):
-        body = {"fields": [{"id": int(field_id) if field_id.isdigit() else field_id, "value": option}]}
+        body = {"fields": [{"id": int(field_id), "value": option}]}
         fd, path = tempfile.mkstemp(suffix=".json")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(body, f)
-            rc, _, _ = _gh("api", "-X", "PATCH", "users/%s/projectsV2/%s/items/%s" % (self.owner, self.num, item_id),
+            rc, _, _ = _gh("api", "-X", "PATCH", "%s/%s/projectsV2/%s/items/%s" % (self._rest_kind, self.owner, self.num, item_id),
                            "--input", path)
         finally:
             try:
@@ -341,11 +376,16 @@ class Board:
         if current in OWNER_ONLY_SOURCES:
             _msg("move: only the owner moves cards out of '%s'" % current)
             return 3
-        item = hit[2] if hit and len(hit) > 2 else ""
-        node = hit[3] if hit and len(hit) > 3 else ""
-        if not item:
+        node = hit[2] if hit and len(hit) > 2 else ""
+        item = hit[3] if hit and len(hit) > 3 else ""
+        if not node:
             _msg("move: issue #%s is not on the board" % n)
             return 1
+        if item.isdigit():  # the REST path wrote this row: PATCH the numeric id, GraphQL item-edit when that fails
+            field = self.rest_field()
+            opt = field[1].get(target) if field else None
+            if opt and self._patch(item, field[0], opt):
+                return 0
         opt = self.option_id(target)
         if not opt:
             _msg("move: unknown status '%s'" % target)
@@ -353,17 +393,7 @@ class Board:
         ids = self.board_ids()
         if not ids:
             return 1
-        if item.isdigit():  # the REST path wrote this id: PATCH it, GraphQL item-edit when that fails
-            if self._patch(item, ids[1], opt):
-                return 0
-            if not node:
-                again = self.graphql_rows()
-                hit = next((r for r in again or [] if r[0] == n), None)
-                node = hit[2] if hit else ""
-                if not node:
-                    return 1
-            item = node
-        rc, _, err = _gh("project", "item-edit", "--project-id", ids[0], "--id", item, "--field-id", ids[1],
+        rc, _, err = _gh("project", "item-edit", "--project-id", ids[0], "--id", node, "--field-id", ids[1],
                          "--single-select-option-id", opt)
         if rc != 0:
             _err(err)

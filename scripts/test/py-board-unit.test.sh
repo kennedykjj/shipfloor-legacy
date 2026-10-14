@@ -76,6 +76,14 @@ if "projectsV2" in joined:
             die("gh: HTTP 500")
         print("{}")
         sys.exit(0)
+    if re.search(r"projectsV2/7/fields", joined):  # REST names the Status field by its numeric id, never FLD_x
+        drop = open(os.path.join(d, "drop-option"), encoding="utf-8").read().strip() if flag("drop-option") else None
+        cols = ["Inbox", "Ready for Refinement", "Technical Refinement", "Spec Review", "Ready for Dev", "Coding",
+                "Validation", "Staged", "Ready for Prod", "Done"]
+        opts = [{"id": "ropt-%d" % i, "name": {"raw": "\U0001F916 " + c, "html": c}} for i, c in enumerate(cols) if c != drop]
+        print(json.dumps([{"id": 1111, "name": "Title", "data_type": "title"},
+                          {"id": 4242, "name": "Status", "data_type": "single_select", "options": opts}]))
+        sys.exit(0)
 
     def item(n, s):
         num = n != "draft"
@@ -93,7 +101,7 @@ if "projectsV2" in joined:
     def link(p):
         if p >= len(pages):
             return ""
-        return 'Link: <https://api.github.com/users/acme/projectsV2/7/items?fields=FLD_x&per_page=100&after=p%d>; rel="next"\r\n' % (p + 1)
+        return 'Link: <https://api.github.com/users/acme/projectsV2/7/items?fields=4242&per_page=100&after=p%d>; rel="next"\r\n' % (p + 1)
 
     def body(p):
         return json.dumps([item(n, s) for n, s in pages[p - 1]], ensure_ascii=False)
@@ -417,10 +425,13 @@ class Ac2(unittest.TestCase):
         self.assertIn("issue #999 is not on the board", r.err)
 
     def test_ac2_exit_1_unknown_status(self):
-        "AC-2 a column the board has no option for exits 1"
-        r = Sc(files={"drop-option": "Validation"}).board("move", "40", "Validation")
-        ok(self, r, 1)
-        self.assertIn("unknown status 'Validation'", r.err)
+        "AC-2 a column the board has no option for exits 1, on the GraphQL and on the REST path"
+        for flags in (("rest-fail",), ()):
+            s = Sc(files={"drop-option": "Validation"}, flags=flags)
+            r = s.board("move", "40", "Validation")
+            ok(self, r, 1)
+            self.assertIn("unknown status 'Validation'", r.err)
+            self.assertEqual([c for c in s.calls() if "PATCH" in c], [])
 
     def test_ac2_exit_1_failed_lookup_and_failed_count(self):
         "AC-2 a failed lookup and a failed count exit 1"
@@ -647,13 +658,13 @@ def rows_out(items, ident):
     return "".join("%s\t%s\t%s\n" % (n, strip(st), ident(n)) for n, st in items if n != "draft")
 
 
-rid = lambda n: str(1000000 + int(n))
+rid = lambda n: "PVTI_%s\t%d" % (n, 1000000 + int(n))  # a REST row: the node id where an item id is read, then the numeric id
 gid = lambda n: "PVTI_" + n
 
 
 class Ac7(unittest.TestCase):
     def test_ac7_snapshot_reads_by_rest_with_the_status_field_id(self):
-        "AC-7 snapshot reads GET /users/acme/projectsV2/7/items?fields=<Status field id>, numeric ids, no GraphQL call"
+        "AC-7 snapshot reads GET /users/acme/projectsV2/7/items?fields=<numeric Status field id>, numeric ids, no GraphQL call"
         s = Sc(items=RITEMS, flags=())
         r = s.board("snapshot")
         ok(self, r)
@@ -661,9 +672,11 @@ class Ac7(unittest.TestCase):
         calls = s.calls()
         reads = rest(calls)
         self.assertTrue(reads, "no REST Projects call was made")
-        j = " ".join(reads[0])
+        j = " ".join(next(c for c in reads if "/items" in " ".join(c)))
         self.assertIn("users/acme/projectsV2/7/items", j)
-        self.assertIn("fields=FLD_x", j)
+        self.assertIn("fields=4242", j)
+        self.assertEqual([c for c in calls if c[:2] == ["project", "field-list"] or c[:2] == ["project", "view"]], [],
+                         "the REST read asked gh project (GraphQL) for ids")
         self.assertNotIn("PATCH", j)
         self.assertEqual(gql(calls), [], "a GraphQL call was made although REST answers")
 
@@ -678,6 +691,8 @@ class Ac7(unittest.TestCase):
         self.assertIn("users/acme/projectsV2/7/items/1000040", " ".join(patches[0]))
         self.assertEqual(gql(calls), [], "a GraphQL call was made although REST answers")
         self.assertEqual([c for c in calls if c[:2] == ["project", "item-edit"]], [], "move used item-edit although REST answers")
+        self.assertEqual([c for c in calls if c[:2] in (["project", "field-list"], ["project", "view"])], [],
+                         "move asked gh project (GraphQL) for ids although REST answers")
         self.assertEqual(s.edits(), "")
 
 

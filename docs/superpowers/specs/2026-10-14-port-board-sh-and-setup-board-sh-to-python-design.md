@@ -75,6 +75,8 @@ _What the pipeline decided on its own; one line each, with the reason._
 - Existing pinning tests that record the snapshot-read argv run with the REST call failing (stub gh), so they pass unedited via the fallback; if one cannot, only its stub is adapted, never its expectations.
 - Tests go in two new files and existing ones stay unedited, as the issue demands.
 - The 100 ms timing check is measured in `board-port.test.sh` on Linux only.
+- (Owner's review, after develop) REST names the Status field by its numeric id, not the `PVTSSF_` node id in board-ids: the REST path reads it (and the option ids) from `GET /{users|orgs}/{owner}/projectsV2/{n}/fields`; with the node id every REST call answered 400 and the port always fell back to GraphQL.
+- (Owner's review, after develop) A REST snapshot row is `number, status, PVTI_ node id, numeric id`: the dashboard's move and reorder read the third column as a GraphQL item id, so it stays the node id on both paths and the numeric id goes in a fourth column that a move PATCHes.
 
 ## Open questions
 - none
