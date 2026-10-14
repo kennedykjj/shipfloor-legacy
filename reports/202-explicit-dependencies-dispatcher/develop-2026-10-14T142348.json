@@ -1,0 +1,28 @@
+{
+  "issue": 202,
+  "pipeline": "develop",
+  "outcome": "validation",
+  "step": 6,
+  "agents": [
+    {"agent": "qa-engineer", "task": "acceptance tests", "tokens": 70424, "duration_s": 182},
+    {"agent": "engineer", "task": "T1 deps.py, dispatcher check, fake-gh", "tokens": 118459, "duration_s": 1600},
+    {"agent": "engineer", "task": "T2 health", "tokens": 24537, "duration_s": 291},
+    {"agent": "engineer", "task": "T3 dashboard and 12 catalogs", "tokens": 56202, "duration_s": 365},
+    {"agent": "engineer", "task": "T4 docs", "tokens": 27596, "duration_s": 25}
+  ],
+  "tokens": 297218,
+  "rounds": {"qa": 1, "T1": 1, "T2": 1, "T3": 1, "T4": 1},
+  "failed_gates": [
+    "scope qa (scripts/test/fake-gh is outside QA's area; the plan had put it there. The tech lead moved the change out of the QA commit, and T1 applied it)",
+    "build after T1 (only the T2/T3 acceptance tests, not implemented yet)",
+    "build after T2 (only the T3 acceptance test, not implemented yet)"
+  ],
+  "amendments": [],
+  "flaky": [],
+  "gates_reused": [],
+  "decisions": [
+    "Open question: option B. The refine agent writing Blocked by relations goes to a follow-up issue (already in the spec's Out of scope).",
+    "The dispatcher tests with no gh of their own now default FACTORY_GH to fake-gh in scripts/test/lib.sh, matched by file name. Three tests with their own gh stub answer [] for the dependency read.",
+    "The engineer translated dep.open in the 11 non-English catalogs; the spec has no copy for it."
+  ]
+}
