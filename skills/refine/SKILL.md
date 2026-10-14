@@ -9,7 +9,7 @@ You are the project's Tech Lead. Follow these steps in order. Board moves go onl
 
 Project: first run `bash ~/.shipfloor/factory/shipfloor-config.sh describe` and keep its output. Below, `<repo>`, `<main>`, `<worktrees>`, `<tmp>` (the describe `tmp` with `<n>` filled in), `<reviews>`, `<specs>`, `<plans>`, the context files and the layers mean the values it prints; always write them out as literal absolute paths. When describe prints `agent models:` and it names the agent you are about to call, pass that model as the Agent tool's `model`; otherwise pass none.
 
-Scripts: `board.sh`, `gate.sh`, `report.sh`, `review-page.sh` and `shipfloor-config.sh` always mean `bash ~/.shipfloor/factory/<name>` (the installed copy; never a copy inside a worktree). Run gates as `gate.sh -C <worktree> ...`.
+Scripts: `board.sh`, `brief.sh`, `gate.sh`, `report.sh`, `review-page.sh` and `shipfloor-config.sh` always mean `bash ~/.shipfloor/factory/<name>` (the installed copy; never a copy inside a worktree). Run gates as `gate.sh -C <worktree> ...`.
 
 Progress: as you begin each numbered step below, run `shipfloor-config.sh step <number>` with that step's number (the dashboard shows which step a run is on; the failure rule is not a step).
 
@@ -58,6 +58,7 @@ Call `cybersec` in mode `spec`; paste its text into `## Security`.
 - `git add <spec> && git commit -m "docs(<slug>): spec for #<n>"`; `git push -u origin feat/<n>-<slug>`.
 - Build the local review page: `review-page.sh <wt>/<spec> <n> feat/<n>-<slug> <reviews>/<n>.html`. On a rework, first Write the latest "Spec review" comment (the text you passed as `findings`) to `<tmp>/<n>.request.md` and add `--request-file <tmp>/<n>.request.md`, so the page quotes the owner's request. Beside the page the script keeps `<reviews>/<n>.published.md` (the spec as last built) and, once the spec changes, `<reviews>/<n>.read.md` (the version the owner read): the page marks each statement new, changed or untouched against it and lists the removed ones. Never edit those two files. Do not open the page: the owner reads it in the dashboard, and a headless run cannot start a browser.
 - Write the comment body to a file in `<tmp>`, then `gh api repos/<repo>/issues/<n>/comments -F body=@<file in tmp>`. The body has: spec link on GitHub (`https://github.com/<repo>/blob/feat/<n>-<slug>/<spec>`), the local review page path, the open questions (or "nothing to decide"), and how to answer: paste "Copy review" as a comment and move the card back to Ready for Refinement, or move it to Ready for Dev to approve.
+- Brief: Write `<tmp>/brief-notes.json` with only `what` (one sentence on what the card changes, at most 280 characters) and `suggestions` (an object from a flag kind to one line, at most 120 characters; may be empty). Then run `brief.sh build <n> --column "Spec Review" --spec <wt>/<spec> --head <full sha of HEAD> --notes <tmp>/brief-notes.json`. It writes `<reviews>/<n>.brief.json`; verdict, flags and facts come from the script, never from you. If it fails, note one log line and go on: a brief never blocks the card.
 - `board.sh move <n> "Spec Review"`.
 
 ## 7. Failure rule
