@@ -913,12 +913,17 @@ def main(argv):
     raise Unusable(f"bad usage: {' '.join(args)}")
 
 
-if __name__ == "__main__":
+def run(argv):
+    """main with the command line's error handling: the exit code (2 for an unusable config or a crash, with its message)."""
     try:
-        sys.exit(main(sys.argv[1:]))
+        return main(argv)
     except Unusable as e:
         print(f"shipfloor-config: {e}", file=sys.stderr)
-        sys.exit(2)
+        return 2
     except Exception as e:  # a crash is never a negative answer (exit 1): it is unusable
         print(f"shipfloor-config: internal error: {e!r}", file=sys.stderr)
-        sys.exit(2)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(run(sys.argv[1:]))

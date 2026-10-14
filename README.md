@@ -64,7 +64,7 @@ One fake card crosses the factory in about two minutes, on a temporary home: no 
 
 ## Quick start
 
-You need `git`, an authenticated `gh`, `claude`, Python 3.11+ with PyYAML, and Git Bash on Windows.
+You need Python 3.11+ with PyYAML, Git, an authenticated gh, Claude Code (`claude`), and Git Bash on Windows for the wrappers and the scheduler.
 
 ```bash
 claude plugin marketplace add <path or URL of this repo>

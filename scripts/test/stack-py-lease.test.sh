@@ -11,7 +11,7 @@ MAINPID=$$  # only this shell cleans up (a child that inherited the trap compare
 trap '[ "$(exec sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 
 FIXLIB="$T/fixture-lib"; mkdir -p "$FIXLIB" "$T/rec"
-cp "$FACTORY_DIR/test/fixtures/stack.bash.sh" "$FIXLIB/stack.sh" 2>/dev/null; cp "$FACTORY_DIR/lib/portable.sh" "$FIXLIB/"
+cp "$FACTORY_DIR/test/fixtures/stack.bash.sh" "$FIXLIB/stack.sh" 2>/dev/null; cp "$FACTORY_DIR/test/fixtures/portable.sh" "$FIXLIB/"
 
 # ---- the port is in place
 [ -f "$FACTORY_DIR/test/fixtures/stack.bash.sh" ] && grep -q 'mkdir "$(slot_dir "$k")"' "$FACTORY_DIR/test/fixtures/stack.bash.sh" \
