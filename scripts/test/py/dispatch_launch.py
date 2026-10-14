@@ -434,7 +434,7 @@ class Telemetry(Base):
         self.assertEqual(len(log), 3)
         self.assertTrue(log[0].startswith("== start /sf:develop 54 "))
         self.assertEqual(log[1], "All done: #54 is in Validation.")
-        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s$" % ds.ISO)
+        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s outcome=ok$" % ds.ISO)
 
     def test_stream_events_file(self):
         "stream-json: every event goes to <log>.events.jsonl with when it arrived and the run's pid"
