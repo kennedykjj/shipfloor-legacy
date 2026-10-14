@@ -1,0 +1,1 @@
+{"issue":160,"slug":"tests-that-pin-behavior-the-dispatcher","pipeline":"refine","started_at":null,"finished_at":null,"outcome":"ok","agents":[{"role":"product-owner","tokens":16997,"duration_s":24}],"rounds":{"po":1,"techlead":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":null}
