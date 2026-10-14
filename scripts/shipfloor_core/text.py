@@ -18,6 +18,20 @@ def say(lang, text):
     return r.stdout.decode("utf-8")
 
 
+def grep_lines(pattern, lines, invert=False):
+    """`printf '%s\\n' lines | grep -E[v] -- pattern`: (the lines kept, grep's stderr bytes). Exit 1 keeps none; an
+    invalid pattern (exit 2) keeps none and its message is in the stderr, as the Bash callers' `|| true` left it."""
+    data = ("\n".join(lines) + "\n").encode("utf-8", "surrogateescape") if lines else b""
+    r = subprocess.run(["grep", "-Ev" if invert else "-E", "--", pattern], input=data,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if r.returncode not in (0, 1):
+        return [], r.stderr
+    kept = r.stdout.decode("utf-8", "surrogateescape").split("\n")
+    if kept and kept[-1] == "":
+        kept.pop()
+    return kept, r.stderr
+
+
 def ere_match(pattern, text, ignore_case=False):
     """True when `grep -E` (-Ei) finds the pattern in the text; an invalid pattern raises (grep exit 2)."""
     r = subprocess.run(["grep", "-Ei" if ignore_case else "-E", "--", pattern],

@@ -125,7 +125,7 @@ def test_plan(ctx, args):
         if code != 0:
             ctx.err("gate: unknown layer '%s'" % layer)
             return 2
-        if not path or not scope.grep(data, [path]):
+        if not path or not scope.grep(ctx, data, [path]):
             try:
                 tests = changes.config_query(ctx, "layer", layer, "tests").replace("\n", " ")
             except GateExit:  # the `$(...)` the Bash gate asked in is a subshell: its exit ends only itself
