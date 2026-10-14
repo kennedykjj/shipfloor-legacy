@@ -567,6 +567,46 @@ def _agents():
     return found
 
 
+def _limits_hint(src, home, got):
+    """WARN when config.yml asks for limits the installed unit does not carry (systemd only)."""
+    try:
+        sys.path.insert(0, os.path.join(src, "scripts"))
+        import shipfloor_config
+        cfg = os.path.join(home, "config.yml")
+        raw = shipfloor_config.load(cfg) if os.path.isfile(cfg) else None
+        lim = shipfloor_config.machine_limits(raw.get("limits") if isinstance(raw, dict) else None)
+    except Exception:  # no config or an invalid one: the installer says so itself
+        return got
+    want = "none" if all(v == "none" for v in lim.values()) else \
+        "memory_max=%(memory_max)s cpu_weight=%(cpu_weight)s cpu_quota=%(cpu_quota)s" % lim
+    if got.startswith("not supported"):  # "not supported" matters only when limits are configured
+        return got if want != "none" else "none"
+    if want not in ("none", got):
+        _out("WARN config.yml asks for limits (%s) the installed dispatcher does not carry; reinstall: bash %s/installer/install-dispatcher.sh" % (want, src))
+    return got
+
+
+def _fs_type(path, mounts="/proc/self/mounts"):
+    """The filesystem type of the longest mount point containing path (or its nearest existing parent); None when
+    the mount table is unreadable."""
+    try:
+        with open(mounts, encoding="utf-8", errors="replace") as f:
+            rows = [ln.split() for ln in f]
+    except OSError:
+        return None
+    p = os.path.abspath(path)
+    while not os.path.exists(p) and os.path.dirname(p) != p:
+        p = os.path.dirname(p)
+    best, kind = -1, None
+    for row in rows:
+        if len(row) < 3:
+            continue
+        mp = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), row[1])
+        if (p == mp or p.startswith(mp.rstrip("/") + "/")) and len(mp) > best:
+            best, kind = len(mp), row[2]
+    return kind
+
+
 def cmd_doctor(args):
     bad, agents, warned = 0, [], False
     for t in ("git", "gh", "claude"):
@@ -604,7 +644,12 @@ def cmd_doctor(args):
         _out("WARN installed copy differs from %s (shipfloor install)" % src)
     dst, dkind = _cap(["bash", os.path.join(src, "installer", "install-dispatcher.sh"), "--status"], err=DEVNULL)
     if dst == 0:
+        rows = dkind.splitlines()
+        dkind = rows[0] if dkind.strip() else dkind
         _out("ok   dispatcher registered (%s)" % (dkind[len("registered: "):] if dkind.startswith("registered: ") else dkind))
+        got = rows[1][len("limits: "):] if len(rows) > 1 and rows[1].startswith("limits: ") else ""
+        if got:
+            _out("ok   dispatcher limits: " + _limits_hint(src, home, got))
     elif dst == 1:
         _out("WARN no dispatcher registered; run: bash %s/installer/install-dispatcher.sh" % src)
     if os.path.isdir(inst):
@@ -620,6 +665,9 @@ def cmd_doctor(args):
                  % (ob, oc[:7], mb, mb))
         else:
             _out("WARN installed copy has no recorded commit (not a git clone, or installed before this check)")
+    tmpdir = os.path.join(home, "tmp")
+    if _fs_type(tmpdir) == "tmpfs":
+        _out("WARN dispatcher TMPDIR %s is on tmpfs (inode cap); move SHIPFLOOR_HOME off tmpfs" % tmpdir)
     rc, alerts = _cap([sys.executable, "-I", os.path.join(HERE, "shipfloor_health.py"), "alerts", "--home", home],
                       err=DEVNULL)
     for alert in alerts.replace("\r", "").split("\n"):
@@ -814,8 +862,9 @@ def cmd_pool(args):
         _out(line)
     first = next((l.split("\t")[0] for l in _records() if l), "")
     if not first:
-        return 1
-    # ( use first; cd FACTORY_HOME && bash gate.sh stack status ) | while read ...: exit as that pipeline (pipefail)
+        return 0
+    # use the first project and read its stack status; an empty queue is not a failure,
+    # so the exit is the stack command's own (or 2 for a non-integer queue count)
     saved = dict(os.environ)
     try:
         use(first)
@@ -840,9 +889,6 @@ def cmd_pool(args):
                 right = 2
             elif n > 0:
                 _out("  queue: %s waiting" % st)
-                right = 0
-            else:
-                right = 1
         else:
             _out("  slot %s: %s%s%s%s" % (k, st, " " + owner if owner else "",
                                           "" if st == "free" else " (%dm)" % _div60(_int(held) or 0),

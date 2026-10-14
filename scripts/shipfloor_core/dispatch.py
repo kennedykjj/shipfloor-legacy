@@ -1,7 +1,7 @@
 """dispatch: one dispatcher cycle for one project (docs/superpowers/specs/2026-10-14-port-dispatch-sh-to-python-design.md).
 
 Starts factory pipelines for the project's cards waiting in the owner's queues. Run every 3 min by shipfloor-dispatch.sh,
-once per registered project, through the wrapper scripts/dispatch.sh. Pipelines run from the project's control checkout
+and as soon as a run ends where the scheduler can be asked (wake_dispatcher), once per registered project, through the wrapper scripts/dispatch.sh. Pipelines run from the project's control checkout
 of origin/main, never from a worktree an agent can edit.
 
 usage: dispatch.sh
@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 
-from . import deps, proc, project, stack, text
+from . import deps, proc, project, stack, telemetry, text
 from .defaults import STAGES as STAGE_COLUMNS
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -40,7 +40,7 @@ PS_CLEANUP = r'''
     $p = [regex]::Escape($env:SHIPFLOOR_WT) -replace "/", "[\\/]"
     Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $p -and $_.ProcessId -ne $PID } |
       ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'''
-USAGE_LIMIT = b"hit your session limit"
+USAGE_LIMIT = telemetry.USAGE_LIMIT
 GH_LIMIT = re.compile(r"API rate limit|secondary rate limit", re.I)
 
 
@@ -707,7 +707,7 @@ class Cycle:
             envs.append("SHIPFLOOR_INFRA_RETRY=1")
         envs.append("TMPDIR=" + scratch + "/tmp")
         args = ["-p", "--permission-mode", "acceptEdits", "--add-dir", self.wt_root, "--add-dir", self.home + "/tmp",
-                "--add-dir", self.home + "/reviews", *extra]
+                "--add-dir", self.home + "/reviews", *extra, "--output-format", "stream-json", "--verbose"]
         _detach({"mode": "run", "p": p, "n": n, "dir": d, "log": log, "model": model, "weight": weight,
                  "step": step, "from": frm, "gate": gate, "envs": envs, "claude": self.claude, "args": args,
                  "control": self.control, "wt_root": self.wt_root, "home": self.home, "mlang": self.mlang,
@@ -925,9 +925,13 @@ def supervise(spec):
 
     def agent():
         # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into "C:/Program Files/Git/develop 54".
+        # Its stdout is a stream-json read by telemetry: the log gets the text a plain -p printed, the events and a
+        # summary go beside it (telemetry.py).
         argv = proc.script_argv(spec["claude"], *spec["args"])
-        with open(log, "ab") as f:
-            return _run(argv, out=f, err=STDOUT, cwd=control, env=env, input=("/sf:%s %s" % (p, n)).encode("utf-8"))[0]
+        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso()}
+        _flush()
+        return telemetry.run_agent(argv, log, control, env, ("/sf:%s %s" % (p, n)).encode("utf-8"), meta,
+                                   os.path.join(spec["home"], "logs", "runs.jsonl"), iso=_iso)
 
     def deploy(*args):
         with open(log, "ab") as f:
@@ -952,7 +956,27 @@ def supervise(spec):
     owner = first[0].split()[0] if first and first[0].split() else ""
     if owner == str(pid):
         _rmtree(d)
+        wake_dispatcher()
     return 0
+
+
+def wake_dispatcher():
+    """The run's lock is gone and its slot free: ask the machine's scheduler for a cycle now, not at its next tick. The
+    installer writes the command, one argument a line, to <shipfloor home>/dispatcher.wake: systemd starts the cycle's
+    service, launchd kickstarts its agent. cron and the Windows task have none (started there beside a running cycle, a
+    second one would stop as an overlap and alert the owner) and keep their interval alone. It only asks: the cycle still decides (PAUSE, the limits, the slots). A
+    request while a cycle runs joins that one, and the interval catches what it misses. Never waited on."""
+    try:
+        with open(os.path.join(project.shipfloor_home(), "dispatcher.wake"), encoding="utf-8") as f:
+            argv = [a for a in f.read().splitlines() if a]
+    except OSError:
+        return
+    if not argv:
+        return
+    try:
+        subprocess.Popen(argv, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, close_fds=True)
+    except OSError as e:
+        _write(sys.stderr, "dispatch: cannot ask for a cycle: %s\n" % (e.strerror or e))
 
 
 def _work(spec, agent, deploy, log):

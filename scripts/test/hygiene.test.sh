@@ -214,7 +214,7 @@ done
 # The suite's size is a budget: a card extends the module's existing suite instead of adding a file per criterion.
 # 167 files on main when this ceiling came in (182 with the factory PRs then open); diet pass 2 (#236-#239 and the
 # small modules) brought it to 46. The owner lowers the ceiling as files go, and never raises it to fit a new file.
-ceiling=52  # 46 after wave 2, plus room for the three factory PRs open at the time (#223, #227, #240); lower it to the count once they land
+ceiling=52  # 46 after wave 2; #223, #227, #240, #245 and visual-v4 landed, #234 folded dashboard-settings into dashboard-views to fit
 count="$(cd "$root" && ls scripts/test/*.test.sh | wc -l | tr -d ' ')"
 [ "$count" -le "$ceiling" ] && pass "test files: $count, ceiling $ceiling" || fail "scripts/test has $count *.test.sh files, the ceiling is $ceiling: extend an existing suite of the module instead of adding a file"
 finish

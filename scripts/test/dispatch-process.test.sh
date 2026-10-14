@@ -99,4 +99,16 @@ rm -f "$T/hold" "$T/holdboard"
 wait_for "the run to log == end" ended
 t "a run that got SIGHUP finished its work and ended with exit=0" test "$(log54 | grep -c -e '== end /sf:develop 54 exit=0 ' -e 'claude: finished')" = 2
 wait_for "the run to remove its lock" lock_gone
+
+# ---- a run that ends asks the scheduler for a cycle (dispatcher.wake), after its lock is gone
+fresh; touch "$T/hold"
+printf '#!/usr/bin/env bash\n[ -d "$FACTORY_HOME/locks/develop-54.lock" ] && echo held >> "$T/woke" || echo "$*" >> "$T/woke"\n' > "$T/wake"
+chmod +x "$T/wake"; printf '%s\n' "$T/wake" now please > "$SHIPFLOOR_HOME/dispatcher.wake"
+bash "$D" >"$T/out" 2>&1
+wait_for "the run's agent to start" test -s "$T/claude.pids"
+t "while the run works, nothing asks for a cycle" test ! -e "$T/woke"
+rm -f "$T/hold"
+wait_for "the run to remove its lock" lock_gone
+wait_for "the run to ask for a cycle" test -s "$T/woke"
+t "it asked once, with the file's arguments, after its lock was gone" test "$(cat "$T/woke")" = "now please"
 finish

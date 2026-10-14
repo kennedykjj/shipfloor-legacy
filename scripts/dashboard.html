@@ -383,6 +383,11 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .block-note .md ul, .lv.md ul { margin: 4px 0; padding-left: 16px; } .block-note .md li, .lv.md li { margin: 4px 0; }
 .block-note .md pre, .lv.md pre { margin: 4px 0; padding: 8px; background: var(--ground); border-radius: 4px; font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
 .block-note code { font: 12px var(--mono); }
+.block-note .button-approve { background: var(--text); color: var(--ground); border-color: var(--text); border-radius: 6px; }
+.block-note .button-approve[disabled] { cursor: progress; opacity: .7; }
+.block-note .adiff { margin: 0; max-height: 16em; overflow: auto; white-space: pre; }
+.block-note .adiff .p { color: var(--ok); } .block-note .adiff .m { color: var(--bad); } .block-note .adiff .h { color: var(--muted); }
+.block-note .bn-ok { grid-column: 1 / -1; color: var(--ok); }
 .block-note .bn-err { grid-column: 1 / -1; color: var(--bad); }
 .block-note .bn-err:empty { display: none; }
 @media (prefers-reduced-motion: reduce) {
@@ -832,7 +837,7 @@ function staticText(root = document) {
     root.querySelectorAll(`[data-${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}]`).forEach((el) => el.setAttribute(a, t(el.dataset[k])));
 }
 // the server's own sentences: a refusal carries, beside its English, the key and values of each reason it gives
-const told = (body, key, v) => body?.errors?.length ? body.errors.map((e) => e.key ? t(e.key, e.params) : e.text || "").join("; ") : body?.error || t(key, v);
+const told = (body, key, v) => body?.errors?.length ? body.errors.map((e) => e.key && !e.text ? t(e.key, e.params) : e.text || "").join("; ") : body?.error || t(key, v);
 function tick(root = document) { root.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }); root.querySelectorAll("[data-dur]").forEach((el) => { el.textContent = dur(el.dataset.dur, new Date()); }); }
 
 async function api(path, opts = {}) {
@@ -1514,6 +1519,7 @@ async function loadDecide(key) {
   const { status, body } = await api(`/api/decide/${encodeURIComponent(p)}/${n}`); INB.loading = null;
   INB.data[key] = status === 200 ? { ...body, at: Date.now() } : { at: Date.now() };
   if (inboxOn()) renderInbox();
+  if (S.open === key && S.card) renderDrawer();  // the block note of an open card waits for the reading
 }
 function renderInbox() {
   const w = inboxCards();
@@ -1958,13 +1964,22 @@ function blockNote(c) {
   const decide = plain(line(/must decide|owner must|needs? you to/i)).replace(/^[^:]*(must decide|owner must|needs? you to)[^:]*:\s*/i, "");
   const gate = (src.match(/failed gates?:\**\s*([^.\n]+)/i) || [])[1] || "";
   const infra = c.blocked === "infra";
+  // qa-amend with "the owner decides now": the extra amendment is the owner's call, with the diff in front of them
+  const amend = !infra && /qa-amend/.test(src) && /the owner decides now/.test(src);
+  const key = `${c.project}/${c.issue}`, d = INB.data[key];
+  if (amend && !d && INB.loading !== key) loadDecide(key);
+  const ab = amend && d?.block?.gate === "qa-amend" ? d.block : null, approve = amend && !ab?.approved;
+  const diffBody = !d ? `<span class="muted">${t("amend.reading")}</span>` : ab?.diff ? `<pre class="adiff">${amendDiff(ab.diff)}</pre>` : `<span class="muted">${t("amend.nodiff")}</span>`;
   return `<div class="block-note ${esc(c.blocked)}"><div class="bn-k"><b>${t("q.blocked")}</b> · ${t(infra ? "block.infra" : "block.owner")}</div>
     ${decide ? `<p class="bn-lead">${inline(decide.charAt(0).toUpperCase() + decide.slice(1))}</p>` : ""}
     ${gate ? `<p class="bn-gate">${t("pass.failed_gate", { gate: inline(gate.trim()) })}</p>` : ""}
-    <button class="btn" data-unblock>${t("act.unblock")}</button>
+    ${approve ? `<button class="btn button-approve" data-approve-amend${S.amending === key ? " disabled" : ""}>${t("amend.approve")}</button>` : `<button class="btn" data-unblock>${t("act.unblock")}</button>`}
+    ${amend ? `<details open><summary>${t("amend.diff")}</summary><div class="md">${diffBody}</div></details>` : ""}
     ${src ? `<details><summary>${t("block.report")}</summary><div class="md">${mdLite(src)}</div></details>` : ""}
     <div class="bn-err" id="bn-err" role="status"></div></div>`;
 }
+// the diff as git prints it, a line a row; the +/- prefix stays, the color only helps
+const amendDiff = (src) => src.split("\n").map((l) => `<span class="${l[0] === "+" && !l.startsWith("+++") ? "p" : l[0] === "-" && !l.startsWith("---") ? "m" : l.startsWith("@@") ? "h" : ""}">${esc(l)}</span>`).join("\n");
 const inline = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
 // enough markdown for the factory's reports: headings, bullets (with continuation lines), code fences
 function mdLite(src) {
@@ -2198,7 +2213,7 @@ async function act(action, moveOnly) {
 /* feed: every project's runs and the dispatcher's own log, oldest first */
 // Settings: this machine's limits and the pauses are the owner's to change here. A project's own settings live in
 // its repository; they are shown as the dispatcher last read them, with where to change them.
-const SET = { data: null, sec: "sessions", draft: {}, err: "", shut: {}, busy: false, hoursBad: false, moreThemes: false };
+const SET = { data: null, sec: "sessions", draft: {}, err: "", errBy: {}, shut: {}, busy: false, hoursBad: false, moreThemes: false };
 const hoursText = (d) => (d?.hours?.windows || []).join(", ");  // the windows as the field shows them
 try { SET.shut = JSON.parse(localStorage.getItem("shipfloor.shut")) || {}; } catch (e) { /* storage blocked: every project starts open */ }
 const THEMES = { first: ["auto", "graphite", "paper", "contrast"], dark: ["tape", "charcoal", "dock", "machine", "blueprint", "foundry", "night", "terminal"], light: ["kraft", "steel", "cobalt"] };  // each named by theme.<id>
@@ -2211,7 +2226,7 @@ const knobOf = (k) => {  // "p|<project>|<knob>"; "p|<project>|language" is this
 const notifyWas = (k) => { const n = SET.data.machine.notify, [g, name] = k.split("."); return k.startsWith("quiet_") ? n.quiet.split("-")[k === "quiet_from" ? 0 : 1] || "" : name ? n[g][name] : n[g]; };  // "n|<setting>"
 const modelOf = (k) => { const [, group, name, w] = k.split("|"), x = SET.data.models[group][name]; return w ? { value: x.value[w] } : x; };  // "m|stages|<stage>[|<weight>]" or "m|agents|<agent>"
 const AGENT_HELP = { "product-owner": "agent.po", "ux-designer": "agent.ux", "qa-engineer": "agent.qa", engineer: "agent.engineer", cybersec: "agent.cybersec" };
-const setWas = (k) => k === "hours" ? hoursText(SET.data) : k.startsWith("n|") ? notifyWas(k.slice(2)) : k.startsWith("p|") ? knobOf(k).value : k.startsWith("m|") ? modelOf(k).value : k.startsWith("costs.") ? SET.data.machine.costs?.[k.slice(6)] ?? null : k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : k === "every_min" ? SET.data.dispatcher.every_min : SET.data.machine[k];
+const setWas = (k) => k === "hours" ? hoursText(SET.data) : k.startsWith("n|") ? notifyWas(k.slice(2)) : k.startsWith("p|") ? knobOf(k).value : k.startsWith("m|") ? modelOf(k).value : k.startsWith("costs.") ? SET.data.machine.costs?.[k.slice(6)] ?? null : k.startsWith("limits.") ? SET.data.machine.limits?.[k.slice(7)] ?? null : k.startsWith("stages.") ? SET.data.machine.stages[k.slice(7)] : k === "stack_wait" ? Math.round(SET.data.machine.stack_wait / 60) : k === "every_min" ? SET.data.dispatcher.every_min : SET.data.machine[k];
 const setVal = (k) => k in SET.draft ? SET.draft[k] : setWas(k);
 // The cost limits are typed amounts: the draft keeps the text as typed ("costs.card_warn"), empty is no limit.
 // null when empty, NaN when it is not an amount above 0.
@@ -2228,6 +2243,15 @@ function setCost(input) {  // checked on input; nothing is written until Save
   if (n === was && text === String(was ?? "")) delete SET.draft[k]; else SET.draft[k] = text;  // "20.0" over a 20 stays a draft, so the field is not rewritten under the caret
   SET.err = ""; renderSettings();
   const again = document.querySelector(`[data-cost="${k}"]`); again?.focus(); again?.setSelectionRange(at, at);  // the rewrite took the caret with it
+}
+// The machine limits are typed values ("limits.memory_max"): the draft keeps the text, empty is no limit.
+const LIM_KEYS = ["memory_max", "cpu_weight", "cpu_quota"];
+const limText = (f) => { const k = "limits." + f; return String(k in SET.draft ? SET.draft[k] : setWas(k) ?? ""); };
+function setLimit(input) {  // nothing is written until Save; the server alone judges the value
+  const f = input.dataset.lim, k = "limits." + f, text = input.value, at = input.selectionStart, was = setWas(k);
+  if (text.trim() === String(was ?? "")) delete SET.draft[k]; else SET.draft[k] = text;
+  delete SET.errBy[k]; SET.err = ""; renderSettings();
+  const again = document.querySelector(`[data-lim="${f}"]`); again?.focus(); again?.setSelectionRange(at, at);
 }
 // How often the dispatcher looks for work: the choices as the page words them, and the reason shown when the machine has no task to set.
 const every = (n) => t("disp.every_n", { n });
@@ -2272,7 +2296,10 @@ function renderSettings() {
   let body = "";
   if (SET.sec === "sessions") {
     const usual = project()?.typical_s || {}, now = S.overview?.pool, stages = STAGES, pool = setVal("pool");
-    const sum = stages.reduce((n, st) => n + setVal("stages." + st), 0), w = Math.max(pool, sum);
+    const sum = stages.reduce((n, st) => n + setVal("stages." + st), 0), w = Math.max(pool, sum), lim = d.machine.limits || {};
+    const limRow = (f, title, text, hint) => { const k = "limits." + f, v = limText(f), typed = v.trim(), err = k in SET.draft ? SET.errBy[k] : "", id = "ml-" + f;  // a typed value can be empty (no limit), so it is a text field
+      const cap = err || (!typed ? t("knob.none") : lim.supported === false ? "" : k in SET.draft ? "" : lim.in_effect && String(lim.in_effect[f] ?? "") === typed ? t("mres.in_effect") : `<span class="warn">${t("mres.saved")}</span>`);
+      return `<div class="srow"><div><p class="st" id="mt-${f}">${title}</p><p class="sd">${text}</p></div><span class="sknob"><span class="cin${k in SET.draft ? " dirty" : ""}${err ? " inv" : ""}"><input type="text" autocomplete="off" spellcheck="false" data-lim="${f}" value="${esc(v)}" placeholder="${esc(hint)}" aria-labelledby="mt-${f}" aria-describedby="${id}"${err ? ' aria-invalid="true"' : ""}></span><small id="${id}"${err ? ' class="inv"' : ""}>${err ? esc(err) : cap}</small></span></div>`; };
     body = `<h1 class="g">${t("sec.sessions")}</h1><p class="lead">${t("sessions.lead")}</p>
       <div class="sgroup panel"><h2>${t("sessions.pool")} <code>~/.shipfloor/config.yml</code></h2>
         ${row(t("sessions.at_once"), `${t("sessions.ceiling")}${now ? ` ${t("sessions.now", { n: now.used })}` : ""}`, stepper("pool", 1, 64))}
@@ -2282,7 +2309,12 @@ function renderSettings() {
           <p class="note${sum > pool ? " warn" : ""}">${sum > pool ? t("sessions.over", { sum, pool }) : sum < pool ? t("sessions.under", { sum, idle: pool - sum, pool }) : t("sessions.equal", { pool })}</p></div></div>
       <div class="sgroup panel"><h2>${t("sessions.envs")} <code>config.yml · stacks</code></h2>
         ${row(t("sessions.stacks"), `${t("sessions.stacks.help")}${S.overview?.stacks ? ` ${t("sessions.stacks.now", { i: S.overview.stacks.filter((x) => x.state !== "free").length, n: S.overview.stacks.length })}` : ""}`, stepper("stacks", 1, 16))}
-        ${row(t("sessions.wait"), t("sessions.wait.help"), stepper("stack_wait", 5, 240, 5))}</div>`;
+        ${row(t("sessions.wait"), t("sessions.wait.help"), stepper("stack_wait", 5, 240, 5))}</div>
+      <div class="sgroup panel"><h2>${t("mres.title")} <code>config.yml · limits</code></h2>
+        ${limRow("memory_max", t("mres.mem"), t("mres.mem.help"), "8G")}
+        ${limRow("cpu_weight", t("mres.weight"), t("mres.weight.help"), "100")}
+        ${limRow("cpu_quota", t("mres.quota"), t("mres.quota.help"), "200%")}
+        ${lim.supported === false && LIM_KEYS.some((f) => limText(f).trim()) ? `<div class="spool"><p class="note warn">${t("mres.unsupported")}</p></div>` : ""}</div>`;
 
   } else if (SET.sec === "models") {
     const m = d.models, cap = (x) => x[0].toUpperCase() + x.slice(1), priced = (x) => Object.keys(d.prices || {}).some((p) => p.startsWith(`claude-${x}-`));
@@ -2441,19 +2473,23 @@ async function setSave() {
     else if (k.startsWith("m|")) { const [, group, name, w] = k.split("|"), g = (body.models ||= { stages: {}, agents: {} })[group]; if (w) (g[name] ||= {})[w] = v; else g[name] = v; }
     else if (k.startsWith("p|")) { const [, slug, key] = k.split("|"); (per[slug] ||= {})[key] = key !== "language" && v === knobOf(k).repo ? null : v; }
     else if (k.startsWith("costs.")) (body.costs ||= {})[k.slice(6)] = costVal(v);  // an empty field is null: the limit is removed
+    else if (k.startsWith("limits.")) (body.limits ||= {})[k.slice(7)] = v.trim() || null;  // an empty field is null: no limit
     else if (k.startsWith("n|")) { const [g, name] = k.slice(2).split("."); if (!g.startsWith("quiet_")) { const n = body.notify ||= {}; if (name) (n[g] ||= {})[name] = v; else n[g] = v; } }
     else if (k.startsWith("stages.")) body.stages[k.slice(7)] = v; else if (k === "every_min") body.dispatcher = { every_min: v }; else body[k] = k === "stack_wait" ? v * 60 : v;
   }
   if ("n|quiet_from" in SET.draft || "n|quiet_to" in SET.draft) { const qf = setVal("n|quiet_from"), qt = setVal("n|quiet_to"); (body.notify ||= {}).quiet = qf || qt ? `${qf}-${qt}` : ""; }
   const posts = [...(Object.keys(body).length > 1 || Object.keys(body.stages).length ? [["machine", body]] : []), ...Object.entries(per).map(([project, values]) => ["project", { project, values }])];
-  SET.err = ""; SET.errKeys = []; SET.hoursBad = false; SET.busy = true; renderSettings();
+  SET.err = ""; SET.errKeys = []; SET.errBy = {}; SET.hoursBad = false; SET.busy = true; renderSettings();
   for (const [what, payload] of posts) {
     const r = await api(`/api/settings/${what}`, { method: "POST", body: JSON.stringify(payload) });
     if (r.status !== 200) {
       const why = String(told(r.body, "set.failed")).replace(/\.+$/, ""), code = SET.data.machine.language || "en";
       SET.errKeys = (r.body.errors || []).map((e) => e.key).filter(Boolean);
+      SET.errBy = Object.fromEntries((r.body.errors || []).filter((e) => e.key?.startsWith("limits.") && e.text).map((e) => [e.key, e.text]));  // each field's own reason
+      const limitsOnly = (r.body.errors || []).length && (r.body.errors || []).every((e) => e.key?.startsWith("limits.") && e.text);
       SET.hoursBad = what === "machine" && r.status === 400 && /(^|; )hours/.test(r.body.error || "");
-      SET.err = SET.hoursBad ? t("disp.hours_failed")
+      SET.err = limitsOnly ? ""  // the fields say it themselves
+        : SET.hoursBad ? t("disp.hours_failed")
         : r.status === 409 && what === "machine" && "every_min" in SET.draft  // the system's own reason, in the page's sentence
         ? t("disp.pace_failed", { why, every: SET.data.dispatcher.every_min })
         : r.status === 400 && what === "machine" && "language" in SET.draft ? t("lang.failed", { why, language: (SET.data.languages || {})[code] || code })
@@ -2515,6 +2551,22 @@ function renderFeed() {
 }
 
 let tailing = false;
+async function approveAmend() {
+  const key = S.open, [p, n] = key.split("/");
+  S.amending = key; renderDrawer();
+  const btn = document.querySelector("[data-approve-amend]"); if (btn) btn.style.cursor = "progress";
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/approve-amend`, { method: "POST", body: "{}" });
+  S.amending = null;
+  if (status !== 200) {
+    renderDrawer();
+    if ($("bn-err")) $("bn-err").textContent = t("amend.failed", { reason: body?.error || String(status) });
+    return;
+  }
+  delete INB.data[key];
+  const note = document.querySelector(".block-note");
+  if (note) note.innerHTML = `<div class="bn-ok" role="status">${t("amend.done")}</div>`;
+  loadOverview();
+}
 async function unblock() {
   const [p, n] = S.open.split("/");
   const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/unblock`, { method: "POST", body: "{}" });
@@ -2556,7 +2608,7 @@ document.addEventListener("click", (e) => {
 document.addEventListener("toggle", (e) => { if (e.target.matches?.("details[data-brief-rest]") && S.open) S.briefOpen[S.open] = e.target.open; }, true);
 document.addEventListener("click", (e) => {
   if (L.hold && L.hold.via !== "drag" && !e.target.closest("[data-acc],[data-rord],[data-mv],#lstat")) { const onChip = e.target.closest("#lanes .chip"); letGo(); if (onChip) return; }  // a tap elsewhere lets go
-  const t = e.target.closest("[data-hp],[data-hstep],[data-hnow],[data-hday],[data-hmore],[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-hp],[data-hstep],[data-hnow],[data-hday],[data-hmore],[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],[data-approve-amend],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.dataset.hp) { if (t.dataset.hp === "custom") { H.custom = true; renderTelem(project()); $("hfrom")?.focus(); } else histSet({ days: +t.dataset.hp }); }
   else if (t.dataset.hstep) { if (t.getAttribute("aria-disabled") !== "true") histStep(t.dataset.hstep === "prev" ? -1 : 1); }
@@ -2582,7 +2634,7 @@ document.addEventListener("click", (e) => {
     renderSettings(); [...document.querySelectorAll("[data-fold]")].find((b) => b.dataset.fold === k)?.focus();  // the rewrite took the focus with it
   }
   else if (t.dataset.set === "save") setSave();
-  else if (t.dataset.set === "discard") { if (SET.busy) return; SET.draft = {}; SET.err = ""; SET.hoursBad = false; renderSettings(); }
+  else if (t.dataset.set === "discard") { if (SET.busy) return; SET.draft = {}; SET.err = ""; SET.errBy = {}; SET.hoursBad = false; renderSettings(); }
   else if (t.dataset.iq) { INB.cur = t.dataset.iq; INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox(); }
   else if (t.dataset.io) { INB.pick = +t.dataset.io; renderInbox(); if (!$("inote").hidden) $("inote").focus(); }
   else if (t.id === "igo") inboxConfirm();
@@ -2601,13 +2653,14 @@ document.addEventListener("click", (e) => {
   else if (t.dataset.act) act(t.dataset.act);
   else if (t.dataset.retry) act(t.dataset.retry, true);
   else if (t.hasAttribute("data-unblock")) unblock();
+  else if (t.hasAttribute("data-approve-amend")) approveAmend();
   else if (t.id === "fill") { const r = S.review[S.open]; $("changes").value = r.changes.join("\n"); syncDecide(); $("changes").focus(); }
   else if (t.matches("tr.session") && t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; selectTab("log"); }
 });
 document.addEventListener("submit", (e) => { if (e.target.id === "compose") { e.preventDefault(); say(); } });
 document.addEventListener("keydown", (e) => { if (e.target.id === "say" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); say(); } });
 document.addEventListener("keydown", (e) => { if (e.target.id === "hours-in" && e.key === "Enter") { e.preventDefault(); if (Object.keys(SET.draft).length) setSave(); } });
-document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "changes") syncDecide(); if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "inote") renderInbox(); if (e.target.id === "mnote") boxHint(); if (e.target.dataset?.cost) setCost(e.target); });
+document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "changes") syncDecide(); if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "inote") renderInbox(); if (e.target.id === "mnote") boxHint(); if (e.target.dataset?.cost) setCost(e.target); if (e.target.dataset?.lim) setLimit(e.target); });
 document.addEventListener("change", (e) => {
   if (e.target.matches?.('input[role="switch"]')) e.target.setAttribute("aria-checked", String(e.target.checked));
   if (e.target.matches?.("[data-pause]")) setPause(e.target);

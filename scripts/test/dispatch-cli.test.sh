@@ -114,6 +114,7 @@ rsetup() {  # setup with a stub that writes on both streams, notes its PATH and 
 echo "stub: out line for $FACTORY_PROJECT"
 echo "stub: err line for $FACTORY_PROJECT" >&2
 echo "$PATH" > "$STUB_TMP/path"
+echo "$TMPDIR" > "$STUB_TMP/tmpdir"
 command -v shipfloor-probe > "$STUB_TMP/probe" 2>&1
 echo "$FACTORY_PROJECT" >> "$STUB_TMP/ran"
 EOS
@@ -134,6 +135,15 @@ t "... its stdout and stderr appended to dispatcher.log" test "$(sed -n 1p "$SHI
 t "... and neither stream reaches the terminal" test ! -s "$tmp/console" -a ! -s "$tmp/console-err"
 t "... its PATH opens with the first line of dispatcher.path, then the task's own" test "$(cat "$tmp/path")" = "$tmp/tools:$PATH"
 t "... where a tool is found" test "$(cat "$tmp/probe")" = "$tmp/tools/shipfloor-probe"
+
+# AC-1 AC-2: the cycle's TMPDIR is <SHIPFLOOR_HOME>/tmp, made if missing, whatever TMPDIR the scheduler or the shell gave
+rsetup; project shop; mkdir -p "$tmp/inherited"; : > "$SHIPFLOOR_HOME/dispatcher.path"
+t "AC-1 the tmp folder does not exist before the cycle" test ! -e "$SHIPFLOOR_HOME/tmp"
+TMPDIR="$tmp/inherited" bash "$RD" >/dev/null 2>&1
+t "AC-1 AC-2 a cycle with another TMPDIR inherited gets <SHIPFLOOR_HOME>/tmp, which exists" test "$(cat "$tmp/tmpdir")|$([ -d "$SHIPFLOOR_HOME/tmp" ] && echo dir)" = "$SHIPFLOOR_HOME/tmp|dir"
+rm -rf "$SHIPFLOOR_HOME/tmp"; : > "$tmp/tmpdir"
+env -u TMPDIR bash "$RD" >/dev/null 2>&1
+t "AC-1 AC-2 ... also with no TMPDIR at all, and a missing folder is made again" test "$(cat "$tmp/tmpdir")" = "$SHIPFLOOR_HOME/tmp" -a -d "$SHIPFLOOR_HOME/tmp"
 
 rsetup; project shop -; : > "$SHIPFLOOR_HOME/dispatcher.path"
 bash "$RD" >"$tmp/console" 2>"$tmp/console-err"; rc=$?

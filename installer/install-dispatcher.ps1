@@ -15,6 +15,15 @@ if (-not $EveryMin) {
         } catch { }  # no readable config: the default pace
     }
 }
+$cfgLimits = Join-Path $env:USERPROFILE '.shipfloor\factory\shipfloor-config.sh'
+if (Test-Path $cfgLimits) {
+    try {
+        $lim = & 'C:\Program Files\Git\usr\bin\bash.exe' -l $cfgLimits machine limits 2>$null
+        if ($LASTEXITCODE -eq 0 -and "$lim".Trim([char]0, ' ', "`r", "`n")) {
+            Write-Warning 'CPU and memory limits are not supported on Windows (only systemd): the task is registered without them.'
+        }
+    } catch { }
+}
 if ($DryRun) { Write-Output "ShipfloorDispatcher: every $EveryMin minutes"; return }
 $mintty = 'C:\Program Files\Git\usr\bin\mintty.exe'
 if (-not (Test-Path $mintty)) { throw "Git for Windows mintty not found at $mintty" }

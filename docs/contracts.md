@@ -51,7 +51,7 @@ Two more words exist that the usage text does not print: `fast` `<base> <spec> [
 - The selector reaches the layer's test command as `"$1"` of `bash -c`, never as shell code. `NO_COLOR=1` and `FORCE_COLOR=0` are exported for the runner. A layer with `needs_stack` runs on its own stack slot (`lib/stack.sh`, owner `gate-<pid>`); if the slot does not come up the gate exits 3.
 - `red` is never retried; `green` and `build` run once more for a layer with `retry: 1`.
 - A layer's `install` command runs once per content of the layer's directory (marker in the git dir), by the gate, not by an agent.
-- `qa-amend` allows at most `FACTORY_QA_AMEND_MAX` (default 2) amendments, refuses a commit touching files outside the QA scope, a switched-off test, or fewer assertion lines than before.
+- `qa-amend` allows at most `FACTORY_QA_AMEND_MAX` (default 2) amendments, refuses a commit touching files outside the QA scope, a switched-off test, or fewer assertion lines than before. Past the limit the owner can allow one more: the label `qa-amend-ok` on the issue, added by a login of the trusted set (`board.sh` trusted logins), or the dashboard's `approve-amend` action (`POST /api/card/<project>/<n>/approve-amend`, which adds the label and unblocks the card). The gate then removes the label and records the commit in `<FACTORY_HOME>/qa-amend-ok.tsv` (`#<n>`, commit, login, time), so a rerun on that commit passes without GitHub, and prints `approved by the owner (qa-amend-ok)`. Without approval it fails with exit 1 and the message names both ways; when GitHub cannot be read or the label cannot be removed, it exits 3 (infrastructure).
 - The language of the stderr comes from `FACTORY_LANGUAGE` (set at launch), else the machine's `overrides.yml`, else the project's `factory.yml`.
 
 ## board.sh
@@ -111,6 +111,11 @@ One dispatcher cycle for one project: starts pipelines for cards waiting in the 
 - `== step-up /sf:develop <n> <from> -> <to>: gate <gate> failed <ISO>`
 
 `<ISO>` is `date -Is`. The pid is the run's supervisor process, the one that owns the lock. For the `deploy` stage `exit=` is the exit code of `deploy.sh` after its handover rounds (up to three agent rounds on exit 3).
+
+**Run telemetry** (`shipfloor_core/telemetry.py`): the agent runs with `--output-format stream-json --verbose` and the supervisor reads its stdout. Between `== start` and `== end` the log keeps the text a plain `claude -p` printed (the `result` event's text, else the last assistant text); a stdout line that is not JSON and everything on stderr go to it as they came. Beside it, only when the stream carried JSON:
+- `logs/<YYYY-MM-DD>-<n>-<stage>.events.jsonl`: every event as it arrived, one per line, `{"t": <epoch s, received>, "pid": <supervisor pid>, "event": {...}}`; several runs of a card on one day share the file, told apart by `pid`.
+- `logs/runs.jsonl`: one line per run when it ends: `stage`, `card`, `pid`, `model`, `weight`, `start`, `end` (ISO), `seconds`, `exit`; from the `result` event `result` (subtype), `is_error`, `session_id`, `duration_ms`, `duration_api_ms`, `num_turns`, `cost_usd`, `tokens` (`input`, `output`, `cache_read`, `cache_creation`); `tools` (`{<tool>: {"n", "s"}}`, seconds from a `tool_use` to its `tool_result`, as received), `bash` (the same for Bash calls by kind: `gate` for `gate.sh`, `board` for `board.sh`, `gh`, `other`), `unfinished` (tool calls with no result), `events`, `parse_errors`. A run that ended with no `result` has those fields `null`.
+Telemetry never fails a run or holds its lock: a write that fails is dropped.
 
 **Locks:** `locks/<stage>-<n>.lock/` per card and stage, holding `info` (`<pid> <epoch> <n>`), written by `launch`; `step` (`<k><TAB><epoch>`, from `shipfloor-config.sh step`); `last-gate`; `inbox` and `inbox.<agent>`. A lock older than `FACTORY_LOCK_TTL` (default 10800 s) whose pid is gone is removed. `locks/refresh-<n>.lock/` is a `deploy.sh --refresh` and does not count as a run.
 
@@ -294,6 +299,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `PAUSE` (here and in `<home>`) | empty file | `shipfloor pause`, the dashboard | `shipfloor-dispatch.sh`, `dispatch.sh`, `run-dispatcher.sh`, `shipfloor_health.py`, `shipfloor_notify.py`, `dashboard.py` |
 | `dispatch.pid` | the cycle's pid | `shipfloor-dispatch.sh` | the same script, to detect an overlap |
 | `dispatcher.path` | a PATH prefix, first line | the installer | `run-dispatcher.sh` |
+| `dispatcher.wake` | the command that asks the scheduler for a cycle now, one argument a line (systemd, launchd; absent on cron and Windows) | the installer | `dispatch.py` (a run that ended, after its lock is gone) |
 | `factory/` | the installed copy of `scripts/` and `templates/`; `factory/.source` the plugin checkout path, `factory/.origin` `<commit><TAB><branch><TAB>verified|forced` | `shipfloor install` | `dispatch.sh` (`.source`), `shipfloor doctor`, `dashboard.py` |
 | `<home>/factory.yml` | the config snapshot of `origin/main` | `shipfloor-dispatch.sh`, `shipfloor add` | every script, through `FACTORY_CONFIG` |
 | `<home>/control/` | worktree of `origin/<main>`, where runs start | `shipfloor add`, the dispatcher | pipelines (cwd) |
@@ -314,6 +320,8 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `~/.shipfloor/locks/stack-<k>.lock/` | see `lib/stack.sh` | `lib/stack.sh` | `lib/stack.sh`, `shipfloor pool`, `dashboard.py` |
 | `~/.shipfloor/locks/stack-queue/` | tickets, see `lib/stack.sh` | `lib/stack.sh` | `lib/stack.sh` |
 | `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.log` | the run's output with the `== ` lines | `dispatch.sh` | `dashboard.py` (`RUN_LINE`, `STEPUP_LINE`), `dispatch.sh` and `shipfloor-dispatch.sh` (`hit your session limit` after the last `== start`) |
+| `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.events.jsonl` | the agent's stream-json events, `{"t", "pid", "event"}` per line | `dispatch.sh` (`telemetry.py`) | people, analysis |
+| `<home>/logs/runs.jsonl` | one summary per agent run: duration, API time, turns, cost, tokens, seconds per tool | `dispatch.sh` (`telemetry.py`) | people, analysis |
 | `<home>/logs/<YYYY-MM-DD>-<n>-refresh.log` | the output of `deploy.sh --refresh` | `dispatch.sh` | people |
 | `~/.shipfloor/logs/dispatcher.log` | the scheduler's output | `run-dispatcher.sh` | people |
 | `~/.shipfloor/logs/stacks.log` | `<ISO> reclaimed slot <k> from <owner> <reason>` | `lib/stack.sh` | people |
@@ -366,7 +374,7 @@ Readers that parse what the scripts write, which a port must not break:
 
 1. The lock `locks/<stage>-<n>.lock` is made with `mkdir`; if it exists, nothing starts. `tmp/<n>` is created.
 2. The prompt goes on **stdin**, never as an argument (Git Bash would turn `/develop 54` into a path): `printf '/sf:<stage> <n>'`.
-3. The command, with `env -u FACTORY_BOARD_SNAPSHOT <envs>` before it, is `claude -p --permission-mode acceptEdits --add-dir <worktrees> --add-dir <home>/tmp --add-dir <home>/reviews --setting-sources project,local --strict-mcp-config --plugin-dir <plugin checkout>` then, when the directories exist, `--allowedTools Read(//<scripts dir>/**) Read(//<home>/reports-wt/**)`, then `--disallowedTools PowerShell`, then `--append-system-prompt "This is an unattended factory run. ..."`, and last `--model <model>` when the machine config names one for the stage and the card's weight.
+3. The command, with `env -u FACTORY_BOARD_SNAPSHOT <envs>` before it, is `claude -p --permission-mode acceptEdits --add-dir <worktrees> --add-dir <home>/tmp --add-dir <home>/reviews --setting-sources project,local --strict-mcp-config --plugin-dir <plugin checkout>` then, when the directories exist, `--allowedTools Read(//<scripts dir>/**) Read(//<home>/reports-wt/**)`, then `--disallowedTools PowerShell`, then `--append-system-prompt "This is an unattended factory run. ..."`, then `--model <model>` when the machine config names one for the stage and the card's weight, and last `--output-format stream-json --verbose`, read by the supervisor (see Run telemetry above).
 4. cwd is the project's control checkout, `<home>/control`: a worktree of `origin/main`, never one an agent can edit. Output (stdout and stderr) is appended to the run's log.
 5. The model is that of the stage and the card's weight (`light`, `standard`, `heavy`; `standard` when the spec has no weight). A develop run after a failed gate takes the model one up, from `stepup/<n>`.
 6. After the run: `== end ...` is logged; for `develop` ending 0, a failed gate in `<lock>/last-gate` (`FAIL`, never `INFRA`) writes `stepup/<n>`, removes the label `blocked` and logs `== step-up ...`. The run's stack slots are released, `tmp/<n>` is removed and the lock goes (only when its `info` still names this process).
