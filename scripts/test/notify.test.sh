@@ -25,6 +25,7 @@ setup() {  # a home with one project (shop) and a sender that records what each 
   cat > "$H/send" <<'SH'
 #!/usr/bin/env bash
 body="${3//$'\n'/|}"; body="${body//$'\r'/}"
+printf '%s\n' "${4-}" >> "$(dirname "$0")/clicks"
 printf '%s\t%s\t%s\n' "$1" "$2" "$body" >> "$(dirname "$0")/sent"
 case " ${FAIL_CHANNELS:-} " in *" $1 "*) echo "boom: $1 is down" >&2; exit 1 ;; esac
 exit 0
@@ -42,6 +43,14 @@ grep -qxF "toast${T}shop · #7 waits for you${T}Seven|Spec Review · spec to rev
 [ -f "$H/notify.json" ] && pass "cycle: what was told is in notify.json" || fail "no notify.json"
 FAIL_CHANNELS=toast $PY -I "$(nat "$NOTIFY")" cycle --home "$(nat "$H")" --now 2026-10-11T10:05:00 2> "$H/err"; rc=$?
 [ "$rc" = 0 ] && pass "cycle: nothing new, exit 0" || fail "cycle: exit $rc: $(cat "$H/err")"
+[ "$(cat "$H/clicks")" = "" ] && [ "$(wc -l < "$H/clicks" | tr -d ' ')" = 1 ] && pass "AC-5 without dashboard.port the push goes out with an empty click argument, as before" || fail "AC-5 expected one empty click argument, got: $(cat "$H/clicks")"
+# AC-5: the dashboard's port is in <home>/dashboard.port: a card's wait carries the link to its card
+setup; printf 'notify: {channels: {toast: true}}\n' > "$H/config.yml"; printf '7\tSpec Review\tI7\n' > "$P/board.tsv"; printf '7719\n' > "$H/dashboard.port"
+$PY -I "$(nat "$NOTIFY")" cycle --home "$(nat "$H")" --now 2026-10-11T10:00:00 > "$H/out" 2> "$H/err"
+[ "$(cat "$H/clicks")" = "http://127.0.0.1:7719/#card/7" ] && pass "AC-5 a card's wait hands the sender http://127.0.0.1:<port>/#card/<n>" || fail "AC-5 expected the link to card 7 on port 7719, the sender got: '$(cat "$H/clicks")'"
+printf 'not-a-port\n' > "$H/dashboard.port"; : > "$H/clicks"; rm -f "$H/notify.json"
+$PY -I "$(nat "$NOTIFY")" cycle --home "$(nat "$H")" --now 2026-10-11T10:00:00 > "$H/out" 2> "$H/err"
+[ "$(cat "$H/clicks")" = "" ] && [ -s "$H/clicks" ] && pass "AC-5 a port file that holds no port gives no link" || fail "AC-5 a bad port file must give an empty click, got: '$(cat "$H/clicks")'"
 assert_exit 2 $PY -I "$NOTIFY" cycle
 assert_exit 2 $PY -I "$NOTIFY" send --home "$H"
 

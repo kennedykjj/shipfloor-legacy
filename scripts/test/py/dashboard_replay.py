@@ -246,3 +246,11 @@ class Replay(db.Scene):
         self.assertRegex(contracts, r'"cards"')
         self.assertRegex(operation, r"(?i)replay")
         self.assertRegex(operation, r"(?i)back to live")
+
+    def test_a_time_hash_still_moves_the_replay_from_the_address(self):
+        "#183 fromAddress keeps its `else if` (time hash moves the needle) as code, not inside a // comment"
+        with open(os.path.join(support.SCRIPTS, "dashboard.html"), encoding="utf-8") as f:
+            lines = [l for l in f.read().splitlines() if "if (m == null) { if (R.at" in l]
+        self.assertEqual(len(lines), 1)
+        self.assertNotIn("//", lines[0])
+        self.assertIn("else if (!R.at || atMin() !== m) needle(m, \"key\", true);", lines[0])

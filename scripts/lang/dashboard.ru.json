@@ -752,6 +752,15 @@
     "rv.removed": "Removed",
     "rv.before": "Before",
     "rv.request": "Your request",
-    "rv.since": "{n, plural, one {# statement changed since your request} few {# statements changed since your request} many {# statements changed since your request} other {# statements changed since your request}}"
+    "rv.since": "{n, plural, one {# statement changed since your request} few {# statements changed since your request} many {# statements changed since your request} other {# statements changed since your request}}",
+    "title.stopped": "остановлен",
+    "pal.open": "Команды",
+    "pal.field": "Номер карточки, название или действие",
+    "pal.next": "Следующее решение",
+    "pal.live": "Вернуться к текущему",
+    "pal.at": "Показать линию в {time}",
+    "pal.pause": "Приостановить фабрику",
+    "pal.none": "Ничего не найдено",
+    "pal.count": "{n, plural, one {# результат} few {# результата} many {# результатов} other {# результата}}"
   }
 }

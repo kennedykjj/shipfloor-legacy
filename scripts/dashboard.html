@@ -623,6 +623,25 @@ body.refused .views, body.refused .stats, body.refused #alerts, body.refused #ba
 }
 /* the font shorthand resets tabular figures: mono and figure rules set them again */
 code, pre, kbd, .log, .did, .ftime, .gate, .iacs b, .idiff, .cin, .cin input, .nf, .hrs input, .htot dd, .stp output, .chart text, .dslot { font-variant-numeric: tabular-nums; }
+/* Ctrl K (#183): one field over the scrim, up to nine rows; the header button opens the same box */
+.pal-btn kbd { margin: 0 0 0 8px; padding: 0 4px; font-size: 12px; }
+@media (pointer: coarse) { .pal-btn kbd { display: none; } }
+.pal { position: fixed; inset: 0; z-index: 7; }
+.pal-scrim { position: absolute; inset: 0; background: var(--scrim); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+.pal-box { position: absolute; top: 12vh; left: 50%; transform: translateX(-50%); width: min(560px, 100vw - 32px); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+.pal-in { display: block; width: 100%; box-sizing: border-box; padding: 16px; font: inherit; font-size: 15px; color: var(--text); background: none; border: 0; border-bottom: 1px solid var(--edge); }
+.pal-in:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.pal-list { list-style: none; margin: 0; padding: 4px 0; max-height: 60vh; overflow-y: auto; }
+.pal-row { display: flex; align-items: baseline; gap: 12px; padding: 8px 16px; border-left: 2px solid transparent; cursor: pointer; font-size: 14px; }
+.pal-row[aria-selected="true"] { background: var(--raise); border-left-color: var(--text); }
+.pal-row .n { color: var(--text); flex: none; } .pal-row .n.w { color: var(--sand); }
+.pal-row .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-row .col { flex: none; font-size: 12px; color: var(--muted); }
+.pal-row.none { color: var(--muted); cursor: default; }
+@media (max-width: 599px) {
+  .pal-box { top: 16px; width: calc(100vw - 32px); }
+  .pal-row { min-height: 44px; flex-wrap: wrap; align-items: center; } .pal-row .ttl { flex-basis: calc(100% - 64px); } .pal-row .col { flex-basis: 100%; padding-left: 0; order: 3; }
+}
 </style>
 <script>
 // The theme is this browser's choice, set before the first paint. "auto" follows the system: Graphite in dark, Paper in light.
@@ -635,10 +654,20 @@ function theme(pick) {
 }
 // The tab's icon is the mark on a tile, painted with the theme's tokens: a favicon does not take the page's CSS.
 const MARK = '<path d="M12 48H44V32H20V16H40"/><rect x="40" y="8" width="16" height="16" rx="3"/>';
-function favicon() {
+// Only its colors carry the state (#183): neutral is the route in --muted and the card in --text on the --ground tile; waiting
+// fills the tile with the accent (--sand) and draws in --ground; stopped does the same with --bad and outranks waiting. It is
+// redrawn only when the picture changes (the state or the theme); with no state it keeps the last one.
+const tabMemo = { state: null, svg: "" };
+function favicon(state) {
+  if (state) tabMemo.state = state;
+  const st = tabMemo.state || { count: 0, stopped: false }, accent = st.stopped ? "bad" : st.count > 0 ? "sand" : "";
   const s = getComputedStyle(document.documentElement), v = (k) => s.getPropertyValue(`--${k}`).trim();
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><style>path{fill:none;stroke:${v("sand")};stroke-width:8;stroke-linecap:round;stroke-linejoin:round}path+rect{fill:${v("text")}}</style><rect width="64" height="64" rx="14" fill="${v("ground")}"/>${MARK}</svg>`;
-  document.getElementById("favicon").href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  const tile = accent ? v(accent) : v("ground"), route = accent ? v("ground") : v("muted"), card = accent ? v("ground") : v("text");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><style>path{fill:none;stroke:${route};stroke-width:8;stroke-linecap:round;stroke-linejoin:round}path+rect{fill:${card}}</style><rect width="64" height="64" rx="14" fill="${tile}"/>${MARK}</svg>`;
+  const el = document.getElementById("favicon");
+  if (svg === tabMemo.svg && String(el.href).startsWith("data:image/svg+xml")) return;
+  tabMemo.svg = svg;
+  el.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => theme());
 </script>
@@ -648,6 +677,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
   <span class="g brand"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M12 48H44V32H20V16H40"/><rect x="40" y="8" width="16" height="16" rx="3"/></svg>Shipfloor</span>
   <nav class="views" aria-label="View" data-i-aria="nav.view"><button data-view="board" aria-pressed="true" data-i="nav.factory">Factory</button><button data-view="feed" aria-pressed="false" data-i="nav.feed">Logbook</button><button data-view="settings" aria-pressed="false" data-i="nav.settings">Settings</button></nav>
   <div class="stats"><a class="cap" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener"><span data-i="nav.docs">Docs</span><svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a><span id="scope"></span><div class="stat" id="stat"><span id="status" role="status" aria-live="polite"></span><span id="rbtn"></span><div class="rrow" id="rrow" hidden></div></div></div>
+  <button class="btn ghost pal-btn" id="pal-btn" type="button" aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog"><span data-i="pal.open">Commands</span><kbd id="pal-kbd">Ctrl K</kbd></button>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
 <main>
@@ -680,6 +710,14 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
   </aside>
   <div id="dim" hidden></div>
 </main>
+<div class="pal" id="pal" hidden>
+  <div class="pal-scrim" id="pal-scrim"></div>
+  <div class="pal-box" role="dialog" aria-modal="true" aria-label="Commands" data-i-aria="pal.open">
+    <input class="pal-in" id="pal-in" type="text" role="combobox" aria-expanded="true" aria-controls="pal-list" aria-autocomplete="list" aria-activedescendant="" autocomplete="off" spellcheck="false" aria-label="Card number, title or action" placeholder="Card number, title or action" data-i-aria="pal.field" data-i-ph="pal.field">
+    <ul class="pal-list" id="pal-list" role="listbox" aria-label="Commands" data-i-aria="pal.open"></ul>
+    <p class="sr" id="pal-live" role="status" aria-live="polite"></p>
+  </div>
+</div>
 <!-- the machine's catalog and the English one, put here by dashboard.py as it serves the page (#122) -->
 <script type="application/json" id="lang-data">null</script>
 <script>
@@ -723,7 +761,12 @@ function decisions(moves) {
 }
 const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged", "shipped"]);
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
-const token = new URLSearchParams(location.search).get("t") || "";
+// The link's token is kept in this browser (#183): a push link carries none, so the page opens on the last one it had.
+const token = (() => {
+  const given = new URLSearchParams(location.search).get("t") || "";
+  try { if (given) localStorage.setItem("shipfloor.token", given); else return localStorage.getItem("shipfloor.token") || ""; } catch (e) { /* storage blocked: only the URL's token works */ }
+  return given;
+})();
 const S = { view: "board", overview: null, project: null, open: null, full: false, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "", refused: false,
   expanded: {}, briefOpen: {}, review: {}, notice: {}, armed: null, pending: {}, note: {}, work: { key: null, skipped: new Set() }, resuming: null, resumeErr: null,
   show: { band: true, history: true } };  // what the owner left open on the Factory view: in memory only, open at every load
@@ -866,6 +909,7 @@ async function loadOverview() {
   renderStrip(); renderBoard(); if (S.open) renderDrawer();
   if (R.tried !== S.project) loadDay();
   if (R.boot != null) { const m = R.boot; R.boot = null; needle(m, "key", true); }  // the address held a time (#@0940): open there
+  if (ADDR.boot != null) { const n = ADDR.boot; ADDR.boot = null; addrCard(n); }  // the address held a card (#card/120): select it
 }
 const project =() => S.overview?.projects.find((p) => p.slug === S.project);
 const cardOf = (p, n) => S.overview?.projects.find((x) => x.slug === p)?.cards.find((c) => c.issue === n);
@@ -881,6 +925,8 @@ function renderStrip() {
     ${project()?.board_url ? `<a class="cap" href="${esc(project().board_url)}" target="_blank" rel="noopener">${t("head.board")}${EXT}</a>` : ""}${o.projects.length > 1 ? `<i class="sep"></i>` : ""}`);
   renderStatus();
   renderFlags();
+  tabPaint();
+  if (PAL.open && PAL.reading) palDraw();  // the first read came in while the palette was open
 }
 // The status sentence (the belt's voice): what the factory is doing, in one line that a screen reader hears when it changes.
 // Alive: how many decisions wait for the owner, the sessions in use, today's spend. Silent (#176): the belt stopped, with
@@ -1175,7 +1221,8 @@ function backToLive(focus, fromUrl) {
 }
 function fromAddress() {
   const m = hashMin();
-  if (m == null) { if (R.at) backToLive(false, true); } else if (!R.at || atMin() !== m) needle(m, "key", true);
+  // a card's address (#183) leaves the replay as it is
+  if (m == null) { if (R.at && !parseHash(location.hash)?.card) backToLive(false, true); } else if (!R.at || atMin() !== m) needle(m, "key", true);
 }
 window.addEventListener("popstate", fromAddress); window.addEventListener("hashchange", fromAddress);
 $("ph").addEventListener("keydown", async (e) => {
@@ -1368,7 +1415,7 @@ function lookFirst(k, doubt) {
   if (maxed()) maximize(maxed(), false);
   S.work.key = k; S.unseen = doubt ? null : k; S.armed = doubt ? k : null; clearTimeout(S.armTimer);
   if (doubt) S.armTimer = setTimeout(() => { if (S.armed === k) { S.armed = null; renderWork(); } }, 4000);
-  renderBoard();
+  renderBoard(); addrSync();
 }
 // A drop on a column that takes the card: at once (5 s to undo), the note box first, or the work area's confirmation (#50).
 function drop(to) {
@@ -1761,7 +1808,91 @@ function workKey(e) {  // A, R and N, with the focus outside any field and no wi
   if (k === "a" && !deciding()) return;
   if (k === "a") approveStart(v.cur); else if (k === "r") openRequest(v.cur); else skip(v);
 }
-function selectCard(key) { S.work.key = S.work.key === key ? null : key; renderBoard(); }
+function selectCard(key) {
+  S.work.key = S.work.key === key ? null : key; renderBoard(); addrSync();
+}
+// The address (#183): the hash holds a view, never state. #card/<n> is the card selected in the work area, #@HHMM the replay's time
+// (the replay owns it); anything else is the default view. A selection pushes its address, so Back returns through the selections.
+function parseHash(hash) {
+  if (typeof hash !== "string") return null;
+  const c = /^#card\/([1-9]\d{0,8})$/.exec(hash); if (c) return { card: +c[1] };
+  const a = /^#@(\d\d)(\d\d)$/.exec(hash); if (a && +a[1] < 24 && +a[2] < 60) return { at: +a[1] * 60 + +a[2] };
+  return null;
+}
+function hashOf(sel) {  // the work area's key ("shop/120"), the number, or { card } / { key }; no card, no hash
+  const raw = sel && typeof sel === "object" ? sel.card ?? sel.key : sel;
+  const n = String(raw ?? "").split("/").pop();
+  return /^[1-9]\d{0,8}$/.test(n) ? `#card/${n}` : "";
+}
+function addrSync() {  // the address follows the selection; the token stays in the query, never in the hash
+  const want = hashOf(S.work.key), have = parseHash(location.hash)?.card ? location.hash : "";
+  if (want === have) return;
+  try { history.pushState(null, "", location.pathname + location.search + want); } catch (e) { /* the address stays: the selection still works */ }
+}
+function addrDefault() {  // a hash that means nothing becomes the default view, silently
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { /* the address stays */ }
+}
+function addrCard(n) {  // select card n of the project on screen (or of the first project that has it); a missing card is the default view
+  const has = (p) => p.cards.some((c) => c.issue === n);
+  const p = S.overview?.projects.find((x) => x.slug === S.project && has(x)) || S.overview?.projects.find(has);
+  if (!S.overview) { ADDR.boot = n; return; }
+  if (!p) { if (S.work.key) { S.work.key = null; renderBoard(); } addrDefault(); return; }
+  if (p.slug !== S.project) { S.project = p.slug; S.work.skipped.clear(); W.req = null; closeCard(); renderStrip(); }
+  const key = `${p.slug}/${n}`;
+  if (S.work.key !== key) { S.work.key = key; renderBoard(); }
+}
+function addrFrom() {  // Back, Forward or an edited hash: the page follows the address
+  const p = parseHash(location.hash);
+  if (p?.at != null) return;  // a time belongs to the replay (fromAddress)
+  if (p?.card) return addrCard(p.card);
+  if (location.hash && location.hash !== "#") addrDefault();
+  if (S.work.key) { S.work.key = null; renderBoard(); }
+}
+// The tab (#183): what waits for the owner in the project on screen, and whether the dispatcher is silent (#176: overview.silent).
+function tabState(overview, project) {
+  const p = overview?.projects?.find((x) => x.slug === project);
+  return { count: (p?.cards || []).filter((c) => c.awaiting || c.blocked === "owner").length, stopped: !!overview?.silent };
+}
+function tabTitle(state, project) {
+  const name = project ? ` · ${project}` : "";
+  return `${state?.count > 0 ? `(${state.count}) ` : ""}Shipfloor${name}${state?.stopped ? ` · ${t("title.stopped")}` : ""}`;
+}
+function tabPaint() {  // every read: the title is written only when its text changes, the favicon only when its picture does
+  if (!S.overview || !S.project) return;
+  const st = tabState(S.overview, S.project); st.count = waiting().length;  // the same count as the waiting list
+  const title = tabTitle(st, S.project);
+  if (document.title !== title) document.title = title;
+  favicon(st);
+}
+// Ctrl K (#183): palette(query, cards, actions) -> at most nine rows. An action is { id, label }; the page passes the ones its
+// buttons offer now ("at" stands for See the line at <time>, which a typed time turns into a row). A card is the overview's, with
+// the work area's key; the empty field shows the actions and the cards that wait, oldest first.
+function fold(s) {
+  return String(s ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+const palWait = (c) => !!(c.awaiting || c.blocked === "owner");
+function palTime(q) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(q) || /^(\d\d)(\d\d)$/.exec(q);
+  return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
+}
+function palCards(q, cards) {
+  if (!q) return cards.filter(palWait).sort((a, b) => (a.since || "~") < (b.since || "~") ? -1 : 1);
+  if (/^\d+$/.test(q)) {  // a number: that card first, then the cards whose number starts with it, then the titles that hold it
+    const rank = (c) => String(c.issue) === q ? 0 : String(c.issue).startsWith(q) ? 1 : fold(c.title).includes(q) ? 2 : 3;
+    return cards.filter((c) => rank(c) < 3).sort((a, b) => rank(a) - rank(b));
+  }
+  const words = q.split(/\s+/);
+  return cards.filter((c) => { const h = fold(`${c.issue} ${c.title}`); return words.every((w) => h.includes(w)); });
+}
+function palette(query, cards, actions) {
+  const q = fold(query).trim().replace(/^#/, ""), acts = actions || [], rows = [];
+  const min = q && acts.some((a) => a.id === "at") ? palTime(q) : null;
+  if (min != null) rows.push({ kind: "action", id: "at", min, label: t("pal.at", { time: hm4(min) }) });
+  for (const a of acts) if (a.id !== "at" && (!q || fold(a.label).includes(q))) rows.push({ kind: "action", id: a.id, label: a.label });
+  for (const c of palCards(q, cards || [])) rows.push({ kind: "card", key: c.key, issue: c.issue, title: c.title || "", column: c.column, waits: palWait(c) });
+  if (!rows.length) rows.push({ kind: "none", label: t("pal.none") });
+  return rows.slice(0, 9);
+}
 function paintRun(v) {
   const c = v.cur, key = c.key, [slug] = key.split("/"), run = runOf(slug, c), of = STEP_COUNT[c.running], step = run?.step, acts = run?.activity || [];
   setHTML($("wk-swap"), SKEL.run);
@@ -2799,7 +2930,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && W.req && !S.open && !maxed() && ($("wk-dec")?.contains(e.target) || !typing)) { closeRequest(); return; }  // Esc, in order: the note, the wide view, the selection
   if (e.key === "Escape" && !typing && maxed()) { maximize(maxed(), false); return; }
   if (e.key === "Escape" && S.open && !typing) { closeCard(); return; }
-  if (e.key === "Escape" && !typing && S.work.key && S.view === "board") { S.work.key = null; renderBoard(); return; }
+  if (e.key === "Escape" && !typing && S.work.key && S.view === "board") { S.work.key = null; renderBoard(); addrSync(); return; }
   const tab = e.target.closest?.('[role="tab"]');
   if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
     e.preventDefault();
@@ -2843,6 +2974,100 @@ document.addEventListener("click", (e) => {  // Restart shows the command and ru
 // a card's pass, its row and its dot light up together
 const hot = (e, on) => { const k = e.target.closest?.("[data-key]")?.dataset.key; if (k) document.querySelectorAll(`[data-key="${CSS.escape(k)}"]`).forEach((el) => el.classList.toggle("hot", on)); };
 for (const [ev, on] of [["mouseover", true], ["focusin", true], ["mouseout", false], ["focusout", false]]) document.addEventListener(ev, (e) => hot(e, on));
+
+// The palette's box (#183): the same handlers as the buttons it stands for; the page's own keys wait while it is open
+const PAL = { open: false, rows: [], i: -1, from: null, timer: 0, reading: false };
+const ADDR = { boot: null };
+function palPageCards() {  // the project on screen, in board order
+  const p = project(); if (!p) return [];
+  return p.cards.map((c) => ({ ...c, key: `${p.slug}/${c.issue}` })).filter((c) => !(c.key in S.moving)).sort((a, b) => COLUMNS.indexOf(a.column) - COLUMNS.indexOf(b.column) || a.issue - b.issue);
+}
+function palActions() {  // what the page's buttons offer right now
+  const o = S.overview, out = [], v = o && project() ? workView() : null;
+  if (R.at) out.push({ id: "live", label: t("pal.live") });
+  if (v && v.mode === "decide" && deciding() && !W.hold) out.push({ id: "next", label: t("pal.next") });
+  if (o && !o.paused && !o.silent) out.push({ id: "pause", label: t("pal.pause") });
+  if (o) out.push({ id: "at", label: t("pal.at", { time: "" }) });
+  return out;
+}
+function palRow(r, i) {
+  const base = `role="option" id="pal-o${i}" aria-selected="${i === PAL.i}"`;
+  if (r.kind === "none") return `<li class="pal-row none" role="option" id="pal-o${i}" aria-disabled="true" aria-selected="false">${esc(r.label)}</li>`;
+  if (r.kind === "card") return `<li class="pal-row card" ${base} data-pal="${i}"><span class="g n${r.waits ? " w" : ""}">#${r.issue}</span><span class="ttl">${esc(r.title)}</span><span class="col">${esc(colName(r.column))}</span></li>`;
+  return `<li class="pal-row action" ${base} data-pal="${i}">${esc(r.label)}</li>`;
+}
+function palActive(i) {  // the active row: the field names it for a screen reader, the list keeps it in view
+  PAL.i = i;
+  document.querySelectorAll("#pal-list [data-pal]").forEach((li) => li.setAttribute("aria-selected", String(+li.dataset.pal === i)));
+  $("pal-in").setAttribute("aria-activedescendant", i >= 0 ? `pal-o${i}` : "");
+  if (i >= 0) $(`pal-o${i}`)?.scrollIntoView?.({ block: "nearest" });
+}
+function palDraw() {  // every change of the field: the first row is the active one
+  PAL.reading = !S.overview;
+  PAL.rows = PAL.reading ? [] : palette($("pal-in").value, palPageCards(), palActions());
+  const list = $("pal-list"), html = PAL.reading ? `<li class="pal-row none" role="option" id="pal-o0" aria-disabled="true" aria-selected="false">${t("msg.reading")}</li>` : PAL.rows.map(palRow).join("");
+  if (list._html !== html) { list._html = html; list.innerHTML = html; }
+  palActive(PAL.rows.length && PAL.rows[0].kind !== "none" ? 0 : -1);
+}
+function palMove(to) {
+  const n = PAL.rows.filter((r) => r.kind !== "none").length; if (!n) return;
+  palActive(to === "first" ? 0 : to === "last" ? n - 1 : (PAL.i + to + n) % n);
+}
+function palOpen() {
+  if (PAL.open || S.refused) return;
+  PAL.from = document.activeElement; PAL.open = true;
+  $("pal").hidden = false; $("pal-in").value = ""; $("pal-live").textContent = ""; palDraw(); $("pal-in").focus();
+}
+function palBack() {  // the focus goes back to where it was; to the page when that element is gone
+  const from = PAL.from; PAL.from = null;
+  (from && from.isConnected ? from : document.body).focus?.({ preventScroll: true });
+}
+function palClose(restore = true) {
+  if (!PAL.open) return;
+  PAL.open = false; clearTimeout(PAL.timer); $("pal").hidden = true;
+  if (restore) palBack();
+}
+async function palPause() {  // the Settings switch for the whole factory, applied at once
+  const r = await api("/api/settings/pause", { method: "POST", body: JSON.stringify({ project: null, paused: true }) });
+  if (r.status === 200) { if (SET.data) { SET.data = r.body; renderSettings(); } loadOverview(); } else setError(told(r.body, "set.pause_failed"));
+}
+function palRun(i) {
+  const r = PAL.rows[i]; if (!r || r.kind === "none") return;
+  palClose(false);
+  if (r.kind === "card") {
+    if (S.view !== "board") setView("board");
+    if (S.work.key !== r.key) selectCard(r.key);
+    document.querySelector(`[data-pick="${CSS.escape(r.key)}"]`)?.focus({ preventScroll: true });
+  } else if (r.id === "live") backToLive(true);
+  else if (r.id === "next") workAct("skip", {});
+  else if (r.id === "pause") palPause();
+  else if (r.id === "at") needle(r.min, "key");
+  if (document.activeElement === document.body || document.activeElement === $("pal-in")) palBack(); else PAL.from = null;  // an action that moved the focus keeps it there
+}
+function palKey(e) {
+  e.stopPropagation();  // A, R, N and the digits are inert while the palette is open
+  if (e.key === "Escape") { e.preventDefault(); palClose(); }
+  else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); palMove(e.key === "ArrowDown" ? 1 : -1); }
+  else if (e.key === "Home" || e.key === "End") { e.preventDefault(); palMove(e.key === "Home" ? "first" : "last"); }
+  else if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); if (PAL.i >= 0) palRun(PAL.i); }
+  else if (e.key === "Tab") { e.preventDefault(); $("pal-in").focus(); }  // the field is the one stop
+}
+document.addEventListener("keydown", (e) => {  // before every other key: Ctrl K / Cmd K toggles it, even in a field
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key?.toLowerCase() === "k") { e.preventDefault(); e.stopPropagation(); if (PAL.open) palClose(); else palOpen(); return; }
+  if (PAL.open) palKey(e);
+}, true);
+$("pal-in").addEventListener("input", () => {
+  palDraw();
+  clearTimeout(PAL.timer); PAL.timer = setTimeout(() => { $("pal-live").textContent = t("pal.count", { n: PAL.rows.filter((r) => r.kind !== "none").length }); }, 250);
+});
+$("pal-list").addEventListener("click", (e) => { const li = e.target.closest("[data-pal]"); if (li) palRun(+li.dataset.pal); });
+$("pal-list").addEventListener("mouseover", (e) => { const li = e.target.closest("[data-pal]"); if (li && +li.dataset.pal !== PAL.i) palActive(+li.dataset.pal); });
+$("pal-scrim").addEventListener("click", () => palClose());
+$("pal-btn").addEventListener("click", () => palOpen());
+if (/Mac|iPhone|iPad/.test(navigator.platform || "")) $("pal-kbd").textContent = "⌘ K";
+// the address: a card hash selects it once the first read is in; a hash that means nothing is the default view
+{ const p = parseHash(location.hash); if (p?.card) ADDR.boot = p.card; else if (!p && location.hash && location.hash !== "#") addrDefault(); }
+window.addEventListener("popstate", addrFrom); window.addEventListener("hashchange", addrFrom);
 
 staticText();
 document.querySelectorAll("[data-maxable]").forEach((el) => el.insertAdjacentHTML("afterbegin", `<button class="max" data-max aria-label="${ta(`panel.${el.dataset.maxable}.max`)}" title="${ta("btn.maximize")}">${MAX}</button>`));

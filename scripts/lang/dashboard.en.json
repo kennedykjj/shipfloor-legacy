@@ -752,6 +752,15 @@
     "rv.removed": "Removed",
     "rv.before": "Before",
     "rv.request": "Your request",
-    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}",
+    "title.stopped": "stopped",
+    "pal.open": "Commands",
+    "pal.field": "Card number, title or action",
+    "pal.next": "Next decision",
+    "pal.live": "Back to live",
+    "pal.at": "See the line at {time}",
+    "pal.pause": "Pause the factory",
+    "pal.none": "Nothing matches",
+    "pal.count": "{n, plural, one {# result} other {# results}}"
   }
 }

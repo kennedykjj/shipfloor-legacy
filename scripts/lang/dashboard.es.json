@@ -752,6 +752,15 @@
     "rv.removed": "Removed",
     "rv.before": "Before",
     "rv.request": "Your request",
-    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}",
+    "title.stopped": "detenido",
+    "pal.open": "Comandos",
+    "pal.field": "Número de tarjeta, título o acción",
+    "pal.next": "Siguiente decisión",
+    "pal.live": "Volver al directo",
+    "pal.at": "Ver la línea a las {time}",
+    "pal.pause": "Pausar la fábrica",
+    "pal.none": "Sin resultados",
+    "pal.count": "{n, plural, one {# resultado} other {# resultados}}"
   }
 }

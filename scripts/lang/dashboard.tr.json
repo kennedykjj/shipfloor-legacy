@@ -752,6 +752,15 @@
     "rv.removed": "Removed",
     "rv.before": "Before",
     "rv.request": "Your request",
-    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}",
+    "title.stopped": "durdu",
+    "pal.open": "Komutlar",
+    "pal.field": "Kart numarası, başlık veya eylem",
+    "pal.next": "Sonraki karar",
+    "pal.live": "Canlıya dön",
+    "pal.at": "Hattı {time} saatinde gör",
+    "pal.pause": "Fabrikayı duraklat",
+    "pal.none": "Eşleşme yok",
+    "pal.count": "{n, plural, one {# sonuç} other {# sonuç}}"
   }
 }

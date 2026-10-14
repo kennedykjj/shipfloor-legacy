@@ -2049,6 +2049,13 @@ def main():
     if not server:
         sys.exit(f"shipfloor dashboard: ports {args.port}-{args.port + 9} are taken")
     url = f"http://127.0.0.1:{server.server_address[1]}/?t={Handler.token}"
+    port_file = Path(args.home) / "dashboard.port"
+    try:
+        tmp = port_file.with_name("dashboard.port.tmp")
+        tmp.write_text(f"{server.server_address[1]}\n", encoding="utf-8")
+        os.replace(tmp, port_file)
+    except OSError:
+        pass  # without it a push just carries no link
     print(f"shipfloor dashboard: {url}  (Ctrl+C stops it)", flush=True)
     if not args.no_open:
         webbrowser.open(url)
@@ -2056,6 +2063,8 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        port_file.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
