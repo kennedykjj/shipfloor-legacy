@@ -153,10 +153,9 @@ for sel in cap:
     if not bs: probs.append(f"{sel}: no rule"); continue
     body = " ".join(bs)
     if px(last(body, "font-size")) != 12: probs.append(f"{sel}: font-size is {last(body, 'font-size')}, not 12px")
-    ls = (last(body, "letter-spacing") or "").replace("0.1em", ".1em")
-    if ls != ".1em": probs.append(f"{sel}: letter-spacing is {last(body, 'letter-spacing')}, not 0.1em")
-    if re.search(r"\.14em", body): probs.append(f"{sel}: still has .14em")
-check("AC-6 the Caption rules are 12px with 0.1em tracking", probs)
+    ls = (last(body, "letter-spacing") or "0").strip()
+    if ls not in ("0", "0em", "0px", "normal"): probs.append(f"{sel}: letter-spacing is {ls}, want no tracking")
+check("AC-6 the Caption rules are 12px with no wide tracking", probs)
 
 sys.stdout.reconfigure(encoding="ascii", errors="backslashreplace")
 for name, bad in res:
