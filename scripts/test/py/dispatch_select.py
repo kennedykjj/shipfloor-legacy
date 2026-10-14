@@ -342,9 +342,9 @@ class Locks(Base):
         info = {}
         real = dispatch._work
 
-        def work(spec, agent, deploy, log):
+        def work(spec, agent, deploy, log, *rest):
             info["line"] = open(os.path.join(spec["dir"], "info")).read()
-            return real(spec, agent, deploy, log)
+            return real(spec, agent, deploy, log, *rest)
         before = int(time.time())
         with ds.mock.patch.object(dispatch, "_work", work):
             self.cycle()

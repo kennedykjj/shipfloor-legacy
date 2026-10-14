@@ -42,6 +42,18 @@ class Doctor(CliCase):
         self.assertNotRegex(out, "[Aa]ghanim|migrate-home")
         self.assertEqual(self.read(os.path.join(os.environ["HOME"], ".aghanim", "marker")), "keep")
 
+    def test_AC5_runtime_line(self):
+        "AC-5 with claude on PATH and no runtime configured doctor says `ok   claude-code: claude` instead of `ok   claude`; a project naming it too adds no second line"
+        out = self.doctor()
+        self.assertIn("ok   claude-code: claude", out)
+        self.assertNotRegex(out, r"(?m)^ok   claude$")
+        self.assertNotIn("FAIL claude", out)
+        self.shop()
+        self.write_file(os.path.join(self.h, "factory.yml"), self.fixture() + "\nruntime: claude-code\n")
+        self.write_file(os.path.join(self.sh, "config.yml"), "runtime: claude-code\n")
+        out = self.doctor()
+        self.assertEqual(out.count("claude-code: claude"), 1, out)
+
     def test_dispatcher_line(self):
         "doctor says whether a dispatcher is registered (cron here); a missing one is a WARN that leaves the exit code alone; none on Windows"
         out = self.doctor()

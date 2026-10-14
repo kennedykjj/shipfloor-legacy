@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # Nothing the plugin ships names its first project, its owner or one machine's paths.
 source "$(dirname "$0")/lib.sh"
 root="$FACTORY_DIR/.."
@@ -20,8 +21,8 @@ stale="$(cd "$root" && grep -rIniE 'mylos|aghanim' skills agents scripts templat
 $stale"
 # AC-7: the old names stay only as the dashboard's old-log readers: a "legacy aghanim" / "legacy mylos" marker
 # is accepted in scripts/dashboard.py and scripts/dashboard_cost.py and nowhere else
-marked="$(cd "$root" && grep -rIniE 'legacy (aghanim|mylos)' skills agents scripts templates installer examples README.md docs/install.md .claude-plugin .gitattributes 2>/dev/null | grep -v '^scripts/test/' | grep -vE '^scripts/(dashboard|dashboard_cost)\.py:' || true)"
-[ -z "$marked" ] && pass "AC-7 legacy markers only in the dashboard's old-log readers" || fail "AC-7 legacy marker outside scripts/dashboard.py and scripts/dashboard_cost.py:
+marked="$(cd "$root" && grep -rIniE 'legacy (aghanim|mylos)' skills agents scripts templates installer examples README.md docs/install.md .claude-plugin .gitattributes 2>/dev/null | grep -v '^scripts/test/' | grep -vE '^scripts/((dashboard|dashboard_cost)\.py|runtimes/[^:]*\.py):' || true)"
+[ -z "$marked" ] && pass "AC-7 legacy markers only in the old-log readers" || fail "AC-7 legacy marker outside scripts/dashboard.py, scripts/dashboard_cost.py and scripts/runtimes/:
 $marked"
 for f in scripts/dashboard.py scripts/dashboard_cost.py; do
   grep -qE 'legacy (aghanim|mylos)' "$root/$f" && pass "AC-7 $f keeps its old-log reader" || fail "AC-7 $f lost its legacy marker"
@@ -214,6 +215,11 @@ done
 # The suite's size is a budget: a card extends the module's existing suite instead of adding a file per criterion.
 # 167 files on main when this ceiling came in (182 with the factory PRs then open); diet pass 2 (#236-#239 and the
 # small modules) brought it to 46. The owner lowers the ceiling as files go, and never raises it to fit a new file.
+# Every file names its CI suite on its second line (run.sh SUITE=<name>): a file with none would run in no CI job.
+untagged="$(cd "$root/scripts/test" && for f in *.test.sh; do
+  case "$(sed -n 2p "$f")" in "# suite: unit"|"# suite: integration"|"# suite: end-to-end") ;; *) echo "$f" ;; esac
+done)"
+[ -z "$untagged" ] && pass "every test file names its suite (unit, integration or end-to-end)" || fail "no '# suite: unit|integration|end-to-end' second line in: $untagged"
 ceiling=52  # 46 after wave 2; #223, #227, #240, #245 and visual-v4 landed, #234 folded dashboard-settings into dashboard-views to fit
 count="$(cd "$root" && ls scripts/test/*.test.sh | wc -l | tr -d ' ')"
 [ "$count" -le "$ceiling" ] && pass "test files: $count, ceiling $ceiling" || fail "scripts/test has $count *.test.sh files, the ceiling is $ceiling: extend an existing suite of the module instead of adding a file"

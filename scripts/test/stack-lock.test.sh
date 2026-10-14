@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # acceptance-intact ignores files the QA commit deleted.
 source "$(dirname "$0")/lib.sh"
 GATE="$FACTORY_DIR/gate.sh"

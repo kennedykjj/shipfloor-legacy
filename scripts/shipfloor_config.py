@@ -5,6 +5,11 @@ Exit codes: 0 ok, 1 negative answer (invalid config on validate, missing key, no
 """
 import json, math, os, re, sys, time, warnings
 
+sys.dont_write_bytecode = True  # the installed factory carries no __pycache__
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # `python -I` leaves the script's folder out of the path
+import runtimes
+from runtimes import claude_code
+
 warnings.simplefilter("ignore")  # ERE classes like [[:space:]] make Python's re warn
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 sys.stderr.reconfigure(encoding="utf-8", newline="\n")
@@ -54,7 +59,8 @@ DEFAULTS = {
 }
 LAYER_DEFAULTS = {"stack": "", "build": "", "install": "", "assertions": "", "setup_errors": "", "test_config": [],
                   "needs_stack": False, "tests_only": False, "migrations": {}, "retry": 0}
-BUILTIN_FORBIDDEN = r"^(\.github/|\.githooks/|\.claude/|\.shipfloor/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"
+BUILTIN_FORBIDDEN = (r"^(\.github/|\.githooks/|\.claude/|\.shipfloor/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"
+                     r"|^(\.codex/|\.opencode/|\.agents/)|^(AGENTS\.md|AGENTS\.override\.md|opencode\.jsonc?)$")
 ERE_SPECIAL = set(".^$+(){}[]|\\")
 
 
@@ -114,11 +120,58 @@ def mapping(cfg, key):
     return cfg.get(key) if isinstance(cfg.get(key), dict) else {}
 
 
+def runtime_problems(raw, where="runtime"):
+    """Why the `runtime` of a machine or project config is unusable: a runtime name, or a mapping with only `default`
+    (a name) and `stages` ({refine|develop|validate|deploy: name}). The known runtimes are in every line."""
+    if raw is None:
+        return []
+    known = ", ".join(runtimes.NAMES)
+    errs = []
+
+    def check(name, at):
+        if not isinstance(name, str) or name not in runtimes.NAMES:
+            errs.append(f"{at}: {name!r} is not a runtime the factory knows (known runtimes: {known})")
+
+    if isinstance(raw, str):
+        check(raw, where)
+    elif not isinstance(raw, dict):
+        errs.append(f"{where} must be a runtime name or a mapping of default and stages (known runtimes: {known})")
+    else:
+        for k, v in raw.items():
+            if k == "default":
+                check(v, f"{where}.default")
+            elif k == "stages" and isinstance(v, dict):
+                for stage, name in v.items():
+                    if stage not in STAGES:
+                        errs.append(f"{where}.stages.{stage}: unknown stage (use {', '.join(STAGES)}; known runtimes: {known})")
+                    else:
+                        check(name, f"{where}.stages.{stage}")
+            elif k == "stages":
+                errs.append(f"{where}.stages must be a mapping of stage: runtime (known runtimes: {known})")
+            else:
+                errs.append(f"{where}.{k}: unknown setting (use default, stages; known runtimes: {known})")
+    return errs
+
+
+def runtime_of(machine_raw, project_raw=None):
+    """The runtime of refine, develop, validate, deploy: the project's `runtime` over the machine's, key by key (a
+    name is the default), a stage's own name over the default over the first runtime. Call it on valid values."""
+    default, stages = None, {}
+    for raw in (machine_raw, project_raw):
+        value = raw.get("runtime") if isinstance(raw, dict) else None
+        if isinstance(value, str):
+            default = value
+        elif isinstance(value, dict):
+            default = value.get("default") or default
+            stages.update(value.get("stages") or {})
+    return [stages.get(s) or default or runtimes.NAMES[0] for s in STAGES]
+
+
 def problems(cfg):
     """Every reason the config is unusable, as human-readable lines."""
     if not isinstance(cfg, dict):
         return ["the file is not a YAML mapping"]
-    errs = []
+    errs = runtime_problems(cfg["runtime"]) if "runtime" in cfg else []
     for key in ("project", "board", "paths", "limits", "stack", "deploy"):
         if key in cfg and not isinstance(cfg[key], dict):
             errs.append(f"{key} must be a mapping")
@@ -530,8 +583,8 @@ def notify_problems(raw):
     return errs
 
 
-MODELS = ("opus", "sonnet", "haiku", "fable")  # what `claude --model` and the Agent tool's model take
-MODEL_LADDER = ("haiku", "sonnet", "opus")  # a run that fails a gate steps one up; fable is not on it: the factory cannot rank it
+MODELS = claude_code.MODELS  # what `claude --model` and the Agent tool's model take
+MODEL_LADDER = claude_code.LADDER  # a run that fails a gate steps one up; fable is not on it: the factory cannot rank it
 WEIGHTS = ("light", "standard", "heavy")  # the card's weight, written by Refine in the spec header; none = standard
 # A stage's model per weight. Refine runs before the card has a weight, so it has one model.
 STAGE_MODELS = {"refine": "sonnet", "develop": {"light": "sonnet", "standard": "sonnet", "heavy": "opus"},
@@ -700,6 +753,7 @@ def machine_problems(raw):
     errs = []
     if raw.get("language", "en") not in LANGS:
         errs.append(lang_problem())
+    errs += runtime_problems(raw["runtime"]) if "runtime" in raw else []
     errs += cost_problems(raw.get("costs"))
     errs += limits_problems(raw.get("limits"))
     errs += notify_problems(raw["notify"]) if "notify" in raw else []
@@ -860,6 +914,12 @@ def machine(rest):
     if cmd == "stage-models" and not args:  # each stage x light, standard, heavy
         stages = models_of(raw)["stages"]
         sys.stdout.write("".join(f"{stage_model(stages, s, w) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
+    if cmd == "runtimes" and len(args) <= 1:  # the runtime of each stage, NUL-terminated; the project's factory.yml over this file
+        project = load(args[0]) if args else None
+        bad = runtime_problems(project["runtime"]) if isinstance(project, dict) and "runtime" in project else []
+        if bad:
+            raise Unusable(f"{args[0]} is invalid: " + "; ".join(bad))
+        sys.stdout.write("".join(f"{r}\0" for r in runtime_of(raw, project))); return 0
     if cmd == "model-up" and len(args) == 1:
         up = model_up(args[0])
         if up:

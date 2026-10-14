@@ -14,30 +14,42 @@ permissions:
   contents: read
 
 jobs:
-  # The suite split over three runners (run.sh SHARD=i/N): its wall time is about a third of one runner's.
+  # The suite split over three runners by kind of test (run.sh SUITE=<name>, the "# suite:" line of each file): a red
+  # job says which kind failed. unit: in-process modules; integration: real processes, git, the fakes; end-to-end:
+  # the whole factory (chaos, the demo stack, a browser).
   suite:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
-    name: suite (${{ matrix.shard }}/3)
+        suite: [unit, integration, end-to-end]
+    name: suite (${{ matrix.suite }})
     steps:
       - uses: actions/checkout@v4
       - name: PyYAML
         run: python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml
-      - name: Test suite, shard ${{ matrix.shard }} of 3
+      # end-to-end runs the dashboard's browser tests (#234): Playwright and Chromium in their own venv, and
+      # BROWSER_TESTS=required turns a missing browser into a FAIL instead of a skip
+      - name: Playwright and Chromium (end-to-end)
+        if: matrix.suite == 'end-to-end'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/browser"
+          "$RUNNER_TEMP/browser/bin/pip" install --quiet -r scripts/test/requirements-browser.txt
+          "$RUNNER_TEMP/browser/bin/python" -m playwright install --with-deps chromium
+          echo "BROWSER_PYTHON=$RUNNER_TEMP/browser/bin/python" >> "$GITHUB_ENV"
+          echo "BROWSER_TESTS=required" >> "$GITHUB_ENV"
+      - name: Test suite, ${{ matrix.suite }}
         env:
           TEST_JOBS: 4   # one per vCPU: more only makes the process starts compete
-          SHARD: ${{ matrix.shard }}/3
+          SUITE: ${{ matrix.suite }}
         run: bash scripts/test/run.sh
 
-  # The one check the ruleset and deploy.required_checks name: green only when every shard is.
+  # The one check the ruleset and deploy.required_checks name: green only when every suite is.
   test:
     runs-on: ubuntu-latest
     needs: suite
     if: always()
     steps:
-      - name: Every shard passed
+      - name: Every suite passed
         run: '[ "${{ needs.suite.result }}" = success ] || { echo "suite: ${{ needs.suite.result }}"; exit 1; }'

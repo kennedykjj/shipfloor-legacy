@@ -521,7 +521,7 @@ class Deploy:
         main_sha = _cap(self.g("rev-parse", "origin/" + self.MAIN))[1]
         with open(self.TMP + "/merge.txt", "wb") as f:
             rc = _run(self.g("merge", "--no-ff", "--no-edit", "-m", "Merge origin/%s into %s" % (self.MAIN, self.BRANCH),
-                             "-m", TRAILER, main_sha), out=f, err=STDOUT)[0]
+                             "-m", os.environ.get("SHIPFLOOR_TRAILER") or TRAILER, main_sha), out=f, err=STDOUT)[0]
         if rc == 0:
             return 1
         self.CONFLICTS = _cap(self.g("diff", "--name-only", "--diff-filter=U"))[1]
@@ -621,7 +621,7 @@ class Deploy:
                 moved = True
                 self.say("migration %s renumbered to %s: %s took its version" % (old, new, self.MAIN))
         if moved:
-            _run(self.g("commit", "-qm", "chore(migration): renumber above %s's newest" % self.MAIN, "-m", TRAILER))
+            _run(self.g("commit", "-qm", "chore(migration): renumber above %s's newest" % self.MAIN, "-m", os.environ.get("SHIPFLOOR_TRAILER") or TRAILER))
 
     def qa_commit(self):
         return _cap(["bash", self.GATE, "-C", self.WT, "qa-commit", self.n], err=DEVNULL)[1]
@@ -964,7 +964,8 @@ class Deploy:
         if (_run(self.r("fetch", "-q", "origin"))[0] == 0
                 and _run(self.r("worktree", "add", "-q", "--detach", rw, "origin/" + self.MAIN))[0] == 0
                 and _run(rv + ["revert", "--no-commit", self.MERGED])[0] == 0
-                and _run(rv + ["commit", "-qm", "revert: #%s after a failed production deploy" % n, "-m", TRAILER])[0] == 0
+                and _run(rv + ["commit", "-qm", "revert: #%s after a failed production deploy" % n, "-m",
+                                  os.environ.get("SHIPFLOOR_TRAILER") or TRAILER])[0] == 0
                 and _run(rv + ["push", "-q", "origin", "HEAD:refs/heads/revert/%s" % n])[0] == 0):
             rhead = _cap(rv + ["rev-parse", "HEAD"])[1]
             rc, out = _run(self.gh("pr", "create", "--repo", self.REPO, "--base", self.MAIN, "--head", "revert/" + n,

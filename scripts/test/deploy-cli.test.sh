@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # deploy.sh, the wrapper's contract through real processes (the behavior is in py/deploy_*.py, in process): usage,
 # exit codes 0 / 2 / 3 / 5, what goes to stdout and stderr, argv passed through (--refresh, --continue), the lock
 # between two runs, and the real gate.sh behind the fast gates.

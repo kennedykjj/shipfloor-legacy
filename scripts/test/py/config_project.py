@@ -2,7 +2,9 @@
 shipfloor_config): get, layers, layer, regex, layer-of, describe, language and overrides.yml, and validate's every
 refusal with the line it prints."""
 import os
+import re
 
+from support import SCRIPTS
 from config_support import ConfigCase, FIXTURE_YML, BOARD, LAYER
 
 from shipfloor_core import text
@@ -64,6 +66,14 @@ class Queries(ConfigCase):
                            [".shipfloor/factory.yml", ".github/w.yml", ".claude/x.md", "CLAUDE.md", "api/.env",
                             "web/.env.local", "docs/engineering/x.md"],
                            ["api/env.kt", "docs/CLAUDE.md.bak"])
+        self.assertMatches(self.out("regex", "forbidden").strip(),
+                           [".codex/x", ".opencode/x", ".agents/x", "AGENTS.md", "AGENTS.override.md", "opencode.json",
+                            "opencode.jsonc"],
+                           ["AGENTS.md.bak", "opencode.jsonx", "api/codex/x"])
+        guard = open(os.path.join(os.path.dirname(SCRIPTS), "templates", "factory-guard.yml"), encoding="utf-8").read()
+        pattern = re.search(r"grep -E '([^']+)'", guard).group(1)
+        self.assertMatches(pattern, [".codex/x", ".opencode/x", ".agents/x", "AGENTS.md", "AGENTS.override.md", "opencode.json",
+                                     "opencode.jsonc", ".claude/x.md"], ["api/env.kt", "AGENTS.md.bak"])
         self.assertMatches(self.out("regex", "migrations", "api").strip(),
                            ["api/src/main/resources/db/migration/V2__add.sql"],
                            ["api/src/main/resources/db/migration/sub/V2__add.sql"])

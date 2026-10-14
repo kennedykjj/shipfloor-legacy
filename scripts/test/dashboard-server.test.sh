@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The dashboard as a process (its API is tested in process by dashboard-{cards,settings,views}.test.sh): it starts on a
 # free port and prints its URL, a second one moves to another port, the link survives a restart and a lost secret is
 # replaced, --token picks the token, and started directly with no SHIPFLOOR_BASH it finds its own bash or refuses.

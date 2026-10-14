@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The dashboard shows a card's dependencies (#202) from the dispatcher's record, <project home>/deps.json; it keeps no state
 # of its own and makes no dependency call.
 #   AC-4  a card with dependencies: each one's number, title and state (its board column, or "closed", or "open" when off the
