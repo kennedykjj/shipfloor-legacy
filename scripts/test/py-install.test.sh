@@ -93,7 +93,8 @@ case "$OUT" in *"3.10"*) pass "$t: the line says which version it found" ;; *) f
 t="AC-8 on Python 3.11 or later the check passes"
 if [ "$real_ok" = 1 ]; then
   OUT="$(SHIPFLOOR_HOME="$home" bash "$src/scripts/shipfloor" doctor 2>&1)"
-  case "$OUT" in *"FAIL "*"3.11"*) fail "$t: doctor fails the Python check: $OUT" ;; *) pass "$t: no FAIL naming 3.11" ;; esac
+  n="$(printf '%s\n' "$OUT" | grep -c '^FAIL .*3\.11')"
+  [ "$n" = 0 ] && pass "$t: no FAIL naming 3.11" || fail "$t: doctor fails the Python check: $OUT"
   printf '%s\n' "$OUT" | grep -Eq '^ok +.*[Pp]ython.*3\.[0-9]+' && pass "$t: an ok line names the Python version" || fail "$t: no 'ok ... python 3.x' line in: $OUT"
 else
   pass "$t: skipped, this machine's Python is older than 3.11"
