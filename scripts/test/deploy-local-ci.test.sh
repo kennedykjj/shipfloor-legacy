@@ -31,4 +31,21 @@ git --git-dir="$remote" show main:api/A.kt >/dev/null 2>&1 && fail "merged a red
 # without local_ci nothing changes: the deploy waits for GitHub's checks
 setup; code="$(run 7)"; [ "$code" = 0 ] && pass "no local_ci: deploys on GitHub's checks" || fail "exit $code: $(cat "$T/out")"
 assert_contains "$(cat "$FG/calls")" "statusCheckRollup"
+
+# AC-10: without GNU timeout on the PATH (macOS), a local CI that hangs is still stopped at deploy.timeout_min
+nt="$(mktemp -d)"
+IFS=: read -r -a pdirs <<< "$PATH"
+for pd in "${pdirs[@]}"; do
+  for f in "$pd"/*; do
+    b="${f##*/}"; case "$b" in timeout|gtimeout) continue ;; esac
+    [ -x "$f" ] && [ ! -e "$nt/$b" ] && ln -s "$f" "$nt/$b"
+  done
+done
+PATH="$nt" command -v timeout >/dev/null 2>&1 && fail "the PATH for AC-10 still has timeout" || pass "AC-10 the test PATH has no timeout"
+setup; sed -i '/^deploy:/d' "$FACTORY_CONFIG"; printf "deploy: {timeout_min: 1, local_ci: 'sleep 75'}\n" >> "$FACTORY_CONFIG"
+t0=$SECONDS; code="$(PATH="$nt" run 7)"; took=$(( SECONDS - t0 ))
+[ "$code" != 0 ] && pass "AC-10 a local CI that hangs does not ship the card (exit $code)" || fail "AC-10 the hanging CI passed: $(cat "$T/out")"
+[ "$took" -lt 72 ] && pass "AC-10 it was stopped at its limit, not left to run (${took}s)" || fail "AC-10 the hanging CI ran ${took}s past its 60 s limit"
+assert_contains "$(cat "$T/out")" "local CI did not finish"
+[ "$(cat "$FG/status")" != Done ] && pass "AC-10 the card did not ship" || fail "AC-10 shipped with a CI that never finished"
 finish
