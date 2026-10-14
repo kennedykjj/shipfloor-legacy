@@ -47,10 +47,10 @@ class Config(cs.ConfigCase):
         return names(out)
 
     def test_AC1_no_runtime_is_claude_code(self):
-        "AC-1 no runtime anywhere: claude-code runs every stage; the contract names only claude-code"
+        "AC-1 no runtime anywhere: claude-code runs every stage; the contract names claude-code first, then codex"
         self.assertEqual(self.of(None), ["claude-code"] * 4)
         self.assertEqual(self.of("pool: 4"), ["claude-code"] * 4)
-        self.assertEqual(runtimes().NAMES, ("claude-code",))
+        self.assertEqual(runtimes().NAMES, ("claude-code", "codex"))
         self.assertEqual(runtimes().get("claude-code").NAME, "claude-code")
 
     def test_AC1_string_and_map(self):
@@ -181,3 +181,119 @@ class Pause(ds.DispatchCase):
         os.utime(p, (time.time() - 40 * 60,) * 2)
         self.assertFalse(cyclemod.usage_limited(self.shome))
         self.assertFalse(dashboard.Factory(self.shome, self.path("claude")).usage_limited())
+
+
+class CodexUnits(ds.DispatchCase):
+    """The codex runtime's own logic, called in-process: the limit's runtime, what the outcome ignores, the generated
+    CODEX_HOME, the inbox hook in Codex's mode and the token reading."""
+
+    def test_limited_runtime_is_the_start_lines(self):
+        "the runtime a limit belongs to is the last == start line's runtime=; an old log without one is claude-code; no limit is None"
+        rt = runtimes()
+        start = "== start /sf:develop 5 2026-10-14T10:00:00-03:00 pid=1 weight=standard runtime=%s\n"
+        self.assertEqual(rt.limited_runtime(start % "codex" + end("usage_limit")), "codex")
+        self.assertEqual(rt.limited_runtime((start % "codex" + end("usage_limit")).encode()), "codex")
+        self.assertEqual(rt.limited_runtime(START_OLD + LIMIT + end()), "claude-code")
+        self.assertIsNone(rt.limited_runtime(start % "codex" + end("ok")))
+        self.assertEqual((rt.label("codex"), rt.label("claude-code")), ("Codex", "Claude"))
+
+    def test_outcome_ignores_the_commands_the_agent_ran(self):
+        "a limit's words inside an item.* event (a file the agent read) are not the CLI speaking; an error event is"
+        out = runtimes().get("codex").outcome
+        quoted = '{"type":"item.completed","item":{"type":"command_execution","aggregated_output":"Quota exceeded"}}\n'
+        self.assertEqual(out(0, quoted), "ok")
+        self.assertEqual(out(1, quoted), "fail")
+        self.assertEqual(out(1, quoted + '{"type":"error","message":"Quota exceeded"}\n'), "usage_limit")
+
+    def test_generated_home(self):
+        "codex_gen writes config, hooks, one agent file and one prompt per stage: codex blocks kept, others dropped, frontmatter out, the model from runtime.models.agents; a second run changes nothing; stale files go; auth.json stays"
+        from runtimes import codex_gen
+        src, home = self.path("plugin"), self.path("chome")
+        self.write(os.path.join(src, "agents", "engineer.md"),
+                   "---\nname: engineer\ndescription: Builds it\nmodel: sonnet\n---\n\nBody <!-- rt:codex -->for codex <!-- /rt --><!-- rt:other -->no<!-- /rt -->\n")
+        self.write(os.path.join(src, "skills", "develop", "SKILL.md"),
+                   "---\nname: develop\n---\n# Develop\n<!-- rt:codex -->\nCodex line\n<!-- /rt -->\n<!-- rt:claude-code -->\nClaude line\n<!-- /rt -->\n")
+        self.write(os.path.join(home, "auth.json"), "secret")
+        self.write(os.path.join(home, "agents", "old.toml"), "x")
+        n = codex_gen.generate(src, home, "/scripts", {"engineer": "gpt-6-mini"}, python="/usr/bin/python3")
+        self.assertGreaterEqual(n, 4)
+        agent = open(os.path.join(home, "agents", "engineer.toml"), encoding="utf-8").read()
+        self.assertIn('model = "gpt-6-mini"', agent)
+        self.assertNotIn("sonnet", agent)
+        self.assertIn("for codex", agent)
+        self.assertNotIn("no<", agent)
+        prompt = open(os.path.join(home, "sf", "develop.md"), encoding="utf-8").read()
+        self.assertTrue(prompt.startswith("<!-- sf:stage=develop -->\n"))
+        self.assertIn("Codex line", prompt)
+        self.assertNotIn("Claude line", prompt)
+        self.assertNotIn("name: develop", prompt)
+        self.assertIn("inbox_hook.py --codex", open(os.path.join(home, "hooks.json"), encoding="utf-8").read())
+        self.assertFalse(os.path.exists(os.path.join(home, "agents", "old.toml")))
+        self.assertEqual(open(os.path.join(home, "auth.json")).read(), "secret")
+        self.assertEqual(codex_gen.generate(src, home, "/scripts", {"engineer": "gpt-6-mini"}, python="/usr/bin/python3"), 0)
+
+    def test_generated_from_the_real_skills_and_agents(self):
+        "generating from the plugin's own skills and agents: every stage prompt has its stage marker, no rt: marker or frontmatter is left, and codex gets its own instructions instead of Claude's"
+        import json
+        from runtimes import codex_gen
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        home = self.path("chome-real")
+        codex_gen.generate(repo, home, "/scripts", python="/usr/bin/python3")
+        for stage in codex_gen.STAGES:
+            text = open(os.path.join(home, "sf", stage + ".md"), encoding="utf-8").read()
+            self.assertTrue(text.startswith("<!-- sf:stage=%s -->\n" % stage), stage)
+            self.assertNotIn("<!-- rt:", text, stage)
+            self.assertNotIn("<!-- /rt", text, stage)
+            self.assertNotIn("\nname: %s\n" % stage, text, stage)
+            self.assertNotIn("Claude Opus", text, stage)
+            self.assertNotIn("Agent tool", text, stage)
+        for name in os.listdir(os.path.join(repo, "agents")):
+            agent = open(os.path.join(home, "agents", name[:-3] + ".toml"), encoding="utf-8").read()
+            instructions = json.loads(re.search(r"^developer_instructions = (.*)$", agent, re.M).group(1))
+            self.assertNotIn("<!-- rt:", instructions, name)
+            self.assertNotIn("<!-- /rt", instructions, name)
+            self.assertNotIn("Claude Opus", instructions, name)
+            self.assertIn("apply_patch" if name not in ("cybersec.md",) else "rg", instructions, name)
+
+    def test_codex_hook_gives_each_agent_each_message_once(self):
+        "inbox_hook --codex: the first session is the lead (inbox.lead), another session counts on its own; outside a run it says nothing"
+        import io
+        import json
+        import inbox_hook
+        lock = self.path("lock")
+        self.write(os.path.join(lock, "inbox"), json.dumps({"text": "one"}) + "\n")
+
+        def call(session):
+            out = io.StringIO()
+            with mock.patch.dict(os.environ, {"SHIPFLOOR_RUN_LOCK": lock}), \
+                    mock.patch("sys.stdin", io.StringIO(json.dumps({"session_id": session}))), mock.patch("sys.stdout", out):
+                inbox_hook.main(codex=True)
+            return out.getvalue()
+
+        first = json.loads(call("s1"))["hookSpecificOutput"]["additionalContext"]
+        self.assertTrue(first.startswith(inbox_hook.INTRO) and first.endswith("one"))
+        self.assertEqual(call("s1"), "", "the lead has read it")
+        self.assertEqual(open(os.path.join(lock, "inbox.lead")).read(), "1")
+        self.assertIn("one", call("s2"), "a subagent gets it too")
+        self.assertEqual(call("s2"), "")
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SHIPFLOOR_RUN_LOCK", None)
+            with mock.patch("sys.stdin", io.StringIO("{}")):
+                inbox_hook.main(codex=True)
+
+    def test_tokens_follow_the_model_of_the_turn(self):
+        "parse adds what the running total grew by to the model of the turn, cached input apart; a repeated total adds nothing"
+        import json
+        codex = runtimes().get("codex")
+        rows = [{"timestamp": "2026-10-14T10:00:0%dZ" % i, "type": k, "payload": p} for i, (k, p) in enumerate([
+            ("session_meta", {"id": "a", "cwd": "/x"}), ("turn_context", {"model": "m1"}),
+            ("event_msg", {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 100, "cached_input_tokens": 40, "output_tokens": 10}}}),
+            ("event_msg", {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 100, "cached_input_tokens": 40, "output_tokens": 10}}}),
+            ("turn_context", {"model": "m2"}),
+            ("event_msg", {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 150, "cached_input_tokens": 50, "output_tokens": 30}}}),
+            ("event_msg", {"type": "token_count", "info": None})])]
+        path = self.path("rollout.jsonl")
+        self.write(path, "\n".join(json.dumps(r) for r in rows) + "\n")
+        t = codex.parse(path)["tokens"]
+        self.assertEqual((t["m1"]["input"], t["m1"]["cache_read"], t["m1"]["output"]), (60, 40, 10))
+        self.assertEqual((t["m2"]["input"], t["m2"]["cache_read"], t["m2"]["output"]), (40, 10, 20))

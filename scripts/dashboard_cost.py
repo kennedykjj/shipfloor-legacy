@@ -108,12 +108,15 @@ class Transcripts:
         self.dirty = raw is not None and not ok  # an old file is replaced
         self.seen = set()
 
-    def get(self, path):
-        key = f"{self.runtime}:{path}"
-        stamp, hit = runtimes.get(self.runtime).stamp(path), self.cache.get(key)
+    def get(self, path, parse=None):
+        """The parsed transcript at path; parse (a runtime's reader, as runtimes.sessions hands it) names the runtime."""
+        name = next((n for n in runtimes.NAMES if runtimes.get(n).parse is parse), self.runtime)
+        rt = runtimes.get(name)
+        key = f"{name}:{path}"
+        stamp, hit = rt.stamp(path), self.cache.get(key)
         self.seen.add(key)
         if not (isinstance(hit, list) and len(hit) == len(stamp) + 1 and hit[:-1] == stamp):
-            p = runtimes.get(self.runtime).parse(path)
+            p = rt.parse(path)
             hit = self.cache[key] = stamp + [{k: p[k] for k in ("stage", "issue", "start", "tokens")}]
             self.dirty = True
         return hit[-1]

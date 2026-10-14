@@ -1,7 +1,7 @@
 """Health history: one JSON line per dispatcher cycle in <home>/logs/health-<YYYY-MM>.jsonl (the board,
 runs against their limits, the machine), and the alerts read back from its last lines.
   record --home H --seconds N --exit N [--overlap]    alerts --home H"""
-import argparse, json, os, shutil, sys, time
+import argparse, json, os, re, shutil, sys, time
 from datetime import datetime
 from pathlib import Path
 
@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import shipfloor_config
 from shipfloor_core import deps
 from shipfloor_core.defaults import STAGES  # stage: (queue column, columns it resumes, WIP columns), as the dispatcher runs them
+STOPPED = re.compile(r"^== end /sf:\w+ \d+ exit=\d+ \S+ stopped=(\S+)", re.M)  # a run whose agent did not do its stage
 CYCLES = 3  # an alert looks at this many cycles: one cycle with a free slot is the dispatcher's own timing
 
 
@@ -65,6 +66,20 @@ def cgroup_memory():
         return {"mem_mb": int((d / "memory.current").read_text().strip()) // 2**20, "max_mb": int(top) // 2**20}
     except (OSError, ValueError):
         return None
+
+
+def stopped_today(pdir):
+    """Today's runs of a project that ended with `stopped=<why>` on their == end line, counted by why: agents that
+    stopped at their first steps (blocked, infra, owner-only) or ended without a report (no-report)."""
+    day, out = datetime.now().astimezone().date().isoformat(), {}
+    for log in sorted((pdir / "logs").glob(day + "-*.log")):
+        try:
+            found = STOPPED.findall(log.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+        for why in found:
+            out[why] = out.get(why, 0) + 1
+    return out
 
 
 def cost_stopped(home, projects):
@@ -127,7 +142,7 @@ def snapshot(home, seconds, code, overlap):
             counts[col] = counts.get(col, 0) + 1
         projects[p] = {"paused": (f.pdir(p) / "PAUSE").exists(), "skipped": bool(f.skipped(p)), "board_age_s": age,
                        "columns": counts, "blocked": sum(n in columns for n in blocked), "blocked_cards": sorted(n for n, kind in blocked.items() if kind == "owner" and n in columns),
-                       "stages": stages}
+                       "stages": stages, "stopped_runs": stopped_today(f.pdir(p))}
     stacks, queue = f.stacks()
     return {"ts": datetime.now().astimezone().isoformat(timespec="seconds"),
             "cycle": {"s": seconds, "exit": code, "overlap": overlap},

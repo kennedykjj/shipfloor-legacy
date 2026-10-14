@@ -511,3 +511,201 @@ class Telemetry(Base):
             "bash ~/.shipfloor/factory/gate.sh green 54", "bash ~/.shipfloor/factory/board.sh move 54 Coding",
             "gh pr view 3", "x=$(gh api user)", "cd wt && gh issue list", "git status", "echo high", None)],
             ["gate", "board", "gh", "gh", "gh", "other", "other", "other"])
+
+
+class Stopped(Base):
+    """A run whose agent ended without doing its stage says so on its == end line and in runs.jsonl (stopped=<why>),
+    and the ones that hold the card leave a mark (stopped/<n>); a run that did its stage clears the marks."""
+
+    def report(self, n, outcome, stage="develop", **more):
+        d = os.path.join(self.home, "reports-wt", "reports", "%s-thing" % n)
+        os.makedirs(d, exist_ok=True)
+        self.write(os.path.join(d, "%s-%s.json" % (stage, time.strftime("%Y-%m-%dT%H%M%S"))),
+                   json.dumps(dict(issue=n, outcome=outcome, **more)))
+
+    def run54(self, *events, **kw):
+        self.set_fake(claude=dict(stream=[dict(RESULT)] if not events else list(events), **kw))
+        self.board(queues={"Ready for Dev": 54}, snapshot="54\tReady for Dev\tx\n")
+        self.cycle()
+        end = [l for l in self.log("develop", 54).splitlines() if l.startswith("== end")][-1]
+        runs = os.path.join(self.home, "logs", "runs.jsonl")
+        rows = [json.loads(l) for l in open(runs)] if os.path.exists(runs) else []
+        mark = os.path.join(self.home, "stopped", "54")
+        return end, rows, [l.split("\t")[1:] for l in open(mark).read().splitlines()] if os.path.exists(mark) else []
+
+    def test_blocked_report(self):
+        "a blocked report with no round done: stopped=blocked, exit stays 0, the summary says it; a label already holds the card, so no mark"
+        self.report(54, "blocked", step=1, reason="Spec Review is full")
+        end, rows, marks = self.run54()
+        self.assertRegex(end, r"^== end /sf:develop 54 exit=0 %s stopped=blocked outcome=ok$" % ds.ISO)
+        self.assertEqual([r["stopped"] for r in rows], ["blocked"])
+        self.assertEqual(marks, [])
+
+    def test_infra_report(self):
+        "an infra report with no round done: stopped=infra, no mark (the infra retry owns it)"
+        self.report(54, "infra", step=1, note="GitHub API rate limit exceeded")
+        end, rows, marks = self.run54()
+        self.assertIn(" stopped=infra outcome=ok", end)
+        self.assertEqual(marks, [])
+
+    def test_owner_only_report_leaves_a_mark(self):
+        "a report whose words say the change is the owner's: stopped=owner-only and a mark with the column the run started from"
+        self.report(54, "blocked", step=1, reason="owner-only change to .github/workflows/ci.yml; factory may not touch it")
+        end, rows, marks = self.run54()
+        self.assertIn(" stopped=owner-only outcome=ok", end)
+        self.assertEqual(marks, [["develop", "owner-only", "Ready for Dev"]])
+
+    def test_no_report(self):
+        "a run that ended well but wrote no report (reports-wt exists): stopped=no-report and a mark"
+        os.makedirs(os.path.join(self.home, "reports-wt", "reports"))
+        end, rows, marks = self.run54()
+        self.assertIn(" stopped=no-report outcome=ok", end)
+        self.assertEqual([r["stopped"] for r in rows], ["no-report"])
+        self.assertEqual(marks, [["develop", "no-report", "Ready for Dev"]])
+
+    def test_no_reports_wt_claims_nothing(self):
+        "without a reports-wt there is nothing to read: the end line is the one it always was"
+        end, rows, marks = self.run54()
+        self.assertRegex(end, r"^== end /sf:develop 54 exit=0 %s outcome=ok$" % ds.ISO)
+        self.assertEqual(([r["stopped"] for r in rows], marks), ([""], []))
+
+    def test_work_is_not_a_stop(self):
+        "blocked after rounds, or a report of another outcome, is work done: no stopped=, and the card's marks go"
+        self.write(os.path.join(self.home, "stopped", "54"), "1\tdevelop\tno-report\tCoding\n")
+        self.report(54, "blocked", step=7, rounds=2, failed_gates=["green"])
+        end, rows, marks = self.run54()
+        self.assertNotIn("stopped=", end)
+        self.assertEqual(marks, [])
+        self.write(os.path.join(self.home, "stopped", "54"), "1\tdevelop\tno-report\tCoding\n")
+        self.report(54, "done", pr=12)
+        end, rows, marks = self.run54()
+        self.assertNotIn("stopped=", end)
+        self.assertEqual(marks, [])
+
+    def test_usage_limit_is_not_a_stop(self):
+        "a run that ended on the usage limit is not judged: no stopped=, no mark (the pause owns it)"
+        os.makedirs(os.path.join(self.home, "reports-wt", "reports"))
+        end, rows, marks = self.run54(dict(RESULT, is_error=True, result="You've hit your session limit · resets 3pm"))
+        self.assertTrue(end.endswith("outcome=usage_limit"), end)
+        self.assertNotIn("stopped=", end)
+        self.assertEqual(marks, [])
+
+    def test_a_crash_is_not_judged(self):
+        "an agent that exits non-zero is not judged and leaves the marks as they were"
+        os.makedirs(os.path.join(self.home, "reports-wt", "reports"))
+        self.write(os.path.join(self.home, "stopped", "54"), "1\tdevelop\tno-report\tCoding\n")
+        end, rows, marks = self.run54(exit=3)
+        self.assertIn("exit=3", end)
+        self.assertNotIn("stopped=", end)
+        self.assertEqual(len(marks), 1)
+
+
+CODEX_MODELS = """runtime:
+  default: codex
+  models:
+    stages:
+      develop: gpt-6-mini
+      validate: {light: gpt-6-mini, standard: gpt-6-mini, heavy: gpt-6-sol}
+"""
+
+
+class CodexSandbox(ds.CodexCase):
+    def test_AC2_codex_writes_only_where_the_run_may(self):
+        "AC-2 a Codex run is sandboxed to workspace-write with the worktrees, tmp and reviews as the only extra writable folders: not the installed scripts, reports-wt, its CODEX_HOME, nor any repo file the gates guard"
+        os.makedirs(os.path.join(self.home, "reports-wt"))
+        self.board(queues={"Ready for Dev": 54})
+        self.assertEqual(self.cycle(), 0, self.err)
+        argv = self.codex_calls()[0]["argv"]
+        self.assertEqual(argv[argv.index("-s") + 1], "workspace-write")
+        for unsafe in ("danger-full-access", "--dangerously-bypass-approvals-and-sandbox", "--yolo"):
+            self.assertNotIn(unsafe, argv)
+        writable = [argv[i + 1] for i, a in enumerate(argv) if a == "--add-dir"]
+        self.assertEqual(sorted(writable), sorted([os.environ["FACTORY_WT_ROOT"], self.home + "/tmp", self.home + "/reviews"]))
+        roots = [os.environ["FACTORY_WT_ROOT"], self.home + "/tmp", self.home + "/reviews"]
+        for folder in writable:
+            # independent of where TMPDIR lives: compare by path, not by substring
+            for guarded in (SCRIPTS, self.home + "/reports-wt", self.codex_home):
+                rel = os.path.relpath(folder, guarded)
+                self.assertTrue(rel == ".." or rel.startswith("../"), "%s is, or is under, %s" % (folder, guarded))
+            root = next(r for r in roots if folder == r or folder.startswith(r + "/"))
+            parts = os.path.relpath(folder, root).split("/")
+            for guarded in (".shipfloor", ".github", ".codex", "AGENTS.md"):
+                self.assertNotIn(guarded, parts)
+
+
+class CodexModels(ds.CodexCase):
+    def models(self, machine=CODEX_MODELS, queues=None):
+        """{'<stage> <n>': the -m flag (None: no flag)} of one cycle's launches."""
+        self.machine_cfg(ds.POOL8 + "\n" + machine)
+        self.board(queues=queues or {"Ready for Dev": "54 55", "Validation": 60, "Ready for Refinement": 70})
+        self.launches, self.pending = [], []
+        for d in os.listdir(os.path.join(self.home, "locks")):
+            os.rmdir(os.path.join(self.home, "locks", d))
+        self.assertEqual(self.cycle(), 0, self.err)
+        out = {}
+        for c in self.codex_calls()[-len(self.launches):]:
+            out[c["stdin"].split("Card: #")[-1].strip()] = self.flag(c, "-m")
+        return out
+
+    def test_AC3_the_configured_codex_model_is_the_run_model(self):
+        "AC-3 runtime.models gives a Codex run its model, a stage alone or one weight of it, with the name as written; no model configured is no -m flag"
+        self.card(54, "light")
+        self.card(55, "heavy")
+        self.card(60, "heavy")
+        self.assertEqual(self.models(), {"54": "gpt-6-mini", "55": "gpt-6-mini", "60": "gpt-6-sol", "70": None})
+        self.assertIn("model=gpt-6-mini", self.start_line("develop", 54))
+        self.assertEqual(self.models("runtime: codex"), {"54": None, "55": None, "60": None, "70": None})
+
+    def test_AC3_models_stages_is_for_claude_code_only(self):
+        "AC-3 the machine's models.stages (Claude Code's aliases) never reaches a Codex run"
+        got = self.models("runtime: codex\nmodels:\n  stages: {develop: haiku, validate: opus, refine: opus}")
+        self.assertEqual(got, {"54": None, "55": None, "60": None, "70": None})
+        self.assertNotIn("model=haiku", self.start_line("develop", 54))
+        self.assertEqual(self.claude_calls(), [])
+
+    def test_AC3_invalid_runtime_models_stop_the_dispatch(self):
+        "AC-3 a runtime.ladder that is not a list, an empty model name or an unknown key of runtime.models is an invalid config: exit 2, nothing started"
+        self.board(queues={"Ready for Dev": 54})
+        for text in ("runtime: {default: codex, ladder: gpt-6-mini}", "runtime: {default: codex, models: {stages: {develop: ''}}}",
+                     "runtime: {default: codex, models: {nope: gpt-6-mini}}"):
+            self.machine_cfg(ds.POOL8 + "\n" + text)
+            self.assertEqual(self.cycle(), 2, (text, self.err, self.out))
+        self.assertEqual(self.codex_calls(), [])
+        self.machine_cfg(ds.POOL8 + "\n" + CODEX_MODELS + "  ladder: [gpt-6-mini, gpt-6-sol]")
+        self.assertEqual(self.cycle(), 0, self.err)
+
+    def failing_develop(self, machine):
+        self.machine_cfg(ds.POOL8 + "\n" + machine)
+        self.board(queues={"Ready for Dev": 54}, snapshot="54\tCoding\tI_1\n")
+        self.set_fake(codex={"verdict": "FAIL", "gate": "build"})
+        self.cycle()
+        self.assertTrue(self.codex_calls(), "the develop run ran on codex: %s %s" % (self.out, self.err))
+        return self.log("develop", 54)
+
+    def test_AC3_a_failed_gate_steps_up_the_runtime_ladder(self):
+        "AC-3 a develop run that ends on a failed gate runs again one rung up runtime.ladder, once"
+        log = self.failing_develop(CODEX_MODELS + "  ladder: [gpt-6-mini, gpt-6-sol]")
+        self.assertRegex(log, r"== step-up /sf:develop 54 gpt-6-mini -> gpt-6-sol: gate build failed %s\n" % ds.ISO)
+        self.assertEqual(open(os.path.join(self.home, "stepup", "54")).read(), "gpt-6-mini\tgpt-6-sol\tbuild\n")
+        self.board(queues={"Coding": 54}, snapshot="54\tCoding\tI_1\n")
+        self.set_fake(codex={"verdict": "FAIL", "gate": "green"})
+        self.cycle()
+        self.assertEqual(self.flag(self.codex_calls()[1], "-m"), "gpt-6-sol")
+        self.assertIn("model=gpt-6-sol", self.start_line("develop", 54))
+        self.assertIn("dispatch: #54 runs on gpt-6-sol, one model up after gpt-6-mini failed gate build", self.out)
+        self.assertEqual(self.log("develop", 54).count("== step-up"), 1, "a stepped-up run steps no further")
+
+    def test_AC3_no_ladder_no_step_up(self):
+        "AC-3 without runtime.ladder, or on its top rung or off it, a failed gate steps nothing up"
+        for name, machine in (("no ladder", CODEX_MODELS),
+                              ("top rung", CODEX_MODELS.replace("develop: gpt-6-mini", "develop: gpt-6-sol") + "  ladder: [gpt-6-mini, gpt-6-sol]"),
+                              ("off the ladder", CODEX_MODELS + "  ladder: [gpt-6-nano, gpt-6-sol]")):
+            if os.path.exists(os.path.join(self.home, "stepup", "54")):
+                os.unlink(os.path.join(self.home, "stepup", "54"))
+            log = self.failing_develop(machine)
+            self.assertNotIn("== step-up", log, name)
+            self.assertFalse(os.path.exists(os.path.join(self.home, "stepup", "54")), name)
+
+    def start_line(self, p, n):
+        lines = [l for l in self.log(p, n).splitlines() if l.startswith("== start")]
+        return lines[-1] if lines else ""

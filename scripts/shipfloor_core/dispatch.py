@@ -24,6 +24,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 import runtimes
@@ -43,6 +44,12 @@ PS_CLEANUP = r'''
     Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $p -and $_.ProcessId -ne $PID } |
       ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'''
 GH_LIMIT = re.compile(r"API rate limit|secondary rate limit", re.I)
+
+
+# A run that stops for these without doing its stage leaves a mark (stopped/<n>); two in a row hold the card. A report
+# of `blocked` or `infra` is not here: the label it comes with (or the infra retry) already holds the card, and the
+# owner who takes the label off wants the card to run.
+HOLD_STOPS = ("owner-only", "no-report")
 
 
 class Exit(Exception):
@@ -221,6 +228,75 @@ def _board(*args):
     return ["bash", os.path.join(SCRIPTS, "board.sh"), *args]
 
 
+def _disk_free(path):
+    """(free bytes, free inodes in % or None where the OS does not count them) of the filesystem under path."""
+    try:
+        st = os.statvfs(path)
+    except AttributeError:  # Windows has no inodes to run out of
+        return shutil.disk_usage(path).free, None
+    return st.f_bavail * st.f_frsize, (100.0 * st.f_favail / st.f_files if st.f_files else None)
+
+
+def _stops(home, n):
+    """The marks of card <n>: [(epoch, stage, reason, column the run started from)], oldest first."""
+    out = []
+    try:
+        with open(os.path.join(home, "stopped", n), encoding="utf-8") as f:
+            for line in f.read().split("\n"):
+                parts = line.split("\t")
+                if len(parts) == 4:
+                    out.append(tuple(parts))
+    except OSError:
+        pass
+    return out
+
+
+def stopped_run(spec, t0):
+    """Why a finished run did not do its stage ("" = it did, or nothing says it did not). The run's report
+    (reports-wt/reports/<n>-*/<stage>-<time>.json, written by report.sh) says it: outcome `blocked` or `infra` with no
+    round done is an agent that stopped at its first steps (`owner-only` when its words say the change is the owner's);
+    no report younger than the run's start is an agent that ended without writing one. Without a reports-wt there is
+    nothing to read, and nothing is claimed."""
+    p, n, home = spec["p"], spec["n"], spec["home"]
+    if p == "deploy" or not os.path.isdir(os.path.join(home, "reports-wt")):
+        return ""
+    found = None
+    for f in sorted(glob.glob(os.path.join(glob.escape(home), "reports-wt", "reports", n + "-*", p + "-*.json"))):
+        m = re.search(r"-(\d{4}-\d\d-\d\dT\d{6})\.json$", f)
+        try:
+            at = time.mktime(time.strptime(m.group(1), "%Y-%m-%dT%H%M%S")) if m else None
+        except (ValueError, OverflowError):
+            at = None
+        if at is not None and at >= t0 - 5:
+            found = f
+    if found is None:
+        return "no-report"
+    try:
+        with open(found, encoding="utf-8") as f:
+            r = json.load(f)
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(r, dict) or r.get("outcome") not in ("blocked", "infra") or r.get("rounds"):
+        return ""
+    said = " ".join(str(r.get(k) or "") for k in ("reason", "note", "notes"))
+    return "owner-only" if re.search(r"owner[- ]only", said, re.I) else r["outcome"]
+
+
+def _note_stop(spec, reason):
+    """After a run that ended well enough to be judged: a stop that holds leaves its mark; a run that did its stage
+    clears the card's marks."""
+    path = os.path.join(spec["home"], "stopped", spec["n"])
+    if reason in HOLD_STOPS:
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "a", encoding="utf-8", newline="\n") as f:
+                f.write("%s\t%s\t%s\t%s\n" % (_epoch(), spec["p"], reason, spec.get("col", "")))
+        except OSError:
+            pass
+    elif reason == "":
+        _rm(path)
+
+
 def _run_env(envs, cwd=None):
     """env -u FACTORY_BOARD_SNAPSHOT <envs>, in a shell that did cd <cwd> (PWD follows)."""
     env = dict(os.environ)
@@ -370,7 +446,8 @@ class Cycle:
         if len(pool) != 7:
             self.die("dispatch: cannot read the machine pool", 2)
         self.stage_slots = dict(zip(STAGES, pool[1:5]))
-        models = _nul(self.machine("stage-models")[1])  # each stage x light standard heavy; empty = no --model flag
+        # each stage x light standard heavy; empty = no --model flag. A stage off claude-code takes runtime.models.
+        models = _nul(self.machine("stage-models", proc.native_path(os.environ.get("FACTORY_CONFIG", "")))[1])
         if len(models) != 12:
             self.die("dispatch: cannot read the stage models", 2)
         self.stage_model = {}
@@ -388,8 +465,9 @@ class Cycle:
             self.say("dispatch: GitHub API limit hit recently; waiting")
             return 0
         self.read_board()
-        if self.usage_limited():
-            self.say("dispatch: Claude usage limit hit recently; waiting")
+        limited = self.usage_limited()
+        if limited:
+            self.say("dispatch: %s usage limit hit recently; waiting" % runtimes.label(limited))
             return 0
         self.clean_markers()
         if pool[5] + pool[6]:
@@ -405,8 +483,11 @@ class Cycle:
         out = _t(self.machine("hours", quiet=True)[1]).split("\n")[0].split(None, 1)
         state = out[0] if out else ""
         nxt = out[1].strip() if len(out) > 1 else ""
+        low = "" if (state or "open") == "closed" else self.low_disk()
         if (state or "open") == "closed":
             self.say("dispatch: outside working hours; runs start again at %s" % nxt)
+        elif low:
+            self.say("dispatch: %s; no run starts until there is space" % low)
         else:
             lr, ld = _int(lim[0]), _int(lim[1])
             # one deploy at a time in a project: merges into its main are serial
@@ -495,8 +576,8 @@ class Cycle:
         return age is not None and age < minutes * 60
 
     def usage_limited(self):
-        """A run that ended on the Claude usage limit in the last 30 min pauses new launches: its log's last run (from
-        the last == start line) says so."""
+        """The runtime whose usage limit a run ended on in the last 30 min (None when no one did): that pauses new
+        launches. Its log's last run (from the last == start line) says so."""
         for root, dirs, files in os.walk(os.path.join(self.home, "logs")):
             dirs.sort()
             for name in sorted(files):
@@ -511,9 +592,10 @@ class Cycle:
                         lines = f.read().split(b"\n")
                 except OSError:
                     continue
-                if runtimes.usage_limited(b"\n".join(lines)):
-                    return True
-        return False
+                name = runtimes.limited_runtime(b"\n".join(lines))
+                if name:
+                    return name
+        return None
 
     # --- markers whose card left the board
     def clean_markers(self):
@@ -530,6 +612,50 @@ class Cycle:
             n = os.path.basename(f)
             if self.snapshot_status(n) != "Coding" and not self.card_busy(n):
                 _rm(f)
+        # A stop mark (stopped/<n>) goes when its card leaves the board.
+        for f in sorted(glob.glob(os.path.join(glob.escape(self.home), "stopped", "*"))):
+            if os.path.isfile(f) and self.snapshot_status(os.path.basename(f)) == "":
+                _rm(f)
+
+    def stopped_hold(self, n):
+        """A card whose last two runs both stopped without doing their stage (stopped/<n>) is not started until the owner
+        acts: moves the card to another column (the mark remembers the column the last run started from) or deletes the
+        mark."""
+        rows = _stops(self.home, n)
+        if len(rows) < 2:
+            return False
+        col = self.snapshot_status(n).split("\n")[0]
+        if rows[-1][3] and col and col != rows[-1][3]:
+            _rm(os.path.join(self.home, "stopped", n))
+            return False
+        self.say("dispatch: #%s stopped twice in a row (%s); not started again until you move the card or delete %s"
+                 % (n, rows[-1][2], os.path.join(self.home, "stopped", n)))
+        return True
+
+    def low_disk(self):
+        """What is short on the disks a run writes to ("" = enough): the machine's `disk` floor (min_free_gb,
+        min_free_inodes_pct; 0 turns one off) on the folder the runs' TMPDIR is made in, the machine's temp folder and
+        the worktrees' folder, once for each filesystem."""
+        vals = _nul(self.machine("values", "disk.min_free_gb", "disk.min_free_inodes_pct", quiet=True)[1])
+        try:
+            gb, pct = float(vals[0]), float(vals[1])
+        except (IndexError, ValueError):
+            return ""
+        seen = set()
+        for path in (os.path.join(self.home, "tmp"), os.environ.get("TMPDIR") or tempfile.gettempdir(), self.wt_root):
+            try:
+                dev = os.stat(path).st_dev
+                free, inodes = _disk_free(path)
+            except OSError:
+                continue
+            if dev in seen:
+                continue
+            seen.add(dev)
+            if gb > 0 and free < gb * 2 ** 30:
+                return "%s has %.1f GB free, the floor is %g GB" % (path, free / 2 ** 30, gb)
+            if pct > 0 and inodes is not None and inodes < pct:
+                return "%s has %.0f%% of its inodes free, the floor is %g%%" % (path, inodes, pct)
+        return ""
 
     # --- cost limits (machine config `costs`): none set, nothing here starts a process
     def cost_limits(self):
@@ -696,13 +822,17 @@ class Cycle:
         envs.append("TMPDIR=" + scratch + "/tmp")
         if rt.TRAILER != TRAILER:  # the commits' trailer names the agent that wrote them; the default needs no variable
             envs.append("SHIPFLOOR_TRAILER=" + rt.TRAILER)
+        # the agent's final message, for a runtime that writes it to a file (the dispatcher appends it to the log)
+        last = log + rt.LAST_SUFFIX if getattr(rt, "LAST_SUFFIX", None) else ""
         argv, envs, stdin = rt.command({
             "stage": p, "issue": n, "model": model, "plugin": self.plugin, "system_prompt": SYSTEM_PROMPT,
             "write": [self.wt_root, self.home + "/tmp", self.home + "/reviews"],
-            "read": [SCRIPTS, self.home + "/reports-wt"], "envs": envs})
+            "read": [SCRIPTS, self.home + "/reports-wt"], "envs": envs, "control": self.control, "last": last})
         binary = (os.environ.get("FACTORY_CLAUDE") or rt.BINARY) if rt.NAME == "claude-code" else rt.BINARY
-        _detach({"mode": "run", "p": p, "n": n, "dir": d, "log": log, "model": model, "weight": weight,
+        _detach({"mode": "run", "p": p, "n": n, "dir": d, "log": log, "last": last, "model": model, "weight": weight,
+                 "col": self.snapshot_status(n).split("\n")[0],
                  "step": step, "from": frm, "gate": gate, "runtime": rt.NAME, "binary": binary, "argv": argv,
+                 "config": proc.native_path(os.environ.get("FACTORY_CONFIG", "")),
                  "envs": envs, "stdin": stdin,
                  "control": self.control, "wt_root": self.wt_root, "home": self.home, "mlang": self.mlang,
                  "deploy": os.environ.get("FACTORY_DEPLOY") or os.path.join(SCRIPTS, "deploy.sh")})
@@ -724,6 +854,8 @@ class Cycle:
             self.started = 0
             if p != "refine" and self.waits_on_deps(n):
                 return True  # waiting on an open dependency, or the read failed: not started, no label, no slot
+            if self.stopped_hold(n):
+                return True  # its last two runs stopped without doing their stage: the owner acts first
             if (" %s " % n) in (" %s " % self.block_cards) and self.block_card(n):
                 return True  # blocked, not started: it takes no slot
             self.started = 1
@@ -756,6 +888,7 @@ class Cycle:
                     return False
         # 2. new cards from the queue, within the WIP limit
         slots = st["free"]
+        room = None
         if limit > 0:
             rc, used = _cap(_board("count", *wip_cols))
             if rc != 0:
@@ -770,6 +903,11 @@ class Cycle:
             if room < slots:
                 slots = room
         if slots <= 0:
+            if room is not None and room <= 0:  # the agent would stop at its first step on this: say it, start nothing
+                rc, cards = _cap(_board("eligible", queue))
+                if rc == 0 and cards.split():
+                    self.say("dispatch: %s: %s is full (limits.%s.wip %d); %d card%s wait"
+                             % (p, " + ".join(wip_cols), p, limit, len(cards.split()), "" if len(cards.split()) == 1 else "s"))
             return True
         rc, cards = _cap(_board("eligible", queue))
         if rc != 0:
@@ -860,7 +998,7 @@ def step_up(spec, model, log):
     name, verdict = text.read_tab(first[0], 2)
     if verdict != "FAIL":
         return
-    r = project.machine("model-up", model)
+    r = project.machine("model-up", model, spec.get("runtime") or "claude-code", spec.get("config") or "")
     up = _t(r.stdout).rstrip("\n")
     if not up:
         return
@@ -920,25 +1058,49 @@ def supervise(spec):
         return 1
     os.chdir(control)  # as the Bash run did: what follows (the step-up, the cleanup) runs from the control checkout
     env = _run_env(spec["envs"], control)
+    t0, judged = time.time(), {}
+
+    def why(rc):
+        """Why the agent stopped without doing its stage ("" = it did; None = not judged: it crashed, or hit the usage
+        limit). Judged once, when the agent has ended."""
+        if "r" not in judged:
+            ok = rc == 0 and _outcome(spec, log, offset, rc) == "ok"
+            judged["r"] = stopped_run(spec, t0) if ok else None
+        return judged["r"]
 
     def agent():
         # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into "C:/Program Files/Git/develop 54".
         # Its stdout is a stream-json read by telemetry: the log gets the text a plain -p printed, the events and a
         # summary go beside it (telemetry.py).
         argv = proc.script_argv(spec["binary"], *spec["argv"])
-        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso()}
+        last = spec.get("last")
+        # a runtime with a final-message file streams its own JSON: the log keeps it as it comes
+        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso(), "raw": bool(last)}
         _flush()
-        return telemetry.run_agent(argv, log, control, env, spec["stdin"].encode("utf-8"), meta,
-                                   os.path.join(spec["home"], "logs", "runs.jsonl"), iso=_iso)
+        # a run with a final-message file is judged once that message is in the log (below), not inside the summary
+        rc = telemetry.run_agent(argv, log, control, env, spec["stdin"].encode("utf-8"), meta,
+                                 os.path.join(spec["home"], "logs", "runs.jsonl"), iso=_iso,
+                                 stopped=None if last else why)
+        if last:
+            try:
+                with open(last, "rb") as f:
+                    final = f.read()
+                os.unlink(last)
+                _append(log, final.rstrip(b"\n").decode("utf-8", "replace") + "\n" if final.strip() else "")
+            except OSError:
+                pass
+        return rc
 
     def deploy(*args):
         with open(log, "ab") as f:
             return _run(["bash", spec["deploy"], n, *args], out=f, err=STDOUT, cwd=control, env=env)[0]
 
     try:
-        _work(spec, agent, deploy, log, offset)
+        _work(spec, agent, deploy, log, offset, why)
     except Exception as e:  # whatever happens, the cleanup below runs and the lock goes
         _write(sys.stderr, "dispatch: #%s: %s\n" % (n, e))
+    if judged.get("r") is not None:
+        _note_stop(spec, judged["r"])
     # what the run created goes with it, before its lock: its stack slot, its tmp/<n>/, its retry marker stays
     try:
         stack.release_run(stack.read_settings(), d)
@@ -977,19 +1139,26 @@ def wake_dispatcher():
         _write(sys.stderr, "dispatch: cannot ask for a cycle: %s\n" % (e.strerror or e))
 
 
-def _end_line(spec, log, offset, rc):
-    """The == end line of a run: its exit code, the time, and the outcome its runtime reads from the run's block."""
+def _outcome(spec, log, offset, rc):
+    """The outcome its runtime reads from the run's block of the log."""
     try:
         with open(log, "rb") as f:
             f.seek(offset)
             block = f.read()
     except OSError:
         block = b""
-    return "== end /sf:%s %s exit=%d %s outcome=%s\n" % (spec["p"], spec["n"], rc, _iso(),
-                                                         runtimes.get(spec["runtime"]).outcome(rc, block))
+    return runtimes.get(spec["runtime"]).outcome(rc, block)
 
 
-def _work(spec, agent, deploy, log, offset=0):
+def _end_line(spec, log, offset, rc, stopped=""):
+    """The == end line of a run: its exit code, the time, `stopped=<why>` when the agent ended without doing its stage
+    (exit stays 0: the process did what it was asked), and the outcome."""
+    return "== end /sf:%s %s exit=%d %s%s outcome=%s\n" % (spec["p"], spec["n"], rc, _iso(),
+                                                          " stopped=" + stopped if stopped else "",
+                                                          _outcome(spec, log, offset, rc))
+
+
+def _work(spec, agent, deploy, log, offset=0, why=lambda rc: ""):
     """The run itself: the agent, or deploy.sh and its rounds; == end; the step-up. Its exit code."""
     p, n, model = spec["p"], spec["n"], spec["model"]
     if p == "deploy":
@@ -1005,7 +1174,7 @@ def _work(spec, agent, deploy, log, offset=0):
         _append(log, _end_line(spec, log, offset, rc))
     else:
         rc = agent()
-        _append(log, _end_line(spec, log, offset, rc))
+        _append(log, _end_line(spec, log, offset, rc, why(rc) or ""))
         if p == "develop" and rc == 0:
             step_up(spec, model, log)
     return rc

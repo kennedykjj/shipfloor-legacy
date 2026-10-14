@@ -390,6 +390,24 @@ class Models(Settings):
         self.assertEqual(save({"stages": {"deploy": {"light": "gpt"}}}).code, 400)
         self.assertEqual(self.config_text(), before)
 
+    def test_codex_stage_takes_any_model_name(self):
+        "#150: a stage on a runtime with no model list is free text: priced by its exact name, saved under runtime.models, claude-code stages unchanged"
+        self.write("shome/prices.yml", self.PRICES + "gpt-5-codex: {input: 1.25, output: 10.00, cache_read: 0.125}\n")
+        self.config("pool: 6\nruntime:\n  default: claude-code\n  stages: {develop: codex}\n")
+        m = self.models()["stages"]
+        self.assertEqual([(m[s]["runtime"], m[s]["free"]) for s in m], [("claude-code", False), ("codex", True), ("claude-code", False), ("claude-code", False)])
+        self.assertEqual((m["develop"]["default"], m["develop"]["value"]), ({"light": None, "standard": None, "heavy": None}, {"light": None, "standard": None, "heavy": None}))
+        self.assertEqual(self.machine({"models": {"stages": {"develop": {"heavy": "  gpt-5-codex "}, "validate": "opus"}}}).code, 200)
+        c = self.read_config()
+        self.assertEqual(c["runtime"], {"default": "claude-code", "stages": {"develop": "codex"}, "models": {"stages": {"develop": {"heavy": "gpt-5-codex"}}}})
+        self.assertEqual(c["models"], {"stages": {"validate": "opus"}}, "the model of a claude-code stage stays in models")
+        m = self.models()["stages"]["develop"]
+        self.assertEqual((m["value"]["heavy"], m["priced"]), ("gpt-5-codex", {"light": True, "standard": True, "heavy": True}), "priced by the exact name")
+        self.assertEqual(self.machine({"models": {"stages": {"develop": {"light": "gpt-no-price"}}}}).code, 200)
+        self.assertFalse(self.models()["stages"]["develop"]["priced"]["light"], "a name with no price is flagged, still saved")
+        self.assertEqual(self.machine({"models": {"stages": {"develop": {"light": None, "heavy": "   "}}}}).code, 200)
+        self.assertNotIn("models", self.read_config()["runtime"], "empty is the runtime's default: nothing is kept")
+
 
 class Dispatcher(Settings):
     def disp(self):

@@ -130,6 +130,30 @@ if c.get("scratch"):
 sys.exit(c.get("exit", 0))
 '''
 
+# codex: a stand-in for `codex exec`. One JSON line per call in <tmp>/codex.calls (argv, stdin, cwd, env); the card is the
+# prompt's `Card: #<n>`; then what <tmp>/fake.json's "codex" says (per card under "cards"): print "say" (or the "stream"
+# lines) to stdout, write "last" to the file `-o` names, write a gate verdict to the run's lock, exit with a code.
+CODEX = r'''
+import json, os, re, sys
+fake = json.load(open(%(fake)r)) if os.path.exists(%(fake)r) else {}
+stdin = sys.stdin.read()
+m = re.search(r"Card: #(\d+)", stdin)
+n = m.group(1) if m else ""
+c = dict(fake.get("codex", {}))
+c.update(c.pop("cards", {}).get(n, {}))
+lock = os.environ.get("SHIPFLOOR_RUN_LOCK", "")
+rec = {"argv": sys.argv[1:], "stdin": stdin, "cwd": os.getcwd(), "env": dict(os.environ)}
+with open(%(calls)r, "a") as f:
+    f.write(json.dumps(rec) + "\n")
+for ev in c.get("stream", [c.get("say", "codex says hi")]):
+    print(ev if isinstance(ev, str) else json.dumps(ev), flush=True)
+if "-o" in sys.argv:
+    open(sys.argv[sys.argv.index("-o") + 1], "w").write(c.get("last", "codex final"))
+if c.get("verdict"):
+    open(os.path.join(lock, "last-gate"), "w").write("%%s\t%%s\n" %% (c.get("gate", "build"), c["verdict"]))
+sys.exit(c.get("exit", 0))
+'''
+
 # deploy.sh: one JSON line per call in <tmp>/deploy.calls (argv, cwd, env, the project's locks and their info); --refresh exits 0;
 # the other calls exit with fake.json's "deploy_exits", one per call (the last one repeats; default 0).
 DEPLOY = r'''
@@ -396,3 +420,31 @@ class DispatchCase(support.Case):
                 dispatch.supervise(spec)
             finally:
                 os.chdir(here)
+
+
+class CodexCase(DispatchCase):
+    """DispatchCase with `runtime: codex` on the machine and a fake `codex` (CODEX) as the binary. The factory's
+    CODEX_HOME (SHIPFLOOR_CODEX_HOME) holds the generated stage prompts, sf/<stage>.md, which the run's stdin starts with."""
+
+    def setUp(self):
+        super().setUp()
+        self.codex_home = os.environ["SHIPFLOOR_CODEX_HOME"] = self.path("codex-home")
+        for stage in ("refine", "develop", "validate", "deploy"):
+            self.write(os.path.join(self.codex_home, "sf", stage + ".md"), "<!-- sf:stage=%s -->\nPROMPT %s\n" % (stage, stage))
+        names = {"fake": os.path.join(self.tmp, "fake.json")}
+        self.codex_bin = os.environ["FACTORY_CODEX"] = self.script("codex", CODEX % dict(names, calls=self.path("codex.calls")))
+        try:  # the adapter may have read FACTORY_CODEX at import, in an earlier test of this process
+            import runtimes.codex as adapter
+            p = mock.patch.object(adapter, "BINARY", self.codex_bin)
+            p.start()
+            self.addCleanup(p.stop)
+        except (ImportError, AttributeError):
+            pass
+        self.machine_cfg(POOL8 + "\nruntime: codex")
+
+    def codex_calls(self):
+        return self._records("codex")
+
+    def flag(self, call, name):
+        a = call["argv"]
+        return a[a.index(name) + 1] if name in a else None

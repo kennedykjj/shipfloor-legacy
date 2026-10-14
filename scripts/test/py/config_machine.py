@@ -3,6 +3,7 @@ stage runs, stack slots, notify, costs, working hours, the dispatcher's pace, an
 on (stage-models, models-check, describe's `agent models:` line)."""
 import os
 import re
+from unittest import mock
 
 from config_support import ConfigCase, FIXTURE_YML
 
@@ -151,6 +152,25 @@ class Costs(MachineCase):
         self.assertEqual(self.mach("values", "costs.card_block")[0], 2, "an invalid costs section is never read as a limit")
 
 
+class Disk(MachineCase):
+    """disk: the floor under which the dispatcher starts no run (min_free_gb 2, min_free_inodes_pct 10 by default)."""
+
+    def test_read(self):
+        "the defaults read back; a file's values win; 0 is allowed (that check is off)"
+        self.assertEqual(self.values("disk.min_free_gb", "disk.min_free_inodes_pct", sep="|"), "2|10|")
+        self.good("disk: {min_free_gb: 5.5, min_free_inodes_pct: 0}")
+        self.assertEqual(self.values("disk.min_free_gb", "disk.min_free_inodes_pct", sep="|"), "5.5|0|")
+
+    def test_refused(self):
+        "a negative or non-number floor, inodes above 100, an unknown key or a disk that is no mapping is refused"
+        self.bad("disk: {min_free_gb: -1}", "disk.min_free_gb must be a number from 0")
+        self.bad("disk: {min_free_gb: lots}", "disk.min_free_gb must be a number from 0")
+        self.bad("disk: {min_free_inodes_pct: 101}", "disk.min_free_inodes_pct must be a number from 0 to 100")
+        self.bad("disk: {min_free_gb: true}", "disk.min_free_gb must be a number from 0")
+        self.bad("disk: {free: 1}", "disk.free: unknown key (use min_free_gb, min_free_inodes_pct)")
+        self.bad("disk: 5", "disk must be a mapping of min_free_gb, min_free_inodes_pct")
+
+
 class Limits(MachineCase):
     """limits: the dispatcher's optional memory and CPU ceilings; `machine limits` prints the systemd lines."""
 
@@ -294,6 +314,26 @@ class Models(MachineCase):
         self.conf("models:\n  stages: {develop: {light: haiku}}")
         self.assertEqual(self.sm(), "sonnet|sonnet|sonnet|haiku|sonnet|opus|" + "sonnet|" * 6)
         self.assertEqual([self.mach("model-up", m)[1] for m in ("haiku", "sonnet", "opus", "fable")], ["sonnet\n", "opus\n", "", ""])
+
+    def test_runtime_models_and_ladder(self):
+        "a stage off claude-code takes runtime.models (a name as written, no model = none) and climbs runtime.ladder; the project's over the machine's"
+        names = ("claude-code", "codex")
+        with mock.patch.object(shipfloor_config.runtimes, "NAMES", names):
+            machine = {"runtime": {"default": "codex", "models": {"stages": {"develop": "gpt-6-mini", "refine": "gpt-6"}},
+                                   "ladder": ["gpt-6-mini", "gpt-6-sol"]}}
+            self.assertEqual(shipfloor_config.runtime_problems(machine["runtime"]), [])
+            got = shipfloor_config.runtime_stage_models(machine, {"runtime": {"stages": {"deploy": "claude-code"},
+                                                                              "models": {"stages": {"develop": {"heavy": "gpt-6-sol"}}}}})
+            self.assertEqual(got["refine"], dict.fromkeys(shipfloor_config.WEIGHTS, "gpt-6"))
+            self.assertEqual(got["develop"], {"light": "", "standard": "", "heavy": "gpt-6-sol"})
+            self.assertEqual(got["validate"], dict.fromkeys(shipfloor_config.WEIGHTS, ""))
+            self.assertNotIn("deploy", got)
+            ladder = tuple(shipfloor_config.runtime_setting(machine, None, "ladder"))
+            self.assertEqual([shipfloor_config.model_up(m, ladder) for m in ("gpt-6-mini", "gpt-6-sol", "other")], ["gpt-6-sol", None, None])
+            self.assertEqual(shipfloor_config.model_up("x", ()), None)
+            for bad in ({"ladder": "gpt-6"}, {"ladder": [""]}, {"models": {"stages": {"develop": ""}}}, {"models": {"nope": {}}},
+                        {"models": {"stages": {"build": "x"}}}, {"models": {"stages": {"refine": {"light": "x"}}}}):
+                self.assertTrue(shipfloor_config.runtime_problems(bad), bad)
 
     def test_constants(self):
         "the shipped models and every plugin agent's default, which agents/*.md's model: line must match"

@@ -985,6 +985,14 @@ class Factory:
                     out.setdefault(l["agent"], []).append({"project": p, "layer": l.get("name")})
         return out
 
+    @staticmethod
+    def free_stages(raw):
+        """{stage: runtime name} of the stages whose runtime has no list of models (its name is free text)."""
+        if shipfloor_config.runtime_problems(raw.get("runtime") if isinstance(raw, dict) else None):
+            return {}
+        names = dict(zip(shipfloor_config.STAGES, shipfloor_config.runtime_of(raw)))
+        return {st: rt for st, rt in names.items() if not runtimes.get(rt).MODELS}
+
     def models(self):
         """The Settings rows for the models: each stage and agent with its configured model, today's model, whether
         the model has a price, and (stages) the mean cost per card of the last 7 days."""
@@ -1005,8 +1013,23 @@ class Factory:
             for s in self.sessions(p):
                 if s["stage"] in runs and parse_ts(s["start"]) >= since:
                     runs[s["stage"]].append(((p, s["issue"]), dashboard_cost.session_cost(s, prices)))
+        free = self.free_stages(raw)
+        rt_stages = (shipfloor_config.runtime_setting(raw, None, "models") or {}).get("stages") if free else None
+        rt_stages = rt_stages if isinstance(rt_stages, dict) else {}
+
+        def free_row(st):  # the runtime's own model, any name: priced only when prices.yml has exactly that name
+            value, weights = rt_stages.get(st), shipfloor_config.WEIGHTS
+            text = lambda v: v.strip() if isinstance(v, str) and v.strip() else None
+            if st == "refine":
+                value = text(value)
+                return {"value": value, "default": None, "priced": value is None or value in prices}
+            value = {w: text(value.get(w)) if isinstance(value, dict) else text(value) for w in weights}
+            return {"value": value, "default": dict.fromkeys(weights), "priced": {w: v is None or v in prices for w, v in value.items()}}
+        stages = {st: dict(free_row(st) if st in free else row("stages", st, shipfloor_config.STAGE_MODELS[st]),
+                           cost=per_card(runs[st]), runtime=free.get(st, "claude-code"), free=st in free)
+                  for st in shipfloor_config.STAGES}
         return {"choices": list(shipfloor_config.MODELS),
-                "stages": {st: dict(row("stages", st, shipfloor_config.STAGE_MODELS[st]), cost=per_card(runs[st])) for st in shipfloor_config.STAGES},
+                "stages": stages,
                 "agents": {**{a: dict(row("agents", a, d), projects=[]) for a, d in shipfloor_config.PLUGIN_AGENTS.items()},
                            **{a: dict(row("agents", a, None), projects=ps) for a, ps in agents.items() if a not in shipfloor_config.PLUGIN_AGENTS}},
                 "problems": problems}
@@ -1075,16 +1098,31 @@ class Factory:
         errs =shipfloor_config.machine_problems(new) + (shipfloor_config.hours_problems(new) if "hours" in changes else [])
         if isinstance(changes.get("models"), dict):
             models = new["models"] if isinstance(new.get("models"), dict) else {}
+            free = self.free_stages(new)  # their model is the runtime's own: it goes to runtime.models, any name
+            def merge(rows, name, ch):
+                if isinstance(ch, dict) and name != "refine":  # per weight; null removes that weight
+                    had = rows.get(name)
+                    had = dict(had) if isinstance(had, dict) else dict.fromkeys(shipfloor_config.WEIGHTS, had) if isinstance(had, str) else {}
+                    had.update(ch)
+                    ch = {w: m for w, m in had.items() if m is not None} or None
+                rows[name] = ch
             for group in ("stages", "agents"):
                 if isinstance(changes["models"].get(group), dict):
                     rows = dict(models[group] if isinstance(models.get(group), dict) else {})
                     for name, ch in changes["models"][group].items():
-                        if group == "stages" and isinstance(ch, dict) and name != "refine":  # per weight; null removes that weight
-                            had = rows.get(name)
-                            had = dict(had) if isinstance(had, dict) else dict.fromkeys(shipfloor_config.WEIGHTS, had) if isinstance(had, str) else {}
-                            had.update(ch)
-                            ch = {w: m for w, m in had.items() if m is not None} or None
-                        rows[name] = ch
+                        if group == "stages" and name in free:
+                            rt = new["runtime"] if isinstance(new.get("runtime"), dict) else {"default": new["runtime"]}
+                            rtm = dict(rt["models"]) if isinstance(rt.get("models"), dict) else {}
+                            rts = dict(rtm["stages"]) if isinstance(rtm.get("stages"), dict) else {}
+                            clean = lambda m: m.strip() or None if isinstance(m, str) else m
+                            merge(rts, name, {w: clean(m) for w, m in ch.items()} if isinstance(ch, dict) else clean(ch))
+                            rtm["stages"] = {n: m for n, m in rts.items() if m is not None}
+                            rtm = {g: v for g, v in rtm.items() if v != {}}
+                            rt = {k: v for k, v in rt.items() if k != "models"}
+                            new["runtime"] = dict(rt, models=rtm) if rtm else rt
+                            errs += shipfloor_config.runtime_problems(new["runtime"])
+                        else:
+                            merge(rows, name, ch)
                     models[group] = {n: m for n, m in rows.items() if m is not None}
             new["models"] = {g: rows for g, rows in models.items() if rows != {}}
             if not new["models"]:
@@ -1237,11 +1275,16 @@ class Factory:
         return mark.exists() and mark.stat().st_mtime > time.time() - window
 
     def usage_limited(self):
+        return self.limited_runtime() is not None
+
+    def limited_runtime(self):
+        """The runtime whose usage limit holds the factory now, None when none does."""
         for log in self.home.glob("projects/*/logs/*.log"):
             if log.stat().st_mtime > time.time() - 1800:
-                if runtimes.usage_limited(log.read_text(encoding="utf-8", errors="replace")):
-                    return True
-        return False
+                name = runtimes.limited_runtime(log.read_text(encoding="utf-8", errors="replace"))
+                if name:
+                    return name
+        return None
 
     @staticmethod
     def card_deps(record, columns, n):
@@ -1257,6 +1300,23 @@ class Factory:
             state = "closed" if d.get("state") == "closed" else columns.get(d["n"]) or "open"
             out.append({"n": d["n"], "title": str(d.get("title") or ""), "state": state})
         return {"deps": out, "deps_unread": entry.get("read") is False}
+
+    def shipped(self, p, columns, titles, since, per_card, today):
+        """The cards that reached Done today, newest first: {issue, title, pr, at, cost}. `at` is when the card's last run ended,
+        `pr` the last pull request a report names, `cost` its Inbox-to-now estimate (None when unpriced)."""
+        out = []
+        for n, col in columns.items():
+            at = since.get(n)
+            if col != "Done" or not at:
+                continue
+            try:
+                if parse_ts(at).astimezone().date().isoformat() != today:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            pr = next((r["pr"] for r in reversed(self.reports(p, n)) if isinstance(r.get("pr"), int)), None)
+            out.append({"issue": n, "title": titles.get(n, ""), "pr": pr, "at": at, "cost": rounded(per_card.get(n, 0.0))})
+        return sorted(out, key=lambda x: parse_ts(x["at"]).timestamp(), reverse=True)
 
     def overview(self):
         size, slots = self.pool()
@@ -1303,7 +1363,8 @@ class Factory:
                                         "blocked": blocked.get(n), **self.brief_row(p, n, col),
                                         **self.block_brief(p, n, blocked.get(n)),
                                         **self.card_deps(record, columns, n)}
-                                       for n, col in columns.items()]})
+                                       for n, col in columns.items()],
+                             "shipped": self.shipped(p, columns, titles, since, per_card, today)})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
         stacks, queue = self.stacks()
