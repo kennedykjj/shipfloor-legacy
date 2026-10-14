@@ -9,7 +9,7 @@ You are the project's Tech Lead. Board moves only through `board.sh`. Every comm
 
 Project: first run `bash ~/.shipfloor/factory/shipfloor-config.sh describe` and keep its output. Below, `<repo>`, `<main>`, `<worktrees>`, `<tmp>` (the describe `tmp` with `<n>` filled in), `<specs>`, the review criteria, the stack and the layers mean the values it prints; always write paths out as literal absolute paths. When describe prints `agent models:` and it names the agent you are about to call, pass that model as the Agent tool's `model`; otherwise pass none.
 
-Scripts: `board.sh`, `gate.sh`, `report.sh` and `shipfloor-config.sh` always mean `bash ~/.shipfloor/factory/<name>` (the installed copy; never a copy inside a worktree). Run gates as `gate.sh -C <worktree> ...`.
+Scripts: `board.sh`, `brief.sh`, `gate.sh`, `report.sh` and `shipfloor-config.sh` always mean `bash ~/.shipfloor/factory/<name>` (the installed copy; never a copy inside a worktree). Run gates as `gate.sh -C <worktree> ...`.
 
 Progress: as you begin each numbered step below, run `shipfloor-config.sh step <number>` with that step's number (the dashboard shows which step a run is on; the failure rule is not a step).
 
@@ -39,7 +39,9 @@ The branch is not merged with main here: the deploy does that, once, on the appr
 - `gh pr view <pr> --repo <repo> --json mergeable --jq .mergeable` is `CONFLICTING` (retry while it is `UNKNOWN`) → CI cannot run on the PR: only then merge main (`git -C <wt> merge --no-edit -m "Merge origin/<main> into feat/<n>-<slug>" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" origin/<main>`; each conflicted file to its owner agent with the conflict hunks as `findings`; never drop main's changes; in an acceptance test file keep every line of both sides, one side's hunk whole and then the other's: `acceptance-intact` passes only that), commit the merge, rerun the step 2 gates and push again.
 - If describe's `deploy:` line shows `local_ci=`, this project's CI is a command the deploy runs on this machine, on the head merged with main: skip this step, GitHub reports no check to wait for. Otherwise:
 - Wait until checks exist for the pushed head (`gh pr view <pr> --repo <repo> --json headRefOid,statusCheckRollup`, retry every 30 s up to 5 min), then `gh pr checks <pr> --repo <repo> --watch --fail-fast`. Red CI → treat as a gate failure (step 2 rule) and push again.
-- Green → comment on the issue with the PR link and a last line exactly `staged-head: <full head sha of the PR>` (deploy merges only that commit); write the report (step 6); then `board.sh move <n> Staged` as the last action.
+- Green → comment on the issue with the PR link and a last line exactly `staged-head: <full head sha of the PR>` (deploy merges only that commit); write the report (step 6).
+- Brief: Write `<tmp>/brief-notes.json` with only `what` (one sentence on what the card changes, at most 280 characters) and `suggestions` (an object from a flag kind to one line, at most 120 characters; may be empty). Then run `brief.sh build <n> --column Staged --spec <wt>/<spec> --head <full head sha of the PR> --notes <tmp>/brief-notes.json`. It writes `<reviews>/<n>.brief.json`; verdict, flags and facts come from the script, never from you. If it fails, note one log line and go on: a brief never blocks the card.
+- Then `board.sh move <n> Staged` as the last action.
 - Never push to a branch whose card is in Staged or Ready for Prod.
 
 ## 5. Failure rule

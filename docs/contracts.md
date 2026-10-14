@@ -154,6 +154,24 @@ The `PostToolUse` hook of a factory run (`hooks/hooks.json`).
 
 **Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html>`. No subcommands. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). `FACTORY_PROJECT` is passed through.
 
+## brief.sh
+
+**Interface:** `brief.sh` `build` `<n> --column "Spec Review"|Staged --spec <spec> --head <sha> --notes <file> [--since <json>] [--out <file>]`. A wrapper of `sf.py brief`: the logic is `shipfloor_core/brief.py`. The refine skill runs it before moving a card to Spec Review, the validate skill before moving it to Staged.
+
+**Output:** writes `<reviews>/<n>.brief.json` (or `--out`), atomically; nothing on stdout. The dashboard reads it. Fields:
+- `card`: the issue number. `column`: `Spec Review` or `Staged`. `built`: the UTC time.
+- `verdict`: `routine` or `look`; `look` when `flags` or `since_request` is not empty. Computed by the script.
+- `flags`: a list of `{id, kind, title, detail, hunk, source, suggestion}`, computed by the script from the diff against `origin/<main>`, the spec, the develop `report.json` and the `infra/<n>` marker. The kinds are `migration`, `outside-architecture`, `qa-amended`, `open-question`, `security` and `infra-retry`; `suggestion` is the only text taken from the notes file.
+- `proven`: the gates (`build`, `green ...`) with a recorded pass for `--head`, from `gate-passes/`. Computed by the script.
+- `facts`: `{pr, files, added, removed, statements}` from `git diff --numstat` and `gh pr view`; `statements` is 0 for now. Computed by the script.
+- `since_request`: a list of `{old, new}` pairs. It is an input: the `--since` file (a JSON list) is copied in, and the field is an empty list when `--since` is absent or unreadable. A non-empty `since_request` makes the verdict `look`.
+- `what`: `{text, by}`; `text` is the notes file's `what` (at most 280 characters), `by` is `agent`.
+- `rest`: an empty list, reserved.
+
+**The notes file** (`--notes`, `<tmp>/brief-notes.json`, written by the agent) holds only `what` (a sentence) and `suggestions` (an object from a flag kind to one line, at most 120 characters). Anything else in it is ignored; an absent or unreadable file gives an empty `what` and no suggestions. The agent never writes `verdict`, `flags`, `proven` or `facts`: they come from the script.
+
+**Exit codes:** always 0. Any problem (bad usage, no spec, git failing, an unwritable output) is one `brief: skipped: <reason>` line on stderr and no file: a brief never blocks a card.
+
 ## setup-board.sh
 
 **Interface:** none: a one-off per project, run as `shipfloor setup-board <slug>` from the control checkout. It snapshots every card's item and status (to `$SNAPSHOT`, or a temp file), rewrites the Status field's options to the ten columns (`Inbox`, `Ready for Refinement`, `Technical Refinement`, `Spec Review`, `Ready for Dev`, `Coding`, `Validation`, `Staged`, `Ready for Prod`, `Done`, each with its 👤 or 🤖 mark), restores each card's status by name ignoring the mark (a status with no column leaves the card without Status and prints `no column for '<status>' (item <id>): left without Status` on stderr), creates or updates the labels `ui`, `cybersec` and `blocked`, deletes the cached `board-ids`, and prints the count per status. Exit 1 when the project has no Status field; 2 when no project is found.
@@ -296,6 +314,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `~/.shipfloor/logs/dispatcher.log` | the scheduler's output | `run-dispatcher.sh` | people |
 | `~/.shipfloor/logs/stacks.log` | `<ISO> reclaimed slot <k> from <owner> <reason>` | `lib/stack.sh` | people |
 | `~/.shipfloor/logs/health-<YYYY-MM>.jsonl` | one JSON object per cycle | `shipfloor_health.py record` | `shipfloor doctor`, `shipfloor_notify.py`, `dashboard.py` |
+| `<reviews>/<n>.brief.json` | the card's brief: `verdict`, `flags`, `proven`, `facts`, `since_request`, `what`, `rest` (see `brief.sh`) | `brief.sh build`, from the refine and validate skills | `dashboard.py` |
 | `<home>/reports-wt/` | worktree of the `factory-reports` branch | `report.sh` | `metrics.sh`, `dashboard.py` |
 | `~/.shipfloor/cost-cache.json`, `notify.json` | caches | `dashboard_cost.py`, `shipfloor_notify.py` | the same |
 
