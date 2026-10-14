@@ -28,7 +28,7 @@ import time
 
 import runtimes
 
-from . import deps, proc, project, stack, text
+from . import deps, proc, project, stack, telemetry, text
 from .defaults import STAGES as STAGE_COLUMNS, TRAILER
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -922,9 +922,13 @@ def supervise(spec):
 
     def agent():
         # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into "C:/Program Files/Git/develop 54".
+        # Its stdout is a stream-json read by telemetry: the log gets the text a plain -p printed, the events and a
+        # summary go beside it (telemetry.py).
         argv = proc.script_argv(spec["binary"], *spec["argv"])
-        with open(log, "ab") as f:
-            return _run(argv, out=f, err=STDOUT, cwd=control, env=env, input=spec["stdin"].encode("utf-8"))[0]
+        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso()}
+        _flush()
+        return telemetry.run_agent(argv, log, control, env, spec["stdin"].encode("utf-8"), meta,
+                                   os.path.join(spec["home"], "logs", "runs.jsonl"), iso=_iso)
 
     def deploy(*args):
         with open(log, "ab") as f:

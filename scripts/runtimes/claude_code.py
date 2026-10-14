@@ -49,6 +49,8 @@ def command(run):
     argv += ["--disallowedTools", "PowerShell", "--append-system-prompt", run["system_prompt"]]
     if run.get("model"):
         argv += ["--model", run["model"]]
+    # the stdout is a stream-json the factory reads (shipfloor_core/telemetry.py): the log gets the text a plain -p printed
+    argv += ["--output-format", "stream-json", "--verbose"]
     # print mode stops background subagents 10 min after the last turn and ends the run half done; 0 waits.
     # The owner's personal CLAUDE.md is loaded whatever the setting sources are: its memory is not for a run.
     envs = [*run["envs"], "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0", "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1"]

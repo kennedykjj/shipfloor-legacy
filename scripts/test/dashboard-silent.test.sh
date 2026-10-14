@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The factory that dies silently (#176): when the newest health line is older than 3x the dispatcher pace, the
 # dashboard's overview carries "silent" and the page shows a banner with the status and reinstall commands.
 # Every server here runs with SHIPFLOOR_SCHEDULER set to "none": a test never touches the real ShipfloorDispatcher task.

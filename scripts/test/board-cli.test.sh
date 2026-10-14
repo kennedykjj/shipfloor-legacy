@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # board.sh and setup-board.sh through real processes with test/fake-gh (the behavior is in py/board_*.py, in process):
 # stdout, stderr and exit codes, FACTORY_GH and never a plain gh, and the GraphQL budget (a snapshot spares the board
 # read, labels by REST, a status-only query).

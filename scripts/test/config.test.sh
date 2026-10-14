@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: unit
 # shipfloor-config.sh's answers, in process (shipfloor_config.py through shipfloor_core/project.py's config_main):
 # py/config_project.py (factory.yml queries, validate's refusals, overrides.yml and the language) and
 # py/config_machine.py (config.yml: pool, stages, stacks, notify, costs, hours, dispatcher pace, models).

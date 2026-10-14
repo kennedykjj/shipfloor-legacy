@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The visual system v4 (#180): IBM Plex embedded and nothing from the network (AC-3), no uppercase transforms beyond
 # the exceptions DESIGN.md lists (AC-4), no text under 12px, and the font license cited and shipped (AC-8).
 # AC-5 (byte growth in the PR body) and AC-6 (nothing clipped) are checked by hand in review.

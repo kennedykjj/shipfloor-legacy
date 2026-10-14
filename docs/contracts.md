@@ -112,6 +112,11 @@ One dispatcher cycle for one project: starts pipelines for cards waiting in the 
 
 `<ISO>` is `date -Is`. The pid is the run's supervisor process, the one that owns the lock. For the `deploy` stage `exit=` is the exit code of `deploy.sh` after its handover rounds (up to three agent rounds on exit 3).
 
+**Run telemetry** (`shipfloor_core/telemetry.py`): the agent runs with `--output-format stream-json --verbose` and the supervisor reads its stdout. Between `== start` and `== end` the log keeps the text a plain `claude -p` printed (the `result` event's text, else the last assistant text); a stdout line that is not JSON and everything on stderr go to it as they came. Beside it, only when the stream carried JSON:
+- `logs/<YYYY-MM-DD>-<n>-<stage>.events.jsonl`: every event as it arrived, one per line, `{"t": <epoch s, received>, "pid": <supervisor pid>, "event": {...}}`; several runs of a card on one day share the file, told apart by `pid`.
+- `logs/runs.jsonl`: one line per run when it ends: `stage`, `card`, `pid`, `model`, `weight`, `start`, `end` (ISO), `seconds`, `exit`; from the `result` event `result` (subtype), `is_error`, `session_id`, `duration_ms`, `duration_api_ms`, `num_turns`, `cost_usd`, `tokens` (`input`, `output`, `cache_read`, `cache_creation`); `tools` (`{<tool>: {"n", "s"}}`, seconds from a `tool_use` to its `tool_result`, as received), `bash` (the same for Bash calls by kind: `gate` for `gate.sh`, `board` for `board.sh`, `gh`, `other`), `unfinished` (tool calls with no result), `events`, `parse_errors`. A run that ended with no `result` has those fields `null`.
+Telemetry never fails a run or holds its lock: a write that fails is dropped.
+
 **Locks:** `locks/<stage>-<n>.lock/` per card and stage, holding `info` (`<pid> <epoch> <n>`), written by `launch`; `step` (`<k><TAB><epoch>`, from `shipfloor-config.sh step`); `last-gate`; `inbox` and `inbox.<agent>`. A lock older than `FACTORY_LOCK_TTL` (default 10800 s) whose pid is gone is removed. `locks/refresh-<n>.lock/` is a `deploy.sh --refresh` and does not count as a run.
 
 **Concurrency:** limited by the machine pool (`pool`, `stages.<stage>`) and the project's `limits.refine.wip` and `limits.develop.wip`; `SHIPFLOOR_MAX_PARALLEL` overrides the pool; the deploy stage runs one at a time per project. Orphans (a card in a WIP column with no live run) are resumed before new cards are taken.
@@ -315,6 +320,8 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `~/.shipfloor/locks/stack-<k>.lock/` | see `lib/stack.sh` | `lib/stack.sh` | `lib/stack.sh`, `shipfloor pool`, `dashboard.py` |
 | `~/.shipfloor/locks/stack-queue/` | tickets, see `lib/stack.sh` | `lib/stack.sh` | `lib/stack.sh` |
 | `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.log` | the run's output with the `== ` lines | `dispatch.sh` | `dashboard.py` (`RUN_LINE`, `STEPUP_LINE`), `dispatch.sh` and `shipfloor-dispatch.sh` (`hit your session limit` after the last `== start`) |
+| `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.events.jsonl` | the agent's stream-json events, `{"t", "pid", "event"}` per line | `dispatch.sh` (`telemetry.py`) | people, analysis |
+| `<home>/logs/runs.jsonl` | one summary per agent run: duration, API time, turns, cost, tokens, seconds per tool | `dispatch.sh` (`telemetry.py`) | people, analysis |
 | `<home>/logs/<YYYY-MM-DD>-<n>-refresh.log` | the output of `deploy.sh --refresh` | `dispatch.sh` | people |
 | `~/.shipfloor/logs/dispatcher.log` | the scheduler's output | `run-dispatcher.sh` | people |
 | `~/.shipfloor/logs/stacks.log` | `<ISO> reclaimed slot <k> from <owner> <reason>` | `lib/stack.sh` | people |
@@ -367,7 +374,7 @@ Readers that parse what the scripts write, which a port must not break:
 
 1. The lock `locks/<stage>-<n>.lock` is made with `mkdir`; if it exists, nothing starts. `tmp/<n>` is created.
 2. The prompt goes on **stdin**, never as an argument (Git Bash would turn `/develop 54` into a path): `printf '/sf:<stage> <n>'`.
-3. The command, with `env -u FACTORY_BOARD_SNAPSHOT <envs>` before it, is `claude -p --permission-mode acceptEdits --add-dir <worktrees> --add-dir <home>/tmp --add-dir <home>/reviews --setting-sources project,local --strict-mcp-config --plugin-dir <plugin checkout>` then, when the directories exist, `--allowedTools Read(//<scripts dir>/**) Read(//<home>/reports-wt/**)`, then `--disallowedTools PowerShell`, then `--append-system-prompt "This is an unattended factory run. ..."`, and last `--model <model>` when the machine config names one for the stage and the card's weight.
+3. The command, with `env -u FACTORY_BOARD_SNAPSHOT <envs>` before it, is `claude -p --permission-mode acceptEdits --add-dir <worktrees> --add-dir <home>/tmp --add-dir <home>/reviews --setting-sources project,local --strict-mcp-config --plugin-dir <plugin checkout>` then, when the directories exist, `--allowedTools Read(//<scripts dir>/**) Read(//<home>/reports-wt/**)`, then `--disallowedTools PowerShell`, then `--append-system-prompt "This is an unattended factory run. ..."`, then `--model <model>` when the machine config names one for the stage and the card's weight, and last `--output-format stream-json --verbose`, read by the supervisor (see Run telemetry above).
 4. cwd is the project's control checkout, `<home>/control`: a worktree of `origin/main`, never one an agent can edit. Output (stdout and stderr) is appended to the run's log.
 5. The model is that of the stage and the card's weight (`light`, `standard`, `heavy`; `standard` when the spec has no weight). A develop run after a failed gate takes the model one up, from `stepup/<n>`.
 6. After the run: `== end ...` is logged; for `develop` ending 0, a failed gate in `<lock>/last-gate` (`FAIL`, never `INFRA`) writes `stepup/<n>`, removes the label `blocked` and logs `== step-up ...`. The run's stack slots are released, `tmp/<n>` is removed and the lock goes (only when its `info` still names this process).

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # gate.sh's contract through the real wrapper (the gates' decisions are py/gate_*.py's, in process): usage and exit
 # codes 0/1/2/3, the verdict as stderr's last line and in <lock>/last-gate, -C and argv passed through untouched,
 # SHIPFLOOR_PY handed down to the config queries, stderr in the project's language, stdout as data only.

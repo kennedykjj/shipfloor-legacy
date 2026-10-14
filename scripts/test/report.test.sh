@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # report.sh, metrics.sh and brief.sh (report.py, metrics.py, brief.py). The behavior is in process: py/report_ops.py
 # (report + metrics) and py/report_brief.py (brief). Here, the wrappers' contract through real processes: help and
 # usage exit codes and streams, one real report pushed, the schema header the skills point to, the metrics TSV and

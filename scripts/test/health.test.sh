@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The health history (shipfloor_health.py): one line per dispatcher cycle and the alerts read back from the last ones.
 # The behavior is in process (py/health_record.py: the line, idle slots, limits, pauses, cost stop, working hours,
 # dependencies, missed cycles and silence(), the platform probes). Here, through real processes: shipfloor_health.py's command line

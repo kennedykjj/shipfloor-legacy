@@ -2,6 +2,7 @@
 environment, the log lines, the model from the card's weight and the machine's table, the step-up after a failed
 gate, the deploy script and its rounds, the run's TMPDIR, and what goes when the run ends (its lock, stack slot,
 tmp/<n>/, leftover processes). The runs are supervised in this process (dispatch_support)."""
+import glob
 import json
 import os
 import re
@@ -49,7 +50,7 @@ class Agent(Base):
                 "Read(/%s/**)" % SCRIPTS, "--disallowedTools", "PowerShell", "--append-system-prompt",
                 "This is an unattended factory run. A personal CLAUDE.md is for its owner's interactive sessions: what "
                 "it says to read or write under ~/.claude (memory, journals, notes, a vault) does not apply here.",
-                "--model", "sonnet"]
+                "--model", "sonnet", "--output-format", "stream-json", "--verbose"]
         call = self.claude_calls()[0]
         self.assertEqual(call["argv"], want)
         self.assertEqual(call["stdin"], "/sf:develop 54", "the prompt, with no newline")
@@ -399,3 +400,114 @@ open(os.path.join(%r, "calls"), "a").write(json.dumps({"wt": os.environ.get("SHI
         self.board(queues={"Ready for Dev": 56})
         self.cycle()
         self.assertFalse(os.path.exists(os.path.join(calls, "calls")), "FACTORY_CLEANUP=0 never calls powershell.exe")
+
+
+def _use(tid, name, **inp):
+    return {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": tid, "name": name, "input": inp}]}}
+
+
+def _done(tid):
+    return {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": tid, "content": "ok"}]}}
+
+
+RESULT = {"type": "result", "subtype": "success", "is_error": False, "result": "All done: #54 is in Validation.",
+          "duration_ms": 61000, "duration_api_ms": 42000, "num_turns": 7, "total_cost_usd": 0.42, "session_id": "s-1",
+          "usage": {"input_tokens": 120, "output_tokens": 3400, "cache_read_input_tokens": 90000,
+                    "cache_creation_input_tokens": 8000}}
+
+
+class Telemetry(Base):
+    def stream(self, *events, **kw):
+        self.set_fake(claude=dict(stream=[{"type": "system", "subtype": "init", "session_id": "s-1"}, *events], **kw))
+        self.board(queues={"Ready for Dev": 54})
+        self.cycle()
+        log = self.log("develop", 54).splitlines()
+        events = os.path.join(self.home, "logs", "%s-54-develop.events.jsonl" % today())
+        runs = os.path.join(self.home, "logs", "runs.jsonl")
+        return (log, [json.loads(l) for l in open(events)] if os.path.exists(events) else None,
+                [json.loads(l) for l in open(runs)] if os.path.exists(runs) else None)
+
+    def test_stream_log_is_the_text(self):
+        "stream-json: the run log holds the result's text between == start and == end, as a plain -p printed it"
+        log, _, _ = self.stream({"type": "assistant", "message": {"content": [{"type": "text", "text": "working"}]}},
+                                RESULT)
+        self.assertEqual(len(log), 3)
+        self.assertTrue(log[0].startswith("== start /sf:develop 54 "))
+        self.assertEqual(log[1], "All done: #54 is in Validation.")
+        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s$" % ds.ISO)
+
+    def test_stream_events_file(self):
+        "stream-json: every event goes to <log>.events.jsonl with when it arrived and the run's pid"
+        _, events, _ = self.stream(_use("t1", "Read", file_path="a"), _done("t1"), RESULT)
+        self.assertEqual([e["event"]["type"] for e in events], ["system", "assistant", "user", "result"])
+        self.assertTrue(all(isinstance(e["t"], float) and e["pid"] == os.getpid() for e in events))
+
+    def test_stream_summary(self):
+        "stream-json: runs.jsonl gets one line: the run, the CLI's totals, tokens, and seconds per tool and Bash kind"
+        _, _, runs = self.stream(
+            _use("t1", "Bash", command="bash ~/.shipfloor/factory/gate.sh build 54"), 0.3, _done("t1"),
+            _use("t2", "Bash", command="cd x && gh issue view 54"), 0.1, _done("t2"),
+            _use("t3", "Read", file_path="a"), _done("t3"), _use("t4", "Edit", file_path="b"), RESULT)
+        self.assertEqual(len(runs), 1)
+        r = runs[0]
+        self.assertEqual({k: r[k] for k in ("stage", "card", "pid", "model", "weight", "exit", "result", "is_error",
+                                             "duration_ms", "duration_api_ms", "num_turns", "cost_usd", "unfinished")},
+                         {"stage": "develop", "card": "54", "pid": os.getpid(), "model": "sonnet",
+                          "weight": "standard", "exit": 0, "result": "success", "is_error": False,
+                          "duration_ms": 61000, "duration_api_ms": 42000, "num_turns": 7, "cost_usd": 0.42,
+                          "unfinished": 1})
+        self.assertEqual(r["tokens"], {"input": 120, "output": 3400, "cache_read": 90000, "cache_creation": 8000})
+        self.assertEqual({k: v["n"] for k, v in r["tools"].items()}, {"Bash": 2, "Read": 1})
+        self.assertEqual({k: v["n"] for k, v in r["bash"].items()}, {"gate": 1, "gh": 1})
+        self.assertGreaterEqual(r["bash"]["gate"]["s"], 0.25, "a tool's time runs from its tool_use to its result")
+        self.assertGreaterEqual(r["bash"]["gh"]["s"], 0.05)
+        self.assertGreaterEqual(r["seconds"], r["bash"]["gate"]["s"])
+        self.assertRegex(r["start"], "^" + ds.ISO + "$")
+        self.assertRegex(r["end"], "^" + ds.ISO + "$")
+
+    def test_stream_without_result(self):
+        "stream-json that ends with no result: the last assistant text goes to the log, and the summary says so"
+        log, _, runs = self.stream({"type": "assistant", "message": {"content": [{"type": "text", "text": "first"}]}},
+                                   {"type": "assistant", "message": {"content": [{"type": "text", "text": "last"}]}},
+                                   exit=1)
+        self.assertEqual(log[1:-1], ["last"])
+        self.assertRegex(log[-1], r"^== end /sf:develop 54 exit=1 ")
+        self.assertEqual((runs[0]["exit"], runs[0]["result"], runs[0]["tokens"]["output"]), (1, None, None))
+
+    def test_stream_lines_not_json_and_stderr(self):
+        "a line that is not JSON reaches the log as it came, and so does what the CLI writes to stderr"
+        log, _, runs = self.stream("Error: something broke", "{not json", RESULT, stderr="warning: on stderr")
+        self.assertIn("Error: something broke", log)
+        self.assertIn("{not json", log)
+        self.assertIn("warning: on stderr", log)
+        self.assertIn("All done: #54 is in Validation.", log)
+        self.assertEqual(runs[0]["parse_errors"], 1)
+
+    def test_usage_limit_text_still_in_the_log(self):
+        "the usage-limit message the cycle looks for in run logs comes through from the result's text"
+        log, _, _ = self.stream(dict(RESULT, is_error=True, result="You've hit your session limit · resets 3pm"))
+        self.assertIn("You've hit your session limit · resets 3pm", log)
+
+    def test_usage_limit_from_any_event_reaches_the_log(self):
+        "the usage limit in an event the log does not get (an earlier turn, a system event) is written to it, once"
+        said = {"type": "assistant", "message": {"content": [{"type": "text", "text": "You've hit your session limit"}]}}
+        log, _, _ = self.stream(said, said, RESULT)
+        self.assertEqual(sum("hit your session limit" in l for l in log), 1)
+        self.assertIn("All done: #54 is in Validation.", log)
+        log, _, _ = self.stream({"type": "system", "subtype": "error", "error": "hit your session limit"})
+        self.assertEqual(sum("hit your session limit" in l for l in log), 1)
+
+    def test_plain_text_has_no_telemetry(self):
+        "an agent that prints plain text: the log as before, and no events or runs file"
+        self.board(queues={"Ready for Dev": 54})
+        self.assertEqual(self.cycle(), 0)
+        self.assertIn("claude says hi", self.log("develop", 54).splitlines())
+        self.assertEqual(glob.glob(os.path.join(glob.escape(self.home), "logs", "*.jsonl")), [])
+
+    def test_bash_kind(self):
+        "Bash calls sort into gate, board, gh and other by their command"
+        from shipfloor_core import telemetry
+        self.assertEqual([telemetry.bash_kind(c) for c in (
+            "bash ~/.shipfloor/factory/gate.sh green 54", "bash ~/.shipfloor/factory/board.sh move 54 Coding",
+            "gh pr view 3", "x=$(gh api user)", "cd wt && gh issue list", "git status", "echo high", None)],
+            ["gate", "board", "gh", "gh", "gh", "other", "other", "other"])
