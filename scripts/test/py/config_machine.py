@@ -151,6 +151,45 @@ class Costs(MachineCase):
         self.assertEqual(self.mach("values", "costs.card_block")[0], 2, "an invalid costs section is never read as a limit")
 
 
+class Limits(MachineCase):
+    """limits: the dispatcher's optional memory and CPU ceilings; `machine limits` prints the systemd lines."""
+
+    def lines(self, *flags):
+        rc, out, err = self.mach("limits", *flags)
+        return rc, out.splitlines(), err
+
+    def test_directives(self):
+        "no limits prints nothing; the file's limits become directives, MemoryHigh at 90%; flags win over the file"
+        self.assertEqual(self.lines(), (0, [], ""))
+        self.conf("limits: {memory_max: 10G, cpu_weight: 200, cpu_quota: 150%}")
+        self.assertEqual(self.lines(), (0, ["MemoryMax=10G", "MemoryHigh=9437184K", "CPUWeight=200", "CPUQuota=150%"], ""))
+        self.assertEqual(self.lines("--memory-max", "4G", "--cpu-weight", "none", "--cpu-quota", "none"),
+                         (0, ["MemoryMax=4G", "MemoryHigh=3774873K"], ""))
+        self.conf("limits: {memory_max: none, cpu_weight: none, cpu_quota: none}")
+        self.assertEqual(self.lines(), (0, [], ""))
+        self.assertEqual(self.lines("--cpu-weight", "50")[1], ["CPUWeight=50"])
+
+    def test_normalized(self):
+        "machine_limits fills none for what is missing"
+        self.assertEqual(shipfloor_config.machine_limits(None), {"memory_max": "none", "cpu_weight": "none", "cpu_quota": "none"})
+        self.assertEqual(shipfloor_config.machine_limits({"cpu_weight": 100, "cpu_quota": None}),
+                         {"memory_max": "none", "cpu_weight": "100", "cpu_quota": "none"})
+
+    def test_refused(self):
+        "every problem names limits.<field>, in the file and in a flag (exit 2)"
+        for text, field in (("cpu_weight: 0", "cpu_weight"), ("cpu_weight: 10001", "cpu_weight"), ("cpu_weight: abc", "cpu_weight"),
+                            ("memory_max: lots", "memory_max"), ("memory_max: 8X", "memory_max"), ("memory_max: 8", "memory_max"),
+                            ("cpu_quota: fast", "cpu_quota"), ("cpu_quota: 0%", "cpu_quota"), ("cpu_quota: 99999%", "cpu_quota")):
+            self.bad("limits: {%s}" % text, "limits.%s " % field)
+        self.bad("limits: {speed: 1}", "limits.speed: unknown limit")
+        self.bad("limits: 5", "limits must be a mapping")
+        self.conf("")
+        for flag, field in (("--cpu-weight", "cpu_weight"), ("--memory-max", "memory_max"), ("--cpu-quota", "cpu_quota")):
+            rc, out, err = self.lines(flag, "0x")
+            self.assertEqual((rc, out), (2, []))
+            self.assertIn("limits.%s " % field, err)
+
+
 class Hours(MachineCase):
     """working hours: `machine hours` says open, or closed and when the next window starts; the clock is SHIPFLOOR_NOW."""
 

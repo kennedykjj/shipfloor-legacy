@@ -1,7 +1,7 @@
 """board.py writes and setup.py, in process against a fake gh: move (columns, owner-only targets and sources, the
 REST PATCH and its GraphQL item-edit fallback, the cached board ids, a stale FACTORY_BOARD_SNAPSHOT), label add/remove,
 issue (trusted commenters), the config and usage errors (exit 2), and setup-board (snapshot, the ten options, restore
-by name, three labels, board-ids removed)."""
+by name, four labels, board-ids removed)."""
 import json
 import os
 
@@ -238,7 +238,8 @@ ITEM_LIST_SUM = ["project", "item-list", "7", "--owner", "acme", "--limit", "500
 LABEL_CREATES = [
     ["label", "create", "ui", "--repo", "acme/shop", "--color", "1d76db", "--description", "Issue touches UI; UX/UI joins the refinement", "--force"],
     ["label", "create", "cybersec", "--repo", "acme/shop", "--color", "b60205", "--description", "Owner asked for a security review in the pipelines", "--force"],
-    ["label", "create", "blocked", "--repo", "acme/shop", "--color", "000000", "--description", "The factory stopped on this card; the owner decides", "--force"]]
+    ["label", "create", "blocked", "--repo", "acme/shop", "--color", "000000", "--description", "The factory stopped on this card; the owner decides", "--force"],
+    ["label", "create", "qa-amend-ok", "--repo", "acme/shop", "--color", "0E8A16", "--description", "The owner allows one more amendment of this card's acceptance tests", "--force"]]
 COLORS = [("GRAY", "Idea captured"), ("BLUE", "Owner picked it; refine queue"), ("PINK", "Spec being written"),
           ("PINK", "Spec ready; waits for the owner"), ("BLUE", "Spec approved; develop queue"),
           ("YELLOW", "Acceptance tests and implementation"), ("ORANGE", "Validate queue: review, PR and CI"),
@@ -257,8 +258,8 @@ class SetupBoard(BoardCase):
         return self.setup_board(env={"SNAPSHOT": self.snap} if snap else None)
 
     def test_setup(self):
-        "setup-board: snapshot first, the ten options in one mutation, cards restored by plain name, three labels, board-ids removed"
-        r = self.run_setup()
+        "setup-board: snapshot first, the ten options in one mutation, cards restored by plain name, four labels (AC-8: qa-amend-ok among them), board-ids removed"
+        r =self.run_setup()
         self.ok(r)
         calls = self.gh.calls
         self.assertEqual(calls[:3], [VIEW, FIELD_ID, ITEM_LIST_SNAP])

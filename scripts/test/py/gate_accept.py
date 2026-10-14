@@ -377,6 +377,105 @@ class QaAmend(AcceptCase):
         got.append((r.code == 1 and "agora o owner decide" in r.err) or ("pt-BR", r))
         self.assertEqual([g for g in got if g is not True], [])
 
+    # ---- #204: the owner's qa-amend-ok label allows one amendment over the limit (fake-gh: $d/labels-<n>, $d/events-<n>, $d/calls)
+
+    def gh_card(self, label=True, actors=("factory",), **env):
+        """fake-gh as the card's GitHub: `api user` is "factory"; issue 5 has the label qa-amend-ok (or none) added by
+        `actors` in order (the last one is the newest labeled event). Returns the gate env."""
+        import json
+        d = self.path("fgh")
+        self.gh_dir = d
+        self.write("fgh/labels-5", "qa-amend-ok\n" if label else "")
+        self.write("fgh/events-5", json.dumps([{"event": "labeled", "label": {"name": "qa-amend-ok"}, "actor": {"login": a}}
+                                              for a in actors]))
+        env.update(FACTORY_GH=os.path.join(os.path.dirname(os.path.dirname(__file__)), "fake-gh"), FAKE_GH_DIR=d, FAKE_GH_NO_JQ="1")
+        return env
+
+    def deletes(self):
+        p = os.path.join(self.gh_dir, "calls")
+        return [l for l in (open(p).read().splitlines() if os.path.exists(p) else [])
+                if "DELETE" in l and "issues/5/labels/qa-amend-ok" in l]
+
+    def at_limit(self):
+        """Four QA commits: two amendments are the limit and this is the third."""
+        self.impl()
+        self.amend("// one")
+        self.amend("// two")
+        return self.amend("// three")
+
+    OVER = "one amendment over the limit approved by the owner (qa-amend-ok)"
+
+    def test_owner_label_approves_one_extra_amendment(self):
+        "AC-1 AC-2 AC-6 qa-amend: the owner's qa-amend-ok passes the third amendment once, spends the label, and the next amendment blocks"
+        head = self.at_limit()
+        env = self.gh_card()
+        r = self.expect(0, "qa-amend", "5", **env)
+        self.assertIn("qa-amend: ok, 0 assertion lines replaced by 0; " + self.OVER, r.err)
+        self.assertEqual(len(self.deletes()), 1)
+        record = open(self.path("home", "qa-amend-ok.tsv")).read().splitlines()
+        self.assertEqual([l.split("\t")[:3] for l in record], [["#5", head, "factory"]])
+        # a rerun of the same approved commit (the label is gone) still passes and does not spend anything again
+        self.write("fgh/labels-5", "")
+        self.expect(0, "qa-amend", "5", **env)
+        self.assertEqual(len(self.deletes()), 1)
+        # one more amendment: the label was spent, so the owner decides again
+        self.amend("// four")
+        r = self.expect(1, "qa-amend", "5", **env)
+        self.assertIn("were already amended 2 times; the owner decides now", r.err)
+
+    def test_approval_is_spent_only_when_every_check_passes(self):
+        "AC-1 qa-amend: an approved amendment that drops an assertion still fails and keeps the label"
+        self.at_limit()
+        self.amend(edit=lambda t: t.replace("  assertTrue(ok())\n", ""))
+        r = self.expect(1, "qa-amend", "5", **self.gh_card())
+        self.assertIn("removes 1 assertion lines and adds 0", r.err)
+        self.assertEqual(self.deletes(), [])
+        self.assertFalse(os.path.exists(self.path("home", "qa-amend-ok.tsv")))
+
+    def test_label_of_anyone_but_the_owner_is_ignored(self):
+        "AC-3 qa-amend: qa-amend-ok added by someone else, or re-added by them after the owner, blocks; no label, no approval"
+        self.at_limit()
+        bad = []
+        for label, kw in [("a stranger", dict(actors=("mallory",))), ("the owner, then a stranger", dict(actors=("factory", "mallory"))),
+                          ("no label on the issue", dict(label=False))]:
+            r = self.gate("qa-amend", "5", **self.gh_card(**kw))
+            if r.code != 1 or "the owner decides now" not in r.err or self.deletes():
+                bad.append("%s: %r" % (label, r))
+        self.assertFalse(bad, "\n".join(bad))
+        self.assertFalse(os.path.exists(self.path("home", "qa-amend-ok.tsv")))
+
+    def test_label_with_trusted_commenters(self):
+        "AC-3 qa-amend: a login in trusted_commenters is the owner too, as for comments"
+        self.at_limit()
+        self.config("trusted_commenters: [helper]\n")
+        self.expect(0, "qa-amend", "5", **self.gh_card(actors=("helper",)))
+
+    def test_without_the_label_the_limit_is_unchanged(self):
+        "AC-4 qa-amend: no label, same block and FACTORY_QA_AMEND_MAX still sets the limit; under the limit a label is left alone"
+        self.at_limit()
+        env = self.gh_card(label=False)
+        r = self.expect(1, "qa-amend", "5", **env)
+        self.assertIn("qa-amend: the acceptance tests of #5 were already amended 2 times; the owner decides now", r.err)
+        self.expect(1, "qa-amend", "5", FACTORY_QA_AMEND_MAX="1", **env)
+        env = self.gh_card()
+        self.expect(0, "qa-amend", "5", FACTORY_QA_AMEND_MAX="3", **env)
+        self.assertEqual(self.deletes(), [])
+
+    def test_block_message_tells_how_to_approve(self):
+        "AC-5 qa-amend: the block message names the label and the dashboard button"
+        self.at_limit()
+        r = self.expect(1, "qa-amend", "5", **self.gh_card(label=False))
+        self.assertIn("To allow one more amendment, add the label qa-amend-ok to the issue, or press "
+                      '"Approve this amendment" on the card in the dashboard.', r.err)
+
+    def test_github_unreadable_is_infra(self):
+        "AC-3 qa-amend: when GitHub cannot be read the gate never passes on an approval: exit 3, nothing recorded"
+        self.at_limit()
+        env = self.gh_card()
+        self.write("fgh/fail", "")
+        self.expect(3, "qa-amend", "5", **env)
+        self.assertFalse(os.path.exists(self.path("home", "qa-amend-ok.tsv")))
+
     def test_usage(self):
         "qa-amend: a number that is no number, or none, is a usage error (exit 2) naming gate.sh"
         self.table([("x", 2, ("qa-amend", "x"), "usage: gate.sh qa-amend <n>"), ("5x", 2, ("qa-amend", "5x")),
