@@ -1,0 +1,1 @@
+{"issue": 151, "slug": "36-37-runtimes-3-4-modelos-self-hosted", "pipeline": "refine", "started_at": "2026-10-14T17:48:20-03:00", "finished_at": "2026-10-14T18:05:00-03:00", "outcome": "ok", "agents": [{"role": "product-owner", "tokens": 31561, "duration_s": 37}], "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": null}
