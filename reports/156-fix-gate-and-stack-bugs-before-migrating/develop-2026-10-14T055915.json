@@ -1,0 +1,12 @@
+{
+  "outcome": "ok",
+  "agents": [
+    {"name": "qa-engineer", "tokens": 57174, "duration_ms": 148668},
+    {"name": "engineer", "tokens": 24188, "duration_ms": 146752}
+  ],
+  "rounds": 0,
+  "failed_gates": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": []
+}
