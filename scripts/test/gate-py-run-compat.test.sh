@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# #166 (PY-13), AC-8 (the stack side): lib/stack.sh is a shim of Bash functions calling `sf.py stack ...`; dispatch.sh
-# and gate.sh still source it, and dispatch.sh still gets stack_settings and stack_release_run from it. The existing
+# #166 (PY-13), AC-8 (the stack side): lib/stack.sh is a shim of Bash functions calling `sf.py stack ...`; gate.sh
+# still sources it (dispatch.sh did until #168 ported it to dispatch.py, which calls stack.py directly). The existing
 # stack-*.test.sh, gate-*.test.sh and dispatch-stack.test.sh pass unedited against it (they run in the suite).
 source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
@@ -24,9 +24,9 @@ for f in stack_settings slot_dir slot_state fill_ports slot_env free_range slot_
 done
 [ -z "$missing" ] && pass "AC-8 the shim keeps every function of lib/stack.sh" || fail "AC-8 functions missing from the shim:$missing"
 
-# ---- dispatch.sh and gate.sh still use it
-grep -q 'source "$HERE/lib/stack.sh"' "$FACTORY_DIR/dispatch.sh" && grep -q 'stack_settings; stack_release_run' "$FACTORY_DIR/dispatch.sh" \
-  && pass "AC-8 dispatch.sh still sources lib/stack.sh for stack_settings and stack_release_run" || fail "AC-8 dispatch.sh no longer uses lib/stack.sh"
+# ---- gate.sh still uses it; dispatch.sh is a wrapper over dispatch.py since #168, which calls stack.py itself
+grep -q 'release_run' "$FACTORY_DIR/shipfloor_core/dispatch.py" \
+  && pass "AC-8 dispatch.py releases a run's slot through stack.py (#168: dispatch.sh no longer sources lib/stack.sh)" || fail "AC-8 dispatch.py does not release a run's slot through stack.py"
 grep -q 'source "$HERE/lib/stack.sh"' "$FACTORY_DIR/gate.sh" && pass "AC-8 gate.sh still sources lib/stack.sh" || fail "AC-8 gate.sh no longer sources lib/stack.sh"
 
 # ---- stack_settings sets the variables its callers read; stack_release_run releases the run's slot through them
