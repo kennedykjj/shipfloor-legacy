@@ -1,0 +1,1 @@
+{"issue":189,"slug":"agents-use-rest-api-for-issues","pipeline":"validate","started_at":"2026-10-14T16:48:00Z","finished_at":"2026-10-14T16:55:34Z","outcome":"infra","agents":[],"rounds":{"gates":0,"review":0},"gates_failed":[],"flaky":[],"gates_reused":["build","green factory scripts/test/hygiene.test.sh"],"manual_edit":false}
