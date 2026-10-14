@@ -52,6 +52,8 @@ if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
     "api repos/acme/shop/issues?labels="*)  # $d/label-<label> (":" as "-") holds the issues with that label; default #7
       l="${args#*labels=}"; l="${l%%&*}"; [ -f "$d/label-${l//:/-}" ] && { cat "$d/label-${l//:/-}"; exit 0; }; echo '[{"number":7}]'; exit 0 ;;
     "api user") echo '{"login":"factory"}'; exit 0 ;;
+    "api repos/acme/shop/issues/"*"/events"*)  # $d/events-<n>, a JSON array (default [])
+      n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/.*#\1#')"; [ -f "$d/events-$n" ] && { cat "$d/events-$n"; exit 0; }; echo '[]'; exit 0 ;;
     "api repos/acme/shop/issues/"*"/comments"*)  # $d/comments-<n> for one card, else $d/issue-comments for all
       n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/.*#\1#')"; [ -f "$d/comments-$n" ] && { cat "$d/comments-$n"; exit 0; }
       [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
