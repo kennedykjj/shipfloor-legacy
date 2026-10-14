@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The thin Bash entry points, through real processes: a wrapper built from templates/py-wrapper.sh (lib/py.sh runs
 # sf.py under `python -I`: the Python it picks, a PYTHONPATH or working directory that cannot shadow the package, no
 # __pycache__ left, LF output), sf.py ending quietly on a closed pipe (board.sh items), and inbox-hook.sh, which never

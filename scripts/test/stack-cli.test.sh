@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # Stack slots through real processes, where the process is the behavior (the logic is tested in process:
 # py/deploy_stack.py): the lib/stack.sh shim and its shell variables, gate.sh / sf.py stack (usage, status, up, down),
 # the detached heartbeat of a lease, and one real queue served in arrival order. lsof is a stub throughout.

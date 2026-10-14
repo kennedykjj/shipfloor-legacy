@@ -73,6 +73,44 @@ To get the push, pick a topic that is long and random: anyone who knows the topi
 hours: ["08:00-23:00"]
 ```
 
+## Runtime
+
+`runtime` names the agent runtime that runs a stage's session. It goes in `~/.shipfloor/config.yml` or in a project's `.shipfloor/factory.yml`, as a string for every stage or as a map with only `default` and `stages` (`refine`, `develop`, `validate`, `deploy`):
+
+```yaml
+runtime: claude-code            # every stage
+```
+
+```yaml
+runtime:
+  default: claude-code
+  stages: {validate: claude-code}   # a stage here wins over default
+```
+
+`factory.yml` wins over `config.yml` key by key: `default` and each stage are resolved on their own. Unset means `claude-code`. The known runtimes are `claude-code` and `codex` (the Codex CLI). A value that is not a known runtime, or a map with any key other than `default`, `stages`, `models` and `ladder`, makes the config invalid and the dispatch exits 2. The dispatcher's log lines carry `runtime=` and `outcome=` for each run.
+
+### Runtime: Codex
+
+With `runtime: codex` (for every stage, or for some under `stages`) a stage's session runs as `codex exec` in the `workspace-write` sandbox: it writes in the control checkout and in the worktrees, `tmp` and `reviews` folders, and nowhere else. The gates (`forbidden`, `scope`, `acceptance-intact`) hold the same as with Claude Code. The factory has its own `CODEX_HOME`, `SHIPFLOOR_CODEX_HOME` or `~/.shipfloor/runtimes/codex`: `shipfloor install` generates it (the config, the agents and each stage's prompt, from the plugin's own skills and agents) whenever a config on the machine or in a project uses `codex`. The owner's personal `~/.codex` is never used. Log in with `CODEX_HOME=<that folder> codex login`, or set `CODEX_API_KEY`; see [Installing](install.md).
+
+The model of a Codex stage and of its agents goes under `runtime.models`; the name is free, whatever `codex -m` takes. Leave a stage out and Codex uses its own default.
+
+```yaml
+runtime:
+  default: codex
+  models:
+    stages:
+      refine: gpt-5.5                       # refine runs before the card has a weight: one model
+      develop: {light: gpt-5.5-mini, standard: gpt-5.5, heavy: gpt-5.5}
+      validate: gpt-5.5
+    agents: {engineer: gpt-5.5, qa-engineer: gpt-5.5}   # an agent's model: its Claude alias is not copied
+  ladder: [gpt-5.5-mini, gpt-5.5]           # lowest first
+```
+
+After a failed gate, a Codex develop run takes the model one up `runtime.ladder`; with no ladder, or at the top of it, it does not climb. `models.stages` (Settings > Agents and models) is Claude Code's alone: for a stage on another runtime it does nothing, and `shipfloor doctor` warns about it. In the dashboard those stages take a free-text model field instead of the list. `runtime.models` merges name by name, and `runtime.ladder` is replaced as a whole, with the project's `factory.yml` over `config.yml`. `runtime.models.agents` is read from `~/.shipfloor/config.yml` when the Codex home is generated, so run `shipfloor install` again after changing it.
+
+The cost of a Codex run is measured from its rollouts under `<CODEX_HOME>/sessions`, priced from `prices.yml`, which lists the OpenAI models the factory knows. A model without a price shows `$ ?` with its tokens, never zero; a card with a priced part and an unpriced part shows `$ ?` for the total. A run that ends on a Codex usage limit pauses new launches for 30 minutes, like Claude's; the dispatcher's line and the notification name the runtime (`Codex usage limit hit recently; waiting`). Commits made by a Codex run carry `Co-Authored-By: Codex <noreply@openai.com>`.
+
 ## Language
 
 The factory speaks English unless told otherwise. Two keys change that, each a code of the twelve languages the dashboard ships in: `en` (default), `zh-CN`, `zh-TW`, `es`, `ja`, `de`, `fr`, `pt-BR`, `ru`, `ko`, `it` and `tr`.

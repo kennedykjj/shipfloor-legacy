@@ -322,6 +322,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.log` | the run's output with the `== ` lines | `dispatch.sh` | `dashboard.py` (`RUN_LINE`, `STEPUP_LINE`), `dispatch.sh` and `shipfloor-dispatch.sh` (`hit your session limit` after the last `== start`) |
 | `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.events.jsonl` | the agent's stream-json events, `{"t", "pid", "event"}` per line | `dispatch.sh` (`telemetry.py`) | people, analysis |
 | `<home>/logs/runs.jsonl` | one summary per agent run: duration, API time, turns, cost, tokens, seconds per tool | `dispatch.sh` (`telemetry.py`) | people, analysis |
+| `<home>/logs/board-<YYYY-MM>.jsonl` | `{"t": "<ISO local time with offset>", "cards": {"<n>": "<column>", …}}`, one line per change, the whole board each time | `dispatch.sh` (`board_history.record`) | `dashboard.py` (`GET /api/day/<project>`) |
 | `<home>/logs/<YYYY-MM-DD>-<n>-refresh.log` | the output of `deploy.sh --refresh` | `dispatch.sh` | people |
 | `~/.shipfloor/logs/dispatcher.log` | the scheduler's output | `run-dispatcher.sh` | people |
 | `~/.shipfloor/logs/stacks.log` | `<ISO> reclaimed slot <k> from <owner> <reason>` | `lib/stack.sh` | people |
@@ -332,6 +333,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 
 Readers that parse what the scripts write, which a port must not break:
 - `dashboard.py` reads the `== start`, `== end` and `== step-up` lines (and `hit your session limit`), `board.tsv`, `SKIPPED`, the locks' `info`, `step` and `inbox`, `stepup/`, `infra/`, `cost/`, `board-ids`, the health lines.
+- `dashboard.py` answers `GET /api/day/<project>` (the dashboard's replay, read on every call, nothing cached): `{"date": "<today, YYYY-MM-DD>", "now": "<ISO local time>", "board": [<today's lines of `board-<YYYY-MM>.jsonl`, each `{"t", "cards"}`>], "marks": [{"t", "kind": "ok"|"bad"|"decision", "n", "stage" (runs only), "what": "ended"|"blocked"|"approved-spec"|"approved-pr"|"requested-changes"}]}`, marks in time order; a mark is a finished run of today or a decision the owner took between two board lines.
 - `shipfloor_health.py` keeps its own copy of the stage table (queue column, resumed columns, WIP columns) that `dispatch.sh` encodes in its four `run_pipeline` calls: `refine` takes `Ready for Refinement`, resumes `Technical Refinement`, WIP `Spec Review`; `develop` takes `Ready for Dev`, resumes `Coding`, WIP `Coding` and `Validation`; `validate` takes `Validation`; `deploy` takes `Ready for Prod`. Change one, change the other.
 - `dashboard_cost.py` finds a run's Claude Code transcripts in `<claude dir>/projects/*-projects-<slug>-control` (the directory name Claude derives from the control checkout, which is the run's cwd) and the card from the first user message, which holds `<command-name>/sf:<stage></command-name>` and `<command-args><n></command-args>`: that is how the `/sf:<stage> <n>` the launch writes on stdin appears in a transcript.
 - The skills parse the first stdout line of `shipfloor dashboard`.
@@ -380,6 +382,16 @@ Readers that parse what the scripts write, which a port must not break:
 6. After the run: `== end ...` is logged; for `develop` ending 0, a failed gate in `<lock>/last-gate` (`FAIL`, never `INFRA`) writes `stepup/<n>`, removes the label `blocked` and logs `== step-up ...`. The run's stack slots are released, `tmp/<n>` is removed and the lock goes (only when its `info` still names this process).
 
 The skills and agents parse nothing of this; the dashboard parses the `== ` lines and the transcripts.
+
+## The codex exec launch
+
+A stage whose runtime is `codex` (`scripts/runtimes/codex.py`) goes through the same steps as above, with these differences:
+
+- The command is `codex exec -s workspace-write -C <home>/control [-m <model>] --add-dir <worktrees> --add-dir <home>/tmp --add-dir <home>/reviews --skip-git-repo-check --json -o <log>.last -`, with `CODEX_HOME=<the factory's Codex home>` (`SHIPFLOOR_CODEX_HOME`, default `~/.shipfloor/runtimes/codex`) in the environment, plus `SHIPFLOOR_TRAILER=Co-Authored-By: Codex <noreply@openai.com>`. `FACTORY_CODEX` stands in for the `codex` binary in tests.
+- The prompt on **stdin** is `<CODEX_HOME>/sf/<stage>.md` followed by `Card: #<n>`. `shipfloor install` generates that file from `skills/<stage>/SKILL.md`: the frontmatter out, a preface (the headless rules, the owner's messages), `<!-- sf:stage=<stage> -->` first (how a rollout is tied to its stage), and the runtime blocks `<!-- rt:codex -->...<!-- /rt -->` of the sources resolved: the Codex ones kept, another runtime's dropped. The Claude Code plugin reads the same files as they are, where the blocks are HTML comments. The agents are generated as `agents/<name>.toml` (`name`, `description`, `developer_instructions`, and `model` from `runtime.models.agents`), `config.toml` (`approval_policy = "never"`, `workspace-write`, the hook switch) and `hooks.json` (the `PostToolUse` hook, `inbox_hook.py --codex`, which prints the same `additionalContext` as the Claude Code hook and tracks the lead and each subagent by `session_id`).
+- The log keeps the `--json` stream as it comes (it is not Claude's `stream-json`, so no `events` file beside it); when the run ends, the agent's final message (`<log>.last`) is appended to the log.
+- The outcome in `== end` is `usage_limit` when the run's log, apart from the stream's `item.*` events, matches `You've hit your usage limit`, `out of credits`, `hit your spend cap`, `Quota exceeded`, `upgrade to Plus` or `exceeded retry limit, last status: 429` (whatever the exit code); else `ok` on exit 0 and `fail` otherwise.
+- The dashboard reads cost, Sessions and Live from the rollouts under `<CODEX_HOME>/sessions/YYYY/MM/DD` whose `session_meta.cwd` is the project's control checkout (subagents by `parent_thread_id`; `.jsonl.zst` only when `zstd` or `zstandard` is there). The card comes from `Card: #<n>` and the stage from the marker. `input` is `input_tokens` less `cached_input_tokens`, `cache_read` is `cached_input_tokens`, `output` is `output_tokens`.
 
 ## Security invariants
 

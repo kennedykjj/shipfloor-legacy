@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The dispatcher's entry points through their real wrappers (the logic is in process: py/dispatch_*.py):
 #  - dispatch.sh is `sf.py dispatch`: same text and exit code; an installed copy without lib/stack.sh or lib/project.sh,
 #    runs a cycle with cost limits, gives back the run's stack slot, writes no __pycache__; lib/project.sh's tmp sweep

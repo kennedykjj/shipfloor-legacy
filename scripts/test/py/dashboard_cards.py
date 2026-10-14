@@ -146,6 +146,30 @@ class Live(ds.Dash):
         self.assertEqual(hook("{}", os.path.join(self.P, "locks", "none.lock"))[0], 0, "a lock with no inbox: exit 0")
 
 
+    def test_AC5_a_message_reaches_a_codex_run_and_shows_as_owner(self):
+        "AC-5 on a running Codex card a message waits in the inbox until the agent has read it (inbox.lead), and the message it was handed shows in Live as owner beside what it said and ran"
+        import inbox_hook
+        home = os.environ["SHIPFLOOR_CODEX_HOME"] = self.path("codex-home")
+        L = self.lock("develop-11", 11)
+        ds.support.codex_rollout(home, "s1", self.pdir("shop", "control"), stage="develop", issue=11, says=["Planning the work."],
+                                 commands=["ls -la"], owner=[inbox_hook.INTRO + "\n\nuse the old header"])
+        self.fresh()
+        def live():
+            s = self.get("/api/live/shop/11").json
+            return s["running"], [(e["kind"], e["text"]) for e in s["events"]], [m["text"] for m in s["pending"]]
+        running, events, pending = live()
+        self.assertTrue(running)
+        self.assertIn(("says", "Planning the work."), events)
+        self.assertIn(("owner", "use the old header"), events)
+        self.assertTrue([k for k, t in events if k not in ("says", "owner") and "ls -la" in t], "the command it ran: %s" % events)
+        self.assertEqual([t for k, t in events if k == "owner"], ["use the old header"], "only what the owner sent is the owner's")
+        self.assertEqual(pending, [])
+        self.assertEqual(self.card_post(11, "message", {"text": "keep the footer"}).code, 200)
+        self.assertEqual(live()[2], ["keep the footer"])
+        self.write(os.path.relpath(os.path.join(L, "inbox.lead"), self.tmp), "1")  # the agent read it and kept its count
+        self.assertEqual(live()[2], [])
+
+
 class Move(ds.Dash):
     def alone(self, col):
         self.items((9, col))

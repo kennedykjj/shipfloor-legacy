@@ -67,14 +67,37 @@ class Agent(Base):
                           "FACTORY_WT_ROOT": os.environ["FACTORY_WT_ROOT"], "SHIPFLOOR_HOME": self.shome,
                           "FACTORY_CONFIG": os.environ["FACTORY_CONFIG"], "FACTORY_PROJECT": "shop",
                           "CALLER_VAR": "kept as is"})
-        for gone in ("FACTORY_BOARD_SNAPSHOT", "SHIPFLOOR_INFRA_RETRY", "MSYS_NO_PATHCONV"):
+        for gone in ("FACTORY_BOARD_SNAPSHOT", "SHIPFLOOR_INFRA_RETRY", "MSYS_NO_PATHCONV", "SHIPFLOOR_TRAILER"):
             self.assertNotIn(gone, env)
         log = open(os.path.join(self.home, "logs", "%s-54-develop.log" % today())).read().splitlines()
         self.assertEqual(len(log), 3)
-        self.assertRegex(log[0], r"^== start /sf:develop 54 %s pid=%d model=sonnet weight=standard$" % (ds.ISO, os.getpid()))
+        self.assertRegex(log[0], r"^== start /sf:develop 54 %s pid=%d model=sonnet weight=standard runtime=claude-code$" % (ds.ISO, os.getpid()))
         self.assertEqual(log[1], "claude says hi")
-        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s$" % ds.ISO)
+        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s outcome=ok$" % ds.ISO)
         self.assertFalse(os.path.exists(self.home + "/locks/develop-54.lock"), "the run's lock goes when it ends")
+
+    def test_AC2_claude_code_runtime_changes_nothing(self):
+        "AC-2 no runtime, runtime: claude-code (string or map) and a project's runtime give the same command line, stdin and environment"
+        seen = []
+        for machine, project in ((None, ""), ("runtime: claude-code", ""),
+                                 ("runtime: {default: claude-code, stages: {develop: claude-code}}", ""),
+                                 (None, "runtime: claude-code\n")):
+            self.machine_cfg(ds.POOL8 + ("\n" + machine if machine else ""))
+            if project:
+                self.project_cfg(open(ds.FIXTURE_CONFIG, encoding="utf-8").read() + "\n" + project)
+            self.board(queues={"Ready for Dev": 54})
+            self.launches, self.pending = [], []
+            for d in os.listdir(os.path.join(self.home, "locks")):
+                os.rmdir(os.path.join(self.home, "locks", d))
+            self.assertEqual(self.cycle(runs=False), 0, self.err)
+            spec = self.launches[0]
+            self.assertEqual(spec.get("runtime"), "claude-code", "the launch names the runtime it uses")
+            self.run_pending()
+            call = self.claude_calls()[-1]
+            self.assertNotIn("SHIPFLOOR_TRAILER", call["env"], "the claude-code trailer is the default one: no variable")
+            seen.append((call["argv"], call["stdin"], call["env"]["CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"],
+                         call["env"]["CLAUDE_CODE_DISABLE_AUTO_MEMORY"], spec["argv"][-2:]))
+        self.assertEqual(seen[1:], seen[:1] * 3)
 
     def test_end_line_has_the_agent_exit(self):
         "the == end line carries the agent's exit code"
@@ -95,13 +118,13 @@ class Agent(Base):
         "a run may read the factory's scripts, and reports-wt only when it exists; it gets no write rule"
         self.board(queues={"Ready for Dev": 54})
         self.cycle(runs=False)
-        args = self.launches[0]["args"]
+        args = self.launches[0]["argv"]
         i = args.index("--allowedTools")
         self.assertEqual(args[i:i + 4], ["--allowedTools", "Read(/%s/**)" % SCRIPTS, "--disallowedTools", "PowerShell"])
         os.makedirs(os.path.join(self.home, "reports-wt"))
         self.board(queues={"Ready for Dev": 55})
         self.cycle(runs=False)
-        args = self.launches[1]["args"]
+        args = self.launches[1]["argv"]
         i = args.index("--allowedTools")
         self.assertEqual(args[i:i + 3], ["--allowedTools", "Read(/%s/**)" % SCRIPTS,
                                          "Read(/%s/reports-wt/**)" % os.path.realpath(self.home)])
@@ -113,8 +136,9 @@ class Agent(Base):
         os.rmdir(os.path.join(self.home, "control"))
         self.board(queues={"Ready for Dev": 26})
         self.cycle()
-        self.assertRegex(self.log("develop", 26).splitlines()[-1],
-                         r"^== end /sf:develop 26 exit=1 %s: no %s/control$" % (ds.ISO, re.escape(self.home)))
+        end = self.log("develop", 26).splitlines()[-1]
+        self.assertRegex(end, r"^== end /sf:develop 26 exit=1 %s: no %s/control" % (ds.ISO, re.escape(self.home)))
+        self.assertIn("outcome=fail", end)
         self.assertEqual((self.claude_calls(), os.listdir(os.path.join(self.home, "locks"))), ([], []))
         os.makedirs(os.path.join(self.home, "control"))
         self.cycle()
@@ -136,8 +160,8 @@ class Deploy(Base):
                          ("1", self.home + "/locks/deploy-47.lock"))
         self.assertNotIn("FACTORY_BOARD_SNAPSHOT", d[0]["env"])
         log = self.log("deploy", 47).splitlines()
-        self.assertRegex(log[0], r"^== start /sf:deploy 47 %s pid=\d+ model=sonnet weight=standard$" % ds.ISO)
-        self.assertRegex(log[-1], r"^== end /sf:deploy 47 exit=0 %s$" % ds.ISO)
+        self.assertRegex(log[0], r"^== start /sf:deploy 47 %s pid=\d+ model=sonnet weight=standard runtime=claude-code$" % ds.ISO)
+        self.assertRegex(log[-1], r"^== end /sf:deploy 47 exit=0 %s outcome=ok$" % ds.ISO)
 
     def test_clean_deploy_needs_no_agent(self):
         "a deploy that exits 0 calls no agent"
@@ -173,7 +197,7 @@ class Models(Base):
         self.assertEqual(rc, 0)
         out = {}
         for s in self.launches:
-            a = s["args"]
+            a = s["argv"]
             flag = a[a.index("--model") + 1] if "--model" in a else None
             self.assertEqual(flag, s["model"] or None, "the --model flag is the run's model")
             out["%s %s" % (s["p"], s["n"])] = "%s/%s" % (s["model"], s["weight"])
@@ -221,7 +245,7 @@ class Models(Base):
         self.board(queues={"Ready for Dev": 54})
         self.cycle()
         line = self.start_line("develop", 54)
-        self.assertTrue(line.endswith(" model=opus weight=heavy"), line)
+        self.assertTrue(line.endswith(" model=opus weight=heavy runtime=claude-code"), line)
         self.assertEqual(dashboard.RUN_LINE.match(line).group(2, 3), ("develop", "54"))
         self.assertEqual(dashboard.RUN_MODEL.search(line).group(1), "opus")
         self.assertEqual(self.flag_model(self.claude_calls()[0]), "opus")
@@ -410,7 +434,7 @@ class Telemetry(Base):
         self.assertEqual(len(log), 3)
         self.assertTrue(log[0].startswith("== start /sf:develop 54 "))
         self.assertEqual(log[1], "All done: #54 is in Validation.")
-        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s$" % ds.ISO)
+        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s outcome=ok$" % ds.ISO)
 
     def test_stream_events_file(self):
         "stream-json: every event goes to <log>.events.jsonl with when it arrived and the run's pid"
@@ -487,3 +511,114 @@ class Telemetry(Base):
             "bash ~/.shipfloor/factory/gate.sh green 54", "bash ~/.shipfloor/factory/board.sh move 54 Coding",
             "gh pr view 3", "x=$(gh api user)", "cd wt && gh issue list", "git status", "echo high", None)],
             ["gate", "board", "gh", "gh", "gh", "other", "other", "other"])
+
+
+CODEX_MODELS = """runtime:
+  default: codex
+  models:
+    stages:
+      develop: gpt-6-mini
+      validate: {light: gpt-6-mini, standard: gpt-6-mini, heavy: gpt-6-sol}
+"""
+
+
+class CodexSandbox(ds.CodexCase):
+    def test_AC2_codex_writes_only_where_the_run_may(self):
+        "AC-2 a Codex run is sandboxed to workspace-write with the worktrees, tmp and reviews as the only extra writable folders: not the installed scripts, reports-wt, its CODEX_HOME, nor any repo file the gates guard"
+        os.makedirs(os.path.join(self.home, "reports-wt"))
+        self.board(queues={"Ready for Dev": 54})
+        self.assertEqual(self.cycle(), 0, self.err)
+        argv = self.codex_calls()[0]["argv"]
+        self.assertEqual(argv[argv.index("-s") + 1], "workspace-write")
+        for unsafe in ("danger-full-access", "--dangerously-bypass-approvals-and-sandbox", "--yolo"):
+            self.assertNotIn(unsafe, argv)
+        writable = [argv[i + 1] for i, a in enumerate(argv) if a == "--add-dir"]
+        self.assertEqual(sorted(writable), sorted([os.environ["FACTORY_WT_ROOT"], self.home + "/tmp", self.home + "/reviews"]))
+        roots = [os.environ["FACTORY_WT_ROOT"], self.home + "/tmp", self.home + "/reviews"]
+        for folder in writable:
+            # independent of where TMPDIR lives: compare by path, not by substring
+            for guarded in (SCRIPTS, self.home + "/reports-wt", self.codex_home):
+                rel = os.path.relpath(folder, guarded)
+                self.assertTrue(rel == ".." or rel.startswith("../"), "%s is, or is under, %s" % (folder, guarded))
+            root = next(r for r in roots if folder == r or folder.startswith(r + "/"))
+            parts = os.path.relpath(folder, root).split("/")
+            for guarded in (".shipfloor", ".github", ".codex", "AGENTS.md"):
+                self.assertNotIn(guarded, parts)
+
+
+class CodexModels(ds.CodexCase):
+    def models(self, machine=CODEX_MODELS, queues=None):
+        """{'<stage> <n>': the -m flag (None: no flag)} of one cycle's launches."""
+        self.machine_cfg(ds.POOL8 + "\n" + machine)
+        self.board(queues=queues or {"Ready for Dev": "54 55", "Validation": 60, "Ready for Refinement": 70})
+        self.launches, self.pending = [], []
+        for d in os.listdir(os.path.join(self.home, "locks")):
+            os.rmdir(os.path.join(self.home, "locks", d))
+        self.assertEqual(self.cycle(), 0, self.err)
+        out = {}
+        for c in self.codex_calls()[-len(self.launches):]:
+            out[c["stdin"].split("Card: #")[-1].strip()] = self.flag(c, "-m")
+        return out
+
+    def test_AC3_the_configured_codex_model_is_the_run_model(self):
+        "AC-3 runtime.models gives a Codex run its model, a stage alone or one weight of it, with the name as written; no model configured is no -m flag"
+        self.card(54, "light")
+        self.card(55, "heavy")
+        self.card(60, "heavy")
+        self.assertEqual(self.models(), {"54": "gpt-6-mini", "55": "gpt-6-mini", "60": "gpt-6-sol", "70": None})
+        self.assertIn("model=gpt-6-mini", self.start_line("develop", 54))
+        self.assertEqual(self.models("runtime: codex"), {"54": None, "55": None, "60": None, "70": None})
+
+    def test_AC3_models_stages_is_for_claude_code_only(self):
+        "AC-3 the machine's models.stages (Claude Code's aliases) never reaches a Codex run"
+        got = self.models("runtime: codex\nmodels:\n  stages: {develop: haiku, validate: opus, refine: opus}")
+        self.assertEqual(got, {"54": None, "55": None, "60": None, "70": None})
+        self.assertNotIn("model=haiku", self.start_line("develop", 54))
+        self.assertEqual(self.claude_calls(), [])
+
+    def test_AC3_invalid_runtime_models_stop_the_dispatch(self):
+        "AC-3 a runtime.ladder that is not a list, an empty model name or an unknown key of runtime.models is an invalid config: exit 2, nothing started"
+        self.board(queues={"Ready for Dev": 54})
+        for text in ("runtime: {default: codex, ladder: gpt-6-mini}", "runtime: {default: codex, models: {stages: {develop: ''}}}",
+                     "runtime: {default: codex, models: {nope: gpt-6-mini}}"):
+            self.machine_cfg(ds.POOL8 + "\n" + text)
+            self.assertEqual(self.cycle(), 2, (text, self.err, self.out))
+        self.assertEqual(self.codex_calls(), [])
+        self.machine_cfg(ds.POOL8 + "\n" + CODEX_MODELS + "  ladder: [gpt-6-mini, gpt-6-sol]")
+        self.assertEqual(self.cycle(), 0, self.err)
+
+    def failing_develop(self, machine):
+        self.machine_cfg(ds.POOL8 + "\n" + machine)
+        self.board(queues={"Ready for Dev": 54}, snapshot="54\tCoding\tI_1\n")
+        self.set_fake(codex={"verdict": "FAIL", "gate": "build"})
+        self.cycle()
+        self.assertTrue(self.codex_calls(), "the develop run ran on codex: %s %s" % (self.out, self.err))
+        return self.log("develop", 54)
+
+    def test_AC3_a_failed_gate_steps_up_the_runtime_ladder(self):
+        "AC-3 a develop run that ends on a failed gate runs again one rung up runtime.ladder, once"
+        log = self.failing_develop(CODEX_MODELS + "  ladder: [gpt-6-mini, gpt-6-sol]")
+        self.assertRegex(log, r"== step-up /sf:develop 54 gpt-6-mini -> gpt-6-sol: gate build failed %s\n" % ds.ISO)
+        self.assertEqual(open(os.path.join(self.home, "stepup", "54")).read(), "gpt-6-mini\tgpt-6-sol\tbuild\n")
+        self.board(queues={"Coding": 54}, snapshot="54\tCoding\tI_1\n")
+        self.set_fake(codex={"verdict": "FAIL", "gate": "green"})
+        self.cycle()
+        self.assertEqual(self.flag(self.codex_calls()[1], "-m"), "gpt-6-sol")
+        self.assertIn("model=gpt-6-sol", self.start_line("develop", 54))
+        self.assertIn("dispatch: #54 runs on gpt-6-sol, one model up after gpt-6-mini failed gate build", self.out)
+        self.assertEqual(self.log("develop", 54).count("== step-up"), 1, "a stepped-up run steps no further")
+
+    def test_AC3_no_ladder_no_step_up(self):
+        "AC-3 without runtime.ladder, or on its top rung or off it, a failed gate steps nothing up"
+        for name, machine in (("no ladder", CODEX_MODELS),
+                              ("top rung", CODEX_MODELS.replace("develop: gpt-6-mini", "develop: gpt-6-sol") + "  ladder: [gpt-6-mini, gpt-6-sol]"),
+                              ("off the ladder", CODEX_MODELS + "  ladder: [gpt-6-nano, gpt-6-sol]")):
+            if os.path.exists(os.path.join(self.home, "stepup", "54")):
+                os.unlink(os.path.join(self.home, "stepup", "54"))
+            log = self.failing_develop(machine)
+            self.assertNotIn("== step-up", log, name)
+            self.assertFalse(os.path.exists(os.path.join(self.home, "stepup", "54")), name)
+
+    def start_line(self, p, n):
+        lines = [l for l in self.log(p, n).splitlines() if l.startswith("== start")]
+        return lines[-1] if lines else ""

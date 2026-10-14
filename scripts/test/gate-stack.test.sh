@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # gate.sh stack and the gates that take a stack slot, as real processes: here the processes are the behavior (slots
 # leased across processes, the queue, waits on the clock, INT/TERM, the heartbeat that outlives `stack up`). One
 # scenario per behavior, with the shortest waits. The stack's own decisions are stack-*.test.sh's; red/green's verdict

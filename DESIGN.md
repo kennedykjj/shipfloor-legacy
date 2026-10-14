@@ -1,6 +1,6 @@
 ---
 name: Shipfloor Dashboard
-description: "A calm instrument for one owner of a software factory: a lifecycle band that shows where every card is, a short list of what waits for the owner, and a drawer for one card."
+description: "A calm instrument for one owner of a software factory: a belt that shows where every card is, a short list of what waits for the owner, and a drawer for one card."
 colors:
   ground: "#0a0a0a"
   panel: "#14171b"
@@ -132,16 +132,16 @@ components:
 
 **Creative North Star: "The Floor Plan"**
 
-The dashboard is the floor plan of a software factory, read by one owner doing quick checks: look at the lifecycle band to see where every card stands, answer what waits for you, glance at what is running and what it cost, close. It has three views, chosen in the header: **Factory** (the board), **Feed** (a timeline of runs) and **Settings** (the dispatcher, the sessions, the projects, the themes and the prices). A card opens in a drawer; a dot on the lifecycle band opens a small peek first.
+The dashboard is the floor plan of a software factory, read by one owner doing quick checks: look at the belt to see where every card stands, answer what waits for you, glance at what is running and what it cost, close. It has three views, chosen in the header: **Factory** (the board), **Feed** (a timeline of runs) and **Settings** (the dispatcher, the sessions, the projects, the themes and the prices). A card opens in a drawer; a click on its token on the belt opens it.
 
 The surface is a quiet page with translucent panels and hairline borders. Its type is IBM Plex Sans for words and IBM Plex Mono for logs and times; hierarchy comes from size and weight, never from case or tracking, and every number keeps tabular figures. One color is reserved: the **accent** (`sand`) marks only what waits for the owner, and the outcome trio (ok, warn, bad) marks results. Everything else is ink and hairlines. Color is chosen by the owner: fourteen themes change the same tokens and nothing else.
 
 **Key Characteristics:**
-- One lifecycle band: every column a cell on a dotted track, every card a dot.
+- One belt: every column a segment, every card a token, a rail under it that moves only while the dispatcher is alive.
 - Panels are translucent washes of the theme's ink over the ground, with a hairline border and a 16px radius; the decision panel has 14px.
 - Sentence case everywhere; weight and size carry the hierarchy.
-- Hairlines instead of shadows at rest; depth appears for the drawer, the peek, the maximized panel and the hover of a tile.
-- Two continuous motions only: the cooldown dial on a running card and the pulse of a running dot, both stopped under reduced motion.
+- Hairlines instead of shadows at rest; depth appears for the drawer, the maximized panel and the hover of a tile.
+- Three continuous motions: the cooldown dial on a running card, the pulse of a running dot and the belt's rail. The belt is the third continuous motion, allowed because it carries state, and it stops under reduced motion like the other two.
 
 ## Colors
 
@@ -149,10 +149,10 @@ Every color is a token of the base block (`:root, [data-theme="charcoal"]`), and
 
 ### Neutral
 - **Ground** (`colors.ground`): the page, under a grain and the glows (`glow1a`, `glow1b`, `glow2`), and the well of the text area and of code.
-- **Panel** (`colors.panel`), **Raised Panel** (`colors.panel-hi`) and **Raise** (`colors.raise`): the drawer, the peek, a maximized panel and hover rows; ordinary panels on the page are only a 2% wash of the ink over the ground. `paper` is the surface of the decision panel.
-- **Hairline** (`colors.edge`) and **Lit Edge** (`colors.edge-hi`): dividers and borders; the lit edge is the border of the drawer, the peek and the buttons. The header rule, the legend, the stats separator and the passes use `--hair`, the theme's ink at 11%.
+- **Panel** (`colors.panel`), **Raised Panel** (`colors.panel-hi`) and **Raise** (`colors.raise`): the drawer, a maximized panel and hover rows; ordinary panels on the page are only a 2% wash of the ink over the ground. `paper` is the surface of the decision panel.
+- **Hairline** (`colors.edge`) and **Lit Edge** (`colors.edge-hi`): dividers and borders; the lit edge is the border of the drawer and the buttons. The header rule, the legend, the stats separator and the passes use `--hair`, the theme's ink at 11%.
 - **Text steps** (`colors.text`, `colors.soft`, `colors.muted`, `colors.faint`): primary, body, secondary and tertiary text, in that order. Each theme holds every step to 4.5:1 on its ground and panels.
-- **Track** (`colors.track`, `colors.track-on`): the lifecycle band's dotted line, and its solid line under a stage that works.
+- **Track** (`colors.track`, `colors.track-on`): the belt's rail ticks, and the ticks under a stage that works.
 
 ### Accent
 - **Sand** (`colors.sand`): the accent. It marks only what waits for the owner: the waiting dot, the card number in the "Yours" list, the `waits for you` words, the waiting count, the Approve that answers it and the focus ring. Text on an accent fill is `accent-ink`. It is never one of the outcome colors, and in the page's themes it is yellow, orange, cyan, blue or teal as the theme decides.
@@ -176,9 +176,9 @@ Every color is a token of the base block (`:root, [data-theme="charcoal"]`), and
 ### Hierarchy
 - **Display** (sans, 600, 34px): the heading of a panel (`h1.g`), such as Lifecycle or History.
 - **Section** (sans, 600, 24px): the heading of the maximized line, of the Yours column, of a Settings section and the card number.
-- **Headline** (sans, 600, 17px, 1.3): the drawer's card title, a column label in the lifecycle band, a Settings group title and the heading of the decision.
+- **Headline** (sans, 600, 17px, 1.3): the drawer's card title, a segment name on the belt, a Settings group title and the heading of the decision.
 - **Lead** (sans, 16px, 1.5): the prose of a brief and the longer descriptions.
-- **Base** (sans, 15px, 1.45): the page's base text, with tabular figures everywhere; a card title in a tile, a pass and the peek is 15px at 500.
+- **Base** (sans, 15px, 1.45): the page's base text, with tabular figures everywhere; a card title in a tile, a pass is 15px at 500.
 - **Body** (sans, 14px): sections of the inbox reader, the alerts, descriptions, buttons and table cells.
 - **Meta (13px)**: meta lines, tab labels, notices, tags, gates, clocks and the tile's last words.
 - **Caption** (sans, 400, 12px, sentence case): the keys under stats, the header's views and stats, the inbox's section titles and the legend.
@@ -195,16 +195,16 @@ The type ramp is the eight steps 34, 24, 17, 16, 15, 14, 13 and 12px. Nothing is
 
 The page is a grid of three rows (the header, the alerts when something is wrong, then the view) that does not scroll as a whole above 1180px; each panel scrolls inside itself. The page padding is `clamp(16px, 4vw, 56px)`. Spacing is a 4/8 grid.
 
-The Factory view opens on what waits. The lifecycle band and "History" are open at every load, each with a minimize button beside its maximize button, inside the panel. The pool, the runs and the spend of the day are in the header, once; nothing above the panels repeats them. "Yours" stands alone in the left column and takes its height (up to five waiting cards show whole; more than that scroll inside its list, the oldest wait first; with nothing waiting the panel is its heading alone), and "In progress" fills the right. Minimized, a panel is its heading and the button that opens it again, where it sits (the band above the columns, "History" under "Yours", at most 60% of the column when open and scrolling inside itself: at 1440x900 its period control, its four totals and its runs chart are whole at scroll 0, the spend chart and the stages are reached by scrolling). What the owner minimized is kept across the 5-second refreshes and never stored.
+The Factory view opens on what waits. The belt and "History" are open at every load, each with a minimize button beside its maximize button, inside the panel. The pool, the runs and the spend of the day are in the header, once; nothing above the panels repeats them. "Yours" stands alone in the left column and takes its height (up to five waiting cards show whole; more than that scroll inside its list, the oldest wait first; with nothing waiting the panel is its heading alone), and "In progress" fills the right. Minimized, a panel is its heading and the button that opens it again, where it sits (the belt above the columns, "History" under "Yours", at most 60% of the column when open and scrolling inside itself: at 1440x900 its period control, its four totals and its runs chart are whole at scroll 0, the spend chart and the stages are reached by scrolling). What the owner minimized is kept across the 5-second refreshes and never stored.
 
 The drawer is absolutely positioned over the board's right edge: `min(660px, 52vw)`, widening to `min(1180px, 72vw)` for the Review tab. Drawer content uses a 24px side gutter. Below 860px the header wraps, stats drop their borders, and the drawer takes the full width; below 600px the per-stage slots hide and the brand takes its own line. The drawer is a size container: under 540px the decision stacks and the tooltip stats go two by two.
 
 ## Elevation & Depth
 
-Tonal first. A panel is a 2% wash and a 9% hairline; the drawer, the peek, a maximized panel and the select's list are the page's only raised surfaces, and they use the `--shadow` token or the drawer's own cast.
+Tonal first. A panel is a 2% wash and a 9% hairline; the drawer, a maximized panel and the select's list are the page's only raised surfaces, and they use the `--shadow` token or the drawer's own cast.
 
 ### Shadow Vocabulary
-- **Raise** (`--shadow`: `0 10px 30px rgba(0,0,0,.45)` in dark themes; each light theme sets a softer one): the peek, a maximized panel, the select's list.
+- **Raise** (`--shadow`: `0 10px 30px rgba(0,0,0,.45)` in dark themes; each light theme sets a softer one): a maximized panel, the select's list.
 - **Drawer cast** (`-14px 0 32px -8px rgba(0,0,0,.45)`): the open drawer only; removed when closed.
 - **Dial ring** (`0 0 0 2px panel, 0 0 0 3px edge`): the cooldown dial.
 - **Hot dot** (`0 0 0 4px` ink at 25%): the dot that is hovered or open.
@@ -214,7 +214,7 @@ Tonal first. A panel is a 2% wash and a 9% hairline; the drawer, the peek, a max
 
 ## Shapes
 
-Radii come from one scale: 2px on bars, meters and the tick of a progress step; 4px on tags, gates, keys and code; 5px on buttons, the text area, the hours field and the scrollbar thumb; 6px on small cards (the maximize button, a chip in the lanes, the block note); 8px on selects, option cards, the theme swatch, the peek and the stepper; 12px on a tile, an alert and the save bar; 14px on the decision panel; 16px on a panel, a maximized one included; 999px on the Approve pill in the lists (`rounded.pill`), fully rounded; a full circle for dots, the dial and the switch knob. Marks whose shape carries state (the Feed's diamond and dash) are square, with no radius. Borders are 1px hairlines.
+Radii come from one scale: 2px on bars, meters and the tick of a progress step; 4px on tags, gates, keys and code; 5px on buttons, the text area, the hours field and the scrollbar thumb; 6px on small cards (the maximize button, a chip in the lanes, the block note); 8px on selects, option cards, the theme swatch and the stepper; 12px on a tile, an alert and the save bar; 14px on the decision panel; 16px on a panel, a maximized one included; 999px on the Approve pill in the lists (`rounded.pill`), fully rounded; a full circle for dots, the dial and the switch knob. Marks whose shape carries state (the Feed's diamond and dash) are square, with no radius. Borders are 1px hairlines.
 
 ## Components
 
@@ -224,16 +224,23 @@ The brand at the left, then the views as three captions (the pressed one in `tex
 ### Alerts
 A line that exists only while something is wrong: a bad-tinted bordered strip with one item per cause, each with a dot in its outcome color. Offline and Not updating (bad), Factory paused (bad), a project the dispatcher skips (bad), Board N min old (warn). It is a polite live region.
 
-### Lifecycle Band
-See Layout. A dot is 10px in `text` (running ones pulse once every 2.6s), hollow with a `muted` ring when queued, `sand` when it waits for the owner, `warn` when infrastructure failed and `bad` when blocked; the number under it takes the same color. Clicking a dot opens the line peek.
+### The Belt
+See Layout. The belt replaces the old dotted line in the same panel (title, minimize and maximize buttons kept): one row of 11 segments in board order, each with a name (stages 13px 600 `text`, gates 13px 600 accent, queues 13px 500 `muted`) and a 12px `faint` meta (`3` or `empty`, `1 of 2`, `2 for you`, `2 today`). Every card is a token under its segment's meta, oldest first.
 
-Maximized, the band is two lanes of chips, and the owner moves their cards there (the moves are the server's table, M1 to M7). A chip shows how long it has waited and, in Ready for Prod, `2 of 5 in line`; in Inbox, Ready for Refinement and Ready for Dev it opens with its position (12px `faint`, tabular, 2ch, with `Position 2 of 5` for screen readers). A chip the owner can move has `cursor: grab`; a locked one (a run in progress, blocked by infrastructure) carries a 12px lock and its reason in words, `cursor: not-allowed`. Picking up a card (drag, `M` on the focused chip, or the ghost `Move` button on a touch screen, `hover: none`) gives it a 2px outline in `edge-hi`; each column that takes it gets a 1px dashed outline in `edge-hi` and a ghost button with what dropping there means ("Drop to approve the spec", "Press 1 to …", "Tap to …"), solid under the pointer; the others dim to .45, a factory column adding `the factory moves`. In its own ordered column a held card goes before the chip it is dropped on: a 2px bar in the gap shows where; the arrows move it one place, Enter places it, Esc puts it back; on touch, `Up` / `Down` / `Place here` buttons appear under it. A move that needs a note opens the note box, the peek's surface under the target column. Every move and reorder waits 5s in the `.itoast` at the bottom of the panel with Undo (and Comment, for a move that went without a note); a refused one says why in the panel's note line. One status line under the heading (`role="status"`) says what is held and the keys. "Only what I can move", a switch in the heading row, dims every other chip; it is off at every load. Column and lane names stay in English in every language.
+- **Tokens** are 30px buttons, at least 54px wide, 8px radius, the number in Plex Mono 13px 500 tabular. A running token is filled `text` with its step bar; a queued one is hollow with a `muted` border; one that waits for the owner is in the accent; infrastructure failed is `warn`, blocked is `bad`, done today is `ok`. Each free slot of a stage is a dashed `free` token, `aria-hidden`.
+- **Rail:** an 8px rail under all segments with `track` ticks every 22px, sliding right one tick per 1.8s while the dispatcher's last cycle is fresh. Stopped, it pauses where it is and turns `bad`. It is decorative; its state is said by the status sentence.
+- **Status sentence** (header, `role="status"`, polite): `Running · 3 decisions wait for you · 2 of 6 sessions · $1.36 today`, or `The belt stopped. Last cycle 14 min ago.` with a ghost Restart button.
+- **Travel:** a card that changes column travels from its old place to the new one (950ms) and a gate it arrives at rings once.
+- **Keyboard:** one tab stop (roving tabindex); arrows, Home and End move between tokens, Enter or a click opens the card's drawer. Under 1020px the belt scrolls inside its panel.
+- **Reduced motion:** under `prefers-reduced-motion: reduce` the rail is still, tokens jump, no ring and no fade. The state stays in the sentence, the rail color and the dot.
+
+Maximized, the belt's panel shows two lanes of chips, and the owner moves their cards there (the moves are the server's table, M1 to M7). A chip shows how long it has waited and, in Ready for Prod, `2 of 5 in line`; in Inbox, Ready for Refinement and Ready for Dev it opens with its position (12px `faint`, tabular, 2ch, with `Position 2 of 5` for screen readers). A chip the owner can move has `cursor: grab`; a locked one (a run in progress, blocked by infrastructure) carries a 12px lock and its reason in words, `cursor: not-allowed`. Picking up a card (drag, `M` on the focused chip, or the ghost `Move` button on a touch screen, `hover: none`) gives it a 2px outline in `edge-hi`; each column that takes it gets a 1px dashed outline in `edge-hi` and a ghost button with what dropping there means ("Drop to approve the spec", "Press 1 to …", "Tap to …"), solid under the pointer; the others dim to .45, a factory column adding `the factory moves`. In its own ordered column a held card goes before the chip it is dropped on: a 2px bar in the gap shows where; the arrows move it one place, Enter places it, Esc puts it back; on touch, `Up` / `Down` / `Place here` buttons appear under it. A move that needs a note opens the note box, a raised surface under the target column. Every move and reorder waits 5s in the `.itoast` at the bottom of the panel with Undo (and Comment, for a move that went without a note); a refused one says why in the panel's note line. One status line under the heading (`role="status"`) says what is held and the keys. "Only what I can move", a switch in the heading row, dims every other chip; it is off at every load. Column and lane names stay in English in every language.
 
 ### Your
 Panel titled "N wait(s) for you" or "Nothing waits for you". Each pass is a hairline-separated block: the card number (sans, accent; bad when blocked), a caption with the column and the age, the title (clamped to two lines), and a footer of plain actions: **Approve** as a pill (accent fill, `accent-ink` text), Review, the request-changes field and the link to GitHub. The list fades its last 44px through a mask when it overflows. The footer reads N next, A approve, R review, L log. The footer and the number on each inbox option show only where the primary pointer is fine; on a touch screen they are hidden.
 
 ### In Progress
-Tiles of 320px or more in an auto-fill grid. A running tile has the number (sans, 24px), the cost in `text` with `est`, a clock at the right, the title (two lines), a step bar (done steps `muted`, the current one `text` and breathing), a step line ("Step 4 of 7: Engineer", warn when slower than usual), what the agent said last, and its last tool calls in mono, then a footer with Open session and Log. A waiting tile is dashed, with no fill, its number and title in `muted`, and says why in plain words ("Waiting for the pool · 4 of 4 busy"). Its ring and reason follow the Lifecycle band: hollow `muted` and `soft` when the card only queues, filled `warn` with the number and reason in `warn` when infrastructure failed, and the accent only on a tile that waits for the owner. The cost stays in `text`, with `est`, never in the accent.
+Tiles of 320px or more in an auto-fill grid. A running tile has the number (sans, 24px), the cost in `text` with `est`, a clock at the right, the title (two lines), a step bar (done steps `muted`, the current one `text` and breathing), a step line ("Step 4 of 7: Engineer", warn when slower than usual), what the agent said last, and its last tool calls in mono, then a footer with Open session and Log. A waiting tile is dashed, with no fill, its number and title in `muted`, and says why in plain words ("Waiting for the pool · 4 of 4 busy"). Its ring and reason follow the belt's tokens: hollow `muted` and `soft` when the card only queues, filled `warn` with the number and reason in `warn` when infrastructure failed, and the accent only on a tile that waits for the owner. The cost stays in `text`, with `est`, never in the accent.
 
 ### Cooldown Dial (signature)
 A 13px circle filled by a conic sweep in `text` over the lit edge, ringed by the dial ring, turning once every 6s through a registered `--sweep` angle. It appears on a running card. Under `prefers-reduced-motion: reduce` it stops on a static quarter (90deg), and the pulse of the dot, the breathing of the step bar and the card transitions stop as well.
@@ -260,9 +267,6 @@ Then underlined tabs (Live, Sessions, Log, Gates, Review) with mono counts, a re
 
 ### How a Card Opens
 Where a card opens depends on where it was clicked, so the click never hides what the owner was looking at. A card in In progress, and its Log link, opens **maximized**: the drawer at 90% of the screen over a dimmed, blurred board, a running card on Live and a waiting one on Sessions; the side drawer would cover its own tile. A card that waits for the owner opens the wide side drawer on Review, with the decision. Esc or Close returns to the board, and focus goes back to what opened the card.
-
-### Line Peek
-A click on a dot of the lifecycle line opens the **peek**, never the drawer: the line is the map, and a drawer over its right half hides the stages the dot sits in. The peek is a small raised panel (panel-hi, lit hairline border, 8px radius, the drawer's shadow, 340px at most) anchored under its dot by a 10px arrow, clamped to 12px from the window edges. It holds the number and title (15px 500), one muted meta line (column, "Develop running 4 min" or the dot's state, "step 2 of 7 · Plan", the cost in `text` with `est`), the stage's step bar, and one row of actions: the primary button, then Log (ghost), then the GitHub link. The primary is "Open session" for a running card and "Open card" otherwise, both maximized; a card that waits for the owner says "Review" and opens the wide drawer, so the decision keeps its place. `role="dialog"`, labelled "Card summary"; its dot carries `aria-expanded` and the open ring. Focus moves to the primary button. Esc closes it and returns focus to the dot; so do a click outside, a click on the same dot and leaving the Factory view. Another dot moves it. It follows its dot on every refresh and closes when the dot leaves the line.
 
 ### Feed
 One timeline, newest first, with a heading where the day changes. Above it, the filters (Runs, which is the view the Feed opens on and holds the run rows only, Waits for you, Failures, Running, Dispatcher), each with its count, and "Newest first". A run is **one row** placed at the time it ended (or started, while it runs): the time in mono, a mark whose shape carries the state (dot ok, diamond failed, ring running, dash for a dispatcher line or a run whose end was never logged), the project when there is more than one, the stage in bold, the card's number and title, and "waits for you" in the accent when the card sits in an owner column after that run. On the right, the duration (or "running 6m", or "· exit 4") and the run's estimated cost. A second line appears only when something is known of what the run left behind, each piece from its own source: why a run failed first, "gates failed: build" (the run's report) or, when no gate is on record, "ended with exit 4 · no failed gate recorded" (the exit code; no log line is shown, as it can read like a success), then "PR #64" (the report), "now in Staged" on the card's newest run (the board), "Step 4 of 7: Engineer" while it runs (its lock). Nothing is inferred from the stage. The whole row opens the card maximized on that run's log; the title is the row's button and keeps focus across refreshes. There is no button in a row. A dispatcher or stacks line repeated in a row is one row with "37× since 00:09".
@@ -291,7 +295,7 @@ A swatch is a button that carries its theme's `data-theme`, so it is drawn with 
 Agent-written review pages in the iframe are re-themed by `EMBED_CSS` in `scripts/dashboard.py`: their own header hidden, section headings at 17px 600, their own reviewed count hidden (the decision shows it), transparent buttons with hairline borders. The dashboard sends the page its theme as a message (`page` = ground, `sheet` = panel, `surface` = raised panel, `ink` = text, `muted`, `rule` = hairline), and the embed applies it and, when the owner changes theme, again. While the page loads, the iframe element paints nothing of it and holds the drawer's panel color (`var(--panel)`); it is shown, with one 150ms ease-out opacity fade (instant under reduced motion), once the page has acknowledged the theme (`themed`), and white is its background only under a plain page, one that does not take the embed theme and never announces itself (`ready`), shown when its load ends. The same embed adds a small script that announces `ready`, acknowledges each theme with `themed`, and posts the page's marks (`review-progress`: done, total, the changes as text) to the dashboard, which accepts them only from that iframe.
 
 ### Keyboard and Live Updates
-Esc closes the peek, the maximized panel or the drawer, in that order (not while typing); in the maximized lifecycle it first closes the note box, then lets go of a held card. On the Your list, N moves to the next waiting card, and A, R and L approve, open the review or open the log of the focused card; in the maximized inbox the keys 1 to 9 pick an option. Arrows, Home and End move between the drawer's tabs, and between the days of a History chart by day. Opening a card moves focus to its title, closing returns it to the card. The overview is read every 2s, the Feed every 5s, the open card every 5s, the open History every 10s and Settings every 10s, but a region is rewritten only when its markup changed, so focus, scroll, the open select and typed text survive; clocks tick on their own. The first read shows "Reading the factory…", and a failed read raises a "Not updating" alert with the error.
+Esc closes the maximized panel or the drawer, in that order (not while typing); in the maximized lifecycle it first closes the note box, then lets go of a held card. On the Your list, N moves to the next waiting card, and A, R and L approve, open the review or open the log of the focused card; in the maximized inbox the keys 1 to 9 pick an option. Arrows, Home and End move between the drawer's tabs, and between the days of a History chart by day. Opening a card moves focus to its title, closing returns it to the card. The overview is read every 2s, the Feed every 5s, the open card every 5s, the open History every 10s and Settings every 10s, but a region is rewritten only when its markup changed, so focus, scroll, the open select and typed text survive; clocks tick on their own. The first read shows "Reading the factory…", and a failed read raises a "Not updating" alert with the error.
 
 ## Known deviations
 
@@ -306,8 +310,8 @@ Values that fewer than three rules use and that have no named role. They stay as
 - **Do** keep type in sentence case, and let weight and size carry the hierarchy.
 - **Do** keep the accent for what waits for the owner, and the action that answers it.
 - **Do** keep numbers in tabular figures and label every cost as an estimate, in `text`.
-- **Do** keep surfaces flat at rest and let only what opens (drawer, peek, maximized panel) cast a shadow.
-- **Do** keep the dial and the dot's pulse as the only continuous motion, and give any new motion a reduced-motion fallback.
+- **Do** keep surfaces flat at rest and let only what opens (drawer, maximized panel) cast a shadow.
+- **Do** keep the dial, the dot's pulse and the belt as the only continuous motion (the belt carries state), and give any new motion a reduced-motion fallback.
 - **Do** keep factory stage and column names verbatim.
 
 ### Don't:
@@ -316,4 +320,4 @@ Values that fewer than three rules use and that have no named role. They stay as
 - **Don't** use the accent as decoration, for money or for titles, or the outcome colors for anything but results.
 - **Don't** add emoji or icon fonts; text labels carry actions (the few inline SVG marks are the maximize and external-link glyphs, and the lock beside the reason a card in the maximized lifecycle cannot move).
 - **Don't** link a font or an asset from the network, or add a build step; the dashboard is one self-contained file.
-- **Don't** add resting shadows or a third continuous animation.
+- **Don't** add resting shadows or a fourth continuous animation.

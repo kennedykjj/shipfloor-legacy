@@ -60,6 +60,8 @@ class Run:
 
     def feed(self, raw, at=None):
         """One stdout line: the bytes for the run log now (b"" for none)."""
+        if self.meta.get("raw"):  # a runtime whose stream is not Claude's: the log keeps it as it comes
+            return raw
         at = self.clock() if at is None else at
         stripped = raw.strip()
         if not stripped.startswith(b"{"):
@@ -186,7 +188,7 @@ def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None):
         events = None
         run = Run(meta)
         for raw in iter(p.stdout.readline, b""):
-            if run.events_file is None and events is None and raw.lstrip().startswith(b"{"):
+            if run.events_file is None and events is None and not meta.get("raw") and raw.lstrip().startswith(b"{"):
                 try:
                     events = run.events_file = open(events_path(log), "a", encoding="utf-8")
                 except OSError:

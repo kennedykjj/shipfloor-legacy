@@ -31,22 +31,22 @@
     "typographyMeta": {
       "display": { "displayName": "Display", "purpose": "The heading of a panel; IBM Plex Sans 600, 34px." },
       "section": { "displayName": "Section", "purpose": "The heading of the maximized line, of Yours and of a Settings section, and the card number; 24px." },
-      "headline": { "displayName": "Headline", "purpose": "The drawer's card title, lifecycle column labels, Settings group titles and the tooltip total; 17px." },
+      "headline": { "displayName": "Headline", "purpose": "The drawer's card title, belt segment names, Settings group titles and the tooltip total; 17px." },
       "lead": { "displayName": "Lead", "purpose": "Brief prose and longer descriptions; 16px, capped at 64ch." },
-      "base": { "displayName": "Base", "purpose": "The page's base text and a card title in a tile, a pass and the peek; 15px." },
+      "base": { "displayName": "Base", "purpose": "The page's base text and a card title in a tile, a pass; 15px." },
       "body": { "displayName": "Body", "purpose": "Descriptions, alerts, buttons, table cells and the inbox reader; 14px." },
       "meta": { "displayName": "Meta", "purpose": "Meta lines, tab labels, notices, tags and gates; 13px." },
       "caption": { "displayName": "Caption", "purpose": "Captions: the views, the header stats, the legend; 12px, 400, sentence case." },
       "log": { "displayName": "Log", "purpose": "Pre-wrapped IBM Plex Mono log pane." }
     },
     "shadows": [
-      { "name": "raise", "value": "0 10px 30px rgba(0, 0, 0, .45)", "purpose": "The peek, a maximized panel and the select's list; each light theme sets a softer one." },
+      { "name": "raise", "value": "0 10px 30px rgba(0, 0, 0, .45)", "purpose": "A maximized panel and the select's list; each light theme sets a softer one." },
       { "name": "drawer-cast", "value": "-14px 0 32px -8px rgba(0, 0, 0, .45)", "purpose": "Open drawer over the page; none when closed." },
       { "name": "dial-ring", "value": "0 0 0 2px var(--panel), 0 0 0 3px var(--edge)", "purpose": "Ring around the cooldown dial." }
     ],
     "motion": [
       { "name": "cooldown-sweep", "value": "6s linear infinite on registered --sweep angle, 0deg to 360deg", "purpose": "Signature dial on running cards; static 90deg quarter under prefers-reduced-motion." },
-      { "name": "dot-pulse", "value": "2.6s cubic-bezier(.2, .7, .2, 1) infinite", "purpose": "A running dot on the lifecycle band; stopped under reduced motion." },
+      { "name": "dot-pulse", "value": "2.6s cubic-bezier(.2, .7, .2, 1) infinite", "purpose": "A running dot; stopped under reduced motion." },
       { "name": "shimmer", "value": "1.2s ease infinite", "purpose": "Drawer loading skeleton only." }
     ],
     "breakpoints": [
@@ -129,13 +129,13 @@
   ],
   "narrative": {
     "northStar": "The Floor Plan",
-    "overview": "The dashboard is the floor plan of a software factory, read by one owner doing quick checks: look at the lifecycle band to see where every card stands, answer what waits for you, glance at what is running and what it cost, close. It has three views: Factory, Feed and Settings. A card opens in a drawer; a dot on the lifecycle band opens a small peek first.\n\nThe surface is a quiet page with translucent panels and hairline borders. IBM Plex Sans carries words and IBM Plex Mono carries logs; hierarchy comes from size and weight, never from case, and every number keeps tabular figures. The accent marks only what waits for the owner, and the outcome trio marks results. Color is chosen by the owner: fourteen themes change the same tokens and nothing else.",
+    "overview": "The dashboard is the floor plan of a software factory, read by one owner doing quick checks: look at the belt to see where every card stands, answer what waits for you, glance at what is running and what it cost, close. It has three views: Factory, Feed and Settings. A card opens in a drawer; a click on its token on the belt opens it.\n\nThe surface is a quiet page with translucent panels and hairline borders. IBM Plex Sans carries words and IBM Plex Mono carries logs; hierarchy comes from size and weight, never from case, and every number keeps tabular figures. The accent marks only what waits for the owner, and the outcome trio marks results. Color is chosen by the owner: fourteen themes change the same tokens and nothing else.",
     "keyCharacteristics": [
-      "One lifecycle band: every column a cell on a dotted track, every card a dot.",
+      "One belt: every column a segment, every card a token, a rail under it that moves only while the dispatcher is alive.",
       "Panels are translucent washes of the theme's ink over the ground, with a hairline border and a 16px radius.",
       "Sentence case everywhere; weight and size carry the hierarchy, and nothing is under 12px.",
-      "Hairlines instead of shadows at rest; depth appears for the drawer, the peek and the maximized panel.",
-      "Two continuous motions only: the cooldown dial and the pulse of a running dot, both stopped under reduced motion."
+      "Hairlines instead of shadows at rest; depth appears for the drawer and the maximized panel.",
+      "Three continuous motions: the cooldown dial, the pulse of a running dot and the belt's rail. The belt is the third continuous motion, allowed because it carries state, and it stops under reduced motion."
     ],
     "rules": [
       { "name": "The Accent Rule", "body": "The accent appears only on what waits for the owner, and on the action that answers it. Outcomes use their own trio.", "section": "colors" },
@@ -150,7 +150,7 @@
       "Do keep the accent for what waits for the owner, and the action that answers it.",
       "Do keep numbers in tabular figures and label every cost as an estimate, in text.",
       "Do keep surfaces flat at rest and let only what opens cast a shadow.",
-      "Do keep the dial and the dot's pulse as the only continuous motion, and give any new motion a reduced-motion fallback.",
+      "Do keep the dial, the dot's pulse and the belt as the only continuous motion (the belt carries state), and give any new motion a reduced-motion fallback.",
       "Do keep factory stage and column names verbatim."
     ],
     "donts": [

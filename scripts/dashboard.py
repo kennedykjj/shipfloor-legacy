@@ -14,9 +14,10 @@ sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
 from shipfloor_core.defaults import DEPLOY_DEFAULTS
 import shipfloor_health
-from shipfloor_core import deps
+from shipfloor_core import board_history, deps
 import dashboard_cost
-from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, per_card, rounded
+import runtimes
+from dashboard_cost import LEGACY_STAGES, cost, parse_transcript, parse_ts, per_card, rounded
 import yaml
 
 # The steps a run announces with `shipfloor-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
@@ -432,19 +433,8 @@ class Factory:
         return hit[1]
 
     def sessions(self, p, issue=None):
-        out = []
-        for d in (self.claude_dir / "projects").glob(f"*-projects-{p}-control"):
-            for f in d.glob("*.jsonl"):
-                try:  # Claude Code may delete a transcript under us, or a line may carry a bad time
-                    s = self.transcript(f)
-                    if s["start"]:
-                        parse_ts(s["start"])
-                except (OSError, ValueError):
-                    continue
-                if s["stage"] and s["start"] and issue in (None, s["issue"]):
-                    subs = [self.transcript(a) for a in sorted((d / f.stem / "subagents").glob("*.jsonl"))]
-                    out.append(dict(s, id=f.stem, subagents=subs, path=f))
-        return sorted(out, key=lambda s: s["start"] or "")
+        found = runtimes.sessions(p, self.transcript, {"claude-code": self.claude_dir})
+        return [s for s in found if issue in (None, s["issue"])]
 
     def runs(self, p, issue=None, day=None):
         """Runs as the dispatcher logged them: == start / == end lines, the model each one started with, and the
@@ -776,6 +766,45 @@ class Factory:
                         "notes": "\n".join(r["notes"]) if isinstance(r.get("notes"), list) else r.get("notes") or ""})
         return out
 
+    def day(self, p):
+        """Today's board history and the marks of the logbook line (#184): a finished run of today is ok, or bad when
+        its report says blocked/infra or it exited non-zero; a card that left Spec Review/Staged (or another owner move
+        of OWNER_MOVES) between two history lines is a decision at the later line. Keys only, never English. Read on every call."""
+        today = datetime.now().astimezone().date()
+        lines = board_history.day(self.pdir(p), today)
+        reports = {}
+        for f in (self.pdir(p) / "reports-wt" / "reports").glob("*-*/*.json"):
+            m = re.fullmatch(r"(?P<stage>.+)-(?P<ts>\d{4}-\d\d-\d\dT\d{6})\.json", f.name)
+            try:
+                at = datetime.strptime(m["ts"], "%Y-%m-%dT%H%M%S").astimezone() if m else None
+                outcome = json.loads(f.read_text(encoding="utf-8")).get("outcome")
+                issue = int(f.parent.name.split("-")[0])
+            except (OSError, ValueError, AttributeError):
+                continue
+            reports.setdefault((issue, m["stage"]), []).append((at, outcome))
+        marks = []
+        for r in self.runs(p, day=today.isoformat()):
+            if not r["end"]:
+                continue
+            start, end = parse_ts(r["start"]), parse_ts(r["end"])
+            if end.astimezone().date() != today:
+                continue
+            outcomes = [o for at, o in reports.get((r["issue"], r["stage"]), []) if start <= at <= end + timedelta(seconds=60)]
+            bad = r["exit"] != 0 or any(o in ("blocked", "infra") for o in outcomes)
+            marks.append({"t": r["end"], "kind": "bad" if bad else "ok", "n": r["issue"], "stage": r["stage"],
+                          "what": "blocked" if bad else "ended"})
+        for before, after in zip(lines, lines[1:]):
+            old, new = before.get("cards") or {}, after.get("cards") or {}
+            for n, col in new.items():
+                was = old.get(n)
+                note = dict(OWNER_MOVES.get(was, ())).get(col) if was and was != col else None
+                if was not in AWAITING or col not in dict(OWNER_MOVES[was]) or not number(n):
+                    continue
+                what = "requested-changes" if note else "approved-spec" if was == "Spec Review" else "approved-pr"
+                marks.append({"t": after["t"], "kind": "decision", "n": int(n), "what": what})
+        marks.sort(key=lambda m: parse_ts(m["t"]).timestamp())
+        return {"date": today.isoformat(), "now": datetime.now().astimezone().isoformat(timespec="seconds"), "board": lines, "marks": marks}
+
     def brief(self, p, n):
         """The decision brief of a card (reviews/<n>.brief.json, made by #178): the parsed object, or None when the file
         is missing, unreadable, unparseable or not an object. Never raises."""
@@ -946,6 +975,14 @@ class Factory:
                     out.setdefault(l["agent"], []).append({"project": p, "layer": l.get("name")})
         return out
 
+    @staticmethod
+    def free_stages(raw):
+        """{stage: runtime name} of the stages whose runtime has no list of models (its name is free text)."""
+        if shipfloor_config.runtime_problems(raw.get("runtime") if isinstance(raw, dict) else None):
+            return {}
+        names = dict(zip(shipfloor_config.STAGES, shipfloor_config.runtime_of(raw)))
+        return {st: rt for st, rt in names.items() if not runtimes.get(rt).MODELS}
+
     def models(self):
         """The Settings rows for the models: each stage and agent with its configured model, today's model, whether
         the model has a price, and (stages) the mean cost per card of the last 7 days."""
@@ -966,8 +1003,23 @@ class Factory:
             for s in self.sessions(p):
                 if s["stage"] in runs and parse_ts(s["start"]) >= since:
                     runs[s["stage"]].append(((p, s["issue"]), dashboard_cost.session_cost(s, prices)))
+        free = self.free_stages(raw)
+        rt_stages = (shipfloor_config.runtime_setting(raw, None, "models") or {}).get("stages") if free else None
+        rt_stages = rt_stages if isinstance(rt_stages, dict) else {}
+
+        def free_row(st):  # the runtime's own model, any name: priced only when prices.yml has exactly that name
+            value, weights = rt_stages.get(st), shipfloor_config.WEIGHTS
+            text = lambda v: v.strip() if isinstance(v, str) and v.strip() else None
+            if st == "refine":
+                value = text(value)
+                return {"value": value, "default": None, "priced": value is None or value in prices}
+            value = {w: text(value.get(w)) if isinstance(value, dict) else text(value) for w in weights}
+            return {"value": value, "default": dict.fromkeys(weights), "priced": {w: v is None or v in prices for w, v in value.items()}}
+        stages = {st: dict(free_row(st) if st in free else row("stages", st, shipfloor_config.STAGE_MODELS[st]),
+                           cost=per_card(runs[st]), runtime=free.get(st, "claude-code"), free=st in free)
+                  for st in shipfloor_config.STAGES}
         return {"choices": list(shipfloor_config.MODELS),
-                "stages": {st: dict(row("stages", st, shipfloor_config.STAGE_MODELS[st]), cost=per_card(runs[st])) for st in shipfloor_config.STAGES},
+                "stages": stages,
                 "agents": {**{a: dict(row("agents", a, d), projects=[]) for a, d in shipfloor_config.PLUGIN_AGENTS.items()},
                            **{a: dict(row("agents", a, None), projects=ps) for a, ps in agents.items() if a not in shipfloor_config.PLUGIN_AGENTS}},
                 "problems": problems}
@@ -1036,16 +1088,31 @@ class Factory:
         errs =shipfloor_config.machine_problems(new) + (shipfloor_config.hours_problems(new) if "hours" in changes else [])
         if isinstance(changes.get("models"), dict):
             models = new["models"] if isinstance(new.get("models"), dict) else {}
+            free = self.free_stages(new)  # their model is the runtime's own: it goes to runtime.models, any name
+            def merge(rows, name, ch):
+                if isinstance(ch, dict) and name != "refine":  # per weight; null removes that weight
+                    had = rows.get(name)
+                    had = dict(had) if isinstance(had, dict) else dict.fromkeys(shipfloor_config.WEIGHTS, had) if isinstance(had, str) else {}
+                    had.update(ch)
+                    ch = {w: m for w, m in had.items() if m is not None} or None
+                rows[name] = ch
             for group in ("stages", "agents"):
                 if isinstance(changes["models"].get(group), dict):
                     rows = dict(models[group] if isinstance(models.get(group), dict) else {})
                     for name, ch in changes["models"][group].items():
-                        if group == "stages" and isinstance(ch, dict) and name != "refine":  # per weight; null removes that weight
-                            had = rows.get(name)
-                            had = dict(had) if isinstance(had, dict) else dict.fromkeys(shipfloor_config.WEIGHTS, had) if isinstance(had, str) else {}
-                            had.update(ch)
-                            ch = {w: m for w, m in had.items() if m is not None} or None
-                        rows[name] = ch
+                        if group == "stages" and name in free:
+                            rt = new["runtime"] if isinstance(new.get("runtime"), dict) else {"default": new["runtime"]}
+                            rtm = dict(rt["models"]) if isinstance(rt.get("models"), dict) else {}
+                            rts = dict(rtm["stages"]) if isinstance(rtm.get("stages"), dict) else {}
+                            clean = lambda m: m.strip() or None if isinstance(m, str) else m
+                            merge(rts, name, {w: clean(m) for w, m in ch.items()} if isinstance(ch, dict) else clean(ch))
+                            rtm["stages"] = {n: m for n, m in rts.items() if m is not None}
+                            rtm = {g: v for g, v in rtm.items() if v != {}}
+                            rt = {k: v for k, v in rt.items() if k != "models"}
+                            new["runtime"] = dict(rt, models=rtm) if rtm else rt
+                            errs += shipfloor_config.runtime_problems(new["runtime"])
+                        else:
+                            merge(rows, name, ch)
                     models[group] = {n: m for n, m in rows.items() if m is not None}
             new["models"] = {g: rows for g, rows in models.items() if rows != {}}
             if not new["models"]:
@@ -1172,9 +1239,10 @@ class Factory:
         and the owner's messages the lead has not read yet."""
         out = []
         for s in self.sessions(p, n)[-1:]:
-            out = list(self.transcript(s["path"], events))
-            for a in (s["path"].parent / s["id"] / "subagents").glob("*.jsonl"):
-                out += [dict(e, sub=True) for e in self.transcript(a, events)]
+            read = runtimes.get(s["runtime"]).events
+            out = list(self.transcript(s["path"], read))
+            for a in s["subagent_paths"]:
+                out += [dict(e, sub=True) for e in self.transcript(a, read)]
         inbox, pending = self.inbox(p, n), []
         if inbox and inbox.is_file():
             seen = inbox.with_name("inbox.lead")
@@ -1197,12 +1265,16 @@ class Factory:
         return mark.exists() and mark.stat().st_mtime > time.time() - window
 
     def usage_limited(self):
+        return self.limited_runtime() is not None
+
+    def limited_runtime(self):
+        """The runtime whose usage limit holds the factory now, None when none does."""
         for log in self.home.glob("projects/*/logs/*.log"):
             if log.stat().st_mtime > time.time() - 1800:
-                text = log.read_text(encoding="utf-8", errors="replace")
-                if "hit your session limit" in text[max(0, text.rfind("== start")):]:
-                    return True
-        return False
+                name = runtimes.limited_runtime(log.read_text(encoding="utf-8", errors="replace"))
+                if name:
+                    return name
+        return None
 
     @staticmethod
     def card_deps(record, columns, n):
@@ -1804,6 +1876,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(400, {"error": why})
                 page = one("page") or "1"
                 return self.send(200, f.history(parts[2], per, int(page) if number(page) else 1))
+            if known and len(parts) == 3 and parts[:2] == ["api", "day"]:
+                return self.send(200, f.day(parts[2]))
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and number(parts[3]):
                 return self.send(200, f.card(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and number(parts[3]):
