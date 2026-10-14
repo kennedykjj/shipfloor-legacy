@@ -232,6 +232,29 @@ class CodexUnits(ds.DispatchCase):
         self.assertEqual(open(os.path.join(home, "auth.json")).read(), "secret")
         self.assertEqual(codex_gen.generate(src, home, "/scripts", {"engineer": "gpt-6-mini"}, python="/usr/bin/python3"), 0)
 
+    def test_generated_from_the_real_skills_and_agents(self):
+        "generating from the plugin's own skills and agents: every stage prompt has its stage marker, no rt: marker or frontmatter is left, and codex gets its own instructions instead of Claude's"
+        import json
+        from runtimes import codex_gen
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        home = self.path("chome-real")
+        codex_gen.generate(repo, home, "/scripts", python="/usr/bin/python3")
+        for stage in codex_gen.STAGES:
+            text = open(os.path.join(home, "sf", stage + ".md"), encoding="utf-8").read()
+            self.assertTrue(text.startswith("<!-- sf:stage=%s -->\n" % stage), stage)
+            self.assertNotIn("<!-- rt:", text, stage)
+            self.assertNotIn("<!-- /rt", text, stage)
+            self.assertNotIn("\nname: %s\n" % stage, text, stage)
+            self.assertNotIn("Claude Opus", text, stage)
+            self.assertNotIn("Agent tool", text, stage)
+        for name in os.listdir(os.path.join(repo, "agents")):
+            agent = open(os.path.join(home, "agents", name[:-3] + ".toml"), encoding="utf-8").read()
+            instructions = json.loads(re.search(r"^developer_instructions = (.*)$", agent, re.M).group(1))
+            self.assertNotIn("<!-- rt:", instructions, name)
+            self.assertNotIn("<!-- /rt", instructions, name)
+            self.assertNotIn("Claude Opus", instructions, name)
+            self.assertIn("apply_patch" if name not in ("cybersec.md",) else "rg", instructions, name)
+
     def test_codex_hook_gives_each_agent_each_message_once(self):
         "inbox_hook --codex: the first session is the lead (inbox.lead), another session counts on its own; outside a run it says nothing"
         import io
