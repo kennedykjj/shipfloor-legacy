@@ -437,8 +437,9 @@ def cmd_install(args):
     if counts["bad"] == 0:
         origin = os.path.join(inst, ".origin")
         if st["git"]:
-            with open(origin, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as f:
-                f.write("%s\t%s\t%s\n" % (st["commit"], st["branch"] or "detached", kind))
+            line = "%s\t%s\t%s\n" % (st["commit"], st["branch"] or "detached", kind)
+            if _put_text(line.encode("utf-8", "surrogateescape"), origin) == "failed":
+                bad(".origin")
         else:
             try:
                 os.unlink(origin)
