@@ -8,9 +8,6 @@ T="$(mktemp -d)"; export TMPDIR="$T"
 MAINPID=$BASHPID  # only this shell cleans up, never a subshell that holds the trap
 trap '[ "$BASHPID" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 FIX="$FACTORY_DIR/test/fixture/factory.yml"
-[ -f "$FACTORY_DIR/test/fixtures/gate.bash.sh" ] && [ "$(git hash-object "$FACTORY_DIR/test/fixtures/gate.bash.sh")" = 5e5faa4675c8b4caceaafece8859253a00da76b0 ] || { fail "AC-4 the reference Bash gate fixture is missing or not the pre-port gate.sh"; exit 1; }
-REF="$(plugin_copy)"; cp "$FACTORY_DIR/test/fixtures/gate.bash.sh" "$REF/scripts/gate.sh"
-refgate() { bash "$REF/scripts/gate.sh" "$@"; }
 pygate() { "$FACTORY_PYTHON" -I "$FACTORY_DIR/sf.py" gate "$@"; }
 pygate --help >/dev/null 2>&1 || { fail "AC-4 the Python gate is missing: 'sf.py gate --help' fails, so it translates nothing"; exit 1; }
 
@@ -57,12 +54,8 @@ OD2="$T/od2"; mkdir "$OD2"; cp "$PT" "$OD2/factory.yml"; printf 'language: en\n'
 rm "$OD/overrides.yml"
 ( export FACTORY_CONFIG="$OD/factory.yml" FACTORY_LANGUAGE=pt-BR; say "FACTORY_LANGUAGE=pt-BR holds once overrides.yml is gone" "$PT_MSG" "$EN_MSG" acceptance-intact "$qa" )
 
-# ---- a language the factory does not have: the Bash gate decides, the Python one does the same
-( export FACTORY_LANGUAGE=klingon
-  refgate acceptance-intact "$qa" >"$T/ro" 2>"$T/re"; rc=$?
-  pygate acceptance-intact "$qa" >"$T/po" 2>"$T/pe"; pc=$?
-  if [ "$rc" = "$pc" ] && cmp -s "$T/re" "$T/pe" && cmp -s "$T/ro" "$T/po"; then pass "AC-4 an unknown FACTORY_LANGUAGE behaves as in the Bash gate"
-  else fail "AC-4 klingon: python exit $pc stderr '$(cat "$T/pe")' vs bash exit $rc stderr '$(cat "$T/re")'"; fi )
+# ---- a language the factory does not have: English
+( export FACTORY_LANGUAGE=klingon; say "an unknown FACTORY_LANGUAGE falls back to English" "$EN_MSG" "os testes" acceptance-intact "$qa" )
 
 # ---- other messages go through the catalog too
 ( export FACTORY_LANGUAGE=pt-BR
@@ -82,8 +75,8 @@ data_same() {  # data_same <label> <want stdout> <gate args...>
 }
 data_same "qa-commit" "$qa" qa-commit 13
 data_same "qa-commit --head" "" qa-commit 13 --head
-own="$(refgate acceptance-own "$qa" api/src/test/ATest.kt 2>/dev/null)"
-[[ "$own" =~ ^own:[0-9a-f]{40,64}$ ]] && pass "AC-4 the reference prints an own: key" || fail "AC-4 reference own: '$own'"
+own="$(FACTORY_LANGUAGE=en pygate acceptance-own "$qa" api/src/test/ATest.kt 2>/dev/null)"
+[[ "$own" =~ ^own:[0-9a-f]{40,64}$ ]] && pass "AC-4 acceptance-own prints an own: key" || fail "AC-4 acceptance-own: '$own'"
 data_same "acceptance-own" "$own" acceptance-own "$qa" api/src/test/ATest.kt
 # the translated stderr never leaks to stdout and stdout never reaches the catalog
 out="$(FACTORY_LANGUAGE=pt-BR pygate acceptance-intact "$qa" 2>/dev/null)"

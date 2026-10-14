@@ -1,31 +1,11 @@
 #!/usr/bin/env bash
-# Parity (#162): shipfloor_core.project / shipfloor_core.text against lib/project.sh on the same fixtures.
-# Each case builds two identical states (one for Bash, one for Python), runs the operation on each and compares
-# what it printed (paths made relative to the state) and what it left on disk.
+# shipfloor_core.project / shipfloor_core.text (#162) on a fixture state: each case builds a fresh state, runs the
+# operation and checks what it printed (paths made relative to the state) and what it left on disk.
 #   AC-4  resolve from a worktree, the resolve failure message, snapshot, the three tmp helpers, weight
-#   AC-6  say('pt-BR', line) equals shipfloor_say pt-BR on every line; no catalog: the text passes through unchanged
+#   AC-6  say('pt-BR', line) translates the catalog's lines, one line out per line in; no catalog: the text passes through
 source "$(dirname "$0")/lib.sh"
-LIBP="$FACTORY_DIR/lib/project.sh"
 T="$(mktemp -d)"; N=0
 export GIT_TERMINAL_PROMPT=0
-
-# ---- the Bash side: one operation, printed in the form the Python driver prints
-cat > "$T/bash-op.sh" <<'EOF'
-source "$LIBP"
-op="$1"; shift
-case "$op" in
-  resolve) shipfloor_resolve; rc=$?; echo "rc=$rc"
-           if [ "$rc" = 0 ]; then for v in PROJECT REPO MAIN HOME WT_ROOT CONFIG; do n="FACTORY_$v"; echo "$v=${!n:-}"; done; fi ;;
-  snapshot) shipfloor_snapshot; echo "rc=$?" ;;
-  stale) shipfloor_stale_tmp | sort ;;
-  clean) shipfloor_clean_tmp "$1" ;;
-  sweep) shipfloor_sweep_tmp | sort ;;
-  spec_weight) shipfloor_spec_weight "$1" ;;
-  card_spec) shipfloor_card_spec "$1" ;;
-  card_weight) shipfloor_card_weight "$1" ;;
-  say) while IFS= read -r l || [ -n "$l" ]; do printf '%s\n' "$l" | shipfloor_say "$1"; done < "$2" ;;
-esac
-EOF
 
 # ---- the Python side
 cat > "$T/drv.py" <<'EOF'
@@ -154,83 +134,83 @@ mk_state() {  # mk_state <dir> [nocfg]: sets ROOT SH REPO HP WTR
   cp "$FACTORY_DIR/test/fixture/factory.yml" "$HP/factory.yml"
 }
 
-state_text() {  # what the operation left on disk, relative to the state
-  { (cd "$HP" 2>/dev/null && find tmp -mindepth 1 | sort); git -C "$REPO" worktree list | wc -l | tr -d ' '
-    [ -f "$HP/factory.yml" ] && cat "$HP/factory.yml"; } 2>/dev/null
-}
-
-run_side() {  # run_side bash|py <cwd> <op args...>: sets OUT, ERR (paths relative to ROOT)
-  local side="$1" cwd="$2"; shift 2
-  local envs=(SHIPFLOOR_HOME="$SH" LIBP="$LIBP" PARITY_SCRIPTS="$FACTORY_DIR")
+run_side() {  # run_side <cwd> <op args...>: sets OUT, ERR (paths relative to ROOT), RC
+  local cwd="$1"; shift
+  local envs=(SHIPFLOOR_HOME="$SH" PARITY_SCRIPTS="$FACTORY_DIR")
   if [ "$1" != resolve ]; then
     envs+=(FACTORY_PROJECT=shop FACTORY_REPO="$REPO" FACTORY_MAIN=main FACTORY_HOME="$HP" FACTORY_WT_ROOT="$WTR" FACTORY_CONFIG="$HP/factory.yml")
   fi
   local clear=(-u FACTORY_CONFIG -u FACTORY_HOME -u FACTORY_REPO -u FACTORY_PROJECT -u FACTORY_WT_ROOT -u FACTORY_MAIN)
   [ "$1" = resolve ] || clear=()
-  if [ "$side" = bash ]; then
-    OUT="$(cd "$cwd" && env "${clear[@]}" "${envs[@]}" bash "$T/bash-op.sh" "$@" 2>"$T/err")"; RC=$?
-  else
-    OUT="$(cd "$cwd" && env "${clear[@]}" "${envs[@]}" "$FACTORY_PYTHON" -I -B "$T/drv.py" "$@" 2>"$T/err")"; RC=$?
-  fi
+  OUT="$(cd "$cwd" && env "${clear[@]}" "${envs[@]}" "$FACTORY_PYTHON" -I -B "$T/drv.py" "$@" 2>"$T/err")"; RC=$?
   ERR="$(cat "$T/err")"
   OUT="${OUT//$ROOT/<R>}"; ERR="${ERR//$ROOT/<R>}"
 }
 
-parity() {  # parity <label> <nocfg|cfg> <cwd: repo|wt7|other> <op args...>: both sides print the same; and leave the same on disk
+op() {  # op <label> <nocfg|cfg> <cwd: repo|wt7|other> <op args...>: the operation on a fresh state; PAR_OUT, PAR_PERR
   local label="$1" cfg="$2" where="$3"; shift 3
-  local cwd_rel b_out b_err b_disk p_out p_err p_disk p_rc
-  N=$((N+1)); mk_state "$T/b$N" "$cfg"; case "$where" in repo) cwd_rel="$ROOT/repo" ;; wt7) cwd_rel="$WTR/7" ;; other) cwd_rel="$ROOT/other" ;; esac
+  local cwd
+  N=$((N+1)); mk_state "$T/p$N" "$cfg"; case "$where" in repo) cwd="$ROOT/repo" ;; wt7) cwd="$WTR/7" ;; other) cwd="$ROOT/other" ;; esac
   [ "$1" = snapshot ] && rm -f "$HP/factory.yml"
-  run_side bash "$cwd_rel" "$@"; b_out="$OUT"; b_err="$ERR"; b_disk="$(state_text)"; b_disk="${b_disk//$ROOT/<R>}"
-  mk_state "$T/p$N" "$cfg"; case "$where" in repo) cwd_rel="$ROOT/repo" ;; wt7) cwd_rel="$WTR/7" ;; other) cwd_rel="$ROOT/other" ;; esac
-  [ "$1" = snapshot ] && rm -f "$HP/factory.yml"
-  run_side py "$cwd_rel" "$@"; p_out="$OUT"; p_err="$ERR"; p_rc=$RC; p_disk="$(state_text)"; p_disk="${p_disk//$ROOT/<R>}"
-  # the package does not load: nothing below can compare anything, and one line says so
-  if [ "$p_rc" -eq 70 ]; then fail "$label: the Python side cannot run: $p_err"; exit 1; fi
-  if [ "$p_out" = "$b_out" ]; then pass "$label: same output"; else fail "$label: output differs. bash: [$b_out] python: [$p_out] ($p_err)"; fi
-  if [ "$p_disk" = "$b_disk" ]; then pass "$label: same state left on disk"; else fail "$label: disk differs. bash: [$b_disk] python: [$p_disk]"; fi
-  PAR_BERR="$b_err"; PAR_PERR="$p_err"; PAR_OUT="$p_out"
+  run_side "$cwd" "$@"
+  # the package does not load: nothing below can check anything, and one line says so
+  if [ "$RC" -eq 70 ]; then fail "$label: the Python side cannot run: $ERR"; exit 1; fi
+  PAR_PERR="$ERR"; PAR_OUT="$OUT"
+}
+is() {  # is <label> <want>: PAR_OUT is exactly that
+  [ "$PAR_OUT" = "$2" ] && pass "$1" || fail "$1: [$PAR_OUT], want [$2]"
 }
 
 # ---- AC-4: resolve from a worktree
-parity "AC-4 resolve from a card worktree" cfg wt7 resolve
-case "$PAR_OUT" in "rc=0"*"PROJECT=shop"*) pass "AC-4 resolve from a card worktree: the project is shop" ;; *) fail "AC-4 resolve from a card worktree: not resolved: [$PAR_OUT]" ;; esac
-parity "AC-4 resolve from the repository" cfg repo resolve
+op "AC-4 resolve from a card worktree" cfg wt7 resolve
+RESOLVED="rc=0
+PROJECT=shop
+REPO=<R>/repo
+MAIN=main
+HOME=<R>/sh/projects/shop
+WT_ROOT=<R>/sh/projects/shop/wt
+CONFIG=<R>/sh/projects/shop/factory.yml"
+is "AC-4 resolve from a card worktree: the registered project, its home, worktrees and config" "$RESOLVED"
+op "AC-4 resolve from the repository" cfg repo resolve
+is "AC-4 resolve from the repository: the same project" "$RESOLVED"
 
 # ---- AC-4: the resolve failure message
-parity "AC-4 resolve outside a registered project" cfg other resolve
-[ -n "$PAR_BERR" ] && pass "AC-4 resolve failure: bash says '$PAR_BERR'" || fail "AC-4 resolve failure: bash printed no message"
-while IFS= read -r l; do
-  case "$PAR_PERR" in *"$l"*) pass "AC-4 resolve failure: python says '$l'" ;; *) fail "AC-4 resolve failure: python lacks '$l'; it says: [$PAR_PERR]" ;; esac
-done <<< "$PAR_BERR"
+op "AC-4 resolve outside a registered project" cfg other resolve
+[ "$PAR_PERR" = "shipfloor: <R>/other is not in a registered project (shipfloor add <repo>)" ] && pass "AC-4 resolve failure: the message names the directory" || fail "AC-4 resolve failure says: [$PAR_PERR]"
 case "$PAR_OUT" in "rc=1") pass "AC-4 resolve failure: rc=1, nothing exported" ;; *) fail "AC-4 resolve failure: [$PAR_OUT]" ;; esac
 
 # ---- AC-4: snapshot
-parity "AC-4 snapshot of the committed config" cfg repo snapshot
-parity "AC-4 snapshot with no committed config" nocfg repo snapshot
+op "AC-4 snapshot of the committed config" cfg repo snapshot
+is "AC-4 snapshot of the committed config: rc=0" "rc=0"
+cmp -s "$HP/factory.yml" "$FACTORY_DIR/test/fixture/factory.yml" && pass "AC-4 snapshot writes the committed config to the project's home" || fail "AC-4 snapshot: $HP/factory.yml is not the committed config"
+op "AC-4 snapshot with no committed config" nocfg repo snapshot
+is "AC-4 snapshot with no committed config: rc=1" "rc=1"
 
 # ---- AC-4: the three tmp helpers
-parity "AC-4 stale_tmp" cfg repo stale
+op "AC-4 stale_tmp" cfg repo stale
 [ "$PAR_OUT" = "$(printf '7\n9')" ] && pass "AC-4 stale_tmp names the cards 7 (Done) and 9 (off the board), not 8 (Coding) or 10 (locked)" || fail "AC-4 stale_tmp is [$PAR_OUT], want 7 and 9"
-parity "AC-4 clean_tmp" cfg repo clean 7
+op "AC-4 clean_tmp" cfg repo clean 7
 [ -d "$HP/tmp/7" ] && fail "AC-4 clean_tmp left tmp/7" || pass "AC-4 clean_tmp removes tmp/7"
 [ "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')" = 5 ] && pass "AC-4 clean_tmp removes the worktree it left under tmp/7" || fail "AC-4 clean_tmp left its worktree registered"
-parity "AC-4 sweep_tmp" cfg repo sweep
+op "AC-4 sweep_tmp" cfg repo sweep
 want_sweep="$(printf 'tmp/7\ntmp/9\ntmp/old-7.log\ntmp/old-99.log\ntmp/stray-12.log' | sort)"
 [ "$PAR_OUT" = "$want_sweep" ] && pass "AC-4 sweep_tmp prints each thing it removed" || fail "AC-4 sweep_tmp printed [$PAR_OUT], want [$want_sweep]"
 
 # ---- AC-4: the card's spec and weight
-parity "AC-4 card_spec of a card with a spec" cfg repo card_spec 7
+op "AC-4 card_spec of a card with a spec" cfg repo card_spec 7
 case "$PAR_OUT" in *7/docs/superpowers/specs/2026-01-01-demo-design.md) pass "AC-4 card_spec finds the spec in the card's worktree" ;; *) fail "AC-4 card_spec found [$PAR_OUT]" ;; esac
-parity "AC-4 card_spec of a card with no worktree" cfg repo card_spec 8
+op "AC-4 card_spec of a card with no worktree" cfg repo card_spec 8
 [ -z "$PAR_OUT" ] && pass "AC-4 card_spec: nothing without a worktree" || fail "AC-4 card_spec without a worktree found [$PAR_OUT]"
-parity "AC-4 card_spec of a card on another branch" cfg repo card_spec 9
-parity "AC-4 card_spec of a card with no spec file" cfg repo card_spec 10
-parity "AC-4 card_weight of a card with a heavy spec" cfg repo card_weight 7
+op "AC-4 card_spec of a card on another branch" cfg repo card_spec 9
+is "AC-4 card_spec: nothing for a worktree on another card's branch" ""
+op "AC-4 card_spec of a card with no spec file" cfg repo card_spec 10
+is "AC-4 card_spec: nothing without a spec file" ""
+op "AC-4 card_weight of a card with a heavy spec" cfg repo card_weight 7
 [ "$PAR_OUT" = heavy ] && pass "AC-4 card_weight reads heavy" || fail "AC-4 card_weight 7 is [$PAR_OUT], want heavy"
-parity "AC-4 card_weight of a card with no worktree" cfg repo card_weight 8
+op "AC-4 card_weight of a card with no worktree" cfg repo card_weight 8
 [ "$PAR_OUT" = standard ] && pass "AC-4 card_weight: standard without a worktree" || fail "AC-4 card_weight 8 is [$PAR_OUT], want standard"
-parity "AC-4 card_weight of a card with no spec file" cfg repo card_weight 10
+op "AC-4 card_weight of a card with no spec file" cfg repo card_weight 10
+is "AC-4 card_weight: standard without a spec file" standard
 
 # spec_weight: none, two lines, unknown value, CRLF, ...
 W="$T/weights"; mkdir -p "$W"
@@ -244,12 +224,9 @@ printf '# T\r\n\r\n**Weight:** heavy\r\n\r\n## Product\r\n' > "$W/crlf.md"
 printf '# T\r\n\r\n**Weight:** `light`\r\n\r\n## Product\r\n' > "$W/crlf-ticks.md"
 printf '# T\n\n## Product\n\n**Weight:** heavy\n' > "$W/after-section.md"
 printf '# T\n\n**Weight:** Heavy\n' > "$W/capital.md"
-for f in none heavy ticks spaces two unknown crlf crlf-ticks after-section capital missing; do
-  parity "AC-4 spec_weight $f" cfg repo spec_weight "$W/$f.md"
-done
-for pair in none:standard heavy:heavy ticks:light two:standard unknown:standard crlf:heavy crlf-ticks:light after-section:standard missing:standard; do
+for pair in none:standard heavy:heavy ticks:light spaces:standard two:standard unknown:standard crlf:heavy crlf-ticks:light after-section:standard capital:standard missing:standard; do
   f="${pair%%:*}"; w="${pair##*:}"
-  run_side py "$ROOT/repo" spec_weight "$W/$f.md"
+  run_side "$ROOT/repo" spec_weight "$W/$f.md"
   [ "$OUT" = "$w" ] && pass "AC-4 spec_weight $f is $w" || fail "AC-4 spec_weight $f is [$OUT], want $w"
 done
 
@@ -311,13 +288,13 @@ staged-head: abc123
 nothing to translate here
 a line with ação and çã accents, and a trailing space
 EOF
-parity "AC-6 say pt-BR on every fixture line" cfg repo say pt-BR "$T/say-lines.txt"
+op "AC-6 say pt-BR on every fixture line" cfg repo say pt-BR "$T/say-lines.txt"
 n_in="$(grep -c . "$T/say-lines.txt")"; n_out="$(printf '%s\n' "$PAR_OUT" | grep -c .)"
 [ "$n_in" = "$n_out" ] && pass "AC-6 say pt-BR: one output line per fixture line ($n_in)" || fail "AC-6 say pt-BR: $n_in lines in, $n_out out"
 case "$PAR_OUT" in *"os testes de aceitação mudaram depois do commit do QA"*) pass "AC-6 say pt-BR translates a catalog line" ;; *) fail "AC-6 say pt-BR left the catalog line in English: [$PAR_OUT]" ;; esac
 
 for lang in en xx; do
-  parity "AC-6 say $lang (no catalog)" cfg repo say "$lang" "$T/say-lines.txt"
+  op "AC-6 say $lang (no catalog)" cfg repo say "$lang" "$T/say-lines.txt"
   expect="$(cat "$T/say-lines.txt")"
   [ "$PAR_OUT" = "${expect}" ] && pass "AC-6 say $lang: the text passes through unchanged" || fail "AC-6 say $lang: the text changed: [$PAR_OUT]"
 done

@@ -6,6 +6,10 @@ What the machine needs, how a repository joins the factory, and the dispatcher o
 
 Python 3.11+ with PyYAML (`pip install pyyaml`), Git, an authenticated gh, Claude Code (`claude`), and Git Bash on Windows for the wrappers and the scheduler. Any bash runs the wrappers: there is no minimum version.
 
+## The short path
+
+Once the plugin is installed (the first two commands below), `shipfloor init [<repo>] [--yes]` does the rest in one guided run. It checks the prerequisites first (fatal, nothing changes), then runs install, `.shipfloor/factory.yml` (committed to main after a confirmation), `shipfloor add`, `shipfloor setup-board`, the dispatcher and `shipfloor doctor`. Each step is idempotent and prints the `$ <command>` it equals. `--yes` answers the confirmations; without a terminal and without it, init prints the command that needs you and exits 1. The sections below are the same steps by hand.
+
 ## Install
 
 To see the factory work before you trust it with a repository, run `bash <plugin>/scripts/shipfloor demo`: it needs only `git` and Python 3.11+ with PyYAML, and touches nothing of yours.
