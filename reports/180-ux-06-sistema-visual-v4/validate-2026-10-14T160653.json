@@ -1,0 +1,1 @@
+{"outcome": "blocked", "agents": [{"agent": "engineer", "tokens": 110054, "seconds": 410}], "rounds": 1, "failed_gates": ["acceptance-intact"], "flaky": ["factory install-atomic.test.sh"], "gates_reused": ["green factory scripts/test/visual-v4.test.sh", "green factory scripts/test/theme.test.sh", "green factory scripts/test/design-doc.test.sh"], "amendments": []}
