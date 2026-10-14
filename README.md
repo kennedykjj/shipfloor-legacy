@@ -1,3 +1,5 @@
+<img src="docs/img/icon.svg" alt="" width="64" height="64">
+
 # Shipfloor
 
 **A software factory for Claude Code.** Write a GitHub issue, approve twice, and it ships.
