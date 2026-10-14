@@ -534,9 +534,16 @@ class CodexSandbox(ds.CodexCase):
             self.assertNotIn(unsafe, argv)
         writable = [argv[i + 1] for i, a in enumerate(argv) if a == "--add-dir"]
         self.assertEqual(sorted(writable), sorted([os.environ["FACTORY_WT_ROOT"], self.home + "/tmp", self.home + "/reviews"]))
+        roots = [os.environ["FACTORY_WT_ROOT"], self.home + "/tmp", self.home + "/reviews"]
         for folder in writable:
-            for guarded in (SCRIPTS, "reports-wt", self.codex_home, ".shipfloor", ".github", ".codex", "AGENTS.md"):
-                self.assertNotIn(guarded, folder)
+            # independent of where TMPDIR lives: compare by path, not by substring
+            for guarded in (SCRIPTS, self.home + "/reports-wt", self.codex_home):
+                rel = os.path.relpath(folder, guarded)
+                self.assertTrue(rel == ".." or rel.startswith("../"), "%s is, or is under, %s" % (folder, guarded))
+            root = next(r for r in roots if folder == r or folder.startswith(r + "/"))
+            parts = os.path.relpath(folder, root).split("/")
+            for guarded in (".shipfloor", ".github", ".codex", "AGENTS.md"):
+                self.assertNotIn(guarded, parts)
 
 
 class CodexModels(ds.CodexCase):
