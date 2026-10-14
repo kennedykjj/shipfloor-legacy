@@ -58,31 +58,16 @@ It comes with twelve themes, in twelve languages: English, Simplified and Tradit
 
 You need `git`, an authenticated `gh`, `claude`, Python 3.11+ with PyYAML, and Git Bash on Windows.
 
-```bash
-claude plugin marketplace add <path or URL of this repo>
-claude plugin install sf@shipfloor
-bash <plugin>/scripts/shipfloor install
-alias shipfloor='bash ~/.shipfloor/factory/shipfloor'
-shipfloor doctor
-```
-
-Then, for each repository the factory should work on:
+First add the Shipfloor plugin to Claude Code (a marketplace add and a plugin install, two commands: see [docs/install.md](docs/install.md)). The plugin brings the `shipfloor` script. Then, for the repository the factory should work on:
 
 ```bash
-cp examples/factory.yml <repo>/.shipfloor/factory.yml   # set the project, the board and the layers; commit it to main
-shipfloor add <repo>
-shipfloor setup-board <project>
+bash <plugin>/scripts/shipfloor init <repo>       # add --yes to confirm every question
 ```
 
-Last, register the dispatcher, the scheduled task that looks for work every 3 minutes:
-
-```bash
-powershell -File <plugin>/installer/install-dispatcher.ps1   # Windows
-bash <plugin>/installer/install-dispatcher.sh                # Linux and macOS
-```
+`shipfloor init` checks the prerequisites before it changes anything, then runs each step that is not done yet: it installs the factory, writes `.shipfloor/factory.yml` (committed to main after you confirm), registers the repository, sets up the board, registers the dispatcher and runs `shipfloor doctor`. Every step prints the `$ <command>` it is equivalent to. Run it again at any time: finished steps are skipped. Without a terminal and without `--yes` it prints the command that needs you and exits 1.
 
 > [!NOTE]
-> On Linux with systemd, turn lingering on so the dispatcher survives logout, and run the installer again after PATH changes. `install-dispatcher.sh --uninstall` removes it. The details are in [docs/install.md](docs/install.md).
+> The manual steps, the dispatcher on each system and the systemd lingering note are in [docs/install.md](docs/install.md).
 
 Move a card to Ready for Refinement and open the dashboard.
 
