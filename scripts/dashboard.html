@@ -561,6 +561,17 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
 .decide .hint, .edit .hint { font-size: 12.5px; color: var(--muted); }
 .decide .stale { margin: 0; font-size: 12.5px; color: var(--warn); overflow-wrap: anywhere; }
 .decide .stale.skipped { color: var(--bad); }
+.brief { display: flex; flex-direction: column; gap: 10px; container-type: inline-size; }
+.brief .tag.sand { color: var(--sand); border-color: color-mix(in srgb, var(--sand) 50%, transparent); }
+.bk-v { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.bk { border-top: 1px solid var(--hair); padding-top: 10px; font-size: 14px; color: var(--soft); }
+.bk-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.bk-cap { margin: 0; font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.bk p { margin: 6px 0 0; overflow-wrap: anywhere; } .bk ul { margin: 6px 0 0; padding-left: 18px; } .bk li { overflow-wrap: anywhere; margin-bottom: 6px; }
+.bk pre { margin: 6px 0 0; font: 12px var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
+.bk summary { cursor: pointer; } .bk del { color: var(--muted); } .bk .btn { margin-top: 6px; min-height: 24px; }
+@container (max-width: 540px) { .bk .btn { width: 100%; } }
+.vd.ok { color: var(--ok); } .vd.sand { color: var(--sand); }
 .decide-b { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
 .decide-b .acts { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .btn { border-radius: 5px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--edge-hi); background: var(--panel-hi); white-space: nowrap; }
@@ -733,7 +744,7 @@ const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged"
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
 const S = { view: "board", overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "", refused: false,
-  expanded: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {}, resuming: null, resumeErr: null,
+  expanded: {}, briefOpen: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {}, resuming: null, resumeErr: null,
   show: { band: true, history: true } };  // what the owner left open on the Factory view: in memory only, open at every load
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1457,7 +1468,9 @@ function passHtml(c) {
   const head = (meta) => `<div class="seg"><button class="ptitle" data-open="${k}"><span class="row"><span class="g pnum">#${c.issue}</span>${meta}</span><span class="ptext">${c.title ? esc(c.title) : UNTITLED}</span></button>`;
   if (pend) return `<li class="pass" data-key="${k}">${head(`<span class="cap">${t("chip.moving", { column: esc(colName(pend.to)) })}</span>`)}<div class="bar"><i></i></div></div><div class="stub"><button class="pill" data-q="undo">${t("act.undo")}</button></div></li>`;
   const cost = c.cost == null ? " · $ ?" : c.cost ? ` · ${usd(c.cost)}` : "";
-  const meta = stop ? `<span class="cap bad">${t(c.block_cost ? "q.blocked_cost" : "pass.blocked")}</span>` : `<span class="cap">${esc(colName(c.column))}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}</span>`;
+  const verdict = c.verdict === "routine" ? ` · <span class="vd ok">${t("pass.verdict.routine")}</span>`
+    : c.verdict === "look" ? ` · <span class="vd sand">${c.flags > 1 ? t("pass.verdict.n", { n: c.flags }) : t("pass.verdict.one")}</span>` : "";
+  const meta = stop ? `<span class="cap bad">${t(c.block_cost ? "q.blocked_cost" : "pass.blocked")}</span>` : `<span class="cap">${esc(colName(c.column))}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}${verdict}</span>`;
   const note = S.note[c.key] ? `<p class="pnote" role="status">${esc(S.note[c.key])}</p>` : "";
   const gate = c.block_line?.match(/^Failed gate: (.*)$/);  // the factory's own words; only the gate's label is the page's
   const why = !stop ? "" : c.block_cost ? `<p class="pwhy">${costLine(c.block_cost)}</p>`
@@ -1885,6 +1898,34 @@ function mdLite(src) {
   if (list) out.push("</ul>");
   return out.join("");
 }
+// The decision brief (brief.json, made by #178): pure, reads only t/esc/ta; "" when there is nothing to show.
+// Every block carries the origin of its text; a missing or mistyped field drops its block. `open`: the rest is unfolded.
+function briefHTML(b, open) {
+  if (!b || typeof b !== "object" || Array.isArray(b)) return "";
+  const str = (x) => typeof x === "string" && x.trim() !== "";
+  const list = (x) => Array.isArray(x) ? x : [];
+  const obj = (x) => !!x && typeof x === "object" && !Array.isArray(x);
+  const chip = (k) => `<span class="tag">${t(k)}</span>`;
+  const who = (s) => chip(s === "gate" ? "brief.by.gates" : s === "product owner" || s === "po" ? "brief.by.po" : "brief.by.review");
+  // flags are computed by brief.py (gate migration, git diff, spec, ...): gates unless an agent wrote the source
+  const flagWho = (s) => chip(!str(s) || s === "gate" || !["review", "review agent", "agent"].includes(s.trim()) ? "brief.by.gates" : "brief.by.review");
+  const block = (cap, chips, body) => `<section class="bk"><div class="bk-h"><h3 class="bk-cap">${cap}</h3>${chips}</div>${body}</section>`;
+  const parts = [];
+  if (obj(b.what) && str(b.what.text)) parts.push(block(t("brief.what"), who(b.what.by), `<p>${esc(b.what.text)}</p>`));
+  const flags = list(b.flags).map((f, i) => [f, i]).filter(([f]) => obj(f) && str(f.title));
+  if (flags.length) parts.push(block(t("brief.flags"), "", `<ul>${flags.map(([f, i]) =>
+    `<li><div>${esc(f.title)} ${flagWho(f.source)}</div>${str(f.detail) ? `<p>${esc(f.detail)}</p>` : ""}${str(f.hunk) ? `<pre>${esc(f.hunk)}</pre>` : ""}${str(f.suggestion) ? `<button class="btn ghost" data-suggest="${i}" title="${ta("brief.use.title")}">${t("brief.use")}</button>` : ""}</li>`).join("")}</ul>`));
+  const since = list(b.since_request).filter((s) => obj(s) && (str(s.old) || str(s.new)));
+  if (since.length) parts.push(block(t("brief.since"), chip("brief.by.diff"), `<ul>${since.map((s) => `<li>${str(s.old) ? `<del>${esc(s.old)}</del> ` : ""}${str(s.new) ? esc(s.new) : ""}</li>`).join("")}</ul>`));
+  const proven = list(b.proven).filter(str);
+  if (proven.length) parts.push(block(t("brief.proven"), chip("brief.by.computed"), `<ul>${proven.map((g) => `<li>${esc(g)}</li>`).join("")}</ul>`));
+  const rest = list(b.rest).filter(str);
+  if (rest.length) parts.push(`<details class="bk" data-brief-rest${open ? " open" : ""}><summary><span class="bk-h"><span class="bk-cap">${t("brief.rest", { n: rest.length })}</span>${chip("brief.by.review")}</span></summary><ul>${rest.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></details>`);
+  if (!parts.length) return "";
+  const pill = b.verdict === "routine" ? `<span class="tag ok">${t("pass.verdict.routine")}</span>`
+    : b.verdict === "look" ? `<span class="tag sand">${flags.length > 1 ? t("pass.verdict.n", { n: flags.length }) : t("pass.verdict.one")}</span>` : "";
+  return `<div class="brief" role="group" aria-label="${ta("brief.h")}"><div class="bk-v">${pill}</div>${parts.join("")}</div>`;
+}
 function renderDecide(p, n, column) {
   const key = `${p}/${n}`; const moves = OWNER[column]; const el = $("d-decide"); const note = S.notice[key];
   const notice = `<div class="notice ${note?.cls || ""}" id="notice" role="status" aria-live="polite">${note?.html || ""}</div>`;
@@ -1894,6 +1935,7 @@ function renderDecide(p, n, column) {
       ${weightLine(key, column)}
       ${project()?.skipped ? `<p class="stale skipped">${t("decide.skipped", { project: esc(project().slug), since: when(project().skipped.since), reason: esc(project().skipped.reason) })}</p>` : ""}
       ${stale(project()) ? `<p class="stale">${t("decide.stale", { m: Math.round(project().board_age_s / 60) })}</p>` : ""}
+      ${S.card?.brief && `${S.card.project}/${S.card.issue}` === key ? briefHTML(S.card.brief, S.briefOpen[key]) : ""}
       <div class="decide-a"><button class="btn approve" id="approve" aria-describedby="approve-to approve-hint" data-act="approve" data-label="${ta("act.approve")}">${t("act.approve")}</button><span class="hint" id="approve-to">→ ${esc(colName(moves[0]))}</span><span class="hint" id="approve-hint"></span></div>
       <div class="decide-b"><textarea id="changes" aria-label="${ta("decide.changes")}" placeholder="${ta("decide.changes.ph")}"></textarea>
         <div class="acts"><button class="btn" id="request" aria-describedby="request-to" data-act="request-changes">${t("act.changes")}</button><span class="hint" id="request-to">→ ${esc(colName(moves[1]))}</span><button class="btn ghost" id="fill" hidden></button></div></div>
@@ -2415,6 +2457,16 @@ async function followLog() {
 }
 function selectTab(id) { S.auto = false; if (id === "live" && S.tab !== "live") S.liveSince = Date.now(); S.tab = id; renderDrawer(); if (id === "log") followLog(); if (id === "live") followLive(); }
 
+// A brief's suggestion fills the request-changes note; nothing is sent.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-suggest]"); if (!b || !S.card) return;
+  const sug = S.card.brief?.flags?.[+b.dataset.suggest]?.suggestion, changes = $("changes");
+  if (typeof sug !== "string" || !changes) return;
+  changes.value = sug; changes.classList.add("show"); syncDecide(); changes.focus(); changes.setSelectionRange(sug.length, sug.length);
+  const note = { cls: "good", html: t("brief.filled", { n: S.card.issue }) }; S.notice[S.open] = note;
+  const notice = $("notice"); if (notice) { notice.className = "notice good"; notice.innerHTML = note.html; }
+});
+document.addEventListener("toggle", (e) => { if (e.target.matches?.("details[data-brief-rest]") && S.open) S.briefOpen[S.open] = e.target.open; }, true);
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
   if (L.hold && L.hold.via !== "drag" && !e.target.closest("[data-acc],[data-rord],[data-mv],#lstat")) { const onChip = e.target.closest("#lanes .chip"); letGo(); if (onChip) return; }  // a tap elsewhere lets go

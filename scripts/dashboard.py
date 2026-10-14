@@ -699,6 +699,23 @@ class Factory:
                         "notes": "\n".join(r["notes"]) if isinstance(r.get("notes"), list) else r.get("notes") or ""})
         return out
 
+    def brief(self, p, n):
+        """The decision brief of a card (reviews/<n>.brief.json, made by #178): the parsed object, or None when the file
+        is missing, unreadable, unparseable or not an object. Never raises."""
+        try:
+            b = json.loads((self.pdir(p) / "reviews" / f"{n}.brief.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return b if isinstance(b, dict) else None
+
+    def brief_row(self, p, n, col):
+        """The one-word verdict and the number of flags for the list row; only for the cards waiting on the owner."""
+        b = self.brief(p, n) if col in AWAITING else None
+        if not b:
+            return {"verdict": None, "flags": 0}
+        v, f = b.get("verdict"), b.get("flags")
+        return {"verdict": v if v in ("routine", "look") else None, "flags": len(f) if isinstance(f, list) else 0}
+
     def card(self, p, n):
         prices, runs = self.prices(), self.runs(p, issue=n)
         sessions, found = [], self.sessions(p, n)
@@ -722,7 +739,7 @@ class Factory:
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
                 "total": rounded(total), "baseline": dashboard_cost.baselines(self.pdir(p)).get(n, 0.0), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
-                "blocked": self.blocked(p).get(n),
+                "blocked": self.blocked(p).get(n), "brief": self.brief(p, n),
                 "block_reason": self.block_reason(p, n) if self.blocked(p).get(n) else ""}
 
     def card_spec(self, p, n):
@@ -1134,7 +1151,8 @@ class Factory:
                                         "review": col in AWAITING and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                                         "lock": "run" if n in running else {"infra": "infra", "owner": "blocked"}.get(blocked.get(n)),
                                         "opened": opened.get(n), "position": place.get(n),
-                                        "blocked": blocked.get(n), **self.block_brief(p, n, blocked.get(n)),
+                                        "blocked": blocked.get(n), **self.brief_row(p, n, col),
+                                        **self.block_brief(p, n, blocked.get(n)),
                                         **self.card_deps(record, columns, n)}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
