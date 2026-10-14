@@ -17,6 +17,8 @@ import subprocess
 import sys
 import time
 
+import runtimes
+
 from . import proc, project, text
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -111,8 +113,8 @@ def _registry(home):
 
 
 def usage_limited(home):
-    """The Claude usage limit is per account: a recent hit in any project pauses all. A run log, projects/<p>/logs/*.log,
-    changed in the last 30 minutes whose last `== start` block says so. Only those logs: each run's TMPDIR lives under
+    """The agent's usage limit is per account: a recent hit in any project pauses all. A run log, projects/<p>/logs/*.log,
+    changed in the last 30 minutes whose last `== start` block says so (runtimes.usage_limited). Only those logs: each run's TMPDIR lives under
     projects/<p>/tmp/<n>/ (#168), and test suites there write fake factory logs that say so too."""
     for f in sorted(glob.glob(os.path.join(glob.escape(home), "projects", "*", "logs", "*.log"))):
         a = _age(f)
@@ -123,12 +125,7 @@ def usage_limited(home):
                 lines = _t(h.read()).split("\n")
         except OSError:
             continue
-        buf = []
-        for l in lines:
-            if l.startswith("== start"):
-                buf = []
-            buf.append(l)
-        if "hit your session limit" in "\n".join(buf):
+        if runtimes.usage_limited("\n".join(lines)):
             return True
     return False
 

@@ -67,14 +67,37 @@ class Agent(Base):
                           "FACTORY_WT_ROOT": os.environ["FACTORY_WT_ROOT"], "SHIPFLOOR_HOME": self.shome,
                           "FACTORY_CONFIG": os.environ["FACTORY_CONFIG"], "FACTORY_PROJECT": "shop",
                           "CALLER_VAR": "kept as is"})
-        for gone in ("FACTORY_BOARD_SNAPSHOT", "SHIPFLOOR_INFRA_RETRY", "MSYS_NO_PATHCONV"):
+        for gone in ("FACTORY_BOARD_SNAPSHOT", "SHIPFLOOR_INFRA_RETRY", "MSYS_NO_PATHCONV", "SHIPFLOOR_TRAILER"):
             self.assertNotIn(gone, env)
         log = open(os.path.join(self.home, "logs", "%s-54-develop.log" % today())).read().splitlines()
         self.assertEqual(len(log), 3)
-        self.assertRegex(log[0], r"^== start /sf:develop 54 %s pid=%d model=sonnet weight=standard$" % (ds.ISO, os.getpid()))
+        self.assertRegex(log[0], r"^== start /sf:develop 54 %s pid=%d model=sonnet weight=standard runtime=claude-code$" % (ds.ISO, os.getpid()))
         self.assertEqual(log[1], "claude says hi")
-        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s$" % ds.ISO)
+        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s outcome=ok$" % ds.ISO)
         self.assertFalse(os.path.exists(self.home + "/locks/develop-54.lock"), "the run's lock goes when it ends")
+
+    def test_AC2_claude_code_runtime_changes_nothing(self):
+        "AC-2 no runtime, runtime: claude-code (string or map) and a project's runtime give the same command line, stdin and environment"
+        seen = []
+        for machine, project in ((None, ""), ("runtime: claude-code", ""),
+                                 ("runtime: {default: claude-code, stages: {develop: claude-code}}", ""),
+                                 (None, "runtime: claude-code\n")):
+            self.machine_cfg(ds.POOL8 + ("\n" + machine if machine else ""))
+            if project:
+                self.project_cfg(open(ds.FIXTURE_CONFIG, encoding="utf-8").read() + "\n" + project)
+            self.board(queues={"Ready for Dev": 54})
+            self.launches, self.pending = [], []
+            for d in os.listdir(os.path.join(self.home, "locks")):
+                os.rmdir(os.path.join(self.home, "locks", d))
+            self.assertEqual(self.cycle(runs=False), 0, self.err)
+            spec = self.launches[0]
+            self.assertEqual(spec.get("runtime"), "claude-code", "the launch names the runtime it uses")
+            self.run_pending()
+            call = self.claude_calls()[-1]
+            self.assertNotIn("SHIPFLOOR_TRAILER", call["env"], "the claude-code trailer is the default one: no variable")
+            seen.append((call["argv"], call["stdin"], call["env"]["CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"],
+                         call["env"]["CLAUDE_CODE_DISABLE_AUTO_MEMORY"], spec["argv"][-2:]))
+        self.assertEqual(seen[1:], seen[:1] * 3)
 
     def test_end_line_has_the_agent_exit(self):
         "the == end line carries the agent's exit code"
@@ -95,13 +118,13 @@ class Agent(Base):
         "a run may read the factory's scripts, and reports-wt only when it exists; it gets no write rule"
         self.board(queues={"Ready for Dev": 54})
         self.cycle(runs=False)
-        args = self.launches[0]["args"]
+        args = self.launches[0]["argv"]
         i = args.index("--allowedTools")
         self.assertEqual(args[i:i + 4], ["--allowedTools", "Read(/%s/**)" % SCRIPTS, "--disallowedTools", "PowerShell"])
         os.makedirs(os.path.join(self.home, "reports-wt"))
         self.board(queues={"Ready for Dev": 55})
         self.cycle(runs=False)
-        args = self.launches[1]["args"]
+        args = self.launches[1]["argv"]
         i = args.index("--allowedTools")
         self.assertEqual(args[i:i + 3], ["--allowedTools", "Read(/%s/**)" % SCRIPTS,
                                          "Read(/%s/reports-wt/**)" % os.path.realpath(self.home)])
@@ -113,8 +136,9 @@ class Agent(Base):
         os.rmdir(os.path.join(self.home, "control"))
         self.board(queues={"Ready for Dev": 26})
         self.cycle()
-        self.assertRegex(self.log("develop", 26).splitlines()[-1],
-                         r"^== end /sf:develop 26 exit=1 %s: no %s/control$" % (ds.ISO, re.escape(self.home)))
+        end = self.log("develop", 26).splitlines()[-1]
+        self.assertRegex(end, r"^== end /sf:develop 26 exit=1 %s: no %s/control" % (ds.ISO, re.escape(self.home)))
+        self.assertIn("outcome=fail", end)
         self.assertEqual((self.claude_calls(), os.listdir(os.path.join(self.home, "locks"))), ([], []))
         os.makedirs(os.path.join(self.home, "control"))
         self.cycle()
@@ -136,8 +160,8 @@ class Deploy(Base):
                          ("1", self.home + "/locks/deploy-47.lock"))
         self.assertNotIn("FACTORY_BOARD_SNAPSHOT", d[0]["env"])
         log = self.log("deploy", 47).splitlines()
-        self.assertRegex(log[0], r"^== start /sf:deploy 47 %s pid=\d+ model=sonnet weight=standard$" % ds.ISO)
-        self.assertRegex(log[-1], r"^== end /sf:deploy 47 exit=0 %s$" % ds.ISO)
+        self.assertRegex(log[0], r"^== start /sf:deploy 47 %s pid=\d+ model=sonnet weight=standard runtime=claude-code$" % ds.ISO)
+        self.assertRegex(log[-1], r"^== end /sf:deploy 47 exit=0 %s outcome=ok$" % ds.ISO)
 
     def test_clean_deploy_needs_no_agent(self):
         "a deploy that exits 0 calls no agent"
@@ -173,7 +197,7 @@ class Models(Base):
         self.assertEqual(rc, 0)
         out = {}
         for s in self.launches:
-            a = s["args"]
+            a = s["argv"]
             flag = a[a.index("--model") + 1] if "--model" in a else None
             self.assertEqual(flag, s["model"] or None, "the --model flag is the run's model")
             out["%s %s" % (s["p"], s["n"])] = "%s/%s" % (s["model"], s["weight"])
@@ -221,7 +245,7 @@ class Models(Base):
         self.board(queues={"Ready for Dev": 54})
         self.cycle()
         line = self.start_line("develop", 54)
-        self.assertTrue(line.endswith(" model=opus weight=heavy"), line)
+        self.assertTrue(line.endswith(" model=opus weight=heavy runtime=claude-code"), line)
         self.assertEqual(dashboard.RUN_LINE.match(line).group(2, 3), ("develop", "54"))
         self.assertEqual(dashboard.RUN_MODEL.search(line).group(1), "opus")
         self.assertEqual(self.flag_model(self.claude_calls()[0]), "opus")
@@ -410,7 +434,7 @@ class Telemetry(Base):
         self.assertEqual(len(log), 3)
         self.assertTrue(log[0].startswith("== start /sf:develop 54 "))
         self.assertEqual(log[1], "All done: #54 is in Validation.")
-        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s$" % ds.ISO)
+        self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s outcome=ok$" % ds.ISO)
 
     def test_stream_events_file(self):
         "stream-json: every event goes to <log>.events.jsonl with when it arrived and the run's pid"

@@ -247,6 +247,18 @@ class Atomic(InstallCase):
         self.assertEqual(self.counts(), "0 replaced, 0 added, 0 removed")
         self.assertFalse(os.path.exists(os.path.join(self.inst, "__pycache__")))
 
+    def test_AC7_runtimes_package_is_shipped(self):
+        "AC-7 scripts/runtimes/ is in the installed copy, with no __pycache__"
+        real = os.path.join(SCRIPTS, "runtimes")
+        self.assertTrue(os.path.isdir(real), "the plugin has scripts/runtimes/")
+        src = self.v1()
+        shutil.copytree(real, os.path.join(src, "scripts", "runtimes"), ignore=shutil.ignore_patterns("__pycache__"))
+        self.put(os.path.join(src, "scripts/runtimes/__pycache__/claude_code.cpython-311.pyc"), "junk")
+        self.assertEqual(self.sf(src, "install"), 0, self.err)
+        for f in ("__init__.py", "claude_code.py"):
+            self.assertTrue(os.path.isfile(os.path.join(self.inst, "runtimes", f)), f)
+        self.assertEqual([f for f in cli._files(self.inst) if f.startswith("runtimes/") and "pycache" in f], [])
+
     def test_killed_halfway(self):
         "AC-5/AC-7: an install killed halfway leaves each file old or new and .source unchanged; doctor sees no match"
         src, b = self.v1(), self.v2()

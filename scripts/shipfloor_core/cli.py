@@ -15,6 +15,8 @@ import sys
 import tempfile
 from datetime import datetime
 
+import runtimes
+
 from . import fs, proc, project, text
 
 PIPE, DEVNULL, STDOUT = subprocess.PIPE, subprocess.DEVNULL, subprocess.STDOUT
@@ -607,14 +609,44 @@ def _fs_type(path, mounts="/proc/self/mounts"):
     return kind
 
 
+def _runtimes_in_use():
+    """The runtimes the machine config and every registered project's factory.yml name; claude-code when none."""
+    found = []
+
+    def add(r):
+        for name in _t(r.stdout).split("\0"):
+            if name and name in runtimes.NAMES and name not in found:
+                found.append(name)
+
+    add(project.machine("runtimes"))
+    reg = _registry()
+    if os.path.isfile(reg) and os.path.getsize(reg) > 0:
+        for row in _rows():
+            slug, repo, wt, main = text.read_tab(row, 4)
+            if not slug:
+                continue
+            with _ProjectEnv(slug, repo, wt, main):
+                cfg = os.environ.get("FACTORY_CONFIG", "")
+                if cfg and os.path.isfile(cfg):
+                    add(project.machine("runtimes", proc.native_path(cfg)))
+    return found or [runtimes.NAMES[0]]
+
+
 def cmd_doctor(args):
     bad, agents, warned = 0, [], False
-    for t in ("git", "gh", "claude"):
+    for t in ("git", "gh"):
         if _have(t):
             _out("ok   " + t)
         else:
             _out("FAIL %s not found" % t)
             bad = 1
+    for name in _runtimes_in_use():
+        for found, line in runtimes.get(name).doctor():
+            if found:
+                _out("ok   " + line)
+            else:
+                _out("FAIL %s not found" % line)
+                bad = 1
     try:
         import yaml  # noqa: F401  (the factory's Python is the one running this)
         _out("ok   python + PyYAML")
