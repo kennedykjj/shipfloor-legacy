@@ -441,7 +441,7 @@ done
 after="$(wc -l < "$FAKE_GH_DIR/calls")"
 [ "$before" = "$after" ] && pass "AC-6 no board call for a card number that is not [0-9]+" || fail "AC-6 a wrong card number reached the board ($before -> $after calls)"
 
-# AC-8: --soft, --muted and --faint keep 4.5:1 on --panel and --ground in every theme (12 of them).
+# AC-8: --soft, --muted and --faint keep 4.5:1 on --panel and --ground in every theme (14 of them).
 # A theme inherits what it does not redeclare from :root. Takes the HTML as its argument.
 contrast() {
   $PY -I - "$1" <<'EOF'
@@ -476,7 +476,7 @@ for name, t in sorted(themes.items()):
                 print("FAIL AC-8 %s %s on %s: cannot read the colors (%s, %s)" % (name, tok, bg, v.get(tok), v.get(bg)))
                 continue
             print("%s AC-8 %s %s on %s is %.2f:1 (needs 4.5)" % ("ok" if r >= 4.5 else "FAIL", name, tok, bg, r))
-print("%s AC-8 found %d themes (needs 12)" % ("ok" if len(themes) == 12 else "FAIL", len(themes)))
+print("%s AC-8 found %d themes (needs 14)" % ("ok" if len(themes) == 14 else "FAIL", len(themes)))
 EOF
 }
 while IFS= read -r line; do
@@ -489,8 +489,8 @@ sed 's/--faint: #93928a/--faint: #6a6a6a/' "$FACTORY_DIR/dashboard.html" > "$M/l
 assert_contains "$(contrast "$M/low.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 tape --faint on --panel is"
 sed 's/--muted: #5c5040/--muted: #8a8a8a/' "$FACTORY_DIR/dashboard.html" > "$M/low-light.html"
 assert_contains "$(contrast "$M/low-light.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 kraft --muted on --ground is"
-grep -v '^\[data-theme="paper"\]' "$FACTORY_DIR/dashboard.html" > "$M/eleven.html"
-assert_contains "$(contrast "$M/eleven.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 found 11 themes (needs 12)"
+grep -v '^\[data-theme="paper"\]' "$FACTORY_DIR/dashboard.html" > "$M/thirteen.html"
+assert_contains "$(contrast "$M/thirteen.html" | tr -d '\r' | grep '^FAIL')" "FAIL AC-8 found 13 themes (needs 14)"
 rm -r "$M"
 # the review iframe holds the panel color until its page has the theme (#12): no white, no other theme's palette
 printf '<!doctype html><html><head><title>spec</title></head><body><p>spec</p></body></html>\n' > "$P/reviews/21.html"
