@@ -72,4 +72,8 @@ err="$(FACTORY_PNPM="$bin/pnpm" bash "$GATE" green web x 2>&1)"; rc=$?
 [ "$rc" = 1 ] && assert_contains "$err" "gate: layer directory web/ not found" || fail "a missing layer directory: exit $rc: $err"
 badpat="$(mktemp)"; sed "s/^    ran: 'Tests +\[1-9\]\[0-9\]\* passed'$/    ran: 'a('/" "$FACTORY_DIR/test/fixture/factory.yml" > "$badpat"
 grep -q "ran: 'a('" "$badpat" && assert_exit 2 env FACTORY_CONFIG="$badpat" FACTORY_PNPM="$bin/pnpm" bash "$GATE" green web x || fail "could not build the bad-pattern config"
+out="$(bash "$GATE" red 2>&1)"; rc=$?
+[ "$rc" = 2 ] && [ "$out" = "$(printf 'red: selector required\ngate red: FAIL (exit 2)')" ] && pass "red with no selector says so, exit 2" || fail "red with no selector: exit $rc: $out"
+out="$(bash "$GATE" stack nonsense 2>&1)"; rc=$?
+[ "$rc" = 2 ] && [ "$out" = "stack: up <owner> | down <owner> | status" ] && pass "stack with a bad word: its usage, exit 2, no verdict" || fail "stack nonsense: exit $rc: $out"
 finish

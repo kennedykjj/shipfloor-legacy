@@ -1,25 +1,13 @@
 #!/usr/bin/env bash
-# #168 AC-8: dispatch.sh is a thin wrapper over shipfloor_core/dispatch.py (`sf.py dispatch`, through lib/py.sh). It does
-# not source lib/stack.sh or lib/project.sh: a factory without either still runs a cycle, and the run still gives back
-# the stack slot it held (dispatch.py calls stack.py itself).
+# #168 AC-8: dispatch.sh and `sf.py dispatch` are the same command, and a factory without lib/stack.sh or lib/project.sh
+# still runs a cycle, whose run gives back the stack slot it held (dispatch.py calls stack.py itself). That dispatch.sh is
+# a thin wrapper is hygiene.test.sh's.
 # Safety: a failing mktemp (no space or inodes in /tmp) aborts the whole test at once, never handing back an empty path.
 mktemp() { local d; d="$(command mktemp "$@")" && [ -n "$d" ] && [ -e "$d" ] || { echo "FAIL cannot create a temp dir" >&2; kill -TERM "$$"; exit 1; }; printf '%s\n' "$d"; }
 source "$(dirname "$0")/lib.sh"
 t() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then pass "$name"; else fail "$name"; fi; }
 not() { ! "$@"; }
-W="$FACTORY_DIR/dispatch.sh"; PYMOD="$FACTORY_DIR/shipfloor_core/dispatch.py"
-code="$(grep -vE '^[[:space:]]*(#|$)' "$W")"
-
-# ---- the wrapper
-t "AC-8 shipfloor_core/dispatch.py exists" test -f "$PYMOD"
-t "AC-8 dispatch.sh sources lib/py.sh" grep -q 'lib/py.sh' <<< "$code"
-t "AC-8 dispatch.sh runs the dispatch command of sf.py" grep -qE '(^|[^a-z])set -- dispatch "\$@"' <<< "$code"
-t "AC-8 dispatch.sh does not source lib/stack.sh" not grep -q 'lib/stack.sh' <<< "$code"
-t "AC-8 dispatch.sh does not source lib/project.sh" not grep -q 'lib/project.sh' <<< "$code"
-t "AC-8 dispatch.sh is thin (at most 5 lines of code)" test "$(grep -c . <<< "$code")" -le 5
-t "AC-8 dispatch.py has the cycle (main) and the per-run supervisor (supervise)" grep -qE '^def supervise\(' "$PYMOD"
-t "AC-8 dispatch.py releases a run's stack slots through stack.py" grep -q 'release_run' "$PYMOD"
-t "AC-8 dispatch.py never sources lib/stack.sh" not grep -q 'lib/stack.sh' "$PYMOD"
+W="$FACTORY_DIR/dispatch.sh"
 
 # ---- sf.py dispatch and the wrapper are the same command: same text, same exit code
 bad="$(mktemp -d)"; echo 'project: {name: shop}' > "$bad/factory.yml"
