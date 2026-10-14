@@ -15,6 +15,12 @@ export FACTORY_CONFIG="${FACTORY_CONFIG:-$FACTORY_DIR/test/fixture/factory.yml}"
 # found once here: a config query runs in a subshell, where what shipfloor_python finds is lost
 export FACTORY_PYTHON="${FACTORY_PYTHON:-$(python3 -c '' >/dev/null 2>&1 && echo python3 || echo python)}"
 export SHIPFLOOR_HOME="${SHIPFLOOR_HOME:-$(mktemp -d)}"  # never touch the real ~/.shipfloor
+# A dispatcher cycle reads each candidate's "Blocked by" issues through gh (#202): a test of the dispatcher with no gh of
+# its own gets the fake one (it answers [] there), never the real gh and its network. Other tests keep their own gh.
+case "$(basename "$0")" in
+  dispatch*|shipfloor-dispatch*|run-dispatcher*|tmp-sweep*|cycle-port*)
+    export FACTORY_GH="${FACTORY_GH:-$FACTORY_DIR/test/fake-gh}" FAKE_GH_DIR="${FAKE_GH_DIR:-$(mktemp -d)}" ;;
+esac
 
 # One template repo per test file; new_repo copies it (one process) instead of six git commands.
 REPO_TEMPLATE="$(mktemp -d)"
@@ -67,6 +73,13 @@ run_dispatch() {  # run_dispatch: dispatch.sh ($D), then wait until every run it
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; FAILS=$((FAILS+1)); }
 finish() { [ "$FAILS" -eq 0 ]; }
+py_suite() {  # py_suite <module> [pattern]: run scripts/test/py/<module>.py in process (unittest), counting its FAIL lines
+  local out rc
+  out="$("$FACTORY_PYTHON" -I -B "$FACTORY_DIR/test/py/run.py" "$@" 2>&1)"; rc=$?
+  printf '%s\n' "$out"
+  FAILS=$(( FAILS + $(printf '%s\n' "$out" | grep -c '^  FAIL ') ))
+  [ "$rc" = 0 ] || [ "$FAILS" -gt 0 ] || fail "$1: exited $rc without a FAIL line"
+}
 wait_for() {  # wait_for <what> <command...>: retry the command every 0.1 s until it succeeds; after TEST_WAIT_SECS (default 60) seconds, fail and return 1
   local what="$1" limit=$((SECONDS + ${TEST_WAIT_SECS:-60}))
   shift

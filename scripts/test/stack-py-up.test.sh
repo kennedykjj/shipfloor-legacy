@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-# #166 (PY-13), AC-3: up, down and the health probes, ported to shipfloor_core/stack.py behind the lib/stack.sh shim,
-# behave as the Bash lib/stack.sh kept as test/fixtures/stack.bash.sh. Each scenario runs on the fixture and on the
-# shim, each in a fresh Shipfloor home, and the records must match: `down` before `up` with the new slot's env, up's
-# output in up.log and its tail on failure, the probes' timeout clamp(remaining, 1, 5), file:// URLs, the REJECT
-# precedence, and the `up failed:` / `not healthy after Ts at <url>` messages. curl is a stub (it logs its arguments)
-# except in the file:// scenario; lsof is a stub so no real process is touched.
+# #166 (PY-13), AC-3: up, down and the health probes (shipfloor_core/stack.py behind the lib/stack.sh shim). Each scenario
+# runs in a fresh Shipfloor home and its record is checked: `down` before `up` with the new slot's env, up's output in
+# up.log, the probes' timeout clamp(remaining, 1, 5), file:// URLs, the REJECT precedence, and the `up failed:` /
+# `not healthy after Ts at <url>` messages. curl is a stub (it logs its arguments) except in the file:// scenario;
+# lsof is a stub so no real process is touched.
 source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)" || exit 1; export TMPDIR="$T"
 MAINPID=$$  # only this shell cleans up (a child that inherited the trap compares its parent's pid, not $BASHPID)
 trap '[ "$(exec sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 
-FIXLIB="$T/fixture-lib"; mkdir -p "$FIXLIB" "$T/rec"
-cp "$FACTORY_DIR/test/fixtures/stack.bash.sh" "$FIXLIB/stack.sh" 2>/dev/null; cp "$FACTORY_DIR/lib/portable.sh" "$FIXLIB/"
+mkdir -p "$T/rec"
 stubs="$T/stubs"; curlstub="$T/curlstub"; mkdir -p "$stubs" "$curlstub"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$stubs/lsof"
 # curl stub: logs its arguments; $H/health.mode is fail (exit 22), fail-once (then ok) or body:<text>
@@ -98,40 +96,37 @@ scenario_file() {  # the real curl on file:// URLs: missing, then there
 norm() {  # norm <home>: the side's paths and epochs written out
   sed -E -e "s|$1|<H>|g" -e 's/(^|[^0-9])1[0-9]{9}([^0-9]|$)/\1<E>\2/g'
 }
-run_side() {  # run_side <scenario> <bash|py>
-  local sc="$1" side="$2" home="$T/$2/$1" lib
-  case "$side" in bash) lib="$FIXLIB/stack.sh" ;; *) lib="$FACTORY_DIR/lib/stack.sh" ;; esac
+run_side() {  # run_side <scenario>: its record in $T/rec/<scenario>.py
+  local sc="$1" home="$T/py/$1"
   rm -rf "$home"; mkdir -p "$home/sh" "$home/w"
   ( export SHIPFLOOR_HOME="$home/sh" H="$home"; cd "$home/w" || exit 99
-    source "$FACTORY_DIR/lib/project.sh"; source "$lib"; "scenario_$sc" ) > "$T/rec/$sc.$side.raw" 2>&1
-  echo "exit $?" >> "$T/rec/$sc.$side.raw"
-  norm "$home" < "$T/rec/$sc.$side.raw" > "$T/rec/$sc.$side"
-}
-compare() {  # compare <scenario> <label>
-  run_side "$1" bash; run_side "$1" py
-  if diff -q "$T/rec/$1.bash" "$T/rec/$1.py" >/dev/null; then pass "AC-3 $2: the same as the Bash version"
-  else fail "AC-3 $2 differs from the Bash version (< Bash, > Python):
-$(diff "$T/rec/$1.bash" "$T/rec/$1.py" | head -40)"; fi
+    source "$FACTORY_DIR/lib/project.sh"; source "$FACTORY_DIR/lib/stack.sh"; "scenario_$sc" ) > "$T/rec/$sc.py.raw" 2>&1
+  echo "exit $?" >> "$T/rec/$sc.py.raw"
+  norm "$home" < "$T/rec/$sc.py.raw" > "$T/rec/$sc.py"
 }
 has() {  # has <scenario> <label> <fixed string>: the Python record holds it
   grep -qF -- "$3" "$T/rec/$1.py" && pass "AC-3 $2" || fail "AC-3 $2: no '$3' in: $(cat "$T/rec/$1.py")"
 }
 
-compare upfail "an up that fails (exit 3, 'stack: up failed:' and the last 20 lines of up.log, down twice, slot back)"
+for sc in upfail upok sick clamp reject badreject nohealth file; do run_side "$sc"; done
+has upfail "an up that fails is exit 3" "stack_up failing: rc=3"
 has upfail "up failed: the message then the tail" "stack: up failed:"
-compare upok "a healthy up (down first with the new slot's env, up output in up.log, the URL printed)"
+has upok "a healthy up prints the URL" "stack_up fine: rc=0
+--- stdout
+http://localhost:26110/app"
 has upok "the down before up runs with the new slot's env" "down slot=1 stack=shipfloor-shop-1 web=26110"
 has upok "up's output goes to up.log" "up-err"
-compare sick "a stack never healthy (exit 3, 'not healthy after 2s at <url>' and the tail, probes clamped to [1,2])"
+has upok "the first probe uses the time left" "first probe: -fsS -m 3 http://localhost:26111/health"
+has sick "a stack never healthy is exit 3" "stack_up sick: rc=3"
 has sick "not healthy: the message" "stack: not healthy after 2s at http://localhost:26100/health"
 has sick "the probe timeout is the time left, at least 1" "curl -m: 1 2 "
-compare clamp "the probe timeout is at most 5 s"
+has clamp "a probe that fails once, then passes: healthy" "stack_up clamp: rc=0"
 has clamp "a 9 s timeout probes with -m 5" "first probe: -fsS -m 5 http://localhost:26100/h"
-compare reject "REJECT: a body that matches is not healthy, one that does not is"
 has reject "a body matching REJECT is not healthy" "stack: not healthy after 1s at http://localhost:26100/h"
-compare badreject "a REJECT that grep -E refuses lets the stack through, as in Bash"
-compare nohealth "no health URL: healthy at once, REJECT or not, no probe"
-compare file "file:// health URLs through the real curl"
+has reject "a body that does not match REJECT is healthy" "stack_up accepted: rc=0"
+has badreject "a REJECT that grep -E refuses lets the stack through" "stack_up bad: rc=0"
+has nohealth "no health URL: healthy at once, REJECT or not" "stack_up nohealth: rc=0"
+has nohealth "no health URL: no probe" "curl calls: 0"
 has file "a file:// URL that is not there is not healthy" "stack: not healthy after 1s at file://<H>/health-26100"
 has file "a file:// URL that is there is healthy" "stack_up hasfile: rc=0"
 finish

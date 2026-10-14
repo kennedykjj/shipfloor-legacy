@@ -37,6 +37,10 @@ GATES = {
     "qa-amend": ("acceptance", "qa_amend"),
     "migration": ("migration", "migration"),
     "fast": ("migration", "fast"),
+    "build": ("run", "build"),
+    "red": ("run", "red"),
+    "green": ("run", "green"),
+    "stack": ("run", "stack_gate"),
 }
 
 NO_VERDICT = ("acceptance-own", "stack")  # their stdout/exit is read by a caller: no verdict line

@@ -81,6 +81,15 @@ th{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.03em;text-t
 }
 @media (max-width:520px){.item{grid-template-columns:1fr}}
 details.ro{margin-top:6px}details.ro summary{cursor:pointer;color:var(--muted);font-size:14px}details.ro ul{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:14px}
+.tag{display:inline-block;font:600 12px var(--body);text-transform:uppercase;background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:0 6px;margin-right:8px}
+.item.same p{color:var(--muted)}
+.item.gone p{color:var(--muted);text-decoration:line-through}
+.item.gone .tag{text-decoration:none;display:inline-block}
+.item .was{grid-column:1/-1;font-size:14px;color:var(--muted)}
+.item .was summary{cursor:pointer}
+.item .was p{margin:4px 0 0;border-left:2px solid var(--rule);padding-left:10px}
+details.ro li.gone{text-decoration:line-through}
+section .res{white-space:pre-wrap;margin-top:6px}
 </style>
 </head>
 <body>
@@ -106,6 +115,19 @@ details.ro{margin-top:6px}details.ro summary{cursor:pointer;color:var(--muted);f
 
 <script>
 const S=__DATA__;
+const SINCE=__SINCE__;
+const RE=SINCE;
+/* labels of the returned-card marks: the dashboard hands the language's own in window.__shipfloorLabels, these are the English ones */
+const RVD={"rv.new":"New","rv.changed":"Changed","rv.removed":"Removed","rv.before":"Before","rv.request":"Your request","rv.since":"{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"};
+function rv(k,p){const L=window.__shipfloorLabels||{};let m=(L.messages||{})[k]||RVD[k]||k;p=p||{};
+ m=m.replace(/\{(\w+), plural, ((?:[=\w]+ \{[^{}]*\} ?)+)\}/g,(_,v,fs)=>{const f={};fs.replace(/([=\w]+) \{([^{}]*)\}/g,(_2,a,b)=>{f[a]=b});const n=+p[v];let c;try{c=f["="+n]||f[new Intl.PluralRules(L.language||"en").select(n)]}catch(e){}return (c||f.other||"").replace(/#/g,n)});
+ return m.replace(/\{(\w+)\}/g,(_,v)=>p[v]).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
+const tx=i=>typeof i==="string"?i:i.t,mk=i=>typeof i==="string"?"":(i.mark||"");
+const tag=i=>mk(i)?`<span class="tag">${rv("rv."+mk(i))}</span>`:"";
+const same=i=>RE&&!mk(i)?" same":"";
+const was=i=>i.old?`<details class="was"><summary>${rv("rv.before")}</summary><p>${fmt(i.old)}</p></details>`:"";
+const gone=(s,ro)=>(s.gone||[]).map(g=>ro?`<li class="gone"><span class="tag">${rv("rv.removed")}</span>${fmt(g.t)}</li>`:`<div class="item gone"><p><span class="tag">${rv("rv.removed")}</span>${fmt(g.t)}</p></div>`).join("");
+const summary=()=>RE?`<section class="sheet" id="summary"><h2>${rv("rv.since",{n:RE.n})}</h2>${RE.request?`<p class="intro">${rv("rv.request")}</p><div class="res">${esc(RE.request)}</div>`:""}</section>`:"";
 
 const KEY="__KEY__";
 let st={};try{st=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){st={}}
@@ -129,11 +151,11 @@ function sim(kind){
  return "";
 }
 function render(){
- document.getElementById("main").innerHTML=S.map(s=>`<section class="sheet" id="${s.id}"><h2>${s.t}</h2><p class="intro">${fmt(s.intro)}</p>
+ document.getElementById("main").innerHTML=summary()+S.map(s=>`<section class="sheet" id="${s.id}"><h2>${s.t}</h2><p class="intro">${fmt(s.intro)}</p>
   ${s.table?`<div class="tbl"><table>${s.table.map((r,i)=>`<tr>${r.map(c=>i?`<td>${fmt(c)}</td>`:`<th>${c}</th>`).join("")}</tr>`).join("")}</table></div>`:""}
   ${s.flags?s.flags.map(f=>`<div class="flag"><h3>Conflict: ${f[0]}</h3><p>${fmt(f[1])}</p></div>`).join(""):""}
   ${s.sim?sim(s.sim):""}
-  ${s.ro?`<details class="ro"><summary>${s.items.length} items (read-only)</summary><ul>${s.items.map(it=>`<li>${fmt(it)}</li>`).join("")}</ul></details>`:s.items.map((it,k)=>{const id=s.id+"-"+k,v=st[id]||{};return `<div class="item ${v.s||""}" data-id="${id}"><p>${fmt(it)}</p><div class="btns"><button class="b-ok" aria-pressed="${v.s==="ok"}">Keep</button><button class="b-chg" aria-pressed="${v.s==="chg"}">Change</button></div>${v.s==="chg"?`<textarea id="n-${id}" aria-label="What to change" placeholder="What to change?">${esc(v.n||"")}</textarea>`:""}</div>`}).join("")}
+  ${s.ro?`<details class="ro"><summary>${s.items.length} items (read-only)</summary><ul>${s.items.map(it=>`<li>${tag(it)}${fmt(tx(it))}</li>`).join("")}${gone(s,true)}</ul></details>`:s.items.map((it,k)=>{const id=s.id+"-"+k,v=st[id]||{};return `<div class="item ${v.s||""}${same(it)}" data-id="${id}"><p>${tag(it)}${fmt(tx(it))}</p><div class="btns"><button class="b-ok" aria-pressed="${v.s==="ok"}">Keep</button><button class="b-chg" aria-pressed="${v.s==="chg"}">Change</button></div>${was(it)}${v.s==="chg"?`<textarea id="n-${id}" aria-label="What to change" placeholder="What to change?">${esc(v.n||"")}</textarea>`:""}</div>`}).join("")+gone(s,false)}
  </section>`).join("")+(S.some(s=>!s.ro)?"":`<section class="sheet"><h2>Nothing to decide</h2><p class="intro">The pipeline decided everything on its own. Check the decisions above if you like, then move the card to Ready for Dev.</p></section>`);
  bindSims();toc();
 }
@@ -155,7 +177,7 @@ document.getElementById("main").addEventListener("input",e=>{
 });
 function reviewText(){
  let ok=0,chg=[],pend=[];
- S.filter(s=>!s.ro).forEach(s=>s.items.forEach((it,k)=>{const v=st[s.id+"-"+k];if(v&&v.s==="ok")ok++;else if(v&&v.s==="chg")chg.push(`- [${s.t}] ${it}\n  → ${v.n||"(no note)"}`);else pend.push(`- [${s.t}] ${it}`)}));
+ S.filter(s=>!s.ro).forEach(s=>s.items.forEach((it,k)=>{const v=st[s.id+"-"+k];if(v&&v.s==="ok")ok++;else if(v&&v.s==="chg")chg.push(`- [${s.t}] ${tx(it)}\n  → ${v.n||"(no note)"}`);else pend.push(`- [${s.t}] ${tx(it)}`)}));
  return `Spec review: Factory spec review\n${ok} ok · ${chg.length} change · ${pend.length} not reviewed\n\nChanges:\n${chg.join("\n")||"- none"}\n\nNot reviewed:\n${pend.join("\n")||"- none"}`;
 }
 document.getElementById("copy").addEventListener("click",()=>{

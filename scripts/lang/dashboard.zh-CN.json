@@ -753,6 +753,17 @@
     "hist.cards": "本时段的卡片，按估算费用排序",
     "th.column": "列",
     "th.runs": "运行",
-    "hist.th.cost": "从收件箱至今"
+    "hist.th.cost": "从收件箱至今",
+    "dep.h": "依赖于",
+    "dep.closed": "已关闭",
+    "dep.open": "未关闭",
+    "why.deps": "等待 {list}",
+    "dep.unread": "未能读取依赖；GitHub 响应后开始",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

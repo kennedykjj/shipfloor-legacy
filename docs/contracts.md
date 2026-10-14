@@ -2,6 +2,8 @@
 
 This document describes behavior: what each script under `scripts/` promises to the code, the skills, the dashboard and the people that call it. It was written from the code as it is, not from what anyone remembers of it. When this document and the code disagree, the code is the bug, and the fix is a card: do not edit a script to match a sentence here, and do not edit a sentence here to excuse a script; open a card, and change both there.
 
+Since #171 every script is a thin Bash wrapper (or, under `lib/`, a sourced shim) of the Python package `scripts/shipfloor_core/`, run through `scripts/sf.py` under `python -I`; each section names the module behind its script. `scripts/test/hygiene.test.sh` keeps the wrappers free of logic.
+
 Who uses it: the owner who maintains and ports the scripts (the Python port, #153, checks each of its steps against this), and the developers who install the plugin and extend it. `scripts/test/contracts-doc.test.sh` enforces one thing only: every script has a `## <name>` section below, and that section lists, as backticked words, every subcommand the script's usage text names. Everything else here is kept true by review.
 
 Conventions used below:
@@ -11,7 +13,7 @@ Conventions used below:
 
 ## gate.sh
 
-The deterministic gates. A wrapper: the gates are Python (`shipfloor_core/gate`, started through `lib/py.sh` and `sf.py gate`), and `build`, `red`, `green` and `stack` are handed to `lib/gate-run.sh`. Run as `gate.sh [-C <worktree>] <gate> ...`; `-C` enters the worktree first (pipelines never `cd`); a worktree that cannot be entered is `gate: cannot enter '<dir>'` and exit 2.
+The deterministic gates. A wrapper: the gates are Python (`shipfloor_core/gate`, started through `lib/py.sh` and `sf.py gate`), `build`, `red`, `green` and `stack` included (`shipfloor_core/gate/run.py`). Run as `gate.sh [-C <worktree>] <gate> ...`; `-C` enters the worktree first (pipelines never `cd`); a worktree that cannot be entered is `gate: cannot enter '<dir>'` and exit 2.
 
 **Interface:** the gate is the first word after the options. Each subcommand, with its arguments after it:
 - `test-plan` `<spec>`: every AC of the spec has a test its layer's runner can run.
@@ -45,7 +47,7 @@ Two more words exist that the usage text does not print: `fast` `<base> <spec> [
 - Failure messages start with the gate's own word: `forbidden:`, `scope:`, `migration:`, `acceptance-intact:`, `qa-amend:`, `qa-commit:`, `test-plan:`, `weight:`, `red:`, `green:`, `build:`, `gate:`, `stack:`.
 
 **Behavior worth keeping:**
-- `build` and `green` record a pass per clean worktree: a file `gate-passes/<sha1>` under the project's home holding `<ISO UTC><TAB><head sha><TAB><gate><TAB><arguments>`, keyed by the head, the gate, its arguments, the config file's hash and `gate.sh`'s own hash. Not used when the worktree is dirty, when `SHIPFLOOR_GATE_FRESH=1`, or when the store would be inside the worktree. Records older than 14 days are deleted at each record.
+- `build` and `green` record a pass per clean worktree: a file `gate-passes/<sha1>` under the project's home holding `<ISO UTC><TAB><head sha><TAB><gate><TAB><arguments>`, keyed by the head, the gate, its arguments, the config file's hash and `gate.sh`'s own hash. The store is stamped with a hash of the gate's code (`gate-passes/.code`: every file under `shipfloor_core/`, `__pycache__` aside, and `sf.py`); when that changes (an upgrade) the records made before are deleted, so no pass recorded by other code is reused. Not used when the worktree is dirty, when `SHIPFLOOR_GATE_FRESH=1`, or when the store would be inside the worktree. Records older than 14 days are deleted at each record.
 - The selector reaches the layer's test command as `"$1"` of `bash -c`, never as shell code. `NO_COLOR=1` and `FORCE_COLOR=0` are exported for the runner. A layer with `needs_stack` runs on its own stack slot (`lib/stack.sh`, owner `gate-<pid>`); if the slot does not come up the gate exits 3.
 - `red` is never retried; `green` and `build` run once more for a layer with `retry: 1`.
 - A layer's `install` command runs once per content of the layer's directory (marker in the git dir), by the gate, not by an agent.
@@ -54,7 +56,7 @@ Two more words exist that the usage text does not print: `fast` `<base> <spec> [
 
 ## board.sh
 
-Reads and moves cards on the project's GitHub Project v2 (config: `board.owner`, `board.number`, `project.repo`). Statuses are the column names without their owner mark ("👤 Spec Review" is `Spec Review`).
+A wrapper of `sf.py board`: the logic is `shipfloor_core/board.py`. Reads and moves cards on the project's GitHub Project v2 (config: `board.owner`, `board.number`, `project.repo`). Statuses are the column names without their owner mark ("👤 Spec Review" is `Spec Review`).
 
 **Interface:** `items`; `status` `<n>`; `count` `<status>...`; `first` `<status>`; `eligible` `<status>`; `move` `<n> <status>`; `infra`; `label` `<n>` then `add` or `remove` and `<name>`; `issue` `<n>`; and `snapshot`. The usage line printed on a bad command lists `items`, `status`, `count`, `first`, `move`, `infra`, `label`, `issue`, `add` and `remove`; `eligible` and `snapshot` work but are not in it. A bad command prints the usage on stderr and exits 2.
 
@@ -99,6 +101,8 @@ One dispatcher cycle for one project: starts pipelines for cards waiting in the 
 
 **What it does, in order:** reads the board once into `board.tsv` (a temp file per process, then renamed) and exports `FACTORY_BOARD_SNAPSHOT=<home>/board.tsv`; stops when a log under the home's `logs/` was written in the last 30 min and holds `hit your session limit` after its last `== start`; removes `cost/<n>.json` and `stepup/<n>` markers of cards that left the board or Coding; applies the machine's `costs` limits through `dashboard_cost.py`; retries `blocked:infra` cards once; unless outside the working hours, runs the pipelines `refine`, `develop`, `validate` and `deploy` in that order; optionally refreshes Staged cards when `deploy.refresh_staged` is true; sweeps stale `tmp/` folders.
 
+**Dependencies:** for the pipelines `develop`, `validate` and `deploy` (never `refine`), before it labels a card or takes a slot, it makes one call per candidate per cycle, `gh api repos/<repo>/issues/<n>/dependencies/blocked_by?per_page=100` (`<repo>` is `project.repo`), through `shipfloor_core/deps.py`. If a dependency is open, or the call fails or does not answer a JSON array, the card is not started: no label, no slot, no failed cycle; the next cycle asks again. A closed dependency (merged or not planned) never blocks. The owner declares one with GitHub's native "Blocked by" relation; text in the issue body is not read. At the end of the cycle it writes `<home>/deps.json` (see the files table).
+
 **Log lines, on stdout** (the dispatcher's own, `dispatch: ...` or `<ISO> dispatch: ...`, translated by the machine's `language`): e.g. `dispatch: outside working hours; runs start again at <hh:mm>`, `dispatch: #<n> reached costs.card_block; blocked`, `<ISO> dispatch: #<n> failed gate <gate> on <from>; the next run is on <to>`. They are free text, read by people only.
 
 **The run's own log** is `logs/<YYYY-MM-DD>-<n>-<stage>.log` of the project's home, with these lines written by the dispatcher (the dashboard reads them with regular expressions in `dashboard.py`: `RUN_LINE` and `STEPUP_LINE`):
@@ -116,7 +120,7 @@ One dispatcher cycle for one project: starts pipelines for cards waiting in the 
 
 ## shipfloor-dispatch.sh
 
-One cycle of the scheduled task across every project in `~/.shipfloor/registry.tsv`.
+A wrapper of `sf.py cycle`: the logic is `shipfloor_core/cycle.py`. One cycle of the scheduled task across every project in `~/.shipfloor/registry.tsv`.
 
 **Interface:** none: no arguments, no subcommands. Reads `SHIPFLOOR_DISPATCH` (default `dispatch.sh` beside it) so a test can stand in for the per-project run.
 
@@ -128,21 +132,25 @@ One cycle of the scheduled task across every project in `~/.shipfloor/registry.t
 
 ## run-dispatcher.sh
 
-The entry point the scheduler runs (installed in `~/.shipfloor/factory`).
+The entry point the scheduler runs (installed in `~/.shipfloor/factory`). It stays Bash, a named fast path of the hygiene test: it only sets up the log, `PAUSE` and `PATH`, then `exec`s `shipfloor-dispatch.sh`, whose cycle is `shipfloor_core/cycle.py`.
 
 **Interface:** none. It appends all its output to `~/.shipfloor/logs/dispatcher.log`, exits 0 if `~/.shipfloor/PAUSE` exists, prepends the first line of `~/.shipfloor/dispatcher.path` (written by the installer) to `PATH`, and then `exec`s `shipfloor-dispatch.sh`. Its exit status is that script's.
 
 ## inbox-hook.sh
 
-The `PostToolUse` hook of a factory run (`hooks/hooks.json`).
+The `PostToolUse` hook of a factory run (`hooks/hooks.json`). A named fast path: its Bash test runs on every tool call and starts no Python when there is nothing to hand over; otherwise it runs `inbox_hook.py`.
 
 **Interface:** none: it reads the hook's JSON on stdin. With no `<SHIPFLOOR_RUN_LOCK>/inbox` or an empty one it exits 0 at once (the usual case, it must cost nothing). Otherwise it runs `inbox_hook.py`, which prints to stdout one JSON object `{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "Message from the owner, sent while you work. ...<the new messages>"}}`. Each agent (the lead, and each subagent by its `agent_id`) gets each message once, tracked in `<lock>/inbox.<agent>` (`inbox.lead` for the lead) as the count of lines read. Each line of `inbox` is JSON with a `text`. The skills and agents treat a note that opens with that sentence, arriving as hook context, as the owner's instruction.
 
 ## metrics.sh
 
+A wrapper of `sf.py metrics`: the logic is `shipfloor_core/metrics.py`.
+
 **Interface:** none; run as `shipfloor metrics <slug>` or directly in a project. It pulls the `factory-reports` worktree (`<home>/reports-wt`, failures ignored) and prints on stdout a TSV with the header `issue<TAB>pipeline<TAB>outcome<TAB>tokens<TAB>duration_min<TAB>rounds<TAB>gates_failed<TAB>manual_edit` and one row per `reports/*/*.json`: tokens is the sum over `agents`, duration the minutes between `finished_at` and `started_at` (empty when either is missing), rounds the sum of `rounds`, `gates_failed` comma-joined, `manual_edit` empty when null. Exit 2 when no project is found.
 
 ## report.sh
+
+A wrapper of `sf.py report`: the logic is `shipfloor_core/report.py` (the commit trailer comes from `shipfloor_core/defaults.py`).
 
 **Interface:** `report.sh <issue> <slug> <pipeline> <report.json> <report.md>`; `pipeline` is one of `refine`, `develop`, `validate` or `deploy`. `help`, `-h`, `--help` print the usage on stdout and exit 0; any other argument count prints it on stderr and exits 2.
 
@@ -152,13 +160,17 @@ The `PostToolUse` hook of a factory run (`hooks/hooks.json`).
 
 ## review-page.sh
 
-**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html>`. No subcommands. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). `FACTORY_PROJECT` is passed through.
+**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html> [--request-file F]` and `review-page.sh --diff <old.md> <new.md>`. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). Beside the page it keeps `<issue>.published.md` (the spec as last built) and `<issue>.read.md` (the previous published spec, once the spec changes); with a `.read.md` the page marks each statement new, changed or untouched against it and quotes the request in `F`. `--diff` prints the JSON entries `{section, status, old, new}` and writes nothing. `FACTORY_PROJECT` is passed through.
 
 ## setup-board.sh
+
+A wrapper of `sf.py setup-board`: the logic is `shipfloor_core/setup.py`.
 
 **Interface:** none: a one-off per project, run as `shipfloor setup-board <slug>` from the control checkout. It snapshots every card's item and status (to `$SNAPSHOT`, or a temp file), rewrites the Status field's options to the ten columns (`Inbox`, `Ready for Refinement`, `Technical Refinement`, `Spec Review`, `Ready for Dev`, `Coding`, `Validation`, `Staged`, `Ready for Prod`, `Done`, each with its 👤 or 🤖 mark), restores each card's status by name ignoring the mark (a status with no column leaves the card without Status and prints `no column for '<status>' (item <id>): left without Status` on stderr), creates or updates the labels `ui`, `cybersec` and `blocked`, deletes the cached `board-ids`, and prints the count per status. Exit 1 when the project has no Status field; 2 when no project is found.
 
 ## shipfloor-config.sh
+
+A wrapper of `sf.py config` (`shipfloor_core/project.py`, which answers the queries with `shipfloor_config.py` in the same process), past a named fast path: `step <k>` is Bash and starts no Python.
 
 **Interface:** the first word selects: `step <k>`, `machine <query...>`, `validate`, or any other word, which is passed as a query to `shipfloor_config.py` for the resolved project (`get`, `values`, `fields`, `layers`, `layer`, `regex`, `describe`, `language`, `patterns`, `migration-layers`, `migration-check`, `migration-renumber`, `gate-fast` and others defined there).
 - `step <k>`: a factory run records the skill step it is on: writes `<k><TAB><epoch>` to `<SHIPFLOOR_RUN_LOCK>/step`, only when the lock is a directory and `<k>` is a number. Never fails a run: always exit 0, no output.
@@ -168,14 +180,14 @@ The `PostToolUse` hook of a factory run (`hooks/hooks.json`).
 
 ## lib/project.sh
 
-Sourced, never run; shared by the scripts. **Interface:** no subcommands; the functions it defines are `shipfloor_native`, `shipfloor_py`, `shipfloor_python`, `shipfloor_cfg_ready`, `git_common`, `shipfloor_use`, `shipfloor_config_path`, `shipfloor_snapshot`, `shipfloor_resolve`, `ere_ok`, `shipfloor_validate`, `shipfloor_clean_tmp`, `shipfloor_stale_tmp`, `shipfloor_sweep_tmp`, `shipfloor_card_spec`, `shipfloor_spec_weight`, `shipfloor_card_weight`, `shipfloor_say`, `shipfloor_machine` and `shipfloor_cfg`.
+Sourced, never run; shared by sourced code and the tests (`inbox-hook.sh`, `lib/stack.sh`, the Bash reference fixtures). A shim: the logic is `shipfloor_core/project.py`, and each function runs `sf.py project <command>` with the shell's `SHIPFLOOR_HOME`, `FACTORY_CONFIG`, `FACTORY_HOME`, `FACTORY_WT_ROOT` and `FACTORY_REPO`, exported or not. `shipfloor_resolve` and `shipfloor_use` set the project in the caller's shell by an `eval` of what `sf.py` prints: one `export NAME='value' ...` line, each value quoted for the shell (`shlex.quote`), or `return 1`. With `FACTORY_CONFIG` already set, `shipfloor_resolve` starts nothing. **Interface:** no subcommands; the functions it defines are `shipfloor_native`, `shipfloor_py`, `shipfloor_python`, `git_common`, `shipfloor_use`, `shipfloor_config_path`, `shipfloor_snapshot`, `shipfloor_resolve`, `ere_ok`, `shipfloor_validate`, `shipfloor_clean_tmp`, `shipfloor_stale_tmp`, `shipfloor_sweep_tmp`, `shipfloor_card_spec`, `shipfloor_spec_weight`, `shipfloor_card_weight`, `shipfloor_say`, `shipfloor_machine` and `shipfloor_cfg`.
 
 **Exports:** `SHIPFLOOR_HOME` (default `~/.shipfloor`), `SHIPFLOOR_LIB`, and after `shipfloor_use` or `shipfloor_resolve`: `FACTORY_PROJECT`, `FACTORY_REPO`, `FACTORY_MAIN` (default `main`), `FACTORY_HOME`, `FACTORY_WT_ROOT` (default `<home>/wt`) and `FACTORY_CONFIG` (`<home>/factory.yml`, the snapshot).
 
 **Contracts:**
 - `shipfloor_resolve`: returns 0 when `FACTORY_CONFIG` is already set, or when the registry has a project whose repository shares its git common dir with the given directory; otherwise prints `shipfloor: <pwd> is not in a registered project (shipfloor add <repo>)` on stderr and returns 1.
 - `shipfloor_snapshot`: writes the config as committed at the control checkout's HEAD to `FACTORY_CONFIG`; the config never comes from a worktree an agent can edit.
-- `shipfloor_python` always runs `python -I`. `SHIPFLOOR_PY` is `FACTORY_PYTHON`, else `python3`, else `python`.
+- `shipfloor_python` always runs `python -I`. `SHIPFLOOR_PY`, when not already set, is `FACTORY_PYTHON`, else `python3`, else `python`.
 - `shipfloor_say <language>`: filters stdin through `scripts/lang/<language>.sed`; English or an unknown language passes it unchanged.
 - `shipfloor_card_spec <n>`: the spec in `<worktrees>/<n>` named `<paths.specs>*-<slug>-design.md` where the branch is `feat/<n>-<slug>`; nothing otherwise. `shipfloor_spec_weight` gives `light`, `standard` or `heavy` from the spec header's single `**Weight:**` line, else `standard`.
 - `shipfloor_sweep_tmp` prints `tmp/<name>` per thing removed; it does nothing when `board.tsv` has no card line.
@@ -193,20 +205,9 @@ Sourced after `lib/project.sh`, with a resolved project; the one place stack-slo
 - `stack_up <owner>` exports `SHIPFLOOR_SLOT`, `SHIPFLOOR_STACK` (`shipfloor-<project>-<k>`), `SHIPFLOOR_PORT_<NAME>` (`ports.base + k * ports.span + i`) and `SHIPFLOOR_STACK_URL`, runs `stack.up`, waits for `stack.health` up to `stack.timeout` s (a body matching `stack.reject` is unhealthy), and prints the URL on stdout; failure returns 3 (`stack: up failed:` or `stack: not healthy after <n>s at <url>`).
 - `stack_down <owner>` does nothing when the owner holds no slot. `stack_status` prints `<k><TAB><free|busy|stuck><TAB><owner|-><TAB><held seconds><TAB><reason>` per slot, then `queue<TAB><n>`.
 
-## lib/portable.sh
-
-Sourced, never run; defines functions only, for the tools that differ between GNU (Linux) and BSD (macOS) userlands. `gate.sh` gets it through `lib/stack.sh` (`shipfloor_core/deploy.py` has its own `run_bounded`).
-
-**Interface:** no subcommands; the functions are `mtime`, `run_bounded` and the internal `_kill_tree`.
-
-**Contracts:**
-- `mtime <path>` prints the modification time in epoch seconds; it tries `stat -c %Y`, `stat -f %m`, `date -r` and `python3`, in that order, and fails when the path cannot be read.
-- `run_bounded <seconds> <command...>` returns the command's exit code, or 124 when it was stopped at its limit. It uses `timeout` when present; otherwise it runs the command in the background with a watcher that, at the limit, kills the command's process tree.
-- `_kill_tree <pid>` kills the process and all its descendants (found with `pgrep -P`), children first.
-
 ## lib/py.sh
 
-Sourced by a wrapper (`templates/py-wrapper.sh`), never run on its own; it ends in `exec`, so nothing after it in the wrapper runs. It does not source `lib/project.sh`: one start, no project lookup.
+The launcher of every wrapper: it starts `sf.py`, the entry point of `shipfloor_core`. Sourced by a wrapper (`templates/py-wrapper.sh`), never run on its own; it ends in `exec`, so nothing after it in the wrapper runs. It does not source `lib/project.sh`: one start, no project lookup.
 
 **Interface:** no subcommands; it takes the wrapper's arguments and hands them to `sf.py`. **Needs:** `HERE`, set by the wrapper to the folder holding `sf.py` and `lib/`; optionally `FACTORY_PYTHON` or `SHIPFLOOR_PY`.
 
@@ -215,17 +216,9 @@ Sourced by a wrapper (`templates/py-wrapper.sh`), never run on its own; it ends 
 - It then runs `exec <python> -I $HERE/sf.py "$@"`: always isolated mode, so a planted module in the current directory is never imported. Under Git Bash the path of `sf.py` is converted with `cygpath -m` first.
 - When no Python is found it prints `shipfloor: python 3 not found (set FACTORY_PYTHON)` on stderr and exits 127.
 
-## lib/gate-run.sh
-
-The Bash code of the gates that run a layer's commands: `build`, `red`, `green` and `stack` (moved out of `gate.sh` unchanged while they wait to be ported). Run, never sourced: `gate.sh` hands it its arguments as they came, `-C` included, and returns its exit code.
-
-**Interface:** the same words, arguments, exit codes, verdict line and `last-gate` as `gate.sh` gives them (see `## gate.sh`); `stack` has no verdict. Any other word is `gate-run: not a gate of this file` and exit 2.
-
-**Behavior worth keeping:** the key of a recorded pass hashes `scripts/gate.sh` (the wrapper callers run), not this file.
-
 ## shipfloor
 
-The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). Run with no argument or an unknown one it prints the header lines 2 to 10 of its own source on stderr and exits 2; the `dashboard` line (line 11) is not among them. Errors are `shipfloor: <message>` on stderr; `die` exits 1 unless it says otherwise.
+The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). A wrapper of `sf.py cli`: the logic is `shipfloor_core/cli.py`. Run with no argument or an unknown one it prints the header lines 2 to 10 of its own source on stderr and exits 2; the `dashboard` line (line 11) is not among them. Errors are `shipfloor: <message>` on stderr; `die` exits 1 unless it says otherwise.
 
 **Interface:** each subcommand, with its arguments after it:
 - `install` `[--force]`
@@ -295,6 +288,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `<home>/stepup/<n>` | `<from model><TAB><to model><TAB><gate>` | `dispatch.sh` | `dispatch.sh`, `dashboard.py` |
 | `<home>/infra/<n>` | `<epoch>`; the retry's marker | `dispatch.sh` | `dispatch.sh` (the run gets `SHIPFLOOR_INFRA_RETRY=1`), `dashboard.py` |
 | `<home>/cost/<n>.json` | the baseline of a cost block | `dashboard_cost.py` | `dashboard_cost.py`, `dispatch.sh` (removes it when the card leaves the board) |
+| `<home>/deps.json` | `{"<n>": {"read": true\|false, "deps": [{"n", "title", "state": "open"\|"closed"}]}}`, per card the cycle examined; `read` false when GitHub did not answer. Written atomically (a temp file, then `os.replace`); entries of cards not examined this cycle are kept while the card is on the board and not Done | `dispatch.py` | `shipfloor_health.py` (a card with an open dependency or `read` false is not counted as waiting), `dashboard.py` (the "Depends on" block and the reason a card waits) |
 | `<home>/tmp/<n>/` | a run's scratch: `fix.round`, `fix.parent`, `fix.findings`, `resolve.parents`, `resolve.files`, `gates.txt`, `merge.txt`, `merge-pr.txt`, `local-ci.txt`, `report.json`, `report.md`, worktrees | the pipelines, `deploy.sh` | the same; removed with the run, and by the dispatcher's sweep |
 | `<home>/gate-passes/<sha1>` | `<ISO><TAB><head><TAB><gate><TAB><arguments>` | `gate.sh` | `gate.sh` |
 | `~/.shipfloor/locks/stack-<k>.lock/` | see `lib/stack.sh` | `lib/stack.sh` | `lib/stack.sh`, `shipfloor pool`, `dashboard.py` |

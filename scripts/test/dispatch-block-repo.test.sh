@@ -25,6 +25,7 @@ esac
 EOB
 cat > "$tmp/gh" <<'EOG'
 #!/usr/bin/env bash
+case "$*" in *dependencies/blocked_by*) echo '[]'; exit 0 ;; esac  # the dispatcher's dependency read (#202): none
 echo "gh $*" >> "$COST_TMP/gh-calls"
 exit 0
 EOG

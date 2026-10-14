@@ -56,7 +56,7 @@ It comes with twelve themes, in twelve languages: English, Simplified and Tradit
 
 ## Quick start
 
-You need `git`, an authenticated `gh`, `claude`, Python 3.11+ with PyYAML, and Git Bash on Windows.
+You need Python 3.11+ with PyYAML, Git, an authenticated gh, Claude Code (`claude`), and Git Bash on Windows for the wrappers and the scheduler.
 
 First add the Shipfloor plugin to Claude Code (a marketplace add and a plugin install, two commands: see [docs/install.md](docs/install.md)). The plugin brings the `shipfloor` script. Then, for the repository the factory should work on:
 
