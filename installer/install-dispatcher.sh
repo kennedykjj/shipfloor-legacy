@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Registers the shipfloor dispatcher on Linux (systemd user timer, else the user's crontab) and macOS
 # (launchd user agent): every 1, 3, 5 or 10 minutes (--every-min, else dispatcher.every_min of the machine
-# config, else 3). It starts the installed copy: run 'shipfloor install' first. Windows has install-dispatcher.ps1.
+# config, else 3), and on systemd and launchd also as soon as a run ends (<home>/dispatcher.wake). It starts the
+# installed copy: run 'shipfloor install' first. Windows has install-dispatcher.ps1.
 #   bash install-dispatcher.sh [--every-min 1|3|5|10] [--kind systemd|cron|launchd] [--dry-run]
-#   bash install-dispatcher.sh --uninstall   removes every registration of every mechanism
+#   Limits (systemd only): [--memory-max 8G|none] [--cpu-weight 1-10000|none] [--cpu-quota 200%|none]; the default is
+#   the machine config's limits (shipfloor-config.sh machine limits); cron and launchd warn that they are not supported.
+#   bash install-dispatcher.sh --uninstall  removes every registration of every mechanism
 #   bash install-dispatcher.sh --status      prints "registered: <kind>" (exit 0) or "not registered" (exit 1)
 # The installing shell's PATH goes to <home>/dispatcher.path: run-dispatcher.sh puts it in front of the timer's.
 H="${SHIPFLOOR_HOME:-$HOME/.shipfloor}"
@@ -15,10 +18,11 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 die() { echo "install-dispatcher: $1" >&2; exit "${2:-1}"; }
 has() { command -v "$1" >/dev/null 2>&1; }
 
-EVERY=; KIND="${SHIPFLOOR_SCHEDULER_KIND:-}"; MODE=install; DRY=
+EVERY=; KIND="${SHIPFLOOR_SCHEDULER_KIND:-}"; MODE=install; DRY=; LIMARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --every-min) EVERY="${2:-none}"; shift ;;
+    --memory-max|--cpu-weight|--cpu-quota) [ $# -ge 2 ] || die "$1 needs a value" 2; LIMARGS+=("$1" "$2"); shift ;;
     --kind) KIND="${2:-none}"; shift ;;
     --uninstall) MODE=uninstall ;;
     --status) MODE=status ;;
@@ -63,13 +67,26 @@ remove_launchd() {
   rm -f "$PLIST"
 }
 
+unit_limit() {  # unit_limit <Directive>: its value in the installed service, else none
+  local v; v="$(sed -n "s/^$1=//p" "$SERVICE" 2>/dev/null | head -n 1)"; echo "${v:-none}"
+}
 if [ "$MODE" = status ]; then
-  for k in systemd cron launchd; do "${k}_has" && { echo "registered: $k"; exit 0; }; done
+  for k in systemd cron launchd; do
+    "${k}_has" || continue
+    echo "registered: $k"
+    if [ "$k" = systemd ]; then
+      m="$(unit_limit MemoryMax)"; w="$(unit_limit CPUWeight)"; q="$(unit_limit CPUQuota)"
+      if [ "$m$w$q" = nonenonenone ]; then echo "limits: none"; else echo "limits: memory_max=$m cpu_weight=$w cpu_quota=$q"; fi
+    else
+      echo "limits: not supported ($k)"
+    fi
+    exit 0
+  done
   echo "not registered; register it with: bash $SELF"; exit 1
 fi
 if [ "$MODE" = uninstall ]; then
   for k in systemd cron launchd; do "remove_$k"; done
-  rm -f "$H/dispatcher.path"
+  rm -f "$H/dispatcher.path" "$H/dispatcher.wake"
   echo "dispatcher unregistered"; exit 0
 fi
 
@@ -88,6 +105,16 @@ if [ -z "$EVERY" ]; then
     got="$(bash "$H/factory/shipfloor-config.sh" machine values dispatcher.every_min 2>/dev/null | tr -d '\0')"
     case "$got" in 1|3|5|10) EVERY="$got" ;; esac
   fi
+fi
+LIMITS=
+if [ -f "$H/factory/shipfloor-config.sh" ]; then
+  LIMITS="$(bash "$H/factory/shipfloor-config.sh" machine limits "${LIMARGS[@]}" 2>"$TMP/limits.err")" \
+    || die "invalid limits: $(tr '\n' ' ' < "$TMP/limits.err")" 2
+elif [ ${#LIMARGS[@]} -gt 0 ]; then
+  die "run 'shipfloor install' first ($H/factory/shipfloor-config.sh not found)"
+fi
+if [ -n "$LIMITS" ] && [ "$KIND" != systemd ]; then
+  echo "WARN: CPU and memory limits are not supported with $KIND (only systemd); installed without them" >&2
 fi
 [ -z "$DRY" ] || { echo "dispatcher: $KIND, every $EVERY minutes (dry run, nothing changed)"; exit 0; }
 
@@ -112,6 +139,7 @@ Type=oneshot
 KillMode=process
 $([ -z "$SETENV" ] || echo "Environment=SHIPFLOOR_HOME=$H")
 ExecStart=$START
+$LIMITS
 EOF
   cat > "$TMP/timer" <<EOF
 [Unit]
@@ -160,6 +188,19 @@ EOF
   CHANGED=1
 }
 "install_$KIND"
+
+# How a run that ended asks for a cycle now (dispatch.py wake_dispatcher), one argument a line. cron has no scheduler
+# to ask (a cycle started beside a running one stops as an overlap and alerts the owner): it keeps its interval alone.
+case "$KIND" in
+  systemd) printf '%s\n' systemctl --user start --no-block "$UNIT.service" > "$TMP/wake" ;;
+  launchd) printf '%s\n' launchctl kickstart "gui/$UIDN/$LABEL" > "$TMP/wake" ;;
+  cron) : ;;
+esac
+if [ -s "$TMP/wake" ]; then
+  cmp -s "$TMP/wake" "$H/dispatcher.wake" 2>/dev/null || { cp "$TMP/wake" "$H/dispatcher.wake"; CHANGED=1; }
+elif [ -e "$H/dispatcher.wake" ]; then
+  rm -f "$H/dispatcher.wake"; CHANGED=1
+fi
 
 [ -n "$CHANGED" ] && echo "dispatcher registered with $KIND, every $EVERY minutes" || echo "dispatcher already registered ($KIND, every $EVERY minutes)"
 if [ "$KIND" = systemd ] && has loginctl; then

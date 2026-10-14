@@ -90,6 +90,69 @@ class Machine(Settings):
         self.assertEqual(cget(), (None, None, None))
 
 
+class Limits(Settings):
+    """#219: the machine's CPU and memory limits (config.yml limits), applied through the limits applier before they are saved"""
+    def setUp(self):
+        super().setUp()
+        self.applier = self.write("applier.sh", "#!/usr/bin/env bash\necho \"$@\" >> \"%s\"\nexit ${APPLIER_EXIT:-0}\n" % os.path.join(self.tmp, "applier.calls"))
+        os.environ["SHIPFLOOR_LIMITS_APPLIER"] = '"%s" "%s"' % (ds.BASH, self.applier)
+
+    def applier_calls(self):
+        try:
+            with open(os.path.join(self.tmp, "applier.calls")) as f:
+                return f.read()
+        except OSError:
+            return ""
+
+    def shown(self):
+        lim = self.settings()["machine"]["limits"]
+        return tuple(None if lim[k] in (None, "none") else str(lim[k]) for k in ("memory_max", "cpu_weight", "cpu_quota"))
+
+    def test_AC4_save_and_reopen(self):
+        "AC-4 no limit then a limit: config.yml holds the chosen limits, the scheduler is re-applied, the settings show the saved choice"
+        self.config("pool: 6\nlanguage: pt-BR\n")
+        self.assertEqual(self.shown(), (None, None, None))
+        self.assertEqual(self.machine({"limits": {"memory_max": "8G", "cpu_weight": 200, "cpu_quota": "150%"}}).code, 200)
+        c = self.read_config()
+        self.assertEqual((str(c["limits"]["memory_max"]), str(c["limits"]["cpu_weight"]), str(c["limits"]["cpu_quota"])), ("8G", "200", "150%"))
+        self.assertEqual((c["pool"], c["language"]), (6, "pt-BR"), "the rest of config.yml stays")
+        calls = self.applier_calls()
+        self.assertTrue("8G" in calls and "200" in calls and "150%" in calls, "the limits applier was told the values: %r" % calls)
+        self.assertEqual(self.shown(), ("8G", "200", "150%"))
+        self.assertEqual(self.machine({"limits": {"memory_max": None, "cpu_weight": None, "cpu_quota": None}}).code, 200)
+        self.assertEqual(self.shown(), (None, None, None))
+        left = (self.read_config().get("limits") or {}).values()
+        self.assertFalse([v for v in left if v not in (None, "none")], "no limit left in config.yml")
+        self.assertEqual(len(self.applier_calls().splitlines()), 2, "applied again for the lifted limits")
+        self.assertEqual(self.machine({"limits": {"memory_max": "2G"}}, token=False).code, 403)
+
+    def test_AC4_applier_refuses(self):
+        "AC-4 a refusing applier saves nothing: config.yml byte for byte, the settings still show the old choice"
+        self.config("pool: 6\n")
+        os.environ["APPLIER_EXIT"] = "1"
+        self.addCleanup(os.environ.pop, "APPLIER_EXIT", None)
+        r = self.machine({"limits": {"memory_max": "8G"}})
+        self.assertGreaterEqual(r.code, 400)
+        self.assertEqual(self.config_text(), "pool: 6\n")
+        self.assertEqual(self.shown(), (None, None, None))
+
+    def test_AC5_invalid_refused(self):
+        "AC-5 an invalid limit is a 400 whose errors name limits.<field>; config.yml is unchanged and nothing is applied"
+        self.config("pool: 6\nlimits: {memory_max: 4G}\n")
+        before = self.config_text()
+        for field, bad in (("cpu_weight", 0), ("cpu_weight", 10001), ("cpu_weight", "abc"), ("memory_max", "lots"), ("memory_max", "8X"),
+                           ("cpu_quota", "fast"), ("cpu_quota", "0%"), ("cpu_quota", "99999%")):
+            r = self.machine({"limits": {field: bad}})
+            self.assertEqual(r.code, 400, "%s=%r" % (field, bad))
+            self.assertIn("limits." + field, [e["key"] for e in r.json["errors"]], "%s=%r" % (field, bad))
+            self.assertIn(field, r.text)
+            self.assertEqual(self.config_text(), before, "%s=%r writes nothing" % (field, bad))
+        self.assertEqual(self.applier_calls(), "", "a refused save applies nothing")
+        r = self.machine({"limits": {"memory_max": "8G", "cpu_weight": 0}})
+        self.assertEqual(r.code, 400, "one bad field refuses the whole save")
+        self.assertEqual(self.config_text(), before)
+
+
 class Hours(Settings):
     def hours(self, now, what):
         os.environ["SHIPFLOOR_NOW"] = now

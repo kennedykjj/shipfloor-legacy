@@ -275,6 +275,19 @@ class Accept(CliCase):
         self.assertEqual(self.gate("-C", self.w, "acceptance-intact", qa), 0)
         self.assertIn("nothing to accept", self.ok("accept", "shop", "9", "again"))
 
+    def test_accept_takes_files_of_every_qa_commit(self):
+        "accept records a file an earlier QA round wrote, not only the newest QA commit's files (as the gate guards them all)"
+        def nothing(p):
+            pass
+        first = self.qa("api/src/test/OldTest.kt", "qa one\n", nothing)
+        newest = self.qa("api/src/test/NewTest.kt", "qa two\n", nothing)
+        git("-C", self.w, "rm", "-q", "api/src/test/OldTest.kt")
+        git("-C", self.w, "commit", "-qm", "main's test diet removed it")
+        self.assertEqual(self.gate("-C", self.w, "acceptance-intact", newest), 1)
+        self.assertEqual(self.ok("accept", "shop", "9", "ported"), "accepted the deletion of api/src/test/OldTest.kt\n")
+        self.assertEqual(self.gate("-C", self.w, "acceptance-intact", newest), 0)
+        self.assertTrue(first)
+
     def test_accept_refusals(self):
         "accept without a worktree or a QA commit says so, exit 1"
         self.ok("accept", "shop", "8", "why", want=1)

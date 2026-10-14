@@ -65,6 +65,25 @@ def _gh(*args):
     return r.returncode, _text(r.stdout), _text(r.stderr)
 
 
+def trusted_logins():
+    """The people the factory listens to: the GitHub user plus trusted_commenters ("*" trusts everyone).
+    None when the GitHub user cannot be read."""
+    rc, out, _ = _gh("api", "user", "--jq", ".login")
+    me = out.strip()
+    if rc != 0:  # a gh that refuses --jq (the dashboard's calls): the JSON answer
+        rc, out, _ = _gh("api", "user")
+        try:
+            data = json.loads(out)
+            me = data.get("login") if isinstance(data, dict) else data
+        except ValueError:
+            me = out.strip()
+    if rc != 0 or not me or not isinstance(me, str):
+        return None
+    c = project.cfg("get", "trusted_commenters")
+    who = _text(c.stdout).rstrip("\n") if c.returncode == 0 else ""
+    return set(who.split()) | {me}
+
+
 def strip_mark(s):
     return _MARK.sub("", s, count=1)
 
@@ -404,13 +423,10 @@ class Board:
         if not re.fullmatch(r"[0-9]+", n):
             _msg("issue: <n> must be a number")
             return 2
-        rc, me, err = _gh("api", "user", "--jq", ".login")
-        me = me.rstrip("\n")
-        if rc != 0 or not me:
+        trusted = trusted_logins()
+        if trusted is None:
             _msg("issue: cannot read the GitHub user")
             return 1
-        c = project.cfg("get", "trusted_commenters")
-        who = _text(c.stdout).rstrip("\n") if c.returncode == 0 else ""
         rc, out, err = _gh("issue", "view", n, "--repo", self.repo, "--json", "number,title,body,comments")
         if rc != 0:
             _err(err)
@@ -420,7 +436,6 @@ class Board:
         except ValueError:
             _msg("issue: cannot read the issue")
             return 1
-        trusted = set(who.split()) | {me}
         comments = d.get("comments") or []
         mine = [c for c in comments if "*" in trusted or (c.get("author") or {}).get("login") in trusted]
         text = "#%s %s\n\n%s\n" % (d["number"], d["title"], d.get("body") or "")

@@ -27,6 +27,7 @@ _LABELS = (
     ("ui", "1d76db", "Issue touches UI; UX/UI joins the refinement"),
     ("cybersec", "b60205", "Owner asked for a security review in the pipelines"),
     ("blocked", "000000", "The factory stopped on this card; the owner decides"),
+    ("qa-amend-ok", "0E8A16", "The owner allows one more amendment of this card's acceptance tests"),
 )
 
 

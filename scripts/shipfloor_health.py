@@ -49,6 +49,24 @@ def mem_free_mb():
     return None  # shortcut: macOS has no /proc, read vm_stat when a factory runs there
 
 
+def cgroup_memory():
+    """{mem_mb, max_mb} of this process's cgroup (v2), None without a finite memory.max or off Linux."""
+    try:
+        root = os.environ.get("SHIPFLOOR_CGROUP_ROOT") or "/sys/fs/cgroup"
+        path = ""
+        for line in Path("/proc/self/cgroup").read_text().splitlines():
+            if line.startswith("0::"):
+                path = line[3:].strip()
+                break
+        d = Path(root) / path.strip("/")
+        top = (d / "memory.max").read_text().strip()
+        if top == "max":
+            return None
+        return {"mem_mb": int((d / "memory.current").read_text().strip()) // 2**20, "max_mb": int(top) // 2**20}
+    except (OSError, ValueError):
+        return None
+
+
 def cost_stopped(home, projects):
     """True when today's estimate reached costs.day_stop: the dispatcher starts nothing, as it does paused."""
     try:
@@ -75,6 +93,9 @@ def snapshot(home, seconds, code, overlap):
     free_pool = pool - sum(used.values())
     over = [f"{st} {used[st]}/{slots[st]}" for st in slots if used[st] > slots[st]]
     over += [f"pool {sum(used.values())}/{pool}"] if free_pool < 0 else []
+    cgroup = cgroup_memory()
+    if cgroup and cgroup["max_mb"] and cgroup["mem_mb"] * 10 >= cgroup["max_mb"] * 9:
+        over.append(f"memory {cgroup['mem_mb']}/{cgroup['max_mb']} MB")
     idle, projects = [], {}
     for p, runs in live.items():
         columns, age = f.board(p)
@@ -114,6 +135,7 @@ def snapshot(home, seconds, code, overlap):
             "outside_hours": outside,
             "machine": {"cpu": cpu_percent(), "mem_free_mb": mem_free_mb(),
                         "disk_free_gb": round(shutil.disk_usage(home).free / 2**30, 1)},
+            "cgroup": cgroup,
             "pool": {"size": pool, "used": sum(used.values())},
             "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots},
             "stacks": {"busy": sum(s["state"] != "free" for s in stacks), "total": len(stacks), "queue": queue},
