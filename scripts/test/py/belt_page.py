@@ -12,6 +12,15 @@ belt_page.run(ops, width=1280, reduced=False) -> {"results": [one per op], "erro
   click      {"op": "click", "key": "shop/120"}  a click on that token                   result: the snapshot, with the page's S
   advance    {"op": "advance", "ms": 2000}       the page's timers due within that time run
   find       {"op": "find", "needle": "text"}    the smallest elements whose text holds needle (with their ancestors)
+Replay (#184) adds, all of them waiting for the page's promises to settle before they answer:
+  day        {"op": "day", "day": {...}}         what GET /api/day/<project> answers (null: HTTP 500; no "day" key: 404)
+  settle / advance_settle {"ms": n}              let the page's promises run / advance the timers, then let them run
+  keysel     {"op": "keysel", "sel": css, "key": "Home"}  keydown on the first element matching css                  result: the snapshot
+  clicksel / focussel {"sel": css}               click / focus the first element matching css                       result: the snapshot
+  clicktext  {"op": "clicktext", "text": "Back to live"}  click the visible button with exactly that text         result: the snapshot
+  query      {"op": "query", "sel": css}         [{tag, attrs, css, text}] of every match anywhere in the page
+  fetches    the requests the page made since the last call, [{path, method}]        hash: the address's fragment now
+  active     the focused element {tag, attrs}    eval: {"code": "return ..."} JSON of the page's own state
 A snapshot is {"cells": node, "chain": [ancestors of #cells], "anim": [...], "styles": [...], "scrolls": [...], "active": ...,
 "S": {...}}; a node is {"tag", "attrs", "css": {property: winning value}, "kids": [node or text]}.
 Standard library only (node is the browser stand-in, as in dashboard-brief.test.sh)."""
@@ -33,7 +42,7 @@ const fs = require("fs"), vm = require("vm");
 const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const source = fs.readFileSync(cfg.html, "utf8").replace(/\r\n/g, "\n");
 const EN = JSON.parse(fs.readFileSync(cfg.lang, "utf8")).messages;
-const LOG = { anim: [], styles: [], scrolls: [], errors: [] };
+const LOG = { anim: [], styles: [], scrolls: [], errors: [], fetches: [] };
 process.on("unhandledRejection", (e) => LOG.errors.push("rejection: " + ((e && e.stack) || e)));
 process.on("uncaughtException", (e) => { LOG.errors.push("exception: " + ((e && e.stack) || e)); });
 
@@ -402,8 +411,15 @@ const WIN = { ls: {}, addEventListener(type, fn) { (this.ls[type] ||= []).push(f
 
 // ---------------------------------------------------------------- timers, frames, network
 let NOW = 0; const TIMERS = []; let RAFS = [], TID = 1;
-const routes = { overview: null };
-const fetchStub = (path) => {
+const routes = { overview: null, day: undefined };
+const fetchStub = (path, opts) => {
+  LOG.fetches.push({ path: String(path), method: String((opts && opts.method) || "GET").toUpperCase() });
+  if (String(path).startsWith("/api/day/") && routes.day !== undefined) {
+    if (routes.day === null) return Promise.resolve({ status: 500, json: () => Promise.resolve({ error: "boom" }), text: () => Promise.resolve("{}") });
+    const body = JSON.parse(JSON.stringify(routes.day));
+    return Promise.resolve({ status: 200, json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) });
+  }
+  if (cfg.intervals && String(path).startsWith("/api/feed")) return Promise.resolve({ status: 200, json: () => Promise.resolve({ events: [] }), text: () => Promise.resolve("{}") });
   if (String(path).startsWith("/api/overview")) {
     if (!routes.overview) return new Promise(() => {});
     const body = JSON.parse(JSON.stringify(routes.overview));
@@ -413,13 +429,14 @@ const fetchStub = (path) => {
 };
 const media = (q) => ({ media: q, get matches() { return mq(q); }, addEventListener: noop, removeEventListener: noop, addListener: noop, removeListener: noop });
 const g = {
-  window: null, self: null, document: DOC, location: { search: "?t=test", href: "http://127.0.0.1/?t=test", origin: "http://127.0.0.1", hash: "", pathname: "/" },
+  window: null, self: null, document: DOC, location: { search: "?t=test", href: "http://127.0.0.1/?t=test", origin: "http://127.0.0.1", hash: cfg.hash || "", pathname: "/" },
   localStorage: store(), sessionStorage: store(), navigator: { clipboard: { writeText: () => { LOG.copied = true; return Promise.resolve(); } }, language: "en", languages: ["en"], userAgent: "node", maxTouchPoints: 0 },
-  history: { replaceState: noop, pushState: noop }, CSS: { escape: (s) => String(s).replace(/[^\w-]/g, (c) => "\\" + c), supports: () => false },
+  history: { replaceState: (s, t, u) => setUrl(u), pushState: (s, t, u) => setUrl(u) }, CSS: { escape: (s) => String(s).replace(/[^\w-]/g, (c) => "\\" + c), supports: () => false },
   matchMedia: media, getComputedStyle: (el) => ({ getPropertyValue: () => "", ...(el && el.attrs ? computed(el) : {}) }),
   innerWidth: cfg.width, innerHeight: 800, devicePixelRatio: 1, fetch: fetchStub, console: { log: noop, warn: noop, error: noop, info: noop },
   setTimeout: (fn, ms) => { const id = TID++; TIMERS.push({ id, at: NOW + (ms || 0), fn }); return id; }, clearTimeout: (id) => { const i = TIMERS.findIndex((t) => t.id === id); if (i >= 0) TIMERS.splice(i, 1); },
-  setInterval: () => TID++, clearInterval: noop, requestAnimationFrame: (fn) => { RAFS.push(fn); return TID++; }, cancelAnimationFrame: noop,
+  setInterval: (fn, ms) => { const id = TID++; if (cfg.intervals) TIMERS.push({ id, at: NOW + (ms || 1), every: ms || 1, fn }); return id; },
+  clearInterval: (id) => { const i = TIMERS.findIndex((t) => t.id === id); if (i >= 0) TIMERS.splice(i, 1); }, requestAnimationFrame: (fn) => { RAFS.push(fn); return TID++; }, cancelAnimationFrame: noop,
   addEventListener: (t, f) => WIN.addEventListener(t, f), removeEventListener: noop, dispatchEvent: (ev) => WIN.dispatchEvent(ev),
   scrollTo: noop, scrollBy: noop, open: noop, focus: noop, postMessage: noop, getSelection: () => ({ removeAllRanges: noop, toString: () => "" }),
   ResizeObserver: class { observe() {} unobserve() {} disconnect() {} }, MutationObserver: class { observe() {} disconnect() {} }, IntersectionObserver: class { observe() {} disconnect() {} },
@@ -436,10 +453,19 @@ function advance(ms) {
   for (;;) {
     TIMERS.sort((a, b) => a.at - b.at); const t = TIMERS[0];
     if (!t || t.at > end) break;
-    TIMERS.shift(); NOW = Math.max(NOW, t.at); try { t.fn(); } catch (e) { LOG.errors.push("timer: " + ((e && e.stack) || e)); } flush();
+    TIMERS.shift(); NOW = Math.max(NOW, t.at); clockTo(); if (t.every) { t.at += t.every; TIMERS.push(t); }
+    try { t.fn(); } catch (e) { LOG.errors.push("timer: " + ((e && e.stack) || e)); } flush();
   }
-  NOW = end;
+  NOW = end; clockTo();
 }
+// the page's clock: cfg.now (epoch ms) fixes "now"; the fake timers move it
+if (cfg.now != null) vm.runInContext(`(() => { const R = Date, base = ${Number(cfg.now)}; globalThis.__off = 0;
+  class D extends R { constructor(...a) { if (a.length) super(...a); else super(base + globalThis.__off); } static now() { return base + globalThis.__off; } }
+  globalThis.Date = D; })()`, ctx);
+const clockTo = () => { if (cfg.now != null) g.__off = NOW; };
+function setUrl(u) { if (typeof u !== "string") return; const i = u.indexOf("#"); g.location.hash = i >= 0 ? u.slice(i) : ""; }
+const settle = async () => { for (let i = 0; i < 12; i++) await new Promise((r) => setImmediate(r)); flush(); };
+const first = (sel) => queryAll(ROOT, sel, true)[0] || null;
 
 // ---------------------------------------------------------------- the page
 const heads = source.slice(source.indexOf("<script>") + 8, source.indexOf("</script>"));
@@ -488,7 +514,27 @@ async function run() {
           hits.push({ tag: e.tag, id: e.id, attrs: { ...e.attrs }, text: text(e), html: ser(e), chain });
         });
         results.push(hits);
-      } else results.push({ error: "unknown op " + op.op });
+      }
+      else if (op.op === "day") { routes.day = op.day === undefined ? undefined : op.day; results.push(null); }
+      else if (op.op === "settle") { await settle(); results.push(snapshot()); }
+      else if (op.op === "advance_settle") { advance(op.ms); await settle(); results.push(snapshot()); }
+      else if (op.op === "keysel") {
+        const el = first(op.sel);
+        if (el) { const ev = mkEvent("keydown", el, { key: op.key, code: op.key }); dispatch(ev); if (!ev.defaultPrevented && (op.key === "Enter" || op.key === " ") && el.tag === "button" && el.attrs["aria-disabled"] !== "true") dispatch(mkEvent("click", el, {})); }
+        await settle(); results.push(snapshot());
+      }
+      else if (op.op === "clicksel") { const el = first(op.sel); if (el) dispatch(mkEvent("click", el, {})); await settle(); results.push(snapshot()); }
+      else if (op.op === "clicktext") {
+        let hit = null; walk(BODY, (e) => { if (!hit && (e.tag === "button" || e.attrs.role === "button") && norm(e.textContent) === op.text && !hiddenIn(e)) hit = e; });
+        if (hit) dispatch(mkEvent("click", hit, {})); await settle(); results.push(snapshot());
+      }
+      else if (op.op === "focussel") { const el = first(op.sel); if (el) el.focus(); flush(); results.push(snapshot()); }
+      else if (op.op === "query") { results.push(queryAll(ROOT, op.sel, false).map((e) => ({ tag: e.tag, attrs: { ...e.attrs }, css: computed(e), text: norm(e.textContent) }))); }
+      else if (op.op === "fetches") { results.push(LOG.fetches.splice(0)); }
+      else if (op.op === "hash") { results.push(g.location.hash); }
+      else if (op.op === "active") { results.push(ACTIVE ? { tag: ACTIVE.tag, attrs: { ...ACTIVE.attrs } } : null); }
+      else if (op.op === "eval") { results.push(JSON.parse(vm.runInContext("JSON.stringify((() => { " + op.code + " })() ?? null)", ctx))); }
+      else results.push({ error: "unknown op " + op.op });
     } catch (e) { LOG.errors.push(`op ${op.op}: ${(e && e.stack) || e}`); results.push(null); }
   }
   process.stdout.write(JSON.stringify({ results, errors: [...bootErrors, ...LOG.errors] }));
@@ -497,8 +543,10 @@ run();
 '''
 
 
-def run(ops, width=1280, reduced=False):
-    """runs the page's script in node on the fake DOM through ops; see the module docstring"""
+def run(ops, width=1280, reduced=False, now=None, hash="", intervals=False):
+    """runs the page's script in node on the fake DOM through ops; see the module docstring.
+    now: epoch ms the page's clock starts at (Date is fixed there, the fake timers move it); hash: the address's #fragment at load;
+    intervals: setInterval runs on advance (off by default: the belt tests never needed the polls)"""
     node = shutil.which("node")
     if not node:
         raise AssertionError("node is not installed: the belt tests run the page's own script in node")
@@ -507,7 +555,7 @@ def run(ops, width=1280, reduced=False):
         with open(script, "w", encoding="utf-8") as f:
             f.write(HARNESS)
         with open(cfg, "w", encoding="utf-8") as f:
-            json.dump({"html": HTML, "lang": EN, "width": width, "reduced": reduced, "ops": ops}, f)
+            json.dump({"html": HTML, "lang": EN, "width": width, "reduced": reduced, "ops": ops, "now": now, "hash": hash, "intervals": intervals}, f)
         p = subprocess.run([node, script, cfg], capture_output=True, timeout=120, cwd=d)
     out = p.stdout.decode("utf-8", "replace")
     if p.returncode != 0 or not out:
