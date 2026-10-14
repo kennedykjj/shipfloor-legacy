@@ -125,6 +125,7 @@ class Adapter(ds.DispatchCase):
 
     def test_AC8_runs_and_their_log(self):
         "AC-3/AC-8 the log of a run: == start carries runtime=claude-code, == end ends on outcome=ok|fail|usage_limit"
+        self.machine_cfg(ds.POOL8)
         self.board(queues={"Ready for Dev": "54 55 56 57"})
         self.set_fake(claude={"cards": {"55": {"exit": 3}, "56": {"say": LIMIT.strip()},
                                         "57": {"say": LIMIT.strip(), "exit": 1}}})
