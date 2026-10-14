@@ -1,0 +1,4 @@
+{"issue": 149, "slug": "34-37-runtimes-1-4-contrato-do-adaptador", "pipeline": "refine", "started_at": "2026-10-14T17:46:00-03:00", "finished_at": "2026-10-14T17:51:30-03:00", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 20056, "duration_s": 27}],
+ "rounds": {"po": 1, "techlead": 1, "weight": 1, "test-plan": 1},
+ "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": null}
