@@ -753,6 +753,12 @@
     "hist.cards": "期間内のカード (推定コスト順)",
     "th.column": "列",
     "th.runs": "実行",
-    "hist.th.cost": "インボックスから現在まで"
+    "hist.th.cost": "インボックスから現在まで",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }
