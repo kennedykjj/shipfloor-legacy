@@ -28,7 +28,7 @@ import time
 
 import runtimes
 
-from . import deps, proc, project, stack, telemetry, text
+from . import board_history, deps, proc, project, stack, telemetry, text
 from .defaults import STAGES as STAGE_COLUMNS, TRAILER
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -444,6 +444,7 @@ class Cycle:
             self.die("dispatch: board read failed", 1)
         os.replace(tmp, self.snap)
         os.environ["FACTORY_BOARD_SNAPSHOT"] = self.snap
+        board_history.record(self.home, self.snapshot_rows())
 
     @staticmethod
     def touch(path):
