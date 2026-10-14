@@ -1,0 +1,1 @@
+{"issue": 181, "slug": "ux-07-a-esteira-o-ciclo-de-vida-vira-uma", "pipeline": "validate", "started_at": "2026-10-14T20:50:00Z", "finished_at": "2026-10-14T21:02:00Z", "outcome": "ok", "agents": [], "rounds": {"2": 0, "3": 0, "4": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": false, "amendments": []}
