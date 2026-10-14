@@ -6,9 +6,9 @@ The branch was cut before #176 (`silent`, merged as #231) and #180 (v4 tokens, m
 
 ## Acceptance tests (QA, before any task)
 
-- `scripts/test/dashboard-belt.test.sh` (new) — AC-1, AC-2, AC-5, AC-6.
-- `scripts/test/dashboard-belt-motion.test.sh` (new) — AC-3, AC-4, AC-7.
-- `scripts/test/design-doc.test.sh` (new; the old suite of that name was folded into `theme.test.sh` / `visual-v4.test.sh` by the test diet) — AC-8.
+- `scripts/test/py/dashboard_belt.py` + `belt_page.py`, run by the existing `scripts/test/dashboard-views.test.sh` — AC-1 to AC-7.
+- `scripts/test/py/dashboard_v4.py`, run by the existing `scripts/test/theme.test.sh` — AC-8.
+- No new `*.test.sh`: `hygiene.test.sh` caps their count and the cap is never raised to fit a new file.
 - Reuse `scripts/test/py/dashboard_support.py`, `fake-gh` and `demo-gh` as the existing dashboard suites do; prefer in-process checks (docs: the factory tests behavior, prefers in-process tests).
 
 ## Tasks

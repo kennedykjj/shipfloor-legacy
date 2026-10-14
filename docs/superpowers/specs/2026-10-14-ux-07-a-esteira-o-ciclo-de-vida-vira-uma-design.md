@@ -62,7 +62,7 @@ All in the `factory` layer; no server contract changes beyond reading what #176 
 - **`scripts/dashboard.html`:** `renderBand` becomes `renderBelt` (same `#band` panel, `#cells` becomes the belt container; maximize, minimize and the maximized lanes untouched); new `renderStatus` replaces the header stats; the line peek (`renderPeek`, `peek()`, `#peek`) is removed and a token click goes to the existing open-drawer routing; FLIP travel keyed by `data-key` (replaces the dot slide, 950ms, arc), gate ring on arrival (never on the first read), CSS rail animation, roving-tabindex keyboard, `@media (prefers-reduced-motion: reduce)` and `(max-width: 1019px)` rules, Restart row with Copy.
 - **i18n:** new `belt.*` and `status.*` keys in all 12 `scripts/lang/dashboard.*.json` (en and pt-BR as the UX section gives; the other 10 carry the English text, because the catalog test requires every key in every language). Keys of the removed peek and band dots are deleted from all 12.
 - **`DESIGN.md`:** Lifecycle Band and Line Peek sections replaced by The Belt; overview, Motion and Do's/Don'ts say three continuous motions (dial, dot pulse, belt) and the belt's rule; front matter description updated.
-- **Files:** `scripts/dashboard.html`, `scripts/dashboard.py` (only if `done_today` is missing), 12 `scripts/lang/dashboard.*.json`, `DESIGN.md`, new `scripts/test/dashboard-belt.test.sh`, new `scripts/test/dashboard-belt-motion.test.sh`, and the existing tests that name the band or peek: `dashboard-first-screen`, `dashboard-short`, `dashboard`, `dashboard-accent`, `dashboard-targets`, `dashboard-move`, `design-doc` (`.test.sh`).
+- **Files:** `scripts/dashboard.html`, `scripts/dashboard.py` (only if `done_today` is missing), 12 `scripts/lang/dashboard.*.json`, `DESIGN.md`, new `scripts/test/py/dashboard_belt.py` and `belt_page.py` (run by `dashboard-views.test.sh`), `scripts/test/py/dashboard_v4.py`, and the existing tests that name the band or peek: `dashboard-first-screen`, `dashboard-short`, `dashboard`, `dashboard-accent`, `dashboard-targets`, `dashboard-move`, `design-doc` (`.test.sh`).
 - **Order:** develop only after #180 (UX-06 tokens: `raise`, `accent-ink`, `accent-soft`, `accent-line`) and #176 (`silent`) are merged.
 - **Migration:** none. **Rollback:** revert the commit.
 
@@ -72,14 +72,16 @@ _Tech Lead_
 
 | AC | Layer | Test file |
 |---|---|---|
-| AC-1 | factory | `scripts/test/dashboard-belt.test.sh` |
-| AC-2 | factory | `scripts/test/dashboard-belt.test.sh` |
-| AC-3 | factory | `scripts/test/dashboard-belt-motion.test.sh` |
-| AC-4 | factory | `scripts/test/dashboard-belt-motion.test.sh` |
-| AC-5 | factory | `scripts/test/dashboard-belt.test.sh` |
-| AC-6 | factory | `scripts/test/dashboard-belt.test.sh` |
-| AC-7 | factory | `scripts/test/dashboard-belt-motion.test.sh` |
-| AC-8 | factory | `scripts/test/design-doc.test.sh` |
+| AC-1 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-2 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-3 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-4 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-5 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-6 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-7 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-8 | factory | `scripts/test/theme.test.sh` |
+
+The belt's cases live in `scripts/test/py/dashboard_belt.py` (with `belt_page.py`), run by `dashboard-views.test.sh`; AC-8's DESIGN.md checks join `scripts/test/py/dashboard_v4.py`, run by `theme.test.sh`. No new `*.test.sh`: `hygiene.test.sh` caps the suite count and is never raised to fit a new file.
 
 ## Security
 _Cybersec_ — n/a
@@ -94,6 +96,7 @@ _What the pipeline decided on its own; one line each, with the reason._
 - Restart shows and copies #176's reinstall command and runs nothing: the dashboard stays read-only toward the machine's scheduler (local-only, no privileged action from a web page).
 - The 10 non-en/pt-BR catalogs get the English text for the new keys: the catalog test needs every key everywhere, and translations are a follow-up.
 - Develop waits for #180 and #176; both are open today and the belt builds on their tokens and `silent` field.
+- In develop, the test plan moved from three new suites to `dashboard-views.test.sh` and `theme.test.sh`: main's test diet set a ceiling on `*.test.sh` files that a card may not raise.
 - Weight heavy: more than 6 acceptance criteria and more than 8 files.
 
 ## Open questions
