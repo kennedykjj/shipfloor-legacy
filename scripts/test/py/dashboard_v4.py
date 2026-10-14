@@ -96,7 +96,7 @@ def caption_problems(h):
     """AC-6: the Caption rules are 12px with no tracking"""
     rules = [([re.sub(r"\s+", " ", x).strip() for x in s.split(",")], b) for s, b in re.findall(r"([^{}]+)\{([^{}]*)\}", style(h))]
     bad = []
-    for sel in (".cap", ".views button", ".isec h3", ".iq-k", ".sgroup > h2"):
+    for sel in (".cap", ".views button", ".bk-cap", ".wk-dec .hint", ".sgroup > h2"):
         bs = [b for sels, b in rules if sel in sels]
         if not bs:
             bad.append("%s: no rule" % sel); continue
@@ -266,12 +266,12 @@ def deviation_problems(d):
 
 
 def in_progress_problems(d):
-    """AC-7: the In Progress paragraph says the accent is for a tile that waits for the owner and the cost is in `text` with `est`"""
-    prog = d.section("In Progress", 3)
-    miss = [w for w, ok in (("a section \"In Progress\"", bool(prog)),
-                            ("the accent only on a tile that waits for the owner", re.search(r"accent[^.]*\bowner\b|\bowner\b[^.]*accent", prog) is not None),
-                            ("the cost in `text` with `est`", re.search(r"cost[^.]*`text`|`text`[^.]*cost", prog) is not None and re.search(r"`est`|\best\b", prog) is not None)) if not ok]
-    return ["the In Progress section does not mention " + ", ".join(miss)] if miss else []
+    """AC-7 (#182: now The Work Area): it says the accent is for what waits for the owner and the cost is in `text` with `est`"""
+    prog = d.section("The Work Area", 3)
+    miss = [w for w, ok in (("a section \"The Work Area\"", bool(prog)),
+                            ("the accent only on what waits for the owner", re.search(r"accent[^.]*\bowner\b|\bowner\b[^.]*accent", prog) is not None),
+                            ("the cost in `text` with `est`", re.search(r"cost[^.]*`text`|`text`[^.]*cost", prog) is not None and re.search(r"`est`|`est\.`|\best\b", prog) is not None)) if not ok]
+    return ["the Work Area section does not mention " + ", ".join(miss)] if miss else []
 
 
 def caption_doc_problems(d):
@@ -398,7 +398,7 @@ class V4(support.Case):
         self.assertEqual(deviation_problems(doc()), [])
 
     def test_in_progress(self):
-        "AC-7: the In Progress paragraph keeps the accent for the owner and the cost in text with est"
+        "AC-7: The Work Area keeps the accent for the owner and the cost in text with est"
         self.assertEqual(in_progress_problems(doc()), [])
 
     def test_caption_doc(self):

@@ -1219,6 +1219,23 @@ class Factory:
             out.append({"n": d["n"], "title": str(d.get("title") or ""), "state": state})
         return {"deps": out, "deps_unread": entry.get("read") is False}
 
+    def shipped(self, p, columns, titles, since, per_card, today):
+        """The cards that reached Done today, newest first: {issue, title, pr, at, cost}. `at` is when the card's last run ended,
+        `pr` the last pull request a report names, `cost` its Inbox-to-now estimate (None when unpriced)."""
+        out = []
+        for n, col in columns.items():
+            at = since.get(n)
+            if col != "Done" or not at:
+                continue
+            try:
+                if parse_ts(at).astimezone().date().isoformat() != today:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            pr = next((r["pr"] for r in reversed(self.reports(p, n)) if isinstance(r.get("pr"), int)), None)
+            out.append({"issue": n, "title": titles.get(n, ""), "pr": pr, "at": at, "cost": rounded(per_card.get(n, 0.0))})
+        return sorted(out, key=lambda x: parse_ts(x["at"]).timestamp(), reverse=True)
+
     def overview(self):
         size, slots = self.pool()
         prices, today, limits = self.prices(), datetime.now().date().isoformat(), self.costs()
@@ -1264,7 +1281,8 @@ class Factory:
                                         "blocked": blocked.get(n), **self.brief_row(p, n, col),
                                         **self.block_brief(p, n, blocked.get(n)),
                                         **self.card_deps(record, columns, n)}
-                                       for n, col in columns.items()]})
+                                       for n, col in columns.items()],
+                             "shipped": self.shipped(p, columns, titles, since, per_card, today)})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
         stacks, queue = self.stacks()

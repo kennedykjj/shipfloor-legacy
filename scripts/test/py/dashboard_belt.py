@@ -330,14 +330,14 @@ class BeltRender(Scene):
         self.assertTrue(re.search(r"2px", ring.get("outline", "") + ring.get("outline-width", "")) and re.search(ACCENT, ring.get("outline", "") + ring.get("outline-color", "")),
                         "the focused token has a 2px accent outline: %s" % {k: v for k, v in ring.items() if "outline" in k})
 
-    def test_ac6_enter_and_click_open_the_drawer(self):
-        "AC-6: a click or Enter on a token opens that card's drawer by today's routing (a running card maximized on Live)"
-        r = bp.run([{"op": "read", "overview": self.ov}, {"op": "click", "key": KEY % 50}, {"op": "press", "key": "Enter", "on": KEY % 21},
-                    {"op": "click", "key": KEY % 31}, {"op": "press", "key": "Enter", "on": KEY % 11}])
-        opened = [s["S"]["open"] for s in r["results"][1:]]
-        self.assertEqual(opened, [KEY % 50, KEY % 21, KEY % 31, KEY % 11], "AC-6 S.open after a click on #50, Enter on #21, a click on #31, Enter on #11")
-        live = r["results"][3]["S"]
-        self.assertEqual((live["tab"], live["full"]), ("live", True), "a running card opens maximized on Live")
+    def test_ac6_enter_and_click_pick_the_card_in_the_work_area(self):
+        "AC-6: a click or Enter on a token picks that card in the work area (#182) and opens no drawer; the picked token clicked again lets it go"
+        tok = lambda n, **more: dict({"within": "cells", "sel": 'button[data-key="%s"]' % (KEY % n)}, **more)
+        r = bp.run([{"op": "readw", "overview": self.ov}, tok(50, op="clickx"), tok(21, op="keyx", key="Enter"), tok(31, op="clickx"), tok(31, op="clickx")])
+        self.assertEqual(r["errors"], [])
+        picked = [s["S"]["work"]["key"] for s in r["results"][1:]]
+        self.assertEqual(picked, [KEY % 50, KEY % 21, KEY % 31, None], "AC-6 the picked card after a click on #50, Enter on #21, a click on #31 and another on #31")
+        self.assertEqual([s["S"]["open"] for s in r["results"][1:]], [None] * 4, "no drawer opens")
 
 
 # ------------------------------------------------------------------------------------------------------ AC-3, AC-4, AC-7

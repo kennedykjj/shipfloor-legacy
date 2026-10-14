@@ -201,7 +201,7 @@ main { min-height: 0; display: grid; }
 .max { position: absolute; top: 10px; right: 10px; z-index: 1; width: 28px; height: 28px; padding: 0; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: 6px; color: var(--faint); cursor: pointer; }
 .max svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .max .in, .maxed > .max .out, .drawer.full .max .out { display: none; } .maxed > .max .in, .drawer.full .max .in { display: block; }
-.panel:hover > .max, .tile:hover > .max, .max:hover, .max:focus-visible, .maxed > .max, .drawer .max { color: var(--text); border-color: var(--edge-hi); background: var(--panel-hi); }
+.panel:hover > .max, .max:hover, .max:focus-visible, .maxed > .max, .drawer .max { color: var(--text); border-color: var(--edge-hi); background: var(--panel-hi); }
 /* minimize, beside maximize: the panel folds to its heading where it sits */
 .fold { right: 44px; } .fold[aria-expanded="false"] svg { transform: rotate(180deg); } .maxed > .fold { display: none; }
 .panel.min > :not(h1):not(.fold) { display: none; } .panel.min { min-height: 48px; max-height: none; } .band.min > h1 { display: block; }
@@ -249,99 +249,57 @@ main { min-height: 0; display: grid; }
   .mbox { width: calc(100vw - 24px); }
 }
 
-/* below the line: what waits for the owner, and what the factory is doing */
-.cols { display: grid; grid-template-columns: minmax(320px, 410px) minmax(0, 1fr); gap: 20px; min-height: 0; }
-.side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
-.yours, .work, .telem { padding: 16px 20px 16px; display: flex; flex-direction: column; min-height: 0; } .yours { flex: 0 1000 auto; } .yours:not(.maxed) { min-height: var(--ymin, 0px); } .telem { flex: 0 1 auto; max-height: 60%; min-height: 100px; overflow-y: auto; }  /* Yours gives way first, down to its heading, two cards and foot (fit sets --ymin); then History, down to its floor, and scrolls inside itself */
-.side h1 { font-size: 24px; }
+/* below the belt: the work area, then History */
+.cols { display: flex; flex-direction: column; gap: 20px; min-height: 0; overflow-y: auto; }
+.telem { padding: 16px 20px 16px; display: flex; flex-direction: column; flex: none; min-height: 100px; } .telem.maxed { overflow-y: auto; } .telem h1 { font-size: 24px; }
 h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
-#list { list-style: none; margin: 12px -8px 0; overflow-y: auto; min-height: var(--two, 0px); padding: 0 8px; }  /* --two: the first two cards whole, set by fit */
-/* what waits for you, maximized: a decision inbox. The queue, what to read, and the decision as options that each say what happens next */
-.inbox, .yours.maxed #list, .foot[hidden], .iconf[hidden], .itoast[hidden] { display: none; }
-.yours.maxed .inbox { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 350px; margin-top: 12px; border-top: 1px solid var(--edge); }
-.ique { border-right: 1px solid var(--edge); overflow-y: auto; }
-.ique button { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--edge); border-left: 3px solid transparent; padding: 8px 12px; cursor: pointer; }
-.ique button[aria-current="true"] { background: var(--panel-hi); border-left-color: var(--sand); }
-.ique .row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .ique .pnum { font-size: 17px; }
-.ique p { margin: 4px 0 0; font-size: 13px; color: var(--soft); } .ique .ask { font-size: 12px; color: var(--muted); }
-.iread { padding: 16px 24px 20px; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
-.iread p { margin: 0 0 8px; } .iread ul { margin: 4px 0; padding-left: 16px; } .iread .h { font-weight: 600; }
-.iread pre { margin: 4px 0; padding: 8px; background: var(--ground); border-radius: 4px; font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
-.iq-k { font-size: 12px; color: var(--sand); }
-.iread h2 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.25; text-wrap: balance; }
-.ifacts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; } .ifacts .lnk { font-size: 12px; margin-left: 8px; }
+.foot[hidden], .iconf[hidden], .itoast[hidden] { display: none; }
 .tag { font-size: 12px; border: 1px solid var(--edge-hi); border-radius: 4px; padding: 1px 8px; color: var(--muted); white-space: nowrap; }
 .tag.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50.2%, transparent); } .tag.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50.2%, transparent); } .tag.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50.2%, transparent); }
-.isec { display: flex; flex-direction: column; gap: 8px; max-width: 64ch; }
-.isec h3 { margin: 0; font-size: 12px; font-weight: 400; color: var(--muted); }
-.isec .body { font-size: 14px; color: var(--soft); } .isec .plain { font-size: 15.5px; line-height: 1.45; color: var(--text); }
-.iacs { list-style: none; margin: 0; padding: 0; } .iacs li { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 0 8px; padding: 8px 0; border-top: 1px solid var(--edge); font-size: 14px; color: var(--soft); }
-.iacs b { font: 500 12px/1.7 var(--mono); color: var(--sand); }
-.iask { border: 1px solid color-mix(in srgb, var(--warn) 45.1%, transparent); border-radius: 8px; padding: 8px 12px; background: color-mix(in srgb, var(--warn) 7.1%, transparent); max-width: 64ch; } .iask .cap { color: var(--warn); } .iask p { margin: 4px 0 0; color: var(--text); }
-.iwhere { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; flex-wrap: wrap; }
-.iwhere li { flex: 1 1 96px; border-top: 3px solid var(--edge-hi); padding: 8px 4px 0 0; font-size: 12px; color: var(--muted); } .iwhere b { display: block; font-size: 12px; color: var(--faint); }
-.iwhere .ok { border-top-color: var(--muted); } .iwhere .fail { border-top-color: var(--bad); color: var(--text); } .iwhere .fail b { color: var(--bad); }
-.idiff { font: 12px/1.6 var(--mono); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; } .idiff div { padding: 1px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.idiff .f { background: var(--panel-hi); color: var(--muted); padding: 4px 12px; border-top: 1px solid var(--edge); } .idiff .f:first-child { border-top: 0; }
-.idiff .m { color: var(--bad); background: color-mix(in srgb, var(--bad) 9.0%, transparent); } .idiff .p { color: var(--ok); background: color-mix(in srgb, var(--ok) 9.0%, transparent); }
-.idec { border-left: 1px solid var(--edge); background: var(--well); padding: 16px 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-.idec h2 { margin: 0; font-size: 17px; } #io { display: contents; }
-.iopt { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--edge-hi); border-radius: 8px; padding: 12px; cursor: pointer; } .iopt:hover { border-color: var(--muted); }
-.iopt[aria-pressed="true"] { border-color: var(--text); background: var(--panel-hi); box-shadow: inset 3px 0 0 var(--text); }
-.iopt .t { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; font-weight: 600; font-size: 15px; } .iopt kbd { font-size: 12px; margin: 0; color: var(--muted); }
-.iopt .when { margin: 4px 0 0; font-size: 13px; color: var(--muted); } .iopt .then { margin: 8px 0 0; padding-top: 8px; border-top: 1px dashed var(--edge-hi); font-size: 13px; color: var(--soft); }
-.iopt .then::before { content: "→ "; color: var(--sand); } .iopt .caveat { color: var(--warn); }
-.iconf { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--edge-hi); } #inote, #inote:focus { height: 76px; } .ihint { margin: 0; font-size: 12px; color: var(--muted); }
-.idec .ihint.cost { margin-top: 8px; }
-.iread .swrap { padding: 0; } .iread .swrap table { min-width: 320px; max-width: 460px; } .iread .swrap th.num, .iread .swrap td.num { text-align: right; } .iread .swrap td { white-space: nowrap; }
-.iread .since { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.iconf { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--edge-hi); } .ihint { margin: 0; font-size: 12px; color: var(--muted); }
 .itoast { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45.1%, transparent); border-radius: 8px; padding: 8px; }
 .itoast button { background: none; border: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-@media (max-width: 1180px) { .yours.maxed .inbox { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .ique, .idec { border: 0; overflow: visible; } .iread { overflow: visible; padding-inline: 0; } }
-#list.cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); }
 .telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); }
-/* the shortest column: fit puts .tight on .side only with History open, when the list floor, the gap and History's floor do not fit */
-.side.tight { gap: 10px; } .side.tight .yours:not(.maxed) .foot { display: none; } .side.tight #telem > :first-child { margin-top: 6px; }
-.pass { border-top: 1px solid var(--hair); padding: 8px 4px 12px; } .pass.hot { background: color-mix(in srgb, var(--ov) 3.5%, transparent); }
-.ptitle { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
-.ptitle .row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.pnum { font-size: 24px; line-height: 1; font-weight: 600; color: var(--sand); } .stop .pnum { color: var(--bad); }
-.ptext { font-size: 15px; line-height: 1.3; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.cap.bad { color: var(--bad); } .pwhy { margin: 4px 0 0; font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pnote { margin: 8px 0 0; font-size: 13px; color: var(--bad); }
-.stub { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; }
-.stub button, .stub a, .edit button { font-weight: 500; font-size: 13px; white-space: nowrap; background: none; border: 0; cursor: pointer; padding: 4px; color: var(--soft); min-height: 24px; }
-.stub button:hover, .stub a:hover, .edit button:hover { text-decoration: underline; text-underline-offset: 3px; }
-.stub .pill, .edit .pill { background: var(--sand); color: var(--accent-ink); padding: 8px 16px; border-radius: 999px; font-weight: 600; } .stub .pill:hover, .edit .pill:hover { background: color-mix(in srgb, var(--sand) 88%, var(--ground)); text-decoration: none; }
-.stub a { text-decoration: none; } .ext { width: 10px; height: 10px; margin-left: 4px; fill: none; stroke: currentColor; stroke-width: 1.4; }
-.edit { padding: 8px 0 4px; display: grid; gap: 8px; } .edit div { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
-.edit textarea { height: 64px; background: color-mix(in srgb, var(--ov) 5.1%, transparent); border-color: color-mix(in srgb, var(--ov) 23.9%, transparent); border-radius: 8px; }
-.bar { height: 2px; background: color-mix(in srgb, var(--ov) 14.9%, transparent); margin-top: 8px; } .bar i { display: block; height: 2px; background: var(--text); animation: drain 5s linear forwards; } @keyframes drain { to { width: 0; } }
+.pnote { margin: 8px 0 0; font-size: 13px; color: var(--bad); } .ext { width: 10px; height: 10px; margin-left: 4px; fill: none; stroke: currentColor; stroke-width: 1.4; }
 .empty { color: var(--muted); font-size: 14px; padding-top: 4px; max-width: 34ch; }
-.foot { margin: auto 0 0; padding-top: 12px; border-top: 1px solid var(--hair); display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; }
-.foot .keys-list, .foot .keys-inbox { display: flex; flex-wrap: wrap; gap: 4px 16px; } .foot .keys-inbox, .yours.maxed .foot .keys-list { display: none; } .yours.maxed .foot .keys-inbox { display: flex; }
-@media (pointer: coarse) { .foot, .iopt kbd { display: none; } }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; overflow-y: auto; min-height: 0; margin-top: 16px; align-content: start; }
-.tile { border: 1px solid var(--hair); border-radius: 12px; background: var(--well); padding: 12px 16px 8px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.tile.hot { border-color: color-mix(in srgb, var(--ov) 33.3%, transparent); } .tile.ch { border-color: var(--text); } .tile.wait.ch { border-color: var(--text); }
-.tile { position: relative; } .tile .max { top: 6px; right: 6px; } .tile .max + .thead { padding-right: 32px; }
-/* in the factory's hands but not running: the same tile, visibly idle, with the reason in words */
-.grp { grid-column: 1 / -1; margin: 0; display: flex; gap: 8px; align-items: center; } .grp::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
-.tile.wait { border-style: dashed; border-color: var(--edge-hi); background: none; gap: 8px; } .tile.wait .tnum, .tile.wait .ttitle { color: var(--muted); }
-.ring { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--muted); align-self: center; flex: none; }
-.why { margin: 0; font-size: 12px; color: var(--soft); }
-.tile.wait.infra .ring { background: var(--warn); border-color: var(--warn); } .tile.wait.infra .tnum, .tile.wait.infra .why { color: var(--warn); }
-.tile.wait.you .ring { background: var(--sand); border-color: var(--sand); } .tile.wait.you .tnum, .tile.wait.you .why { color: var(--sand); }
-#hw small { font: 400 13px var(--sans); color: var(--muted); text-transform: none; letter-spacing: 0; margin-left: 12px; }
+.foot { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--hair); display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; }
+@media (pointer: coarse) { .foot { display: none; } }
 .ended td:nth-child(2) { white-space: normal; } .ended th { background: none; position: static; }
-.thead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; white-space: nowrap; } .thead .tag { align-self: center; } .tnum { font-size: 24px; line-height: 1; } .thead .clock { margin-left: auto; font-size: 14px; color: var(--text); } .tcost { font-size: 13px; color: var(--sand); }
-.ttitle { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.steps { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; } .steps li { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ov) 14.9%, transparent); }
-.steps li.done { background: var(--muted); } .steps li.now { background: var(--text); animation: now 1.6s ease-in-out infinite; } @keyframes now { 50% { opacity: .45; } }
-.stepline { margin: 0; font-size: 12px; color: var(--muted); } .stepline b { color: var(--text); font-weight: 600; } .stepline .slow { color: var(--warn); }
-.says { margin: 0; font-size: 13px; line-height: 1.35; color: var(--soft); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.did { list-style: none; margin: 0; padding: 0; font: 12px/1.55 var(--mono); color: var(--muted); } .did li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.did b { color: var(--soft); font-weight: 500; } .did time { display: inline-block; min-width: 6ch; color: var(--faint); }
-.tfoot { display: flex; gap: 16px; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--hair); } .tfoot a { text-decoration: none; display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; margin-block: -4px; }
+.sr { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* the work area: one thing at a time. Decide on the left what to read, on the right the sticky decision; Run, Card and Calm share its head */
+.wk-wrap { position: relative; flex: none; }
+.wk { padding: 20px 24px 24px; }
+.wk-ghost { position: absolute; inset: 0; z-index: 2; padding: 20px 24px 24px; overflow: hidden; pointer-events: none; background: var(--panel); border: 1px solid var(--edge); border-radius: 16px; }
+.wk-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 24px; }
+.wk-id { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 14px; color: var(--muted); }
+.wk-n { font: 500 15px var(--mono); color: var(--sand); background: var(--accent-soft); border-radius: 6px; padding: 2px 8px; }
+.wk-q { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--muted); }
+.wk-dash { display: inline-flex; gap: 3px; } .wk-dash i { width: 14px; height: 4px; border-radius: 2px; background: var(--edge-hi); } .wk-dash i.ok { background: var(--ok); } .wk-dash i.cur { background: var(--sand); }
+.wk-title { margin: 12px 0 20px; max-width: 40ch; font-size: 24px; font-weight: 500; line-height: 1.25; text-wrap: balance; } .wk-title:focus, .wk-calm:focus { outline: none; }
+.wk-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 24px; align-items: start; }
+.wk-read { min-width: 0; } .wk-frame iframe { height: 70vh; min-height: 420px; }
+.wk-dec { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--panel-hi); border: 1px solid var(--edge); border-radius: 14px; }
+.wk-dec h3 { margin: 0; font-size: 15px; } .wk-dec .hint { margin: 0; font-size: 12px; color: var(--muted); } .wk-dec .hint:empty { display: none; }
+.wk-b { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 44px; text-align: left; white-space: normal; } .wk-b small { font-size: 12px; font-weight: 400; opacity: .8; }
+.wk-skip { align-self: flex-start; min-height: 24px; }
+.wk-req { display: flex; flex-direction: column; align-items: stretch; gap: 8px; } .wk-req textarea { height: 88px; }
+.btn.ghost.sug { color: var(--sand); background: var(--accent-soft); border-color: var(--accent-line); text-align: left; white-space: normal; }
+.wk-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding-top: 10px; border-top: 1px solid var(--hair); font-size: 13px; } .wk-links a { display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; }
+.wk-links .lnk:disabled { color: var(--faint); cursor: default; text-decoration: none; }
+.wk-steps { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); } .wk-steps li.now { color: var(--text); font-weight: 600; }
+.wk-tools { list-style: none; margin: 0 0 16px; padding: 0; font: 12px/1.6 var(--mono); color: var(--muted); } .wk-tools li { display: flex; gap: 8px; overflow-wrap: anywhere; } .wk-tools time { color: var(--faint); flex: none; } .wk-tools b { color: var(--soft); font-weight: 500; flex: none; }
+.wk-tools li.new { animation: wk-in .3s ease-out; } @keyframes wk-in { from { opacity: 0; } }
+.wk-side { gap: 8px; } .wk-step { font-size: 17px; } .wk-cost { color: var(--text); font-size: 15px; margin: 0; }
+.wk-card { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; } .wk-state { margin: 0; font-size: 15px; } .wk-card .block-note { align-self: stretch; margin-top: 0; }
+.wk-calm { margin: 0 0 20px; font-size: 34px; font-weight: 600; line-height: 1.1; }
+.wk-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; } .wk-grid h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; } .wk-grid ul { list-style: none; margin: 0; padding: 0; }
+.wk-row { display: block; width: 100%; min-height: 32px; padding: 6px 0; background: none; border: 0; text-align: left; font-size: 15px; color: var(--soft); cursor: pointer; } .wk-row:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; } .wk-row b { color: var(--sand); font-family: var(--mono); font-weight: 500; }
+.wk-none { margin: 0; font-size: 15px; color: var(--faint); }
+@media (max-width: 860px) {
+  .wk { padding: 16px; } .wk-body, .wk-grid { grid-template-columns: minmax(0, 1fr); }
+  .wk-dec { position: static; order: -1; } .wk-q { flex-basis: 100%; } .wk-b, .wk-skip, .wk-req .btn { width: 100%; align-self: stretch; } .wk-tools li { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .wk-tools li.new { animation: none; } }
 .lnk { background: none; border: 0; padding: 0; display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; margin-block: -4px; cursor: pointer; color: var(--text); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, var(--ov) 33.3%, transparent); }
 .telem h2 { margin: 16px 0 8px; font-size: 13px; font-weight: 500; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; } .telem h2 b { color: var(--text); font-weight: 600; }
 .chart { display: block; width: 100%; height: 62px; overflow: visible; } .chart text { font: 12px var(--sans); fill: var(--faint); } .chart .base { stroke: color-mix(in srgb, var(--ov) 14.9%, transparent); }
@@ -394,7 +352,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
   .dial { animation: none; --sweep: 90deg; }
   .drawer { transition: none; }
   .rail { animation: none; }
-  .tok, .bar i, .steps li.now { animation: none; transition: none !important; }
+  .tok { animation: none; transition: none !important; }
   .skeleton { animation: none; }
   #pane .themed, #pane .plain { transition: none; }
 }
@@ -406,11 +364,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
   display: flex; flex-direction: column; container-type: inline-size;
 }
 .drawer:not(.open) { box-shadow: none; border: 0; }
-.drawer.open { width: min(660px, 52vw); }
-/* cards that wait for the owner keep the review's width on every tab, so tabs never reflow the drawer */
-.drawer.wide { width: min(1180px, 72vw); }
 .drawer.open.full { top: 5vh; bottom: 5vh; right: 5vw; width: 90vw; z-index: 4; border: 1px solid var(--edge-hi); border-radius: 16px; }
-#d-max { top: 14px; right: 88px; } .drawer:not(.open) #d-max { display: none; }
 .tip-head { padding: 16px 20px 16px; border-top: 1px solid var(--edge-hi); border-bottom: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); flex: none; }
 .tip-head .row1 { padding-right: 116px; }
 .tip-head h3 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3; text-wrap: balance; }
@@ -584,17 +538,13 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 8px; }
 .gate.fail { color: var(--bad); border-color: currentColor; }
 .notes { margin-top: 8px; color: var(--muted); font-size: 12px; }
 
-/* the decision: under the tooltip head, whatever tab is open */
-.decide { padding: 12px 20px 16px; border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; gap: 8px; flex: none; }
-.decide-k { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; color: var(--muted); }
-.decide-k b { color: var(--text); font-weight: 600; }
-.decide-a { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+/* the decision's weight (Spec Review) and its lines, in the work area's Your decision */
 .decide-w { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; font-size: 13px; } .decide-w label { color: var(--muted); }
 .decide-w select { height: 32px; border-radius: 8px; border-color: var(--edge-hi); min-width: 12ch; } .decide-w select:disabled { cursor: progress; }
 .decide-w select:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-.decide .hint, .edit .hint { font-size: 12px; color: var(--muted); }
-.decide .stale { margin: 0; font-size: 12px; color: var(--warn); overflow-wrap: anywhere; }
-.decide .stale.skipped { color: var(--bad); }
+.decide-w .hint { font-size: 12px; color: var(--muted); }
+.wk-dec .stale { margin: 0; font-size: 12px; color: var(--warn); overflow-wrap: anywhere; }
+.wk-dec .stale.skipped { color: var(--bad); }
 .brief { display: flex; flex-direction: column; gap: 10px; container-type: inline-size; }
 .brief .tag.sand { color: var(--sand); border-color: color-mix(in srgb, var(--sand) 50%, transparent); }
 .bk-v { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
@@ -605,9 +555,6 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 8px; }
 .bk pre { margin: 6px 0 0; font: 12px var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
 .bk summary { cursor: pointer; } .bk del { color: var(--muted); } .bk .btn { margin-top: 6px; min-height: 24px; }
 @container (max-width: 540px) { .bk .btn { width: 100%; } }
-.vd.ok { color: var(--ok); } .vd.sand { color: var(--sand); }
-.decide-b { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }
-.decide-b .acts { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
 .btn { border-radius: 5px; padding: 8px 12px; cursor: pointer; border: 1px solid var(--edge-hi); background: var(--panel-hi); white-space: nowrap; }
 .btn:hover { border-color: var(--text); }
 .btn.approve { background: var(--azure); border-color: var(--azure); color: var(--azure-ink); font-weight: 600; }
@@ -619,7 +566,6 @@ tr.total td { border-bottom: 0; font-weight: 600; padding-top: 8px; }
 select:disabled { cursor: not-allowed; color: var(--faint); border-color: var(--edge); }
 .btn:disabled, .btn:disabled:hover { cursor: not-allowed; color: var(--faint); background: var(--panel); border-color: var(--edge); filter: none; }
 .btn.approve:disabled { opacity: .6; color: var(--azure-ink); background: var(--azure); }
-.drawer.busy .btn:disabled { cursor: progress; }
 textarea { width: 100%; min-height: 38px; height: 38px; resize: vertical; background: var(--ground); border: 1px solid var(--edge); border-radius: 5px; padding: 8px; transition: height .16s ease; }
 textarea:focus, textarea.filled { height: 96px; }
 textarea::placeholder { color: var(--faint); }
@@ -642,12 +588,8 @@ body.refused .views, body.refused .stats, body.refused #alerts, body.refused #ba
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 @container (max-width: 540px) {
-  .decide-b { grid-template-columns: 1fr; }
   .decide-w .hint { flex-basis: 100%; }
-  .decide-b .acts { flex-direction: row; flex-wrap: wrap; }
-  .decide .btn { white-space: normal; text-align: left; }
   .tip-stats { grid-template-columns: repeat(2, auto); gap: 8px 28px; }
-  #changes:not(.show) { display: none; }
   .block-note { grid-template-columns: 1fr; }
   .block-note .btn { grid-column: 1; grid-row: auto; justify-self: start; }
 }
@@ -657,18 +599,12 @@ body.refused .views, body.refused .stats, body.refused #alerts, body.refused #ba
 @media (max-width: 1180px) {
   body { height: auto; min-height: 100%; overflow: auto; grid-template-rows: auto auto auto; grid-template-columns: minmax(0, 1fr); align-content: start; }
   main, .board, .band, .cols { min-width: 0; }
-  .yours, .work, .telem { min-width: 0; }
+  .wk, .telem { min-width: 0; }
   header { flex-wrap: wrap; padding: 12px 0; position: static; } .stats { margin-left: 0; flex-wrap: wrap; row-gap: 8px; }
   .board { grid-template-rows: auto auto; }
-  .cols { grid-template-columns: minmax(0, 1fr); } .side { display: contents; }
-  .yours { order: 1; } .work { order: 2; } .telem { order: 3; }
-  .yours:not(.maxed), .work:not(.maxed), .telem:not(.maxed) { max-height: none; min-height: auto; flex: none; overflow: visible; }
-  .yours:not(.maxed) #list, .work:not(.maxed) .tiles, .telem:not(.maxed) .tiles { overflow: visible; }
-  .work:not(.maxed) .tiles, .telem:not(.maxed) .tiles { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
-  .yours:not(.maxed) #list { min-height: 0; }
-  .side.tight { gap: normal; } .side.tight .yours:not(.maxed) .foot:not([hidden]) { display: flex; } .side.tight #telem > :first-child { margin-top: 16px; }
-  .telem:not(.maxed).cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: none; mask-image: none; }
-  .drawer.open, .drawer.wide { width: 100%; }
+  .cols { overflow: visible; }
+  .telem:not(.maxed) { min-height: auto; }
+  .telem:not(.maxed).cut { -webkit-mask-image: none; mask-image: none; }
   .disp .hrs { flex-basis: 100%; order: 1; } .disp .hrs input { width: 100%; max-width: 26ch; }
 }
 /* the font shorthand resets tabular figures: mono and figure rules set them again */
@@ -706,17 +642,13 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
     <nav class="band panel" id="band" data-maxable="band" aria-label="Where every card is in the pipeline" data-i-aria="band.aria" hidden><h1 class="g" data-i="band.h">Lifecycle</h1><div class="lhead"><label class="mvonly"><span class="sw sand"><input type="checkbox" id="mvonly" aria-label="Only what I can move" data-i-aria="band.only"><i></i></span><span data-i="band.only">Only what I can move</span></label><p class="empty" id="lempty" data-i="band.only.none" hidden>Nothing for you to move right now.</p><p class="lstat" id="lstat" role="status"></p></div><button class="max fold" data-show="band" aria-controls="cells" aria-expanded="true" aria-label="Minimize the lifecycle" title="Minimize" data-i-aria="panel.band.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="cells" id="cells" role="group" aria-label="The belt" data-i-aria="belt.aria"></div><div class="lanes" id="lanes"></div><div class="itoast ltoast" id="ltoast" role="status" hidden></div><p class="pnote" id="lnote" role="status"></p>
 </nav>
     <div class="cols" id="cols" hidden>
-      <div class="side">
-        <section class="yours panel" data-maxable="yours" aria-labelledby="hy"><h1 class="g" id="hy"></h1><ul id="list"></ul>
-          <div class="inbox" id="inbox"><nav class="ique" id="iq" aria-label="What waits for you, the oldest first" data-i-aria="inbox.queue"></nav><article class="iread" id="ir"></article>
-            <aside class="idec" aria-label="Your decision" data-i-aria="decide.h"><h2 class="g" data-i="decide.h">Your decision</h2><div id="io"></div>
-              <div class="iconf" id="ic" hidden><textarea id="inote" aria-label="Your note" data-i-aria="inbox.note"></textarea><button class="btn approve" id="igo"></button><p class="ihint" id="ihint"></p></div>
-              <div class="itoast" id="itoast" role="status" hidden><span id="imsg"></span><button id="iundo" data-i="act.undo">Undo</button></div><p class="pnote" id="ierr" role="status"></p></aside></div>
-          <p class="foot cap"><span class="keys-list"><span><kbd>N</kbd><span data-i="keys.next">next</span></span><span><kbd>A</kbd><span data-i="keys.approve">approve</span></span><span><kbd>R</kbd><span data-i="keys.review">review</span></span><span><kbd>L</kbd><span data-i="keys.log">log</span></span></span><span class="keys-inbox"><span><kbd>1–9</kbd><span data-i="keys.choose">choose</span></span><span><kbd>Esc</kbd><span data-i="keys.close">close</span></span></span></p></section>
-        <section class="telem panel" id="history" data-maxable="history" aria-labelledby="ht" hidden><h1 class="g" id="ht"><span data-i="hist.h">History</span> <span class="hper" id="hper" aria-live="polite"></span></h1><button class="max fold" data-show="history" aria-controls="telem" aria-expanded="true" aria-label="Minimize the history" title="Minimize" data-i-aria="panel.history.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="hctl" id="hctl"></div><div class="hcus" id="hcus" hidden></div><p class="bad hbad" id="hbad" role="status"></p><div id="telem"></div></section>
+      <div class="wk-wrap">
+        <section class="wk panel" id="work" role="region" aria-label="The work area" data-i-aria="work.aria"><div class="wk-swap" id="wk-swap"></div></section>
+        <div class="wk-ghost" id="wk-ghost" aria-hidden="true" hidden></div>
+        <p class="sr" id="wk-status" role="status" aria-live="polite"></p>
+        <p class="foot cap" id="wk-keys" data-i="work.keys" hidden></p>
       </div>
-      <section class="work panel" data-maxable="work" aria-labelledby="hw"><h1 class="g" id="hw"></h1><div class="tiles" id="tiles"></div>
-        <p class="cap" id="wfoot" style="padding-top:12px;margin:auto 0 0" title="The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card." data-i-title="work.foot.title"></p></section>
+        <section class="telem panel" id="history" data-maxable="history" aria-labelledby="ht" hidden><h1 class="g" id="ht"><span data-i="hist.h">History</span> <span class="hper" id="hper" aria-live="polite"></span></h1><button class="max fold" data-show="history" aria-controls="telem" aria-expanded="true" aria-label="Minimize the history" title="Minimize" data-i-aria="panel.history.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="hctl" id="hctl"></div><div class="hcus" id="hcus" hidden></div><p class="bad hbad" id="hbad" role="status"></p><div id="telem"></div></section>
     </div>
   </section>
   <section class="feed panel" id="feed" aria-label="Feed" data-i-aria="nav.feed" tabindex="0" hidden></section>
@@ -729,10 +661,8 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
   </section>
   <aside class="drawer" id="drawer" role="dialog" aria-modal="false" aria-labelledby="tip-title" inert>
     <div id="d-head"></div>
-    <div id="d-decide"></div>
     <nav class="tabs" id="d-tabs" role="tablist" aria-label="Card sections" data-i-aria="drawer.tabs"></nav>
     <div class="pane" id="pane" role="tabpanel"></div>
-    <button class="max" id="d-max" data-dmax aria-label="Maximize or restore the card" title="Maximize" data-i-aria="drawer.max" data-i-title="btn.maximize"></button>
     <button class="close" id="d-close" data-close data-i="drawer.close">Close</button>
   </aside>
   <div id="dim" hidden></div>
@@ -782,11 +712,10 @@ const OK_OUTCOMES = new Set(["ok", "done", "pass", "passed", "success", "merged"
 const BAD_OUTCOMES = new Set(["fail", "failed", "error", "blocked"]);
 const token = new URLSearchParams(location.search).get("t") || "";
 const S = { view: "board", overview: null, project: null, open: null, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "", refused: false,
-  expanded: {}, briefOpen: {}, review: {}, notice: {}, armed: null, busy: false, pending: {}, editing: null, note: {}, seen: {}, resuming: null, resumeErr: null,
+  expanded: {}, briefOpen: {}, review: {}, notice: {}, armed: null, pending: {}, note: {}, work: { key: null, skipped: new Set() }, resuming: null, resumeErr: null,
   show: { band: true, history: true } };  // what the owner left open on the Factory view: in memory only, open at every load
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const sel = (key) => `[data-open="${CSS.escape(key)}"]`;
 
 // Every region is rewritten only when its markup changed, so polling keeps focus, scroll and typed text.
 // review marks wait here (one per dashboard, for the card they were made on) until the debounce fires or the iframe goes away
@@ -838,7 +767,8 @@ function staticText(root = document) {
 }
 // the server's own sentences: a refusal carries, beside its English, the key and values of each reason it gives
 const told = (body, key, v) => body?.errors?.length ? body.errors.map((e) => e.key && !e.text ? t(e.key, e.params) : e.text || "").join("; ") : body?.error || t(key, v);
-function tick(root = document) { root.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }); root.querySelectorAll("[data-dur]").forEach((el) => { el.textContent = dur(el.dataset.dur, new Date()); }); }
+function tick(root = document) { root.querySelectorAll("[data-since]").forEach((el) => { el.textContent = elapsed(el.dataset.since); }); root.querySelectorAll("[data-dur]").forEach((el) => { el.textContent = dur(el.dataset.dur, new Date()); });
+  root.querySelectorAll("[data-waits]").forEach((el) => { el.textContent = t("work.wait", { t: waitFor(el.dataset.waits) }); }); }
 
 async function api(path, opts = {}) {
   if (S.refused) return { status: 403, body: {} };
@@ -899,7 +829,6 @@ function elapsed(since) {
   if (s < 3600) return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
   return t("clock.hm", { h: Math.floor(s / 3600), mm: pad(Math.floor((s % 3600) / 60)) });
 }
-function ago(s) { if (s == null) return t("board.none"); if (s < 90) return t("board.read_s", { s }); return t("board.read_min", { m: Math.round(s / 60) }); }
 const model = (m) => (m || "").replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, " $1.$2");
 
 /* overview */
@@ -1020,13 +949,9 @@ function renderBoard() {
   const p = project();
   $("cols").hidden = !p; $("band").hidden = $("history").hidden = !p; $("msg").hidden = !!p; $("msg").removeAttribute("role");  // the line follows #cols; the band and History fold where they sit (show)
   if (!p) { if (S.overview) setHTML($("msg"), t("projects.none")); return; }
-  const key = (c) => `${p.slug}/${c.issue}`, by = Object.fromEntries(COLS.map((c) => [c.name, []])), now = Date.now();
-  for (const c of p.cards) {
-    (by[c.column] ||= []).push(c);
-    const sig = `${c.column}|${c.running || ""}`, k = key(c);  // a card that changed column or stage since the last read is fresh for a while
-    if (!S.seen[k]) S.seen[k] = { sig, at: 0 }; else if (S.seen[k].sig !== sig) S.seen[k] = { sig, at: now };
-  }
-  renderBelt(p, by, key); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p);
+  const key = (c) => `${p.slug}/${c.issue}`, by = Object.fromEntries(COLS.map((c) => [c.name, []]));
+  for (const c of p.cards) (by[c.column] ||= []).push(c);
+  renderBelt(p, by, key); renderWork(); renderTelem(p);
 }
 // The fold button inside a panel minimizes it to its heading, or opens it again, where it sits. Focus stays on the button.
 function show(which, on) {
@@ -1065,8 +990,7 @@ function renderBelt(p, by, key) {
       const state = done ? (today(c) ? t("belt.state.done") : "") : kind === "run" ? (step ? t("belt.state.running_step", { i: step.i, n: of }) : t("belt.state.running"))
         : kind === "you" ? t("belt.state.waits") : kind === "stop" ? t("belt.state.blocked") : kind === "infra" ? t("belt.state.infra") : t("belt.state.queued");
       const head = `#${c.issue}${c.title ? ` ${c.title}` : ""}`, ek = esc(k);
-      const go = OWNER[c.column] ? ' data-go="review"' : ` data-full="${ek}"${c.running ? ' data-go="live"' : ""}`;  // today's routing: the owner's cards open the wide drawer on Review, a running one maximized on Live
-      return `<li><button class="tok ${KIND_CLASS[kind]}${S.open === k ? " open" : ""}" data-key="${ek}" data-open="${ek}"${go} tabindex="${k === tab ? 0 : -1}" aria-label="${esc([head, name, state].filter(Boolean).join(", "))}" title="${esc(head + (step ? ` · ${t("belt.step", { i: step.i, n: of })}` : ""))}"><b class="n">#${c.issue}</b>${kind === "run" ? `<i class="bar" style="width:${progress(p, c).toFixed(1)}%"></i>` : ""}</button></li>`;
+      return `<li><button class="tok ${KIND_CLASS[kind]}${S.work.key === k ? " open" : ""}" data-key="${ek}" data-pick="${ek}" tabindex="${k === tab ? 0 : -1}" aria-label="${esc([head, name, state].filter(Boolean).join(", "))}" title="${esc(head + (step ? ` · ${t("belt.step", { i: step.i, n: of })}` : ""))}"><b class="n">#${c.issue}</b>${kind === "run" ? `<i class="bar" style="width:${progress(p, c).toFixed(1)}%"></i>` : ""}</button></li>`;
     }).join("");
     const free = col.stage ? `<li class="tok ghost" aria-hidden="true">${t("belt.free")}</li>`.repeat(Math.max(0, st.slots - st.running)) : "";
     return `<div class="seg ${done ? "done" : gate ? "gate" : col.stage ? "stage" : "queue"}"><div class="shead"><b class="sname" id="bn-${i}">${esc(name)}</b><span class="smeta${(gate || done) && cs.length ? " on" : ""}" id="bm-${i}">${esc(meta)}</span></div><ul class="stoks" role="list" aria-labelledby="bn-${i} bm-${i}">${toks}${free}</ul></div>`;
@@ -1264,12 +1188,19 @@ function letGo(quiet) {
   L.status = quiet ? "" : t("hold.let_go", { n: h.n });
   renderBoard(); paintHold(); focusChip(h.key);
 }
-// A drop on a column that takes the card: at once (5 s to undo), the note box first, or the drawer's confirmation (#50).
+// The lanes' Approve asks the work area's question: with doubt (or a review page never seen) the card is shown in Decide and nothing is sent.
+function lookFirst(k, doubt) {
+  if (maxed()) maximize(maxed(), false);
+  S.work.key = k; S.unseen = doubt ? null : k; S.armed = doubt ? k : null; clearTimeout(S.armTimer);
+  if (doubt) S.armTimer = setTimeout(() => { if (S.armed === k) { S.armed = null; renderWork(); } }, 4000);
+  renderBoard();
+}
+// A drop on a column that takes the card: at once (5 s to undo), the note box first, or the work area's confirmation (#50).
 function drop(to) {
   const h = L.hold, t = h && targets(h).find((x) => x.to === to); if (!t) return letGo();
   L.hold = null; L.status = "";
   if (t.take) { renderBoard(); return openBox({ key: h.key, from: h.from, to, take: true }); }
-  if (!t.note && OWNER[h.from]?.[0] === to) {  // an approval asks the drawer's question, as the list's Approve does
+  if (!t.note && OWNER[h.from]?.[0] === to) {  // an approval asks the work area's question, as its Approve does
     const r = S.review[h.key], doubt = reviewDoubt(r), unseen = !r && cardOf(h.slug, h.n)?.review;
     if (doubt || unseen) { renderBoard(); return lookFirst(h.key, doubt); }
   }
@@ -1414,167 +1345,18 @@ document.addEventListener("drop", (e) => {
   letGo(true);  // on its own place: nothing to say
 });
 document.addEventListener("dragend", () => { if (L.hold?.via === "drag") { endDrag(); letGo(); } });
-// Fits the column below the line. The list keeps its first two cards whole (--two), Yours keeps room for them (--ymin) and History
-// gives way, scrolling inside itself. .tight compacts the column only when History is open and even that does not fit; the call
-// decides from the measure with .tight off, so it does not flip between refreshes. It never scrolls and never moves focus.
+// History fades its last 24px through a mask while it has more to scroll to. It never scrolls and never moves focus.
 function fit() {
-  const l = $("list"), t = $("history"), w = $("tiles"), side = document.querySelector(".side"), yours = document.querySelector(".yours");
-  side.classList.remove("tight");
-  const ps = [...l.querySelectorAll(".pass")], mark = ps.length > 1 ? ps[1] : ps[0];
-  const two = mark ? Math.ceil(mark.getBoundingClientRect().bottom - l.getBoundingClientRect().top + l.scrollTop) : 0;
-  l.style.setProperty("--two", two ? `${two}px` : "0px");
-  const foot = yours.querySelector(".foot"), footH = foot.offsetHeight;
-  const chrome = Math.ceil(l.getBoundingClientRect().top - yours.getBoundingClientRect().top + parseFloat(getComputedStyle(yours).paddingBottom));
-  const narrow = matchMedia("(max-width: 1180px)").matches;
-  const tight = !narrow && S.show.history && !maxed() && side.clientHeight > 0 && side.clientHeight <chrome + footH + two + 20 + (parseFloat(getComputedStyle(t).minHeight) || 100);
-  side.classList.toggle("tight", tight);
-  yours.style.setProperty("--ymin", `${chrome + (tight ? 0 : footH) + two}px`);
-  for (const el of [l, t, w]) el.classList.toggle("cut", el.scrollHeight - el.scrollTop - el.clientHeight > 8);
+  const h = $("history");
+  h.classList.toggle("cut", h.scrollHeight - h.scrollTop - h.clientHeight > 8);
 }
-function renderYours() {
-  const w = waiting();
-  $("hy").textContent = w.length ? t("yours.h", { n: w.length }) : t("yours.none");
-  const text = $("qc")?.value, at = document.activeElement, held = at?.closest?.(".pass")?.dataset.key, onText = at?.id === "qc";
-  const html = w.length ? w.map(passHtml).join("") : "";  // nothing waits: the heading says so and the panel is that line alone
-  document.querySelector(".yours .foot").hidden = !w.length;
-  if (setHTML($("list"), html)) {
-    if ($("qc") && text != null) $("qc").value = text;
-    if (held) (onText ? $("qc") : document.querySelector(`.pass[data-key="${CSS.escape(held)}"] .ptitle`))?.focus({ preventScroll: true });
-  }
-  fit();
-  if (inboxOn()) renderInbox();
-}
-// What waits for you, maximized: a decision inbox. The queue (the oldest wait first), what to read to decide the
-// card in focus, and the decision as options that each say when to choose them and what happens next.
-const INB = { cur: null, pick: null, data: {}, gone: {}, hold: null, loading: null, err: "" };
-const inboxOn = () => document.querySelector(".yours").classList.contains("maxed");
-const isCost = (key) => INB.data[key]?.block?.kind === "cost";  // a block by the cost limit: known once the card's reading has loaded
-const inboxCards = () => waiting().filter((c) => !(Date.now() - INB.gone[c.key] < 30000));
-const asks = (c) => t(c.blocked === "owner" ? "ask.blocked" : c.column === "Spec Review" ? "ask.spec" : "ask.ship");
-function room(slug, column) {  // what awaits a card that moves to a factory column
-  const st = STAGE_OF[column], s = S.overview.pool.stages[st]; if (!s) return "";
-  const q = (S.overview.projects.find((p) => p.slug === slug)?.cards || []).filter((c) => c.column === column && !c.running).length;
-  return " " + (s.running < s.slots ? t("room.free", { stage: stageName(st) }) : t(q ? "room.full_queued" : "room.full", { stage: stageName(st), i: s.running, n: s.slots, q }));
-}
-function optionsFor(c, d) {
-  const [slug] = c.key.split("/"), b = d?.block, stage = b?.stage ? stageName(b.stage) : STAGE_OF[c.column] ? stageName(STAGE_OF[c.column]) : t("opt.the_stage"), [yes, no] = OWNER[c.column] || [];
-  const to = { column: colName(yes) }, back = { column: colName(no) };
-  if (c.blocked === "owner") return [
-    b?.gate === "acceptance-intact" && { id: "accept", t: t("opt.accept"), when: t("opt.accept.when"), then: t("opt.accept.then", { stage }), verb: t("opt.accept.verb"), note: t("opt.accept.note"), need: true, done: t("opt.accept.done") },
-    { id: "send-back", t: t("opt.rework"), when: t("opt.rework.when"), then: t(c.column === "Coding" ? "opt.rework.stays" : "opt.rework.back") + room(slug, "Coding"), verb: t("act.send_back"), note: t("opt.rework.note"), need: true, done: t("opt.rework.done") },
-    { id: "unblock", t: t("opt.retry"), when: t("opt.retry.when"), then: t("opt.retry.then", { stage }), caveat: b?.times > 1 ? t("opt.retry.caveat", { n: b.times }) : "", verb: t("opt.retry.verb"), done: t("opt.retry.done") }].filter(Boolean);
-  return c.column === "Spec Review" ? [
-    { id: "approve", t: t("act.approve"), when: t("opt.approve_spec.when"), then: t("opt.goes_to", to) + room(slug, yes), verb: t("act.approve"), note: d?.spec?.questions?.length ? t("opt.answer") : "", done: t("opt.done_to", to) },
-    { id: "request-changes", t: t("act.changes"), when: t("opt.changes_spec.when"), then: t("opt.back_note", back) + room(slug, no), verb: t("act.changes"), note: t("note.spec"), need: true, done: t("opt.done_back", back) }]
-  : [{ id: "approve", t: t("act.approve"), when: t("opt.approve_pr.when"), then: t("opt.goes_to", to) + room(slug, yes), verb: t("act.approve"), done: t("opt.done_to", to) },
-    { id: "request-changes", t: t("act.changes"), when: t("opt.changes_pr.when"), then: t("opt.back_note_pr", back) + room(slug, no), verb: t("act.changes"), note: t("note.change"), need: true, done: t("opt.done_back", back) }];
-}
-function diffHtml(src) {  // only the lines that changed, under the file they are in
-  const rows = [];
-  for (const l of src.split("\n")) {
-    if (l.startsWith("diff --git")) rows.push(`<div class="f">${esc(l.split(" b/").pop())}</div>`);
-    else if (/^(---|\+\+\+)/.test(l)) continue;
-    else if (l[0] === "+") rows.push(`<div class="p">${esc(l)}</div>`);
-    else if (l[0] === "-") rows.push(`<div class="m">${esc(l)}</div>`);
-  }
-  return rows.length > 90 ? rows.slice(0, 90).join("") + `<div class="f">${t("diff.more", { n: rows.length - 90 })}</div>` : rows.join("");
-}
-const costLine = (b) => t(b.baseline > 0 ? "cost.spent_unblocked" : "cost.spent_inbox", { spent: usd(b.total), limit: usd(b.limit) });
-// Why a card was blocked by the cost limit: one sentence, the spend per stage of the span that was counted, and, when
-// earlier allowances exist, what the card cost in all.
-function costWhy(b) {
-  const order = STAGES, at = (st) => order.includes(st) ? order.indexOf(st) : order.length;
-  const rows = Object.entries(b.stages || {}).sort((x, y) => at(x[0]) - at(y[0]));
-  const sentence = costLine(b);
-  const table = rows.length ? `<div class="swrap"><table><thead><tr><th class="l">${t("th.stage")}</th><th class="num">${t("th.est_cost")}</th></tr></thead><tbody>${rows.map(([st, v]) =>
-    `<tr><td class="l">${esc(stageName(st))}</td><td class="num gold"><span class="coin">${usd(v)}</span></td></tr>`).join("")}<tr class="total"><td class="l">${t("th.total")}</td><td class="num gold"><span class="coin">${usd(b.total)}</span></td></tr></tbody></table></div>` : "";
-  return `<p class="plain">${sentence}</p>${table}${b.baseline > 0 && b.card_total != null ? `<p class="since">${t("cost.since_inbox", { spent: usd(b.card_total) })}</p>` : ""}`;
-}
-// The question first, then only what answers it. A block is told in order: where the run stopped, why, what
-// changed, what the factory already tried.
-function readHtml(c, d) {
-  const tag = (text, k = "") => text ? `<span class="tag ${k}">${text}</span>` : "", sec = (h, body, cls = "body") => body ? `<div class="isec"><h3>${h}</h3><div class="${cls}">${body}</div></div>` : "";
-  const stop = c.blocked === "owner", b = d?.block, s = d?.spec, pr = d?.pr, k = esc(c.key), cost = tag(c.cost ? t("cost.so_far", { spent: usd(c.cost) }) : ""), cb = stop && b?.kind === "cost";
-  const blocked = c.since ? t("fact.blocked_ago", { ago: dur(c.since, new Date()) }) : t("fact.blocked");
-  const facts = cb ? tag(blocked, "bad") + tag(t("fact.cost_limit"), "bad") + cost
-    : stop ? tag(blocked, "bad") + tag(b?.stage ? esc(stageName(b.stage)) : "") + tag(b?.times > 1 ? t("fact.stopped", { n: b.times }) : "", "warn") + tag(b?.gate ? t("fact.gate", { gate: esc(b.gate) }) : "", "bad") + cost
-    : c.column === "Spec Review" ? tag(s ? t("fact.criteria", { n: s.criteria.length }) : "") + tag(s?.questions.length ? t("fact.questions", { n: s.questions.length }) : "", "warn") + cost
-    : tag(pr ? t("fact.ci", { ci: esc(pr.ci) }) : "", pr?.ci === "green" ? "ok" : pr?.ci === "failed" ? "bad" : "warn") + tag(pr ? t("fact.pr", { pr: pr.number, files: pr.files, add: pr.additions, del: pr.deletions }) : "") + cost;
-  const head = `<div><p class="iq-k">${t(cb ? "read.cost" : stop ? "read.blocked" : c.column === "Spec Review" ? "read.spec" : "read.ship")}</p>
-    <h2>${c.title ? esc(c.title) : UNTITLED}</h2><div class="ifacts">${facts}<button class="lnk" data-open="${k}"${stop ? "" : ' data-go="review"'}>${t("read.open")}</button></div></div>`;
-  if (!d) return head + '<div class="skeleton" style="margin-inline:0"></div><div class="skeleton" style="margin-inline:0;width:70%"></div>';
-  const criteria = sec(stop ? "" : t(c.column === "Spec Review" ? "read.true_when" : "read.criteria"), s?.criteria.length ? `<ol class="iacs">${s.criteria.map((x) => `<li><b>${esc(x.id)}</b><span>${esc(x.text)}</span></li>`).join("")}</ol>` : "");
-  if (cb) return head + sec(t("read.why"), costWhy(b), "body");
-  if (stop) return head + (b ? sec(t("read.where"), b.steps.length && b.step ? `<ol class="iwhere">${b.steps.map((x, i) => `<li class="${x.k < b.step ? "ok" : x.k === b.step ? "fail" : ""}"><b>${x.k === b.step ? t("read.stopped_here") : i + 1}</b>${esc(stepName(x.label))}</li>`).join("")}</ol>` : "")
-    + sec(t("read.why"), b.why ? mdLite(b.why) : "", "plain") + sec(t("read.diff"), b.diff ? `<div class="idiff">${diffHtml(b.diff)}</div>` : "")
-    + sec(t("read.tried"), b.tried ? mdLite(b.tried) : "") : "") + (b?.why ? "" : `<p class="empty">${t("read.no_note")}</p>`);
-  const ask = s?.questions.length ? `<div class="iask"><span class="cap">${t("read.asks")}</span>${s.questions.map((q) => `<p>${esc(q)}</p>`).join("")}</div>` : "";
-  if (c.column === "Spec Review") return head + (s ? ask + sec(t("read.problem"), esc(s.problem), "plain") + criteria : `<p class="empty">${t("read.no_page")}</p>`);
-  const gates = c.column === "Staged" && !c.review ? sec(t("read.gates"), d.report?.gates && Object.keys(d.report.gates).length ? `<div class="gate-list">${gateChips(d.report)}</div>` : "") : "";  // the review page is where the gates would show
-  return head + gates + sec(t("read.validation"), d.report?.notes ? mdLite(d.report.notes) : "") + criteria
-    + (pr || d.report || s || c.cost ? "" : `<p class="empty">${t("read.nothing")} <button class="lnk" data-open="${k}" data-go="log">${t("read.open_log")}</button></p>`);
-}
+// The reading of a block (the amend gate's diff) is asked for once and kept here.
+const INB = { data: {}, loading: null };
 async function loadDecide(key) {
   if (INB.loading === key) return; INB.loading = key; const [p, n] = key.split("/");
   const { status, body } = await api(`/api/decide/${encodeURIComponent(p)}/${n}`); INB.loading = null;
   INB.data[key] = status === 200 ? { ...body, at: Date.now() } : { at: Date.now() };
-  if (inboxOn()) renderInbox();
-  if (S.open === key && S.card) renderDrawer();  // the block note of an open card waits for the reading
-}
-function renderInbox() {
-  const w = inboxCards();
-  if (!w.some((c) => c.key === INB.cur)) { INB.cur = w[0]?.key || null; INB.pick = null; }
-  const c = w.find((x) => x.key === INB.cur), d = c && INB.data[c.key];
-  setHTML($("iq"), w.map((x) => { const stop = x.blocked === "owner";
-    return `<button class="${stop ? "stop" : ""}" data-iq="${esc(x.key)}" aria-current="${x.key === INB.cur}"><span class="row"><span class="g pnum">#${x.issue}</span><span class="cap${stop ? " bad" : ""}">${stop ? t(isCost(x.key) ? "q.blocked_cost" : "q.blocked") : esc(colName(x.column))}${x.since ? ` · ${dur(x.since, new Date())}` : ""}</span></span><p>${x.title ? esc(x.title) : UNTITLED}</p><p class="ask">${asks(x)}</p></button>`; }).join(""));
-  $("itoast").hidden = !INB.hold; if (INB.hold) $("imsg").textContent = t("inbox.soon", { n: INB.hold.key.split("/")[1], done: INB.hold.o.done });
-  $("ierr").textContent = INB.err;
-  if (!c) { setHTML($("ir"), `<p class="empty">${t("inbox.none")}</p>`); setHTML($("io"), ""); $("ic").hidden = true; return; }
-  if (!d || Date.now() - d.at > 60000) loadDecide(c.key);
-  setHTML($("ir"), readHtml(c, d));
-  const opts = optionsFor(c, d), o = opts[INB.pick];
-  setHTML($("io"), opts.map((x, i) => `<button class="iopt" data-io="${i}" aria-pressed="${INB.pick === i}" aria-labelledby="io-t${i}" aria-describedby="io-w${i} io-n${i}"><span class="t"><span id="io-t${i}">${x.t}</span><kbd>${i + 1}</kbd></span><p class="when" id="io-w${i}">${x.when}</p><p class="then" id="io-n${i}">${esc(x.then)}${x.caveat ? ` <span class="caveat">${esc(x.caveat)}</span>` : ""}</p></button>`).join("") + (c.blocked === "owner" && d?.block?.kind === "cost" && d.block.limit > 0 ? `<p class="ihint cost">${t("inbox.unblock_cost", { limit: usd(d.block.limit) })}</p>` : ""));
-  $("ic").hidden = !o; if (!o) return;
-  $("inote").hidden = !o.note; $("inote").placeholder = o.note || ""; $("igo").textContent = o.verb;
-  const need = o.need && !$("inote").value.trim();
-  $("igo").disabled = need; $("ihint").textContent = t(need ? "hint.note_first" : "hint.undo");
-}
-// A decision waits five seconds, so a wrong click can be undone; the next card opens meanwhile.
-function inboxConfirm() {
-  const c = inboxCards().find((x) => x.key === INB.cur), o = c && optionsFor(c, INB.data[c.key])[INB.pick]; if (!o) return;
-  const text = $("inote").value.trim(); if (o.need && !text) return $("inote").focus();
-  if (INB.hold) inboxFlush();
-  INB.hold = { key: c.key, o, text, column: c.column, timer: setTimeout(inboxFlush, 5000) };
-  INB.gone[c.key] = Date.now(); INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox();
-}
-async function inboxFlush(keep) {
-  const h = INB.hold; if (!h) return; clearTimeout(h.timer); INB.hold = null; const [p, n] = h.key.split("/");
-  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${h.o.id}`, { method: "POST", keepalive: keep === true, body: JSON.stringify({ column: h.column, text: h.text, move_only: false }) });
-  if (status === 200) { if (body.moved_to) S.moving[h.key] = body.moved_to; delete INB.data[h.key]; loadOverview(); }
-  else { delete INB.gone[h.key]; INB.cur = h.key; INB.err = `#${n}: ${told(body, "decision.failed")}`; }
-
-  if (inboxOn()) renderInbox();
-}
-function inboxUndo() { const h = INB.hold; if (!h) return; clearTimeout(h.timer); INB.hold = null; delete INB.gone[h.key]; INB.cur = h.key; renderInbox(); }
-// One pass per card that waits: Spec Review leads to the review, Staged approves with a moment to undo.
-function passHtml(c) {
-  const k = esc(c.key), [slug] = c.key.split("/"), pend = S.pending[c.key], stop = c.blocked === "owner", moves = OWNER[c.column];
-  const head = (meta) => `<div class="seg"><button class="ptitle" data-open="${k}"><span class="row"><span class="g pnum">#${c.issue}</span>${meta}</span><span class="ptext">${c.title ? esc(c.title) : UNTITLED}</span></button>`;
-  if (pend) return `<li class="pass" data-key="${k}">${head(`<span class="cap">${t("chip.moving", { column: esc(colName(pend.to)) })}</span>`)}<div class="bar"><i></i></div></div><div class="stub"><button class="pill" data-q="undo">${t("act.undo")}</button></div></li>`;
-  const cost = c.cost == null ? " · $ ?" : c.cost ? ` · ${usd(c.cost)}` : "";
-  const verdict = c.verdict === "routine" ? ` · <span class="vd ok">${t("pass.verdict.routine")}</span>`
-    : c.verdict === "look" ? ` · <span class="vd sand">${c.flags > 1 ? t("pass.verdict.n", { n: c.flags }) : t("pass.verdict.one")}</span>` : "";
-  const meta = stop ? `<span class="cap bad">${t(c.block_cost ? "q.blocked_cost" : "pass.blocked")}</span>` : `<span class="cap">${esc(colName(c.column))}${cost}${c.since ? ` · ${dur(c.since, new Date())}` : ""}${verdict}</span>`;
-  const note = S.note[c.key] ? `<p class="pnote" role="status">${esc(S.note[c.key])}</p>` : "";
-  const gate = c.block_line?.match(/^Failed gate: (.*)$/);  // the factory's own words; only the gate's label is the page's
-  const why = !stop ? "" : c.block_cost ? `<p class="pwhy">${costLine(c.block_cost)}</p>`
-    : c.block_line ? `<p class="pwhy" title="${esc(c.block_line)}">${gate ? t("pass.failed_gate", { gate: esc(gate[1]) }) : esc(c.block_line)}</p>` : "";
-  const review = (label, cls) => `<button${cls} data-open="${k}" data-go="review">${label}</button>`, changes = `<button data-q="changes">${t("act.changes")}</button>`, link = gh(slug, c.issue);
-  const acts = stop ? `<button class="pill" data-q="unblock">${t("act.unblock")}</button><button data-open="${k}">${t("pass.details")}</button><button data-open="${k}" data-go="log">${t("act.log")}</button>${link}`
-    : c.column === "Spec Review" ? `${review(t("act.review"), ' class="pill"')}${changes}${link}`
-    : `<button class="pill" data-q="approve">${t("act.approve")}</button>${review(t("act.review"), "")}${changes}${link}`;
-  const edit = S.editing === c.key && moves ? `<div class="edit"><label class="cap" for="qc">${t("pass.what_change", { n: c.issue })}</label><textarea id="qc"></textarea><div><button class="pill" aria-describedby="send-to" data-q="send">${t("act.changes")}</button><span class="hint" id="send-to">→ ${esc(colName(moves[1]))}</span><button data-q="cancel">${t("act.cancel")}</button></div></div>` : "";
-  return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${why}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
+  if (W.cur === key) renderWork();  // the block note of the card shown waits for the reading
 }
 // The dependencies still open, by number: the dispatcher's record, as the overview carries it.
 const openDeps = (c) => (c?.deps || []).filter((d) => d.state !== "closed").sort((a, b) => a.n - b.n);
@@ -1593,37 +1375,253 @@ function whyWaits(p, c) {
   if (o.pool.used >= o.pool.size) return t("why.pool", { i: o.pool.used, n: o.pool.size });
   return t("why.queued", { stage: stageName(st) });
 }
-// Every card in the factory's hands: one tile per session at work (its step, what it last said and the last
-// things it did), then the cards that wait for a run.
-function renderWork(p, key, fresh) {
-  const order = ["deploy", "validate", "develop", "refine"], usual = p.typical_s || {};
-  const mine = p.cards.filter((c) => !(key(c) in S.moving));
-  const runs = mine.filter((c) => c.running).sort((a, b) => order.indexOf(a.running) - order.indexOf(b.running));
-  const waits = mine.filter((c) => !c.running && STAGE_OF[c.column] && c.blocked !== "owner").sort((a, b) => order.indexOf(STAGE_OF[a.column]) - order.indexOf(STAGE_OF[b.column]));
-  setHTML($("hw"), `${t("work.h", { n: runs.length + waits.length })}<small>${t("work.sub", { run: runs.length, wait: waits.length })}</small>`);
-  const rel = (iso) => { const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000)); return s < 90 ? t("dur.s", { s }) : s < 5400 ? t("dur.m", { m: Math.round(s / 60) }) : t("dur.h", { h: Math.round(s / 3600) }); };
-  const tiles = runs.map((c) => {
-    const k = esc(key(c)), run = runOf(p.slug, c), of = STEP_COUNT[c.running], step = run?.step, acts = run?.activity || [];
-    const long = run?.started && usual[c.running] && (Date.now() - new Date(run.started)) / 1000 > 2 * usual[c.running];
-    const bar = of ? `<ol class="steps" aria-hidden="true">${Array.from({ length: of }, (_, i) => `<li class="${step ? (i + 1 < step.i ? "done" : i + 1 === step.i ? "now" : "") : ""}"></li>`).join("")}</ol>` : "";
-    const line = step ? `<b>${t("tile.step", { i: step.i, n: of })}</b> · ${esc(stepName(step.label))} · ${t("tile.in_step", { m: mins(step.since) })}${step.i === of ? ` · ${t("tile.finishing")}` : ""}` : t(of ? "tile.no_step" : "tile.no_steps");
-    const says = [...acts].reverse().find((a) => a.kind === "says");
-    const did = acts.filter((a) => a.kind !== "says").slice(-3).map((a) => `<li><time>${a.ts ? rel(a.ts) : ""}</time><b>${esc(a.kind)}</b> ${esc(a.text)}</li>`).join("");
-    return `<article class="tile${fresh(c) ? " ch" : ""}" data-key="${k}" data-open="${k}" data-full="${k}" data-go="live"><button class="max" data-full="${k}" data-go="live" aria-label="${ta("tile.max", { n: c.issue })}" title="${ta("tile.max.title")}">${MAX}</button>
-      <div class="thead"><b class="g tnum">#${c.issue}</b><span class="cap">${esc(stageName(c.running))}</span>${clock(run?.started, true)}<span class="tcost">${money(c.cost)}</span>${flag(c)}</div>
-      <h3 class="ttitle">${c.title ? esc(c.title) : UNTITLED}</h3>${bar}
-      <p class="stepline">${line}${long ? ` · <span class="slow" title="${ta("tile.long.title", { m: Math.max(1, Math.round(usual[c.running] / 60)) })}">${t("tile.long")}</span>` : ""}</p>
-      ${says ? `<p class="says">${esc(says.text)}</p>` : ""}${did ? `<ul class="did">${did}</ul>` : ""}
-      <div class="tfoot cap"><button class="lnk cap" data-open="${k}" data-full="${k}" data-go="log">${t("act.log")}</button>${gh(p.slug, c.issue)}</div></article>`;
-  });
-  const idle = waits.map((c) => { const k = esc(key(c));
-    const kind = kindOf(key(c), c);
-    return `<article class="tile wait${kind === "infra" ? " infra" : kind === "you" ? " you" : ""}${fresh(c) ? " ch" : ""}" data-key="${k}" data-open="${k}" data-full="${k}"><div class="thead"><span class="ring" aria-hidden="true"></span><b class="g tnum">#${c.issue}</b><span class="cap">${esc(colName(c.column))}</span>${c.cost == null || c.cost > 0 ? `<span class="tcost">${money(c.cost)}</span>` : ""}${flag(c)}</div>
-      <h3 class="ttitle">${c.title ? esc(c.title) : UNTITLED}</h3><p class="why">${esc(whyWaits(p, c))}</p></article>`; });
-  const group = (name, list) => list.length ? `<p class="grp cap">${name}</p>${list.join("")}` : "";
-  setHTML($("tiles"), group(t("work.running"), tiles) + group(t("work.waiting"), idle) || `<p class="empty">${t("work.none")}</p>`);
-  $("wfoot").textContent = `${t("work.foot")} · ${ago(p.board_age_s)}${p.paused ? ` · ${t("work.paused")}` : ""}`;
-  fit();
+// The work area (#182): below the belt, one panel for one thing at a time. Decide shows the oldest card that waits for the owner
+// (or the one picked on the belt) and settles it in place; Run shows a card that runs; Card, any other; Calm, when nothing waits,
+// what comes next. The queue and "Skip for now" are this page's memory (S.work) and are never stored: the board is the only truth.
+const W = { cur: null, shown: null, card: {}, at: {}, loading: {}, decided: 0, hold: null, flight: null, req: null, notes: {}, hint: {}, msg: null, moved: false, tool: {} };
+const WSTEPS = { refine: ["Pick the card", "Worktree", "Product Owner", "UX/UI and architecture", "Cybersec", "Publish for review", "Report"],
+  develop: ["Pick the card", "Plan", "Acceptance tests", "Implementation", "Last gates", "Hand over to validation", "Report"], validate: ["Pick the card", "Gates", "Review", "Pull request", "Report"] };
+const DEST = { "Spec Review": ["work.to_dev", "work.back_refine"], "Staged": ["work.to_prod", "work.back_develop"] };  // where Approve and Request changes send a card, in words
+const GATE_OF = { refine: { gate: "Spec Review", via: ["refine"] }, develop: { gate: "Staged", via: ["develop", "validate"] }, validate: { gate: "Staged", via: ["validate"] } };
+const waitingCard = (c) => !!OWNER[c.column] && !!c.awaiting;
+// The cards that wait for the owner, the oldest first (a card with no date last); the skipped ones follow, in the order they were skipped.
+function decisionQueue(cards, skipped) {
+  const at = (c) => c.since ? +new Date(c.since) : Infinity, set = skipped || new Set();
+  const own = cards.filter(waitingCard).sort((a, b) => at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0);
+  return [...own.filter((c) => !set.has(c.key)), ...[...set].map((k) => own.find((c) => c.key === k)).filter(Boolean)];
+}
+// card: the card picked on the belt (or null); waits: whether anything waits for the owner
+function workMode({ card, waits }) {
+  if (card) return waitingCard(card) && !card.moving ? "decide" : card.running ? "run" : "card";
+  return waits ? "decide" : "calm";
+}
+// The runs nearest a gate: how many steps a run still has before the card waits for the owner (a card carries `step` when its run reported one).
+function nextGates(cards) {
+  return cards.filter((c) => c.running && GATE_OF[c.running]).map((c) => {
+    const g = GATE_OF[c.running], left = g.via.reduce((n, st, i) => n + (i ? STEP_COUNT[st] : Math.max(0, STEP_COUNT[st] - (c.step?.i || 0))), 0);
+    return { ...c, gate: g.gate, left };
+  }).sort((a, b) => a.left - b.left);
+}
+function waitFor(iso) {
+  const m = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 60000));
+  return m < 60 ? t("dur.min", { m }) : m < 2880 ? t("work.dur_hm", { h: Math.floor(m / 60), m: m % 60 }) : t("dur.dh", { d: Math.floor(m / 1440), h: Math.floor(m % 1440 / 60) });
+}
+function workView() {
+  const p = project(); if (!p) return null;
+  const cards = p.cards.map((c) => { const key = `${p.slug}/${c.issue}`; return { ...c, key, moving: key in S.moving }; });
+  const queue = decisionQueue(cards.filter((c) => !c.moving), S.work.skipped);
+  const sel = S.work.key ? cards.find((c) => c.key === S.work.key) || null : null;
+  if (S.work.key && !sel) S.work.key = null;  // the card left the board
+  const mode = workMode({ card: sel, waits: queue.length });
+  return { p, cards, queue, mode, cur: mode === "decide" ? (sel && waitingCard(sel) && !sel.moving ? sel : queue[0]) : mode === "calm" ? null : sel };
+}
+async function loadWorkCard(key, force) {  // the card's payload (brief, review page, block): read again when it is 15 s old
+  if (W.loading[key] || (!force && Date.now() - (W.at[key] || 0) < (W.card[key] ? 15000 : 4000))) return;
+  W.loading[key] = true; W.at[key] = Date.now(); const [p, n] = key.split("/");
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}`);
+  delete W.loading[key];
+  if (status === 200) { W.card[key] = body; renderWork(); }
+}
+const SKEL = {
+  decide: '<div id="wk-top"></div><div class="wk-body"><div class="wk-read" id="wk-read"></div><aside class="wk-dec" id="wk-dec" aria-labelledby="wk-dh"></aside></div>',
+  run: '<div id="wk-top"></div><div class="wk-body"><div class="wk-read"><div id="wk-steps"></div><div id="wk-tools"></div><div id="wk-sayr"></div></div><aside class="wk-dec wk-side" id="wk-dec"></aside></div>',
+  card: '<div id="wk-top"></div><div class="wk-card" id="wk-card"></div>',
+  calm: '<div id="wk-calm"></div>',
+};
+function renderWork() {
+  if (S.refused) return;
+  const v = workView(); if (!v) return;
+  for (const k of [...S.work.skipped]) if (!v.queue.some((c) => c.key === k)) S.work.skipped.delete(k);
+  if (!v.queue.length && !W.hold && !W.flight) W.decided = 0;
+  W.cur = v.cur?.key || null;
+  const sk = v.cur ? v.cur.key : "calm", changed = W.shown !== null && W.shown !== sk, swap = $("wk-swap");
+  const at = document.activeElement, keep = swap.contains(at) ? at.dataset.f : "";
+  const old = changed && !still.matches ? swap.innerHTML.replace(/<iframe[\s\S]*?<\/iframe>/g, "").replace(/ id="[^"]*"/g, "") : "";  // a copy with no page and no ids
+  ({ decide: paintDecide, run: paintRun, card: paintCard, calm: paintCalm })[v.mode](v);
+  $("wk-keys").hidden = v.mode !== "decide";
+  const box = $("wk-note");  // the note is kept per card; whether Send can go is not part of the markup, so typing never rewrites it
+  if (box) { const want = W.notes[W.cur] || ""; if (box.value !== want) box.value = want; $("wk-send").disabled = !want.trim(); }
+  if (changed) {
+    W.msg = null; slide(old);
+    if (W.moved) {
+      if (v.mode === "decide") $("wk-status").textContent = t("work.announce", { n: v.cur.issue, i: W.decided + 1, k: W.decided + v.queue.length });
+      $("wk-title")?.focus({ preventScroll: true });
+    }
+  } else if (keep) {
+    const now = document.activeElement;
+    if (now === document.body || !swap.contains(now)) {
+      const el = swap.querySelector(`[data-f="${keep}"]`);
+      if (el && !el.disabled) { el.focus({ preventScroll: true }); if (el.id === "wk-note") el.setSelectionRange(el.value.length, el.value.length); }
+    }
+  }
+  W.moved = false; W.shown = sk;
+}
+// The swap: the card that goes fades out to the left in 260 ms over its own copy, the one that comes slides in from the right in 400 ms.
+function slide(old) {
+  if (!old || still.matches) return;
+  const ghost = $("wk-ghost"), end = () => { ghost.hidden = true; ghost.innerHTML = ""; };
+  ghost.innerHTML = old; ghost.inert = true; ghost.hidden = false;
+  ghost.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateX(-24px)" }], { duration: 260, easing: "ease-in", fill: "forwards" }).onfinish = end;
+  setTimeout(end, 320);
+  $("wk-swap").animate([{ opacity: 0, transform: "translateX(24px)" }, { opacity: 1, transform: "none" }], { duration: 400, easing: "cubic-bezier(.2, .8, .2, 1)" });
+}
+function wkHead(c, state, right = "") {
+  return `<div class="wk-head"><div class="wk-id"><b class="wk-n">#${c.issue}</b> <span>${esc(colName(c.column))}</span> ${state}</div> ${right}</div>
+    <h2 class="wk-title" id="wk-title" tabindex="-1">${c.title ? esc(c.title) : UNTITLED}</h2>`;
+}
+// The links of a card: each opens the maximized card view on its tab (data-full); GitHub is the issue. `off`: the card is not read yet.
+const ALL_TABS = ["sessions", "log", "gates"];
+const linkRow = (c, tabs, off) => `<div class="wk-links">${tabs.map((go) => `<button class="lnk" data-full="${esc(c.key)}" data-go="${go}"${off ? " disabled" : ""}>${t(go === "review" ? "work.full" : `tab.${go}`)}</button>`).join("")}${off ? "" : gh(c.key.split("/")[0], c.issue)}</div>`;
+const toastHtml = () => {  // the decision in its five seconds, and after it while it is on its way
+  const h = W.hold || W.flight; if (!h) return "";
+  return `<div class="itoast" role="status"><span>${t(h.action === "approve" ? "work.approving" : "work.sending", { n: h.key.split("/")[1] })}</span>${W.hold ? `<button data-w="undo" data-f="undo">${t("act.undo")}</button>` : ""}</div>`;
+};
+const elseToast = (key) => { const h = W.hold || W.flight; return h && h.key !== key ? toastHtml() : ""; };  // a decision of another card is still undoable
+function paintDecide(v) {
+  const c = v.cur, key = c.key, [slug, n] = key.split("/"), data = W.card[key], i = W.decided + 1, k = W.decided + v.queue.length, next = v.queue.find((x) => x.key !== key);
+  loadWorkCard(key);
+  setHTML($("wk-swap"), SKEL.decide);
+  const dash = Array.from({ length: k }, (_, j) => `<i class="${j < i - 1 ? "ok" : j === i - 1 ? "cur" : ""}"></i>`).join("");
+  setHTML($("wk-top"), elseToast(key) + wkHead(c, c.since ? `<span class="wk-wait" data-waits="${esc(c.since)}"></span>` : "",
+    `<div class="wk-q"><span>${t("work.count", { i, n: k })}</span> <span class="wk-dash" aria-hidden="true">${dash}</span> ${next ? `<span>${t("work.next", { n: next.issue })}</span>` : ""}</div>`));
+  const brief = data?.brief ? briefHTML(data.brief, S.briefOpen[key]).replace(/<button class="btn ghost" data-suggest="\d+"[^>]*>[^<]*<\/button>/g, "") : "";  // the suggestions are in Request changes
+  const frame = `<div class="review wk-frame"><iframe title="${ta("review.frame", { n })}" sandbox="allow-scripts" src="/review/${encodeURIComponent(slug)}/${n}?embed=1&t=${encodeURIComponent(token)}"></iframe></div>`;
+  setHTML($("wk-read"), !data ? "" : brief || (c.review ? frame : noReview(c.column, data)));
+  setHTML($("wk-dec"), decideHtml(v));
+}
+function decideHtml(v) {
+  const c = v.cur, key = c.key, data = W.card[key], dest = DEST[c.column] || [], pr = v.p;
+  const r = S.review[key], doubt = reviewDoubt(r), armed = S.armed === key && !!doubt, mine = (W.hold || W.flight)?.key === key;
+  const saving = S.weightSaving?.key === key, unseen = S.unseen === key && !r, note = S.notice[key];
+  const hint = armed ? t("rv.again") : doubt ? (r.done < r.total ? t("rv.items_left", { n: r.total - r.done }) : t("rv.asks", { n: r.changes.length }))
+    : unseen ? `${t("rv.look_first")} <button class="lnk" data-full="${esc(key)}" data-go="review">${t("work.full")}</button>` : "";
+  const progress = r?.total ? `${t("rv.progress", { i: r.done, n: r.total })}${r.changes.length ? ` · ${t("rv.changes", { n: r.changes.length })}` : ""}` : r ? t("rv.nothing") : data && !data.review ? t("rv.no_page") : "";
+  const flags = (data?.brief?.flags || []).map((f, j) => [f, j]).filter(([f]) => f && typeof f.title === "string" && typeof f.suggestion === "string" && f.suggestion.trim());
+  const request = W.req !== key ? "" : `<div class="wk-req" id="wk-req">${flags.map(([f, j]) => `<button class="btn ghost sug" data-suggest="${j}" title="${ta("brief.use.title")}">${esc(f.title)}</button>`).join("")}${r?.changes.length ? `<button class="btn ghost sug" data-w="fill">${t("rv.use", { n: r.changes.length })}</button>` : ""}
+      <textarea id="wk-note" data-f="note" aria-label="${ta("decide.changes")}" placeholder="${ta("decide.changes.ph")}"></textarea>
+      <button class="btn approve" id="wk-send" data-w="send" data-f="send">${t("work.send")}</button>${W.hint[key] ? `<p class="hint" role="status">${esc(W.hint[key])}</p>` : ""}</div>`;
+  const buttons = mine ? toastHtml() : `<button class="btn approve wk-b${doubt ? " soft" : ""}" id="approve" data-w="approve" data-f="approve" aria-describedby="wk-ahint"${saving ? " disabled" : ""}><span>${armed ? t("rv.approve_with", { doubt }) : t("act.approve")}</span><small>${t(dest[0] || "act.approve")}</small></button>
+    <p class="hint" id="wk-ahint">${hint}</p>
+    <button class="btn wk-b" id="request" data-w="request" data-f="request" aria-expanded="${W.req === key}" aria-controls="wk-req"><span>${t("act.changes")}</span><small>${t(dest[1] || "act.changes")}</small></button>${request}
+    <button class="btn ghost wk-skip" data-w="skip" data-f="skip">${t("work.skip")}</button>${W.msg?.key === key ? `<p class="hint" role="status">${esc(W.msg.text)}</p>` : ""}`;
+  return `<h3 class="g" id="wk-dh">${t("decide.h")}</h3>${progress ? `<p class="hint">${progress}</p>` : ""}
+    ${pr.skipped ? `<p class="stale skipped">${t("decide.skipped", { project: esc(pr.slug), since: when(pr.skipped.since), reason: esc(pr.skipped.reason) })}</p>` : ""}${stale(pr) ? `<p class="stale">${t("decide.stale", { m: Math.round(pr.board_age_s / 60) })}</p>` : ""}
+    ${buttons}${S.note[key] ? `<p class="pnote" role="status">${esc(S.note[key])}</p>` : ""}${weightLine(key, c.column)}${note ? `<p class="notice ${note.cls}" role="status">${note.html}</p>` : ""}${linkRow(c, ["review", ...ALL_TABS])}`;
+}
+// The decision. Approve and Request changes wait five seconds with Undo, then go as the Your list sent them; a page that closes sends at once.
+function approveStart(c) {
+  const key = c.key, r = S.review[key], doubt = reviewDoubt(r), data = W.card[key];
+  if (S.weightSaving?.key === key) return;
+  W.msg = null;
+  if (!doubt && !r && c.review && !data?.brief) {  // the review page is there and the owner has not seen it: nothing is approved
+    S.unseen = key; renderWork(); return;
+  }
+  if (doubt && S.armed !== key) {  // with doubt the first click arms Approve in place for four seconds; the second sends
+    S.armed = key; S.unseen = null; clearTimeout(S.armTimer);
+    S.armTimer = setTimeout(() => { if (S.armed === key) { S.armed = null; renderWork(); } }, 4000);
+    renderWork(); $("approve")?.focus({ preventScroll: true }); return;
+  }
+  holdStart(c, "approve", "");
+}
+function holdStart(c, action, text) {
+  if (W.hold) holdSend();
+  S.armed = null; S.unseen = null; delete S.note[c.key]; W.msg = null;
+  W.hold = { key: c.key, action, text, column: c.column, timer: setTimeout(() => holdSend(), 5000) };
+  renderWork(); $("wk-swap").querySelector('[data-f="undo"]')?.focus({ preventScroll: true });
+}
+function holdUndo() {
+  const h = W.hold; if (!h) return; clearTimeout(h.timer); W.hold = null; renderWork();
+  $("wk-swap").querySelector('[data-f="approve"], [data-f="note"]')?.focus({ preventScroll: true });
+}
+async function holdSend(keep) {
+  const h = W.hold; if (!h) return; clearTimeout(h.timer); W.hold = null; W.flight = h; const [p, n] = h.key.split("/");
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${h.action}`, { method: "POST", keepalive: keep === true, body: JSON.stringify({ column: h.column, text: h.text, move_only: !!h.moveOnly }) });
+  if (W.flight === h) W.flight = null;
+  if (status === 200) {
+    if (body.moved_to) S.moving[h.key] = body.moved_to;
+    delete S.notice[h.key]; W.decided++; W.moved = true; delete W.notes[h.key]; delete W.card[h.key]; delete W.at[h.key]; if (W.req === h.key) W.req = null; if (S.work.key === h.key) S.work.key = null;
+    loadOverview();  // the queue resumes with the next card
+  } else if (status === 502 && body.commented) {  // the note is on the issue but the card did not move: the move can be tried again alone
+    S.notice[h.key] = { cls: "", html: `${t("act.commented", { why: esc(told(body, "act.failed")) })} <button class="btn" data-w="retry" data-act="${esc(h.action)}">${t("act.retry")}</button>` };
+  } else {
+    S.note[h.key] = h.action === "approve" ? t("pass.not_approved", { n, why: told(body, "decision.failed") }) : told(body, "act.failed");
+    if (status === 409) loadWorkCard(h.key, true);  // the card moved under the page: read it again
+  }
+  renderBoard();
+}
+function retryMove(c, action) {  // sent at once, without the note: it is already on the issue
+  if (W.hold) holdSend();
+  delete S.notice[c.key]; W.hold = { key: c.key, action, text: "", column: c.column, moveOnly: true }; holdSend();
+}
+const sendRequest = (c) => { const text = (W.notes[c.key] || "").trim(); if (!text) return $("wk-note")?.focus(); holdStart(c, "request-changes", text); };
+function openRequest(c) { W.msg = null; W.req = c.key; renderWork(); $("wk-note")?.focus({ preventScroll: true }); }
+function closeRequest() { delete W.hint[W.req]; W.req = null; renderWork(); $("request")?.focus({ preventScroll: true }); }
+function fillNote(c, text) {  // a brief's suggestion, or the review's changes, fills the note; nothing is sent
+  W.notes[c.key] = text; W.req = c.key; W.hint[c.key] = t("brief.filled", { n: c.issue }); renderWork();
+  const box = $("wk-note"); box?.focus({ preventScroll: true }); box?.setSelectionRange(text.length, text.length);
+}
+function skip(v) {  // to the end of this page's queue; the one card that waits stays
+  if (v.queue.length < 2) { W.msg = { key: v.cur.key, text: t("work.only", { n: v.queue[0].issue }) }; return renderWork(); }
+  S.work.skipped.delete(v.cur.key); S.work.skipped.add(v.cur.key); S.work.key = null; W.moved = true; W.msg = null; renderBoard();
+}
+function workAct(a, ds) {
+  if (a === "undo") return holdUndo();
+  const v = workView(); if (!v || v.mode !== "decide" || W.hold) return;
+  if (a === "retry") retryMove(v.cur, ds.act);
+  else if (a === "approve") approveStart(v.cur);
+  else if (a === "request") W.req === v.cur.key ? closeRequest() : openRequest(v.cur);
+  else if (a === "send") sendRequest(v.cur);
+  else if (a === "skip") skip(v);
+  else if (a === "fill") fillNote(v.cur, (S.review[v.cur.key]?.changes || []).join("\n"));
+}
+function workKey(e) {  // A, R and N, with the focus outside any field and no wide view open
+  if (S.view !== "board" || S.open || maxed() || W.hold) return;
+  const v = workView(), k = e.key.toLowerCase(); if (!v || v.mode !== "decide" || !["a", "r", "n"].includes(k)) return;
+  e.preventDefault();
+  if (k === "a") approveStart(v.cur); else if (k === "r") openRequest(v.cur); else skip(v);
+}
+function selectCard(key) { S.work.key = S.work.key === key ? null : key; renderBoard(); }
+function paintRun(v) {
+  const c = v.cur, key = c.key, [slug] = key.split("/"), run = runOf(slug, c), of = STEP_COUNT[c.running], step = run?.step, acts = run?.activity || [];
+  setHTML($("wk-swap"), SKEL.run);
+  setHTML($("wk-top"), elseToast(key) + wkHead(c, `<span>${esc(stageName(c.running))}</span>`));
+  const names = WSTEPS[c.running] || [];
+  setHTML($("wk-steps"), names.length ? `<ol class="wk-steps">${names.map((l, j) => `<li class="${step ? (j + 1 < step.i ? "done" : j + 1 === step.i ? "now" : "") : ""}"${step && j + 1 === step.i ? ' aria-current="step"' : ""}>${esc(stepName(l))}</li>`).join("")}</ol>` : `<p class="hint">${t("tile.no_steps")}</p>`);
+  const tools = acts.filter((a) => a.kind !== "says").slice(-5), lastId = tools.length ? `${tools[tools.length - 1].ts}|${tools[tools.length - 1].text}` : "";
+  const fresh = W.tool[key] !== undefined && W.tool[key] !== lastId; W.tool[key] = lastId;
+  setHTML($("wk-tools"), tools.length ? `<ul class="wk-tools" aria-label="${ta("live.aria")}">${tools.map((a, j) => `<li${fresh && j === tools.length - 1 ? ' class="new"' : ""}><time>${a.ts ? when(a.ts) : ""}</time><b>${esc(a.kind)}</b><span>${esc(a.text)}</span></li>`).join("")}</ul>` : "");
+  setHTML($("wk-sayr"), `<form class="compose" id="wk-compose"><textarea id="wk-say" aria-label="${ta("live.say", { stage: stageName(c.running) })}" placeholder="${ta("live.say.ph", { stage: stageName(c.running) })}"></textarea>
+      <div class="compose-a"><span id="wk-say-note">${t("live.keys")}</span><button class="btn approve">${t("live.send")}</button></div></form>`);
+  setHTML($("wk-dec"), `<b class="wk-step">${step ? t("tile.step", { i: step.i, n: of }) : t(of ? "tile.no_step" : "tile.no_steps")}</b>${step ? `<span>${esc(stepName(step.label))} · ${t("tile.in_step", { m: mins(step.since) })}${step.i === of ? ` · ${t("tile.finishing")}` : ""}</span>` : ""}
+    <span class="wk-clock">${clock(run?.started, true)}</span><span class="wk-cost">${t("work.cost_est", { cost: money(c.cost) })} ${flag(c)}</span>${linkRow(c, ["log"])}`);
+}
+// A card the factory does not run now, in words: where it is, what it waits for, or what became of it.
+function stateWords(v, c) {
+  if (c.moving) return t("head.moving", { column: esc(colName(S.moving[c.key])) });
+  if (c.column === "Done") { const pr = (v.p.shipped || []).find((x) => x.issue === c.issue)?.pr; return pr ? t("work.done_pr", { pr }) : t(c.since && new Date(c.since) >= new Date().setHours(0, 0, 0, 0) ? "work.done_today" : "col.done"); }
+  if (STAGE_OF[c.column] && !c.running) return esc(whyWaits(v.p, c));
+  if (c.position) return `${esc(colName(c.column))} · ${t("chip.in_line", { i: c.position, n: v.cards.filter((x) => x.column === c.column).length })}`;
+  return esc(colName(c.column));
+}
+function paintCard(v) {
+  const c = v.cur, key = c.key, data = W.card[key]; loadWorkCard(key);
+  setHTML($("wk-swap"), SKEL.card);
+  setHTML($("wk-top"), elseToast(key) + wkHead(c, ""));
+  const cost = c.cost == null || c.cost > 0 ? `<p class="wk-cost">${t("work.cost_since", { cost: c.cost == null ? money(null) : usd(c.cost) })} ${flag(c)}</p>` : "";
+  const block = c.blocked && data ? blockNote({ ...data, blocked: c.blocked, project: v.p.slug, issue: c.issue }) : "";
+  setHTML($("wk-card"), !data ? linkRow(c, ALL_TABS, true) : `<p class="wk-state">${stateWords(v, c)}</p>${cost}${block}${linkRow(c, ALL_TABS)}`);
+}
+function paintCalm(v) {
+  setHTML($("wk-swap"), SKEL.calm);
+  const row = (c, text) => `<li><button class="wk-row" data-pick="${esc(c.key)}"${c.title ? ` title="${esc(c.title)}"` : ""}><b>#${c.issue}</b> · ${text}</button></li>`;
+  const col = (id, h, rows, none) => `<section aria-labelledby="${id}"><h3 id="${id}">${h}</h3>${rows.length ? `<ul>${rows.join("")}</ul>` : `<p class="wk-none">${none}</p>`}</section>`;
+  const running = v.cards.filter((c) => c.running && !c.moving);
+  const gates = nextGates(running.map((c) => ({ ...c, step: runOf(v.p.slug, c)?.step }))).slice(0, 5);
+  const shipped = (v.p.shipped || []).map((x) => ({ ...x, key: `${v.p.slug}/${x.issue}` }));
+  setHTML($("wk-calm"), `${elseToast("")}<h2 class="wk-calm" id="wk-title" tabindex="-1">${t("work.calm")}</h2><div class="wk-grid">`
+    + col("wk-c1", t("work.next_h"), gates.map((c) => row(c, `${esc(stageName(c.running))}, ${t("work.then", { column: esc(colName(c.gate)) })}`)), t("work.no_gate"))
+    + col("wk-c2", t("work.running_h"), running.map((c) => { const st = runOf(v.p.slug, c)?.step, of = STEP_COUNT[c.running]; return row(c, `${esc(stageName(c.running))}${st && of ? ` · ${t("belt.step", { i: st.i, n: of })}` : ""}`); }), t("work.no_run"))
+    + col("wk-c3", t("work.shipped_h"), shipped.map((x) => row(x, [x.pr ? t("work.pr", { n: x.pr }) : "", when(x.at), x.cost == null ? "" : t("work.cost_est", { cost: usd(x.cost) })].filter(Boolean).join(" · "))), t("work.no_ship")) + "</div>");
 }
 // History: the factory's runs over a period the owner picks (Today, 7 days, 30 days, two dates, or a day opened from a chart).
 // /api/history computes every figure; the page draws them and words the comparisons. The period is kept in this browser
@@ -1807,46 +1805,13 @@ $("telem").addEventListener("keydown", (e) => {  // a chart by day is one tab st
   all.forEach((x, k) => { x.tabIndex = k === j ? 0 : -1; }); all[j].focus();
 });
 $("hcus").addEventListener("change", histDates);
-// The owner's quick actions on a pass. Approve waits five seconds so a wrong click can be undone.
-function quick(q, k) {
-  const [p, n] = k.split("/"), moves = OWNER[cardOf(p, +n)?.column];
-  delete S.note[k];
-  if (q === "approve" && moves) {
-    const r = S.review[k], doubt = reviewDoubt(r), unseen = !r && cardOf(p, +n)?.review;
-    if (doubt || unseen) return lookFirst(k, doubt);
-    S.pending[k] = { to: moves[0], timer: setTimeout(() => sendPending(k), 5000) };
-  } else if (q === "undo") { clearTimeout(S.pending[k]?.timer); delete S.pending[k]; }
-  else if (q === "changes") S.editing = k;
-  else if (q === "cancel") S.editing = null;
-  else if (q === "unblock") post(k, "unblock", "");
-  else if (q === "send") { const text = $("qc").value.trim(); if (!text) return $("qc").focus(); S.editing = null; post(k, "request-changes", text); }
-  renderBoard();
-  if (q === "changes") $("qc")?.focus();
-}
 // An entry leaves S.pending before it is sent, by the timer or by leaving the page, so it goes out once.
 function sendPending(k, keep) {
   const e = S.pending[k]; if (!e) return; clearTimeout(e.timer); delete S.pending[k];
-  return e.move ? sendMove(k, e, keep) : e.reorder ? sendReorder(k, e, keep) : post(k, "approve", "", keep);
-}
-// The list asks the drawer's question: with doubt (or marks never seen) it opens the confirmation and sends nothing.
-function lookFirst(k, doubt) {
-  openCard(k, "review");
-  clearTimeout(S.armTimer);
-  if (doubt) {
-    S.armed = k; S.unseen = null; syncDecide();
-    S.armTimer = setTimeout(() => { if (S.armed === k) { S.armed = null; syncDecide(); } }, 4000);
-    $("approve")?.focus({ preventScroll: true });
-  } else { S.unseen = k; syncDecide(); }
-}
-async function post(k, action, text, keep) {
-  const [p, n] = k.split("/");
-  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${action}`, { method: "POST", keepalive: !!keep, body: JSON.stringify({ column: cardOf(p, +n)?.column, text, move_only: false }) });
-  if (status === 200) { if (body.moved_to) S.moving[k] = body.moved_to; return loadOverview(); }
-  S.note[k] = action === "approve" ? t("pass.not_approved", { n, why: told(body, "decision.failed") }) : told(body, "act.failed"); renderBoard();
-
+  return e.move ? sendMove(k, e, keep) : sendReorder(k, e, keep);
 }
 
-/* drawer */
+/* the wide card view: Sessions, Log, Gates, Review and Live of one card, over the page */
 // The tab a card opens on when none is asked for (or Review is, and the card has no page): a card waiting for the owner
 // opens on Review, or on Gates when it has no review page; loadCard() moves an automatic Gates to Sessions when there is no report.
 function landing(ov, ask) {
@@ -1861,14 +1826,14 @@ async function openCard(key, tab) {
   if (S.tab === "live" && (!same || was !== "live")) S.liveSince = Date.now();
   if (maxed()) maximize(maxed(), false);  // the drawer opens over the board, not under a maximized panel
   if (!same) { S.liveHtml = ""; S.card = null; S.log = null; S.logNext = -1; S.logText = ""; S.armed = null; S.unseen = null; }
-  S.open = key;
+  S.open = key; S.full = true;  // the side drawer is gone: a card's tabs open in the wide view
   renderBoard(); renderDrawer();
   $("tip-title")?.focus({ preventScroll: true });
   await loadCard();
 }
 function closeCard() {
   const key = S.open; S.open = null; S.card = null; S.full = false; S.unseen = null; renderBoard(); renderDrawer();
-  if (key) $("board").querySelector(sel(key))?.focus({ preventScroll: true });
+  if (key) $("wk-title")?.focus({ preventScroll: true });
 }
 async function loadCard() {
   if (!S.open) return;
@@ -1882,16 +1847,14 @@ async function loadCard() {
 }
 function renderDrawer() {
   const d = $("drawer");
-  const [op, on] = (S.open || "/").split("/"); const col = S.card?.column || cardOf(op, +on)?.column;
-  d.className = "drawer" + (S.open ? " open" : "") + (S.open && (OWNER[col] || S.tab === "review") ? " wide" : "") + (S.busy ? " busy" : "") + (S.open && S.full ? " full" : "");
+  d.className = "drawer" + (S.open ? " open" : "") + (S.open && S.full ? " full" : "");
   d.inert = !S.open; d.setAttribute("aria-modal", String(!!(S.open && S.full))); syncDim();
-  if (!S.open) { ["d-head", "d-decide", "d-tabs", "pane"].forEach((id) => setHTML($(id), "")); return; }
+  if (!S.open) { ["d-head", "d-tabs", "pane"].forEach((id) => setHTML($(id), "")); return; }
   const c = S.card; const [p, n] = S.open.split("/"); const ov = cardOf(p, +n);
   const column = c?.column || ov?.column || "";
   const onTitle = document.activeElement?.id === "tip-title";
   if (setHTML($("d-head"), headHtml(c, ov, p, n, column)) && onTitle) $("tip-title").focus({ preventScroll: true });
-  renderDecide(p, n, column);
-  const tabs = [["live", ""], ["sessions", c ? c.sessions.length : ""], ["log", c ? new Set(c.runs.map((x) => x.log)).size || "" : ""], ["gates", c?.reports.length || ""], ["review", ""]];
+  const tabs =[["live", ""], ["sessions", c ? c.sessions.length : ""], ["log", c ? new Set(c.runs.map((x) => x.log)).size || "" : ""], ["gates", c?.reports.length || ""], ["review", ""]];
   setHTML($("d-tabs"), tabs.map(([id, b]) => `<button role="tab" id="tab-${id}" aria-controls="pane" aria-selected="${S.tab === id}" tabindex="${S.tab === id ? 0 : -1}" data-tab="${id}">${t(`tab.${id}`)}${b !== "" ? `<span class="b num">${b}</span>` : ""}</button>`).join(""));
   $("pane").setAttribute("aria-labelledby", `tab-${S.tab}`);
   const fresh = setHTML($("pane"), c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>');
@@ -1903,23 +1866,24 @@ const weightTag = (c) => c?.weight ? `<span class="tag"${c.weight_set ? "" : ` t
 const capModel = (m) => m ? m[0].toUpperCase() + m.slice(1) : t("model.default");
 function weightLine(key, column) {  // Spec Review only: the owner changes the weight here, one POST per choice
   if (column !== "Spec Review") return "";
-  const c = S.card && `${S.card.project}/${S.card.issue}` === key ? S.card : null, saving = S.weightSaving?.key === key;
+  const c = W.card[key], saving = S.weightSaving?.key === key;
   const w = saving ? S.weightSaving.weight : c?.weight, ready = !!c?.weight;
   const hint = saving ? t("weight.saving") : !ready ? "" : c.weight_set ? t("weight.runs_on", { model: capModel(c.weight_models?.[c.weight]) }) : t("weight.none");
-  return `<div class="decide-w"><label for="weight">${t("weight.label")}</label><select id="weight" aria-describedby="weight-hint"${!ready || saving || S.busy ? " disabled" : ""}>${WEIGHTS.map((x) => `<option value="${x}"${x === w ? " selected" : ""}>${wcap(x)}</option>`).join("")}</select><span class="hint" id="weight-hint">${hint}</span></div>`;
+  return `<div class="decide-w"><label for="weight">${t("weight.label")}</label><select id="weight" data-f="weight" aria-describedby="weight-hint"${!ready || saving ? " disabled" : ""}>${WEIGHTS.map((x) => `<option value="${x}"${x === w ? " selected" : ""}>${wcap(x)}</option>`).join("")}</select><span class="hint" id="weight-hint">${hint}</span></div>`;
 }
 async function setWeight(sel) {
-  const key = S.open, [p, n] = key.split("/"), c = S.card, was = c?.weight, w = sel.value;
+  const key = W.cur, c = W.card[key]; if (!key) return;
+  const [p, n] = key.split("/"), was = c?.weight, w = sel.value;
   if (!c || w === was && c.weight_set) return;
-  S.weightSaving = { key, weight: w }; delete S.notice[key]; S.forceDecide = true; renderDrawer(); $("weight")?.focus();
+  S.weightSaving = { key, weight: w }; delete S.notice[key]; renderWork(); $("weight")?.focus();
   const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/weight`, { method: "POST", body: JSON.stringify({ weight: w }) });
   S.weightSaving = null;
-  if (status === 200 && S.card === c) {
-    c.weight = body.weight; c.weight_set = true;
-    S.notice[key] = { cls: "good", html: t("weight.now", { weight: wlow(body.weight), model: esc(capModel(body.model)) }) };
+  if (status === 200 && W.card[key] === c) {
+    c.weight = body.weight ?? w; c.weight_set = true;
+    S.notice[key] = { cls: "good", html: t("weight.now", { weight: wlow(c.weight), model: esc(capModel(body.model)) }) };
   } else if (status !== 200) S.notice[key] = { cls: "bad", html: t("weight.failed", { why: esc(told(body, "weight.failed.why")) }) };
-  S.forceDecide = true; renderDrawer(); $("weight")?.focus();
-  if (status === 409) await loadCard();
+  renderWork(); $("weight")?.focus();
+  if (status === 409) await loadWorkCard(key, true);
 }
 const stepOf = (slug, c) => { const st = runOf(slug, c)?.step; return st ? `<span>${t("step.of", { i: st.i, n: STEP_COUNT[c.running], label: esc(stepName(st.label)) })}</span>` : ""; };
 // The "Depends on" block of the drawer: open dependencies first, then by number; nothing when the card has none.
@@ -1954,7 +1918,7 @@ function headHtml(c, ov, p, n, column) {
       <div><dt>${t("head.span")}</dt><dd class="num">${span}</dd></div>
       <div class="report"><dt>${t("head.report")}</dt><dd>${rep ? `${esc(rep.pipeline)} <span class="${outcome(rep.outcome)}">${esc(rep.outcome)}</span>${earlier}` : `<span class="muted">${t("head.report.none")}</span>`}</dd></div>
     </dl>
-    ${c?.blocked ? blockNote(c) : ""}</div>`;
+</div>`;
 }
 // The block reason is the factory's issue comment, in markdown: lead with what the owner must decide
 // and the failed gate, and fold the full report.
@@ -2029,30 +1993,6 @@ function briefHTML(b, open) {
     : b.verdict === "look" ? `<span class="tag sand">${flags.length > 1 ? t("pass.verdict.n", { n: flags.length }) : t("pass.verdict.one")}</span>` : "";
   return `<div class="brief" role="group" aria-label="${ta("brief.h")}"><div class="bk-v">${pill}</div>${parts.join("")}</div>`;
 }
-function renderDecide(p, n, column) {
-  const key = `${p}/${n}`; const moves = OWNER[column]; const el = $("d-decide"); const note = S.notice[key];
-  const notice = `<div class="notice ${note?.cls || ""}" id="notice" role="status" aria-live="polite">${note?.html || ""}</div>`;
-  const html = S.moving[key] ? `<div class="decide">${notice}</div>`
-    : moves ? `<div class="decide" role="group" aria-labelledby="decide-k">
-      <div class="decide-k"><b id="decide-k">${t("decide.h")}</b><span id="rv-progress" class="num"></span></div>
-      ${weightLine(key, column)}
-      ${project()?.skipped ? `<p class="stale skipped">${t("decide.skipped", { project: esc(project().slug), since: when(project().skipped.since), reason: esc(project().skipped.reason) })}</p>` : ""}
-      ${stale(project()) ? `<p class="stale">${t("decide.stale", { m: Math.round(project().board_age_s / 60) })}</p>` : ""}
-      ${S.card?.brief && `${S.card.project}/${S.card.issue}` === key ? briefHTML(S.card.brief, S.briefOpen[key]) : ""}
-      <div class="decide-a"><button class="btn approve" id="approve" aria-describedby="approve-to approve-hint" data-act="approve" data-label="${ta("act.approve")}">${t("act.approve")}</button><span class="hint" id="approve-to">→ ${esc(colName(moves[0]))}</span><span class="hint" id="approve-hint"></span></div>
-      <div class="decide-b"><textarea id="changes" aria-label="${ta("decide.changes")}" placeholder="${ta("decide.changes.ph")}"></textarea>
-        <div class="acts"><button class="btn" id="request" aria-describedby="request-to" data-act="request-changes">${t("act.changes")}</button><span class="hint" id="request-to">→ ${esc(colName(moves[1]))}</span><button class="btn ghost" id="fill" hidden></button></div></div>
-      ${notice}</div>`
-    : note ? `<div class="decide">${notice}</div>` : "";
-  const text = $("changes")?.value; const focused = document.activeElement?.id;
-  // the 5-second refresh never rewrites the weight while it is focused or open (as #every and #lang)
-  const hold = focused === "weight" && !S.forceDecide && el.contains($("weight")); S.forceDecide = false;
-  if (!hold && setHTML(el, html)) {
-    if (text && $("changes")) { $("changes").value = text; $("changes").classList.add("show"); }
-    if (focused && el.contains($(focused))) $(focused).focus();
-  }
-  syncDecide();
-}
 // The review page reports its marks; Approve stays possible but asks twice while the review has
 // unreviewed items or asks for changes.
 function reviewDoubt(r) {
@@ -2060,23 +2000,6 @@ function reviewDoubt(r) {
   const pending = r.total - r.done;
   return pending > 0 ? t("rv.not_reviewed", { n: pending }) : r.changes.length ? t("rv.asked", { n: r.changes.length }) : "";
 }
-function syncDecide() {
-  const a = $("approve"); if (!a) return;
-  const r = S.review[S.open]; const doubt = reviewDoubt(r); const armed = S.armed === S.open && !!doubt;
-  $("rv-progress").textContent = r?.total ? `${t("rv.progress", { i: r.done, n: r.total })}${r.changes.length ? ` · ${t("rv.changes", { n: r.changes.length })}` : ""}`
-    : r ? t("rv.nothing") : S.card && !S.card.review ? t("rv.no_page") : "";
-  a.classList.toggle("soft", !!doubt);
-  a.textContent = armed ? t("rv.approve_with", { doubt }) : a.dataset.label;
-  $("approve-hint").textContent = armed ? t("rv.again") : doubt ? (r.done < r.total ? t("rv.items_left", { n: r.total - r.done }) : t("rv.asks", { n: r.changes.length })) : S.unseen === S.open && !r ? t("rv.look_first") : "";
-  const box = $("changes"); const typed = !!box.value.trim();
-  box.classList.toggle("filled", typed);
-  // a narrow drawer folds the textarea behind Request changes: the first click opens it
-  const folded = getComputedStyle(box).display === "none";
-  a.disabled = S.busy || S.weightSaving?.key === S.open; $("request").disabled = S.busy || (!typed && !folded);
-  const f = $("fill"); f.hidden = !r?.changes.length;
-  if (r?.changes.length) f.textContent = t("rv.use", { n: r.changes.length });
-}
-
 function pane(c, p, n, column) {
   if (S.tab === "live") return livePane(p, n);
   if (S.tab === "sessions") return sessionsPane(c);
@@ -2138,11 +2061,11 @@ async function followLive() {
     || (nothingYet ? "" : `<p class="placeholder">${t("live.none")}</p>`);
   paintLive();
 }
-async function say() {
-  const box = $("say"); const text = box?.value.trim(); if (!text || !S.open) return;
-  const [p, n] = S.open.split("/");
+async function say(pre = "") {  // "": the Live tab's field; "wk-": the work area's
+  const box = $(pre + "say"), text = box?.value.trim(), key = pre ? W.cur : S.open; if (!text || !key) return;
+  const [p, n] = key.split("/");
   const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/message`, { method: "POST", body: JSON.stringify({ text }) });
-  if (status === 200) { box.value = ""; followLive(); } else $("say-note").textContent = told(body, "live.not_sent");
+  if (status === 200) { box.value = ""; if (!pre) followLive(); } else $(pre + "say-note").textContent = told(body, "live.not_sent");
 }
 function sum(tokens) {
   const t = { input: 0, cache_write_5m: 0, cache_write_1h: 0, cache_read: 0, output: 0 };
@@ -2179,35 +2102,6 @@ function reviewPane(c, p, n, column) {
   const none = OWNER[column] ? "" : `<p class="none">${t("review.nothing", { column: esc(column ? colName(column) : t("review.no_column")) })}</p>`;
   const page = c.review ? `<iframe title="${ta("review.frame", { n })}" sandbox="allow-scripts" src="/review/${encodeURIComponent(p)}/${n}?embed=1&t=${encodeURIComponent(token)}"></iframe>` : noReview(column, c);
   return `<div class="review">${none}${page}</div>`;
-}
-
-async function act(action, moveOnly) {
-  const key = S.open; const [p, n] = key.split("/"); const column = S.card?.column || cardOf(p, +n)?.column;
-  if (action === "request-changes" && $("changes") && getComputedStyle($("changes")).display === "none") {
-    $("changes").classList.add("show"); $("changes").focus(); syncDecide(); return;
-  }
-  if (action === "approve" && !moveOnly && reviewDoubt(S.review[key]) && S.armed !== key) {
-    S.armed = key; syncDecide();
-    clearTimeout(S.armTimer); S.armTimer = setTimeout(() => { if (S.armed === key) { S.armed = null; syncDecide(); } }, 4000);
-    return;
-  }
-  S.armed = null; delete S.notice[key];
-  const text = $("changes")?.value || "";
-  S.busy = true; renderDrawer();
-  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${action}`, { method: "POST", body: JSON.stringify({ column, text, move_only: !!moveOnly }) });
-  S.busy = false;
-  if (status === 200) {
-    S.moving[key] = body.moved_to;
-    const next = waiting().find((c) => c.key !== key);
-    S.notice[key] = { cls: "good", html: `${t("act.moved", { column: esc(colName(body.moved_to)) })} ${next ? `<button class="btn ghost" data-open="${esc(next.key)}">${t("act.next", { n: next.issue })}</button>` : t("act.no_next")}` };
-    renderStrip(); renderBoard(); renderDrawer(); return;
-  }
-  S.notice[key] = status === 502 && body.commented
-    ? { cls: "", html: `${t("act.commented", { why: esc(told(body, "act.failed")) })} <button class="btn" data-retry="${esc(action)}">${t("act.retry")}</button>` }
-    : { cls: "", html: esc(told(body, "act.failed")) };
-
-  if (status === 409) await loadCard();
-  renderDrawer();
 }
 
 /* feed: every project's runs and the dispatcher's own log, oldest first */
@@ -2552,13 +2446,13 @@ function renderFeed() {
 
 let tailing = false;
 async function approveAmend() {
-  const key = S.open, [p, n] = key.split("/");
-  S.amending = key; renderDrawer();
+  const key = W.cur; if (!key) return; const [p, n] = key.split("/");
+  S.amending = key; renderWork();
   const btn = document.querySelector("[data-approve-amend]"); if (btn) btn.style.cursor = "progress";
   const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/approve-amend`, { method: "POST", body: "{}" });
   S.amending = null;
   if (status !== 200) {
-    renderDrawer();
+    renderWork();
     if ($("bn-err")) $("bn-err").textContent = t("amend.failed", { reason: body?.error || String(status) });
     return;
   }
@@ -2568,13 +2462,13 @@ async function approveAmend() {
   loadOverview();
 }
 async function unblock() {
-  const [p, n] = S.open.split("/");
+  const key = W.cur; if (!key) return; const [p, n] = key.split("/");
   const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/unblock`, { method: "POST", body: "{}" });
   if (status !== 200) {
     if ($("bn-err")) $("bn-err").textContent = told(body, "block.unblock_failed");
     return;
   }
-  await loadCard(); loadOverview();
+  await loadWorkCard(key, true); loadOverview();
 }
 
 async function followLog() {
@@ -2598,17 +2492,14 @@ function selectTab(id) { S.auto = false; if (id === "live" && S.tab !== "live") 
 
 // A brief's suggestion fills the request-changes note; nothing is sent.
 document.addEventListener("click", (e) => {
-  const b = e.target.closest("[data-suggest]"); if (!b || !S.card) return;
-  const sug = S.card.brief?.flags?.[+b.dataset.suggest]?.suggestion, changes = $("changes");
-  if (typeof sug !== "string" || !changes) return;
-  changes.value = sug; changes.classList.add("show"); syncDecide(); changes.focus(); changes.setSelectionRange(sug.length, sug.length);
-  const note = { cls: "good", html: t("brief.filled", { n: S.card.issue }) }; S.notice[S.open] = note;
-  const notice = $("notice"); if (notice) { notice.className = "notice good"; notice.innerHTML = note.html; }
+  const b = e.target.closest("[data-suggest]"), key = W.cur; if (!b || !key) return;
+  const sug = W.card[key]?.brief?.flags?.[+b.dataset.suggest]?.suggestion, c = workView()?.cur;
+  if (typeof sug === "string" && c) fillNote(c, sug);
 });
-document.addEventListener("toggle", (e) => { if (e.target.matches?.("details[data-brief-rest]") && S.open) S.briefOpen[S.open] = e.target.open; }, true);
+document.addEventListener("toggle", (e) => { if (e.target.matches?.("details[data-brief-rest]") && W.cur) S.briefOpen[W.cur] = e.target.open; }, true);
 document.addEventListener("click", (e) => {
   if (L.hold && L.hold.via !== "drag" && !e.target.closest("[data-acc],[data-rord],[data-mv],#lstat")) { const onChip = e.target.closest("#lanes .chip"); letGo(); if (onChip) return; }  // a tap elsewhere lets go
-  const t = e.target.closest("[data-hp],[data-hstep],[data-hnow],[data-hday],[data-hmore],[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],[data-approve-amend],tr.session");
+  const t = e.target.closest("[data-hp],[data-hstep],[data-hnow],[data-hday],[data-hmore],[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-max],[data-full],[data-pick],[data-w],[data-feed],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-unblock],[data-approve-amend],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.dataset.hp) { if (t.dataset.hp === "custom") { H.custom = true; renderTelem(project()); $("hfrom")?.focus(); } else histSet({ days: +t.dataset.hp }); }
   else if (t.dataset.hstep) { if (t.getAttribute("aria-disabled") !== "true") histStep(t.dataset.hstep === "prev" ? -1 : 1); }
@@ -2635,32 +2526,28 @@ document.addEventListener("click", (e) => {
   }
   else if (t.dataset.set === "save") setSave();
   else if (t.dataset.set === "discard") { if (SET.busy) return; SET.draft = {}; SET.err = ""; SET.errBy = {}; SET.hoursBad = false; renderSettings(); }
-  else if (t.dataset.iq) { INB.cur = t.dataset.iq; INB.pick = null; INB.err = ""; $("inote").value = ""; renderInbox(); }
-  else if (t.dataset.io) { INB.pick = +t.dataset.io; renderInbox(); if (!$("inote").hidden) $("inote").focus(); }
-  else if (t.id === "igo") inboxConfirm();
-  else if (t.id === "iundo") inboxUndo();
   else if (t.hasAttribute("data-max")) maximize(t.parentElement, !t.parentElement.classList.contains("maxed"));
-  else if (t.hasAttribute("data-dmax")) grow($("drawer"), () => { S.full = !S.full; renderDrawer(); });
-  else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, t.dataset.go); if (t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; } }, t.closest(".tile"));  // a card in progress opens maximized, 90% of the screen: the side drawer would cover its own tile
+  else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, t.dataset.go); if (t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; } });  // a card's tabs open maximized, 90% of the screen
+  else if (t.dataset.pick) selectCard(t.dataset.pick);
+  else if (t.dataset.w) workAct(t.dataset.w, t.dataset);
   else if (t.dataset.feed) { S.feedFilter = t.dataset.feed; renderFeed(); }
-  else if (t.dataset.q) quick(t.dataset.q, t.closest("[data-key]").dataset.key);
   else if (t.dataset.open && t.dataset.log) { openCard(t.dataset.open, "log"); S.log = t.dataset.log; S.logNext = -1; S.logText = ""; }  // a feed line opens its own run's log
   else if (t.dataset.open) openCard(t.dataset.open, t.dataset.go);
   else if (t.dataset.view) setView(t.dataset.view);
   else if (t.hasAttribute("data-close")) closeCard();
   else if (t.dataset.tab) { selectTab(t.dataset.tab); if (!t.closest("#d-tabs")) $(`tab-${t.dataset.tab}`)?.focus(); }  // a link in the text moves the focus to the tab, as a click on it would
   else if (t.dataset.sub) { e.stopPropagation(); S.expanded[t.dataset.sub] = !S.expanded[t.dataset.sub]; renderDrawer(); }
-  else if (t.dataset.act) act(t.dataset.act);
-  else if (t.dataset.retry) act(t.dataset.retry, true);
   else if (t.hasAttribute("data-unblock")) unblock();
   else if (t.hasAttribute("data-approve-amend")) approveAmend();
-  else if (t.id === "fill") { const r = S.review[S.open]; $("changes").value = r.changes.join("\n"); syncDecide(); $("changes").focus(); }
   else if (t.matches("tr.session") && t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; selectTab("log"); }
 });
-document.addEventListener("submit", (e) => { if (e.target.id === "compose") { e.preventDefault(); say(); } });
-document.addEventListener("keydown", (e) => { if (e.target.id === "say" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); say(); } });
+document.addEventListener("submit", (e) => { if (e.target.id === "compose") { e.preventDefault(); say(); } else if (e.target.id === "wk-compose") { e.preventDefault(); say("wk-"); } });
+document.addEventListener("keydown", (e) => { if ((e.target.id === "say" || e.target.id === "wk-say") && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); say(e.target.id === "say" ? "" : "wk-"); } });
+document.addEventListener("keydown", (e) => {  // Enter in the note sends it; Shift+Enter is a new line
+  if (e.target.id === "wk-note" && e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); const c = workView()?.cur; if (c) sendRequest(c); }
+});
 document.addEventListener("keydown", (e) => { if (e.target.id === "hours-in" && e.key === "Enter") { e.preventDefault(); if (Object.keys(SET.draft).length) setSave(); } });
-document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "changes") syncDecide(); if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "inote") renderInbox(); if (e.target.id === "mnote") boxHint(); if (e.target.dataset?.cost) setCost(e.target); if (e.target.dataset?.lim) setLimit(e.target); });
+document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "wk-note" && W.cur) { W.notes[W.cur] = e.target.value; $("wk-send").disabled = !e.target.value.trim(); }if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "mnote") boxHint(); if (e.target.dataset?.cost) setCost(e.target); if (e.target.dataset?.lim) setLimit(e.target); });
 document.addEventListener("change", (e) => {
   if (e.target.matches?.('input[role="switch"]')) e.target.setAttribute("aria-checked", String(e.target.checked));
   if (e.target.matches?.("[data-pause]")) setPause(e.target);
@@ -2678,10 +2565,10 @@ document.addEventListener("change", (e) => {
   }
   if (e.target.id === "mvonly") { L.only = e.target.checked; renderBoard(); }
   if (e.target.id === "logsel") { S.log = e.target.value; S.logNext = -1; S.logText = ""; renderDrawer(); followLog(); }
-  if (e.target.id === "proj") { S.project = e.target.value; closeCard(); renderStrip(); renderBoard(); }
+  if (e.target.id === "proj") { S.project = e.target.value; S.work.key = null; S.work.skipped.clear(); W.req = null; closeCard(); renderStrip(); renderBoard(); }
 });
 document.addEventListener("keydown", (e) => {
-  const typing = e.target.closest?.("textarea, input, select");
+  const typing = e.target.closest?.("textarea, input, select, [contenteditable], iframe");
   if (S.refused) return;
   if (e.key === "Tab" && S.open && S.full && !e.ctrlKey && !e.metaKey && !e.altKey) {  // the maximized drawer is modal: Tab cycles inside it; the side drawer leaves to the board
     const dr = $("drawer"), f = [...dr.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')].filter((x) => !x.disabled && x.tabIndex >= 0 && x.getClientRects().length);
@@ -2707,9 +2594,10 @@ document.addEventListener("keydown", (e) => {
       }
     }
   }
-  if (!typing && inboxOn() && /^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); document.querySelector(`[data-io="${+e.key - 1}"]`)?.click(); return; }
+  if (e.key === "Escape" && W.req && !S.open && !maxed() && ($("wk-dec")?.contains(e.target) || !typing)) { closeRequest(); return; }  // Esc, in order: the note, the wide view, the selection
   if (e.key === "Escape" && !typing && maxed()) { maximize(maxed(), false); return; }
   if (e.key === "Escape" && S.open && !typing) { closeCard(); return; }
+  if (e.key === "Escape" && !typing && S.work.key && S.view === "board") { S.work.key = null; renderBoard(); return; }
   const tab = e.target.closest?.('[role="tab"]');
   if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
     e.preventDefault();
@@ -2719,33 +2607,32 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-  const k = e.key.toLowerCase(), cur = document.activeElement?.closest?.(".pass");
-  if (k === "n") { const ps = [...document.querySelectorAll(".pass .ptitle")], nx = ps[(ps.indexOf(cur?.querySelector(".ptitle")) + 1) % ps.length], l = $("list");
-    nx?.focus(); if (nx) l.scrollTop += nx.closest(".pass").getBoundingClientRect().top - l.getBoundingClientRect().top; }  // the card's top at the list's top edge
-  const hit = { a: '[data-q="approve"]', r: '[data-go="review"]', l: '[data-go="log"]' }[k]; if (hit && cur) cur.querySelector(hit)?.click();
+  workKey(e);
 });
 // review pages run sandboxed; the dashboard's embed script posts their marks here
+const frames = () => [...document.querySelectorAll("#pane iframe, #wk-swap iframe")];  // the wide view's and the work area's
 function themeReview() {  // the review page is sandboxed: it gets the theme's colors as a message (see EMBED_CSS in dashboard.py)
-  const f = document.querySelector("#pane iframe"), cs = getComputedStyle(document.documentElement), v = (k) => cs.getPropertyValue(k).trim();
-  if (f) f.contentWindow.postMessage({ shipfloor: "theme", light: cs.colorScheme === "light", vars: { page: v("--ground"), sheet: v("--panel"), surface: v("--panel-hi"), ink: v("--text"), muted: v("--muted"), rule: v("--edge"), linen: v("--edge"), "linen-ink": v("--text") } }, "*");
+  const cs = getComputedStyle(document.documentElement), v = (k) => cs.getPropertyValue(k).trim();
+  for (const f of frames()) f.contentWindow.postMessage({ shipfloor: "theme", light: cs.colorScheme === "light", vars: { page: v("--ground"), sheet: v("--panel"), surface: v("--panel-hi"), ink: v("--text"), muted: v("--muted"), rule: v("--edge"), linen: v("--edge"), "linen-ink": v("--text") } }, "*");
 }
 window.addEventListener("message", (e) => {
-  const f = document.querySelector("#pane iframe"); const m = e.data;
-  if (f && e.source === f.contentWindow && m && m.shipfloor === "ready") { themeReview(); f.heard = true; f.classList.remove("plain"); }
-  if (f && e.source === f.contentWindow && m && m.shipfloor === "themed") f.classList.add("themed");
-  if (f && e.source === f.contentWindow && S.open && m && m.shipfloor === "review-marks" && typeof m.rev === "string" && m.marks && typeof m.marks === "object" && !Array.isArray(m.marks)) {
-    const [p, n] = S.open.split("/"); MARKS.wait = { p, n, rev: m.rev, marks: m.marks };
+  const f = frames().find((x) => x.contentWindow === e.source), m = e.data; if (!f || !m) return;
+  const key = $("pane").contains(f) ? S.open : W.cur;  // the card the review page is of
+  if (m.shipfloor === "ready") { themeReview(); f.heard = true; f.classList.remove("plain"); }
+  if (m.shipfloor === "themed") f.classList.add("themed");
+  if (key && m.shipfloor === "review-marks" && typeof m.rev === "string" && m.marks && typeof m.marks === "object" && !Array.isArray(m.marks)) {
+    const [p, n] = key.split("/"); MARKS.wait = { p, n, rev: m.rev, marks: m.marks };
     clearTimeout(MARKS.timer); MARKS.timer = setTimeout(flushMarks, 500);
   }
-  if (!f || e.source !== f.contentWindow || !S.open || !m || m.shipfloor !== "review-progress") return;
-  if (S.unseen === S.open) S.unseen = null;
-  S.review[S.open] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
-  syncDecide();
+  if (!key || m.shipfloor !== "review-progress") return;
+  if (S.unseen === key) S.unseen = null;
+  S.review[key] = { done: Math.max(0, +m.done || 0), total: Math.max(0, +m.total || 0), changes: Array.isArray(m.changes) ? m.changes.slice(0, 200).map(String) : [] };
+  if (key === W.cur) renderWork();
 });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushMarks(); });
 // a page that never says "ready" does not take the theme: show it plain; one that did is never left hidden
-$("pane").addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
-for (const id of ["list", "history", "tiles"]) $(id).addEventListener("scroll", fit);
+for (const id of ["pane", "wk-swap"]) $(id).addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
+$("history").addEventListener("scroll", fit);
 window.addEventListener("resize", fit);
 document.addEventListener("click", (e) => {  // Restart shows the command and runs nothing; Copy puts it on the clipboard
   if (e.target.closest("[data-restart]")) restart(!RESTART.open);
@@ -2757,10 +2644,9 @@ for (const [ev, on] of [["mouseover", true], ["focusin", true], ["mouseout", fal
 
 staticText();
 document.querySelectorAll("[data-maxable]").forEach((el) => el.insertAdjacentHTML("afterbegin", `<button class="max" data-max aria-label="${ta(`panel.${el.dataset.maxable}.max`)}" title="${ta("btn.maximize")}">${MAX}</button>`));
-$("d-max").innerHTML = MAX;
 $("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
 // leaving the page sends what still waits its five seconds; switching tabs does not
-window.addEventListener("pagehide", () => { Object.keys(S.pending).forEach((k) => sendPending(k, true)); if (INB.hold) inboxFlush(true); });  // true: fetch keepalive, which outlives the page
+window.addEventListener("pagehide", () => { Object.keys(S.pending).forEach((k) => sendPending(k, true)); if (W.hold) holdSend(true); });  // true: fetch keepalive, which outlives the page
 window.addEventListener("pagehide", flushMarks);  // the review marks too; flushMarks sends with keepalive
 window.addEventListener("pageshow", (e) => { if (e.persisted) loadOverview(); });
 loadOverview();
