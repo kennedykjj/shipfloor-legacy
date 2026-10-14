@@ -67,7 +67,7 @@ bash <plugin>/scripts/shipfloor init <repo>       # add --yes to confirm every q
 `shipfloor init` checks the prerequisites before it changes anything, then runs each step that is not done yet: it installs the factory, writes `.shipfloor/factory.yml` (committed to main after you confirm), registers the repository, sets up the board, registers the dispatcher and runs `shipfloor doctor`. Every step prints the `$ <command>` it is equivalent to. Run it again at any time: finished steps are skipped. Without a terminal and without `--yes` it prints the command that needs you and exits 1.
 
 > [!NOTE]
-> The manual steps, the dispatcher on each system and the systemd lingering note are in [docs/install.md](docs/install.md).
+> The manual steps are in [docs/install.md](docs/install.md). The dispatcher is registered by `powershell -File <plugin>/installer/install-dispatcher.ps1` on Windows and `bash <plugin>/installer/install-dispatcher.sh` on Linux and macOS; `install-dispatcher.sh --uninstall` removes it. On Linux with systemd, turn lingering on so it survives logout, and run the installer again after PATH changes.
 
 Move a card to Ready for Refinement and open the dashboard.
 
