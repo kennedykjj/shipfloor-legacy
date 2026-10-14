@@ -10,6 +10,7 @@ context: [PRODUCT.md, DESIGN.md, README.md]
 # acceptance-intact lets through an edit to an acceptance test that adds or removes none of these lines.
 acceptance_assertions: 'assert_|pass "|fail "'
 limits:
+  refine: {wip: 0}    # no limit: Spec Review is the owner's backlog and may pile up
   develop: {wip: 0}   # no project cap on Coding + Validation (omitting it would cap at 4): the machine pool decides
 layers:
   - name: factory

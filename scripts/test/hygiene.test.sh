@@ -37,4 +37,8 @@ done
 out="$(FACTORY_HOME=/real FACTORY_CONFIG=/real/factory.yml SHIPFLOOR_HOME=/real SHIPFLOOR_STACK=x bash -c 'source "$1/test/lib.sh"; echo "$FACTORY_HOME $FACTORY_CONFIG $SHIPFLOOR_HOME ${SHIPFLOOR_STACK-unset}"' _ "$FACTORY_DIR")"
 case "$out" in */real*) fail "a test inherited the factory: $out" ;; *unset) pass "tests drop an inherited factory" ;; *) fail "inherited stack: $out" ;; esac
 grep -q "^# Shipfloor" "$root/README.md" && pass "README carries the brand" || fail "README title"
+# The factory runs its scripts directly ("$BOARD" snapshot): Linux and macOS need the execute bit that Windows ignores
+noexec=""
+for f in "$root"/scripts/*.sh "$root/scripts/shipfloor"; do [ -x "$f" ] || noexec="$noexec ${f#"$root"/}"; done
+[ -z "$noexec" ] && pass "the factory's scripts are executable" || fail "not executable (git update-index --chmod=+x):$noexec"
 finish
