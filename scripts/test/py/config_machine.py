@@ -101,6 +101,24 @@ class Machine(MachineCase):
         self.bad("notify: 3", "notify must be a mapping")
         self.good('notify: {quiet: "23:00-08:00", ntfy_topic: abc_1-2, channels: {ntfy: true}}')
 
+    def test_notify_channels_not_a_mapping_without_topic(self):
+        "AC-1 channels a list or a string and no ntfy_topic: validate names the key, no traceback, exit 1"
+        for channels in ("[toast]", "toast", "3", "[]"):
+            for topic in ("", ', ntfy_topic: ""'):
+                self.conf("notify: {channels: %s%s}" % (channels, topic))
+                rc, _, err = self.mach("validate")
+                self.assertEqual(rc, 1, "%s%s" % (channels, topic))
+                self.assertIn("notify.channels must be a mapping", err)
+                self.assertNotIn("Traceback", err)
+
+    def test_notify_valid_unchanged(self):
+        "AC-3 channels a mapping with or without a topic, or no channels at all: validate is silent and exits 0"
+        self.good("notify: {channels: {toast: true}}")
+        self.good("notify: {channels: {ntfy: true}, ntfy_topic: abc_1}")
+        self.good("notify: {channels: {toast: false}, ntfy_topic: abc_1}")
+        self.good("notify: {reminder_min: 30}")
+        self.bad("notify: {channels: {ntfy: true}}", "The phone push needs a topic.")
+
 
 class Costs(MachineCase):
     """costs: optional limits in US$, no defaults; each a number > 0, card_warn <= card_block, no other key."""

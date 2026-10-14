@@ -79,6 +79,15 @@ class Doctor(CliCase):
         self.assertIn('WARN models: models.stages.develop: "gpt" is not a model the factory knows (opus, sonnet, haiku, fable)', out)
         self.assertNotIn("ok   models", out)
 
+    def test_notify_channels_not_a_mapping(self):
+        "AC-2 notify.channels a list with no ntfy_topic: doctor shows the problem line instead of a traceback"
+        self.shop()
+        for text in ("notify: {channels: [toast]}\n", "notify: {channels: toast}\n"):
+            self.write_file(os.path.join(self.sh, "config.yml"), text)
+            out = self.doctor()
+            self.assertIn("notify.channels must be a mapping", out)
+            self.assertNotIn("Traceback", out)
+
     def test_warnings_only_exit_0(self):
         "doctor exits 0 when it only warns: no FAIL line with the factory installed and gh signed in"
         self.install()
