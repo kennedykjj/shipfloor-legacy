@@ -1,0 +1,1 @@
+{"issue":156,"slug":"fix-gate-and-stack-bugs-before-migrating","pipeline":"refine","started_at":null,"finished_at":null,"outcome":"ok","agents":[],"rounds":{"weight":1,"scope":1,"test-plan":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":false}
