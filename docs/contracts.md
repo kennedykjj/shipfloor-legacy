@@ -11,7 +11,7 @@ Conventions used below:
 
 ## gate.sh
 
-The deterministic gates. A wrapper: the gates are Python (`shipfloor_core/gate`, started through `lib/py.sh` and `sf.py gate`), and `build`, `red`, `green` and `stack` are handed to `lib/gate-run.sh`. Run as `gate.sh [-C <worktree>] <gate> ...`; `-C` enters the worktree first (pipelines never `cd`); a worktree that cannot be entered is `gate: cannot enter '<dir>'` and exit 2.
+The deterministic gates. A wrapper: the gates are Python (`shipfloor_core/gate`, started through `lib/py.sh` and `sf.py gate`), `build`, `red`, `green` and `stack` included (`shipfloor_core/gate/run.py`). Run as `gate.sh [-C <worktree>] <gate> ...`; `-C` enters the worktree first (pipelines never `cd`); a worktree that cannot be entered is `gate: cannot enter '<dir>'` and exit 2.
 
 **Interface:** the gate is the first word after the options. Each subcommand, with its arguments after it:
 - `test-plan` `<spec>`: every AC of the spec has a test its layer's runner can run.
@@ -45,7 +45,7 @@ Two more words exist that the usage text does not print: `fast` `<base> <spec> [
 - Failure messages start with the gate's own word: `forbidden:`, `scope:`, `migration:`, `acceptance-intact:`, `qa-amend:`, `qa-commit:`, `test-plan:`, `weight:`, `red:`, `green:`, `build:`, `gate:`, `stack:`.
 
 **Behavior worth keeping:**
-- `build` and `green` record a pass per clean worktree: a file `gate-passes/<sha1>` under the project's home holding `<ISO UTC><TAB><head sha><TAB><gate><TAB><arguments>`, keyed by the head, the gate, its arguments, the config file's hash and `gate.sh`'s own hash. Not used when the worktree is dirty, when `SHIPFLOOR_GATE_FRESH=1`, or when the store would be inside the worktree. Records older than 14 days are deleted at each record.
+- `build` and `green` record a pass per clean worktree: a file `gate-passes/<sha1>` under the project's home holding `<ISO UTC><TAB><head sha><TAB><gate><TAB><arguments>`, keyed by the head, the gate, its arguments, the config file's hash and `gate.sh`'s own hash. The store is stamped with a hash of the gate's code (`gate-passes/.code`: every file under `shipfloor_core/`, `__pycache__` aside, and `sf.py`); when that changes (an upgrade) the records made before are deleted, so no pass recorded by other code is reused. Not used when the worktree is dirty, when `SHIPFLOOR_GATE_FRESH=1`, or when the store would be inside the worktree. Records older than 14 days are deleted at each record.
 - The selector reaches the layer's test command as `"$1"` of `bash -c`, never as shell code. `NO_COLOR=1` and `FORCE_COLOR=0` are exported for the runner. A layer with `needs_stack` runs on its own stack slot (`lib/stack.sh`, owner `gate-<pid>`); if the slot does not come up the gate exits 3.
 - `red` is never retried; `green` and `build` run once more for a layer with `retry: 1`.
 - A layer's `install` command runs once per content of the layer's directory (marker in the git dir), by the gate, not by an agent.
@@ -214,14 +214,6 @@ Sourced by a wrapper (`templates/py-wrapper.sh`), never run on its own; it ends 
 - It picks the Python 3 command: `FACTORY_PYTHON` if set, else `SHIPFLOOR_PY` if already set, else `python3`, else `python`; it exports the choice as `SHIPFLOOR_PY`.
 - It then runs `exec <python> -I $HERE/sf.py "$@"`: always isolated mode, so a planted module in the current directory is never imported. Under Git Bash the path of `sf.py` is converted with `cygpath -m` first.
 - When no Python is found it prints `shipfloor: python 3 not found (set FACTORY_PYTHON)` on stderr and exits 127.
-
-## lib/gate-run.sh
-
-The Bash code of the gates that run a layer's commands: `build`, `red`, `green` and `stack` (moved out of `gate.sh` unchanged while they wait to be ported). Run, never sourced: `gate.sh` hands it its arguments as they came, `-C` included, and returns its exit code.
-
-**Interface:** the same words, arguments, exit codes, verdict line and `last-gate` as `gate.sh` gives them (see `## gate.sh`); `stack` has no verdict. Any other word is `gate-run: not a gate of this file` and exit 2.
-
-**Behavior worth keeping:** the key of a recorded pass hashes `scripts/gate.sh` (the wrapper callers run), not this file.
 
 ## shipfloor
 

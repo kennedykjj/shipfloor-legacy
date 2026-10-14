@@ -2,8 +2,8 @@
 # Deterministic gates for the factory pipelines: gate.sh [-C <worktree>] <gate> ...
 # Exit 0 = pass, 1 = blocked (details on stderr), 2 = bad usage or bad revision (never a pass),
 # 3 = infrastructure (the run's stack did not come up, or no stack slot in time).
-# The gates are Python (shipfloor_core.gate, through sf.py); build, red, green and stack are still Bash (lib/gate-run.sh).
-# Callers run this file, and its content is part of the key of a recorded pass (lib/gate-run.sh): keep it a wrapper.
+# The gates are Python (shipfloor_core.gate, through sf.py), build, red, green and stack included (gate/run.py).
+# Callers run this file, and its content is part of the key of a recorded pass (gate/run.py): keep it a wrapper.
 HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 
 usage() {  # the same text as shipfloor_core/gate/main.py USAGE
@@ -28,8 +28,6 @@ EOF
 }
 case "${1:-}" in -h|--help|help) usage; exit 0 ;; "") usage >&2; exit 2 ;; esac
 
-gate_cmd="$1"; [ "$gate_cmd" != -C ] || gate_cmd="${3:-}"
-case "$gate_cmd" in build|red|green|stack) exec bash "$HERE/lib/gate-run.sh" "$@" ;; esac
 # lib/py.sh overwrites SHIPFLOOR_PY with FACTORY_PYTHON; a python a caller handed down (SHIPFLOOR_PY) still answers the
 # config queries, as in lib/project.sh: shipfloor_core.gate.main puts it back
 export SHIPFLOOR_GATE_PY="${SHIPFLOOR_PY:-}"

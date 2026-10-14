@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
-# #166 (PY-13), AC-8 (the stack side): lib/stack.sh is a shim of Bash functions calling `sf.py stack ...`; gate.sh
-# still sources it (dispatch.sh did until #168 ported it to dispatch.py, which calls stack.py directly). The existing
-# stack-*.test.sh, gate-*.test.sh and dispatch-stack.test.sh pass unedited against it (they run in the suite).
+# #166 (PY-13), AC-8: build, red, green and stack are Python (shipfloor_core/gate/run.py, routed by gate/main.py) and
+# scripts/lib/gate-run.sh is gone; lib/stack.sh is a shim of Bash functions calling `sf.py stack ...` (dispatch.sh
+# sourced it until #168 ported it to dispatch.py, which calls stack.py directly). The existing stack-*.test.sh,
+# gate-*.test.sh and dispatch-stack.test.sh pass unedited against it (they run in the suite).
 source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)" || exit 1; export TMPDIR="$T"
 MAINPID=$$  # only this shell cleans up (a child that inherited the trap compares its parent's pid, not $BASHPID)
 trap '[ "$(exec sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 shim="$FACTORY_DIR/lib/stack.sh"
+
+# ---- the gate half: run.py does build, red, green and stack; gate-run.sh is gone
+[ ! -e "$FACTORY_DIR/lib/gate-run.sh" ] && pass "AC-8 scripts/lib/gate-run.sh no longer exists" || fail "AC-8 scripts/lib/gate-run.sh still exists"
+[ -f "$FACTORY_DIR/shipfloor_core/gate/run.py" ] && pass "AC-8 shipfloor_core/gate/run.py exists" || fail "AC-8 no shipfloor_core/gate/run.py"
+grep -q 'gate-run' "$FACTORY_DIR/gate.sh" && fail "AC-8 gate.sh still hands gates to lib/gate-run.sh" || pass "AC-8 gate.sh hands no gate to lib/gate-run.sh"
+routes="$("$FACTORY_PYTHON" -I -c 'import importlib, sys; sys.path.insert(0, sys.argv[1]); m = importlib.import_module("shipfloor_core.gate.main")
+print(" ".join("%s=%s" % (g, m.GATES.get(g, ("-",))[0]) for g in ("build", "red", "green", "stack")))' "$FACTORY_DIR" 2>&1)"
+[ "$routes" = "build=run red=run green=run stack=run" ] && pass "AC-8 gate/main.py routes build, red, green and stack to gate/run.py" || fail "AC-8 routes: $routes"
+r="$(new_repo)"; cd "$r"
+out="$(bash "$FACTORY_DIR/gate.sh" red 2>&1)"; rc=$?
+[ "$rc" = 2 ] && [ "$out" = "$(printf 'red: selector required\ngate red: FAIL (exit 2)')" ] && pass "AC-8 gate.sh red with no selector still says so, exit 2" || fail "AC-8 red with no selector: exit $rc: $out"
+out="$(bash "$FACTORY_DIR/gate.sh" stack nonsense 2>&1)"; rc=$?
+[ "$rc" = 2 ] && [ "$out" = "stack: up <owner> | down <owner> | status" ] && pass "AC-8 gate.sh stack with a bad word: its usage, exit 2, no verdict" || fail "AC-8 stack nonsense: exit $rc: $out"
+cd "$T"
 
 # ---- the shim holds no stack logic of its own
 code="$(grep -vE '^[[:space:]]*(#|$)' "$shim")"
@@ -24,11 +39,10 @@ for f in stack_settings slot_dir slot_state fill_ports slot_env free_range slot_
 done
 [ -z "$missing" ] && pass "AC-8 the shim keeps every function of lib/stack.sh" || fail "AC-8 functions missing from the shim:$missing"
 
-# ---- gate.sh still uses it; dispatch.sh is a wrapper over dispatch.py since #168, which calls stack.py itself
+# ---- the gate (gate/run.py) and dispatch.py call shipfloor_core.stack directly
 grep -q 'release_run' "$FACTORY_DIR/shipfloor_core/dispatch.py" \
   && pass "AC-8 dispatch.py releases a run's slot through stack.py (#168: dispatch.sh no longer sources lib/stack.sh)" || fail "AC-8 dispatch.py does not release a run's slot through stack.py"
-# since #165 gate.sh is a wrapper and its build/red/green/stack Bash lives in lib/gate-run.sh, which sources the shim
-grep -q 'source "$HERE/lib/stack.sh"' "$FACTORY_DIR/lib/gate-run.sh" && pass "AC-8 the gate's Bash half (lib/gate-run.sh) still sources lib/stack.sh" || fail "AC-8 lib/gate-run.sh no longer sources lib/stack.sh"
+grep -qE '^from \.\. import .*\bstack\b' "$FACTORY_DIR/shipfloor_core/gate/run.py" 2>/dev/null && pass "AC-8 the gate (gate/run.py) uses shipfloor_core.stack directly" || fail "AC-8 gate/run.py does not use shipfloor_core.stack"
 
 # ---- stack_settings sets the variables its callers read; stack_release_run releases the run's slot through them
 printf 'stacks: 2\nports: {base: 26300, span: 10}\nstack_wait: 4\nstack_stale: 90\nstack_hold_max: 2700\n' > "$SHIPFLOOR_HOME/config.yml"

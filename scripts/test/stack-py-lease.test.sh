@@ -205,7 +205,8 @@ export FACTORY_CONFIG="$CFG_UP"; machine 2 2; mkdir -p "$SHIPFLOOR_HOME/locks/st
 touch "$SHIPFLOOR_HOME/locks/stack-1.lock/beat"
 r="$(new_repo)"; cd "$r"
 want="$(bash "$FACTORY_DIR/gate.sh" stack status)"; got="$("$FACTORY_PYTHON" -I "$FACTORY_DIR/sf.py" stack status 2>&1)"
-[ "$got" = "$want" ] && [ -n "$want" ] && pass "AC-1 sf.py stack status prints the TSV of gate.sh stack status" || fail "AC-1 sf.py stack status: '$got', want '$want'"
+held10() { awk -F'\t' -v OFS='\t' '$1 != "queue" { $4 = int(($4 + 5) / 10) * 10 } { print }'; }  # the two run a second apart
+[ "$(printf '%s\n' "$got" | held10)" = "$(printf '%s\n' "$want" | held10)" ] && [ -n "$want" ] && pass "AC-1 sf.py stack status prints the TSV of gate.sh stack status" || fail "AC-1 sf.py stack status: '$got', want '$want'"
 printf '%s\n' "$got" | grep -qxE '1	busy	o	[0-9]+	' && printf '%s\n' "$got" | grep -qx 'queue	0' \
   && pass "AC-1 the TSV is <k> <state> <owner> <held_s> <reason>, then queue <n>" || fail "AC-1 TSV shape: $got"
 finish
