@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: unit
 # deploy fix rounds: red CI or a red gate after merging main, and what --continue accepts as a fix
 # (in process: scripts/test/py/deploy_fix.py).
 source "$(dirname "$0")/lib.sh"

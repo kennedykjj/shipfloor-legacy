@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: unit
 # The gates that run a layer's commands, in process with runner doubles (scripts/test/py):
 #   gate_run    build, red, green, install, retry, red/green on a needs_stack layer
 #   gate_cache  the pass cache of build and green: key, record, reuse, pruning, the code in the key

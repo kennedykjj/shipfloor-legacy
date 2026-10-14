@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # shipfloor-config.sh through real processes (the answers are in py/config_project.py and py/config_machine.py):
 # exit codes 0 / 1 / 2 and what goes to stdout and stderr, `machine ...` from outside any project (the installer's
 # question), lib/project.sh's shipfloor_machine, `step <k>` (the Bash fast path, no Python), and shipfloor doctor's

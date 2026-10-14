@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # A signal reaches a gate that waits for a slot or runs on one: the ticket goes, the slot is freed, it exits 3.
 source "$(dirname "$0")/lib.sh"
 GATE="$FACTORY_DIR/gate.sh"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: end-to-end
 # #173 (RES-01) violent failures and the next cycle. Stubs only (a fake claude, deploy, gh and gate command); the
 # processes killed with SIGKILL are the stubs' and the supervisors that hold the locks.
 #   AC-3  a launch, a deploy or a gate killed: the next cycle leaves no lock without a live process and no card in a

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The test infrastructure itself: run.sh --changed picks the tests tied to what changed (and every test when a shared
 # helper changes), run.sh removes the temp dirs of its tests even when killed, lib.sh's wait_for is bounded, and the
 # in-process runner (py/run.py, py/support.py) checked by py/selftest_support.py.
@@ -20,6 +21,13 @@ git commit -qam x; echo '# new' >> scripts/test/b.test.sh
 out="$(ran)"; assert_contains "$out" "== a.test.sh"; assert_contains "$out" "== b.test.sh"
 git checkout -q -- scripts/test/b.test.sh; echo '# changed' >> scripts/test/lib.sh
 assert_contains "$(ran)" "== 2 files"
+# SUITE=<name>: only the files whose second line names that suite
+printf '#!/usr/bin/env bash\n# suite: unit\necho "  ok   u"\n' > scripts/test/u.test.sh
+printf '#!/usr/bin/env bash\n# suite: end-to-end\necho "  ok   e"\n' > scripts/test/e.test.sh
+out="$(SUITE=unit bash scripts/test/run.sh 2>&1)"; assert_contains "$out" "== u.test.sh"; assert_contains "$out" "== 1 files"
+out="$(SUITE=end-to-end bash scripts/test/run.sh u.test.sh 2>&1)"; assert_contains "$out" "nothing to run: no test in suite end-to-end"
+SUITE=fast bash scripts/test/run.sh >/dev/null 2>&1; [ $? = 2 ] && pass "an unknown SUITE exits 2" || fail "SUITE=fast did not exit 2"
+rm -f scripts/test/u.test.sh scripts/test/e.test.sh
 # the temp dirs a test makes go with the run, also when the run is killed
 printf '#!/usr/bin/env bash\nd="$(mktemp -d)"; touch "$d/f"; echo "$d" > "%s/made"; echo "  ok   c"\n' "$r" > scripts/test/c.test.sh
 bash scripts/test/run.sh c.test.sh >/dev/null 2>&1

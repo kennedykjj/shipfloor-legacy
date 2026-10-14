@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The dispatcher's process model, with real processes (the rest of a run is py/dispatch_launch.py, in process):
 #  - dispatch.sh returns while its run lives: the run is its own detached process (another session), whose pid is in
 #    the lock's info and starts the agent; it ends on its own, logs == end and removes only its own lock

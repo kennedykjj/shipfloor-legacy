@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The dashboard's catalogs (#122): every string the page shows is a message asked for by its key, and English is a
 # catalog like the others (scripts/lang/dashboard.<code>.json). This fails when a catalog lacks a key the English one
 # has or carries one it does not, when the English catalog lacks a key the page or the server asks for or keeps one

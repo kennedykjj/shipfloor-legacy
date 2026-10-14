@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: unit
 # The gates that read the spec and the changed set, and gate.sh's dispatch, in process (scripts/test/py):
 #   gate_main  usage, -C, the project, the verdict and last-gate, the language, stdout as data, the config's checks
 #   gate_spec  weight and test-plan

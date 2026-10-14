@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: end-to-end
 # The demo stack (card #72): scripts/test/demo-stack.sh up / down serves the dashboard on sample data (dashboard.py's
 # --token is in dashboard-server.test.sh). Every server runs on a port the system gave, under a stack name of its own, and is
 # stopped by the trap even when an assertion fails. Nothing here reads or writes the real ~/.shipfloor or calls the real gh.
