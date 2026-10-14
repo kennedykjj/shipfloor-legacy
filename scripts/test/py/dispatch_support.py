@@ -90,8 +90,9 @@ exit 0
 '''
 
 # claude: one JSON line per call in <tmp>/claude.calls (argv, stdin, cwd, PWD, env, parent pid, where its own temp file
-# went); then what <tmp>/fake.json's "claude" says (per card under "cards"): print, write a gate verdict to the run's
-# lock, hand the lock to another owner, take a stack slot, leave files in tmp/<n>/, exit with a code.
+# went); then what <tmp>/fake.json's "claude" says (per card under "cards"): print (or "stream": stream-json lines and
+# pauses, "stderr": a line there), write a gate verdict to the run's lock, hand the lock to another owner, take a stack
+# slot, leave files in tmp/<n>/, exit with a code.
 CLAUDE = r'''
 import json, os, sys, tempfile, time
 fake = json.load(open(%(fake)r)) if os.path.exists(%(fake)r) else {}
@@ -106,7 +107,16 @@ rec = {"argv": sys.argv[1:], "stdin": stdin, "cwd": os.getcwd(), "pwd": os.envir
        "ppid": os.getppid(), "tmpfile": tmpfile, "tmpdir_is_dir": os.path.isdir(os.environ.get("TMPDIR", "/nonexistent"))}
 with open(%(calls)r, "a") as f:
     f.write(json.dumps(rec) + "\n")
-print(c.get("say", "claude says hi"), flush=True)
+if "stream" in c:  # stream-json: each item a line (an object as JSON, a string as is), a number a pause in seconds
+    for ev in c["stream"]:
+        if isinstance(ev, (int, float)):
+            time.sleep(ev)
+            continue
+        print(ev if isinstance(ev, str) else json.dumps(ev), flush=True)
+    if c.get("stderr"):
+        print(c["stderr"], file=sys.stderr, flush=True)
+else:
+    print(c.get("say", "claude says hi"), flush=True)
 if c.get("verdict"):
     open(os.path.join(lock, "last-gate"), "w").write("%%s\t%%s\n" %% (c.get("gate", "build"), c["verdict"]))
 if c.get("steal_lock"):

@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 
-from . import deps, proc, project, stack, text
+from . import deps, proc, project, stack, telemetry, text
 from .defaults import STAGES as STAGE_COLUMNS
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -707,7 +707,7 @@ class Cycle:
             envs.append("SHIPFLOOR_INFRA_RETRY=1")
         envs.append("TMPDIR=" + scratch + "/tmp")
         args = ["-p", "--permission-mode", "acceptEdits", "--add-dir", self.wt_root, "--add-dir", self.home + "/tmp",
-                "--add-dir", self.home + "/reviews", *extra]
+                "--add-dir", self.home + "/reviews", *extra, "--output-format", "stream-json", "--verbose"]
         _detach({"mode": "run", "p": p, "n": n, "dir": d, "log": log, "model": model, "weight": weight,
                  "step": step, "from": frm, "gate": gate, "envs": envs, "claude": self.claude, "args": args,
                  "control": self.control, "wt_root": self.wt_root, "home": self.home, "mlang": self.mlang,
@@ -925,9 +925,13 @@ def supervise(spec):
 
     def agent():
         # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into "C:/Program Files/Git/develop 54".
+        # Its stdout is a stream-json read by telemetry: the log gets the text a plain -p printed, the events and a
+        # summary go beside it (telemetry.py).
         argv = proc.script_argv(spec["claude"], *spec["args"])
-        with open(log, "ab") as f:
-            return _run(argv, out=f, err=STDOUT, cwd=control, env=env, input=("/sf:%s %s" % (p, n)).encode("utf-8"))[0]
+        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso()}
+        _flush()
+        return telemetry.run_agent(argv, log, control, env, ("/sf:%s %s" % (p, n)).encode("utf-8"), meta,
+                                   os.path.join(spec["home"], "logs", "runs.jsonl"), iso=_iso)
 
     def deploy(*args):
         with open(log, "ab") as f:
