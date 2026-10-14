@@ -758,6 +758,12 @@
     "dep.closed": "已关闭",
     "dep.open": "未关闭",
     "why.deps": "等待 {list}",
-    "dep.unread": "未能读取依赖；GitHub 响应后开始"
+    "dep.unread": "未能读取依赖；GitHub 响应后开始",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

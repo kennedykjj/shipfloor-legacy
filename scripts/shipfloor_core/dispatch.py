@@ -27,6 +27,7 @@ import sys
 import time
 
 from . import deps, proc, project, stack, text
+from .defaults import STAGES as STAGE_COLUMNS
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PIPE, DEVNULL, STDOUT = subprocess.PIPE, subprocess.DEVNULL, subprocess.STDOUT
@@ -401,15 +402,11 @@ class Cycle:
             self.say("dispatch: outside working hours; runs start again at %s" % nxt)
         else:
             lr, ld = _int(lim[0]), _int(lim[1])
-            if not self.run_pipeline("refine", "Ready for Refinement", 0, lr, "Technical Refinement", "Spec Review"):
-                status = 1
-            if not self.run_pipeline("develop", "Ready for Dev", 0, ld, "Coding", "Coding", "Validation"):
-                status = 1
-            if not self.run_pipeline("validate", "Validation", 0, 0, ""):
-                status = 1
             # one deploy at a time in a project: merges into its main are serial
-            if not self.run_pipeline("deploy", "Ready for Prod", 1, 0, ""):
-                status = 1
+            for p, maxpar, limit in (("refine", 0, lr), ("develop", 0, ld), ("validate", 0, 0), ("deploy", 1, 0)):
+                queue, resumes, wip_cols = STAGE_COLUMNS[p]
+                if not self.run_pipeline(p, queue, maxpar, limit, resumes[0] if resumes else "", *wip_cols):
+                    status = 1
         if self.deps_seen:
             self.save_deps()
         # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).

@@ -758,6 +758,12 @@
     "dep.closed": "geschlossen",
     "dep.open": "offen",
     "why.deps": "Wartet auf {list}",
-    "dep.unread": "Abhängigkeiten nicht gelesen; startet, sobald GitHub antwortet"
+    "dep.unread": "Abhängigkeiten nicht gelesen; startet, sobald GitHub antwortet",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

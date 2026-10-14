@@ -758,6 +758,12 @@
     "dep.closed": "fechada",
     "dep.open": "aberta",
     "why.deps": "Aguardando {list}",
-    "dep.unread": "Dependências não lidas; começa quando o GitHub responder"
+    "dep.unread": "Dependências não lidas; começa quando o GitHub responder",
+    "rv.new": "Nova",
+    "rv.changed": "Alterada",
+    "rv.removed": "Removida",
+    "rv.before": "Antes",
+    "rv.request": "Seu pedido",
+    "rv.since": "{n, plural, one {# afirmação mudou desde o seu pedido} other {# afirmações mudaram desde o seu pedido}}"
   }
 }

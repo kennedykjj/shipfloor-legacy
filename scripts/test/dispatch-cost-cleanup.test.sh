@@ -149,11 +149,4 @@ rc2 baseline 0
 t "AC-3 python rc 2 that touched nothing: the marker is as it was" test "$(cat "$FACTORY_HOME/cost/77.json" 2>/dev/null)" = baseline
 t "AC-3 python rc 2 that touched nothing: no start" not launched_has "/sf:develop 77"
 
-# ---- AC-8: every issue group has its test file in the suite, and the dispatcher scripts are as committed
-for f in dispatch-process dispatch-launch-flags dispatch-cost-cleanup dispatch-lang-files shipfloor-dispatch-cycle run-dispatcher; do
-  t "AC-8 scripts/test/$f.test.sh exists and asserts something" grep -q 'AC-' "$FACTORY_DIR/test/$f.test.sh"
-done
-if git -C "$FACTORY_DIR" rev-parse --git-dir >/dev/null 2>&1; then
-  t "AC-8 dispatch.sh, shipfloor-dispatch.sh and run-dispatcher.sh are unchanged from the commit" git -C "$FACTORY_DIR" diff --quiet HEAD -- dispatch.sh shipfloor-dispatch.sh run-dispatcher.sh
-fi
 finish

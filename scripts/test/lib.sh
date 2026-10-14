@@ -73,6 +73,13 @@ run_dispatch() {  # run_dispatch: dispatch.sh ($D), then wait until every run it
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; FAILS=$((FAILS+1)); }
 finish() { [ "$FAILS" -eq 0 ]; }
+py_suite() {  # py_suite <module> [pattern]: run scripts/test/py/<module>.py in process (unittest), counting its FAIL lines
+  local out rc
+  out="$("$FACTORY_PYTHON" -I -B "$FACTORY_DIR/test/py/run.py" "$@" 2>&1)"; rc=$?
+  printf '%s\n' "$out"
+  FAILS=$(( FAILS + $(printf '%s\n' "$out" | grep -c '^  FAIL ') ))
+  [ "$rc" = 0 ] || [ "$FAILS" -gt 0 ] || fail "$1: exited $rc without a FAIL line"
+}
 wait_for() {  # wait_for <what> <command...>: retry the command every 0.1 s until it succeeds; after TEST_WAIT_SECS (default 60) seconds, fail and return 1
   local what="$1" limit=$((SECONDS + ${TEST_WAIT_SECS:-60}))
   shift

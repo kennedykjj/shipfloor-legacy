@@ -758,6 +758,12 @@
     "dep.closed": "クローズ",
     "dep.open": "オープン",
     "why.deps": "{list} を待っています",
-    "dep.unread": "依存関係を読み込めません。GitHub が応答すると開始します"
+    "dep.unread": "依存関係を読み込めません。GitHub が応答すると開始します",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

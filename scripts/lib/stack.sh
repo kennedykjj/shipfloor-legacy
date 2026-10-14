@@ -7,7 +7,6 @@
 #   stack_lease/stack_up  set SLOT here (stack_up also exports the slot's SHIPFLOOR_* for the runner); they wait in
 #                   the background, so INT/TERM reach this shell at once: sf.py gives its ticket or slot back, exit 3
 
-source "${BASH_SOURCE[0]%/*}/portable.sh"
 STACK_LOCKS="$SHIPFLOOR_HOME/locks"
 _STACK_SF="$SHIPFLOOR_LIB/../sf.py"
 if command -v cygpath >/dev/null 2>&1; then _STACK_SF="$(cygpath -m "$_STACK_SF")"; fi  # the path Windows Python reads
