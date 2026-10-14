@@ -6,6 +6,7 @@ import shutil
 import sys
 from unittest import mock
 
+import fake_llm
 from cli_support import CliCase, ROOT, git, plugin_copy, script
 from shipfloor_core import cli
 
@@ -98,6 +99,79 @@ class Doctor(CliCase):
         self.assertRegex(self.doctor(), r"(?m)^WARN .*models\.stages\.develop")
         self.write_file(os.path.join(self.sh, "config.yml"), "models:\n  stages: {develop: opus}\n")
         self.assertNotRegex(self.doctor(), r"(?m)^WARN .*models\.stages\.develop")
+
+    KEY = "SF_LLM_KEY"
+    SECRET = "sk-doctor-151-c41e8b"
+
+    def provider_doctor(self, mode="ok", models=("qwen3-coder",), model="qwen3-coder", key=True, runtime_extra=""):
+        """doctor with runtime.provider on a fake endpoint (mode, the models it serves), the model the config names and the key
+        variable set or not. Returns (output, endpoint)."""
+        llm = fake_llm.FakeLLM(mode, models)
+        self.addCleanup(llm.stop)
+        self.fake_codex()
+        home = os.environ["SHIPFLOOR_CODEX_HOME"] = os.path.join(self.st, "codex-home")
+        self.write_file(os.path.join(home, "config.toml"), "# generated\n")
+        self.write_file(os.path.join(home, "agents", "architect.toml"), "name = 'architect'\n")
+        if key:
+            os.environ[self.KEY] = self.SECRET
+        else:
+            os.environ.pop(self.KEY, None)
+        self.write_file(os.path.join(self.sh, "config.yml"),
+                        "runtime:\n  default: codex\n%s  provider:\n    base_url: %s\n    api_key_env: %s\n"
+                        "    models: {stages: {develop: %s}}\n" % (runtime_extra, llm.base_url, self.KEY, model))
+        return self.doctor(), llm
+
+    @staticmethod
+    def fails(out):
+        return {l for l in out.splitlines() if l.startswith("FAIL")}
+
+    def test_AC7_provider_lines_ok(self):
+        "AC-7 with a provider that is up, serves the model, has its key variable and /responses doctor says ok for each and prints no provider FAIL"
+        out, llm = self.provider_doctor()
+        for what in (self.KEY, "qwen3-coder", llm.host):
+            self.assertRegex(out, r"(?m)^ok   .*%s" % what.replace(".", r"\."), "an ok line for %s" % what)
+        self.assertFalse([l for l in self.fails(out) if self.KEY in l or "qwen3-coder" in l or llm.host in l or "opencode" in l], out)
+        self.assertNotRegex(out, r"(?m)^WARN .*runtime\.models", "nothing is ignored")
+
+    def test_AC7_each_provider_failure_has_its_own_line(self):
+        "AC-7 an endpoint that is down, a model the endpoint does not serve, a missing key variable and an endpoint without /responses (naming opencode) are four different FAIL lines, and doctor exits 1"
+        base = self.fails(self.provider_doctor()[0])
+        down, llm_down = self.provider_doctor("down")
+        absent, _ = self.provider_doctor(model="missing-model")
+        nokey, _ = self.provider_doctor(key=False)
+        noresp, _ = self.provider_doctor("no-responses")
+        new = {n: self.fails(o) - base for n, o in (("down", down), ("model", absent), ("key", nokey), ("responses", noresp))}
+        for name, lines in new.items():
+            self.assertTrue(lines, "%s: a FAIL line of its own: %s" % (name, new))
+        self.assertTrue([l for l in new["down"] if llm_down.host in l], new["down"])
+        self.assertTrue([l for l in new["model"] if "missing-model" in l], new["model"])
+        self.assertTrue([l for l in new["key"] if self.KEY in l], new["key"])
+        self.assertTrue([l for l in new["responses"] if "opencode" in l and "responses" in l], new["responses"])
+        for name in ("down", "model", "key"):
+            self.assertFalse([l for l in new[name] if "opencode" in l], "only the missing /responses suggests opencode: %s" % name)
+        self.assertFalse([l for l in new["model"] if self.KEY in l] + [l for l in new["key"] if "missing-model" in l])
+        names = list(new)
+        for i, a in enumerate(names):
+            for b in names[i + 1:]:
+                self.assertNotEqual(new[a], new[b], "%s and %s say the same" % (a, b))
+        self.assertEqual(self.rc, 1)
+
+    def test_AC7_runtime_models_beside_a_provider_is_a_warning(self):
+        "AC-7 runtime.models set beside a provider: a WARN that it is ignored (and no WARN without it)"
+        out, _ = self.provider_doctor(runtime_extra="  models: {stages: {develop: gpt-6-mini}}\n")
+        self.assertRegex(out, r"(?m)^WARN .*runtime\.models.*ignor")
+
+    def test_AC8_the_key_is_not_in_the_output_nor_in_a_file(self):
+        "AC-8 the key's value is in no doctor line, even when the endpoint fails, and in no file under the Shipfloor home or the CODEX_HOME"
+        outs = [self.provider_doctor()[0], self.provider_doctor("no-responses")[0], self.provider_doctor(model="missing-model")[0]]
+        for out in outs:
+            self.assertNotIn(self.SECRET, out)
+        self.assertIn("qwen3-coder", outs[0], "the doctor said something about the provider")
+        for root in (self.sh, os.environ["SHIPFLOOR_CODEX_HOME"]):
+            for d, _, files in os.walk(root):
+                for f in files:
+                    with open(os.path.join(d, f), "rb") as fh:
+                        self.assertNotIn(self.SECRET.encode(), fh.read(), os.path.join(d, f))
 
     def test_dispatcher_line(self):
         "doctor says whether a dispatcher is registered (cron here); a missing one is a WARN that leaves the exit code alone; none on Windows"

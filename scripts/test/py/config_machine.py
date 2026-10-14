@@ -393,3 +393,78 @@ class Models(MachineCase):
         rc, _, err = self.mach("bogus")
         self.assertEqual(rc, 2)
         self.assertIn("usage: machine validate | values <key>... | show | hours | set <key> <int>", err)
+
+
+class Provider(MachineCase):
+    """runtime.provider (#151): the endpoint a codex run talks to, in the machine's config.yml and, key by key over it, in
+    the project's factory.yml."""
+    URL = "http://127.0.0.1:8000/v1"
+
+    def provider(self, *project):
+        rc, out, err = self.mach("provider", *project)
+        return rc, out, err
+
+    def test_AC1_valid_provider_is_accepted(self):
+        "AC-1 a provider with a base_url, an api_key_env, models and a ladder is a valid config"
+        self.good("runtime:\n  default: codex\n  provider:\n    base_url: %s\n    api_key_env: LLM_KEY\n"
+                  "    models: {stages: {develop: 'Qwen/Qwen3-Coder-30B-A3B', validate: 'llama3.1:8b'}}\n"
+                  "    ladder: ['llama3.1:8b', 'Qwen/Qwen3-Coder-30B-A3B']\n" % self.URL)
+        self.good("runtime: {default: codex, provider: {base_url: 'https://llm.corp.example:8443/v1'}}")
+
+    def test_AC1_invalid_provider_names_the_key(self):
+        "AC-1 a base_url that is not http(s)://, an api_key_env that is not a variable name, models or a ladder in the wrong shape or with a name that cannot go in a -c, an unknown key or no base_url: invalid, the message names the key"
+        cases = [
+            ("{base_url: 'ftp://x/v1'}", "runtime.provider.base_url"),
+            ("{base_url: 'llm.local/v1'}", "runtime.provider.base_url"),
+            ("{base_url: 'http://a b/v1'}", "runtime.provider.base_url"),
+            ("{base_url: 'http://a/\"v1'}", "runtime.provider.base_url"),
+            ("{base_url: \"http://a/'v1\"}", "runtime.provider.base_url"),
+            ("{base_url: 3}", "runtime.provider.base_url"),
+            ("{base_url: '%s', api_key_env: '1BAD'}" % self.URL, "runtime.provider.api_key_env"),
+            ("{base_url: '%s', api_key_env: 'A-B'}" % self.URL, "runtime.provider.api_key_env"),
+            ("{base_url: '%s', api_key_env: 'sk-secret value'}" % self.URL, "runtime.provider.api_key_env"),
+            ("{base_url: '%s', models: {stages: {develop: ''}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', models: {nope: {}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', models: {stages: {build: x}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', models: {stages: {develop: 'a\"b'}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', models: {stages: {develop: 'a b'}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', ladder: qwen}" % self.URL, "runtime.provider.ladder"),
+            ("{base_url: '%s', ladder: ['a b']}" % self.URL, "runtime.provider.ladder"),
+            ("{base_url: '%s', nope: 1}" % self.URL, "runtime.provider.nope"),
+            ("x", "runtime.provider"),
+        ]
+        for provider, key in cases:
+            self.bad("runtime: {default: codex, provider: %s}" % provider, key)
+            self.conf("runtime: {default: codex, provider: %s}" % provider)
+            self.assertEqual(self.provider()[0], 2, "an invalid config is never read: %s" % provider)
+
+    def test_AC1_provider_query(self):
+        "AC-1 machine provider prints base_url and the NAME of api_key_env (never a value) split by NUL, nothing without a provider; the project's factory.yml over the machine's key by key"
+        self.conf("pool: 4")
+        self.assertEqual(self.provider(), (0, "", ""))
+        self.conf("runtime: {default: codex, provider: {base_url: '%s', api_key_env: LLM_KEY}}" % self.URL)
+        rc, out, err = self.provider()
+        self.assertEqual((rc, out.rstrip("\0").split("\0")), (0, [self.URL, "LLM_KEY"]), err)
+        project = self.yml(open(FIXTURE_YML, encoding="utf-8").read()
+                           + "\nruntime:\n  provider: {base_url: 'https://llm.corp.example/v1'}\n")
+        rc, out, err = self.provider(project)
+        self.assertEqual((rc, out.rstrip("\0").split("\0")), (0, ["https://llm.corp.example/v1", "LLM_KEY"]), err)
+        self.conf("pool: 4")
+        rc, out, err = self.provider(project)
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(out.split("\0")[0], "https://llm.corp.example/v1", "a project alone can name the provider")
+        bad = self.yml(open(FIXTURE_YML, encoding="utf-8").read() + "\nruntime:\n  provider: {base_url: 'ftp://x'}\n", "bad.yml")
+        self.assertEqual(self.provider(bad)[0], 2, "an invalid project config is never read")
+
+    def test_AC3_provider_models_win_over_runtime_models(self):
+        "AC-3 with a provider the stage models and the ladder are the provider's (the project's over the machine's name by name), runtime.models and runtime.ladder are ignored"
+        machine = {"runtime": {"default": "codex", "models": {"stages": {"develop": "ignored", "validate": "ignored"}},
+                               "ladder": ["ignored", "ignored-up"],
+                               "provider": {"base_url": self.URL, "models": {"stages": {"develop": "p-low", "validate": "p-val"}},
+                                            "ladder": ["p-low", "p-high"]}}}
+        project = {"runtime": {"provider": {"models": {"stages": {"develop": {"heavy": "p-high"}}}}}}
+        self.assertEqual(shipfloor_config.runtime_problems(machine["runtime"]), [])
+        got = shipfloor_config.runtime_stage_models(machine, project)
+        self.assertEqual(got["develop"], {"light": "", "standard": "", "heavy": "p-high"})
+        self.assertEqual(got["validate"], dict.fromkeys(shipfloor_config.WEIGHTS, "p-val"))
+        self.assertEqual(got["refine"], dict.fromkeys(shipfloor_config.WEIGHTS, ""), "runtime.models is not a fallback")
