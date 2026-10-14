@@ -111,14 +111,78 @@ class Push(DeployCase):
         self.run_deploy(7, env={"FACTORY_POLLS": "4"})
         self.assert_blocked("CI failed on the PR (")
 
+    def calls(self):
+        return self.fg("calls").split("\n")
+
+    def timed(self, *args, poll="10"):
+        """run_deploy with a real poll interval and Deploy.sleep recorded instead of slept: the sleeps, in order"""
+        slept = []
+        with mock.patch.object(deploy.Deploy, "sleep", lambda d, secs: slept.append(secs)):
+            self.run_deploy(*args, env={"FACTORY_POLL": poll})
+        return slept
+
+    def merge_argv(self, sha):
+        return "pr merge 78 --repo acme/shop --squash --match-head-commit %s" % sha
+
+    def test_green_merges_at_once(self):
+        "the approved head, up to date with main and all green: merged at the first poll, with no sleep and no poll more"
+        slept = self.timed(7)
+        self.shipped()
+        self.assertEqual(slept, [])
+        self.assertEqual(self.polls(), 1)
+        calls = [l for l in self.calls() if l]
+        merges = [l for l in calls if l.startswith("pr merge")]
+        self.assertEqual(merges, [self.merge_argv(self.staged)])
+        poll = next(i for i, l in enumerate(calls) if "statusCheckRollup" in l)
+        self.assertEqual(calls[poll + 1], merges[0], "something ran between the green poll and the merge")
+        self.assertNotIn("deploy-merge: ", self.comments())
+
+    def test_pending_waits(self):
+        "checks still running on the approved head: polled every FACTORY_POLL s until green, then merged"
+        self.gh_with('case "$*" in *statusCheckRollup*) c=$(cat "$FG/polls" 2>/dev/null || echo 0); '
+                     'echo $((c+1)) > "$FG/polls"\n  if [ "$c" -lt 2 ]; then out="$(bash "$FAKE_GH" "$@")"; '
+                     'echo "${out%% *} api=IN_PROGRESS"; exit 0; fi ;; esac')
+        slept = self.timed(7)
+        self.shipped()
+        self.assertEqual(self.polls(), 3)
+        self.assertEqual(slept, [10, 10])
+        self.assertIn(self.merge_argv(self.staged), self.calls())
+
+    def test_behind_merges_main_and_waits(self):
+        "a PR behind main: main merged in, recorded, pushed, and the pushed head must be seen green twice"
+        self.scene("behind")
+        slept = self.timed(7)
+        self.shipped()
+        self.assertIn("deploy-merge: ", self.comments())
+        self.assertIn("merged main into the PR: ", self.out)
+        head = self.head_of()
+        self.assertNotEqual(head, self.staged)
+        self.assertEqual(self.polls(), 2)
+        self.assertEqual(slept, [10])
+        self.assertIn(self.merge_argv(head), self.calls())
+
+    def test_poll_default(self):
+        "without FACTORY_POLL the polls are 10 s apart"
+        self.scene("behind")
+        slept = []
+        os.environ.pop("FACTORY_POLL")
+        try:
+            with mock.patch.object(deploy.Deploy, "sleep", lambda d, secs: slept.append(secs)):
+                self.run_deploy(7)
+        finally:
+            os.environ["FACTORY_POLL"] = "0"
+        self.shipped()
+        self.assertEqual(slept, [10])
+
     def test_green_twice(self):
-        "green needs two polls, not necessarily in a row: pending polls in between do not count"
+        "a head this run pushed needs green on two polls, not necessarily in a row: pending polls in between do not count"
+        self.scene("behind")
         self.run_deploy(7)
         self.shipped()
         self.assertEqual(self.polls(), 2)
         self.assertIn("statusCheckRollup", self.fg("calls"), "no local_ci: GitHub's checks are asked for")
         for pending, want in (("1", 3), ("lt3", 5)):
-            self.setUp()
+            self.scene("behind")
             cond = '[ "$c" = 1 ]' if pending == "1" else '[ "$c" -lt 3 ]'
             self.gh_with('case "$*" in *statusCheckRollup*) c=$(cat "$FG/polls" 2>/dev/null || echo 0); '
                          'echo $((c+1)) > "$FG/polls"\n  if %s; then out="$(bash "$FAKE_GH" "$@")"; '
@@ -135,7 +199,7 @@ class Push(DeployCase):
                      '  if [ "$c" -lt 3 ]; then L "$*"; echo "%s api=SUCCESS"; exit 0; fi ;; esac' % (bogus, bogus))
         self.run_deploy(7)
         self.shipped()
-        self.assertEqual(self.polls(), 5)
+        self.assertEqual(self.polls(), 4)
         self.assertNotIn("checks failed on", self.out)
         self.setUp()
         self.gh_with('case "$*" in *statusCheckRollup*) L "$*"; echo "%s api=SUCCESS"; exit 0 ;; esac' % bogus)

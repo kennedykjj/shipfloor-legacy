@@ -89,6 +89,7 @@ The deterministic deploy of one card: `deploy.sh <n> [--refresh | --continue]`. 
 - Approval is the newest `staged-head: <40 hex>` comment written by the factory's own GitHub user; `HEAD_SHA` of the PR must be that commit or a chain (at most 10) of recorded `deploy-merge`/`deploy-fix` commits on top of it, each merge's second parent an ancestor of `origin/<main>`.
 - A fork PR, zero or several open PRs for the card, a PR changed after staging, red gates or red CI before merge are `block`: exit 5.
 - Merge is `gh pr merge --squash --match-head-commit <sha>`. After merge it checks `deploy.ci_workflow` on `origin/<main>` (a failed run reruns its failed jobs once), then `deploy.environment`, then each `deploy.healthcheck` url (5 tries); any failure opens `revert/<n>` and a revert PR, comments with a closing `staged-head: <sha of the revert branch>`, reopens the issue, labels `blocked` and exits 6.
+- Waiting for the PR's checks: a head this run did not push (the approved head, or a merge of main recorded and pushed earlier, e.g. by `--refresh`) that is up to date with main and all green (every `deploy.required_checks` present) on the first poll is merged at once, with no further poll or sleep. A head this run pushed (main merged in, a renumbered migration, a small fix) must be seen green on two polls, against workflows that register late after a push. Polls are `FACTORY_POLL` s apart (default 10).
 - `deploy.local_ci`, when set, replaces waiting for GitHub's checks.
 - A fix of at most `deploy.fix_max_files` files and `fix_max_lines` lines that touches no acceptance test ships with the approved head; a larger one goes back to Staged with a new `staged-head:`.
 - At most two fix rounds (`<tmp>/fix.round`), after which the card goes back to Coding.
@@ -359,7 +360,7 @@ Readers that parse what the scripts write, which a port must not break:
 | `FACTORY_CLEANUP` | `dispatch.sh` | `0` skips killing a run's leftover processes (Windows) |
 | `SHIPFLOOR_MAX_PARALLEL` | `dispatch.sh` | overrides the machine `pool` |
 | `SHIPFLOOR_CYCLE_STALE_MIN`, `SHIPFLOOR_STALE_LOCK_MIN`, `SHIPFLOOR_LOCK_RETRY_S` | `shipfloor-dispatch.sh` | minutes before a `dispatch.pid` or an `index.lock` is stale (30, 10); seconds between lock retries (5) |
-| `FACTORY_POLL`, `FACTORY_POLLS` | `deploy.sh` | seconds between polls (default 30); with `FACTORY_POLL=0`, `FACTORY_POLLS` is the number of polls (default 60) |
+| `FACTORY_POLL`, `FACTORY_POLLS` | `deploy.sh` | seconds between polls (default 10); with `FACTORY_POLL=0`, `FACTORY_POLLS` is the number of polls (default 60) |
 | `SHIPFLOOR_NOW` | `shipfloor_config.py` | the clock (`HH:MM`) the working hours are judged by |
 | `SHIPFLOOR_MACHINE_CONFIG` | `shipfloor_config.py` | the machine config file's path (set by `shipfloor_machine`) |
 | `CLAUDE_CONFIG_DIR` | `dashboard.py`, `dashboard_cost.py`, `shipfloor_health.py` | Claude Code's directory (default `~/.claude`) |
