@@ -77,7 +77,8 @@ top="$(git -C "$FACTORY_DIR" rev-parse --show-toplevel 2>/dev/null)"
 mb=""; [ -z "$top" ] || mb="$(git -C "$top" merge-base origin/main HEAD 2>/dev/null)"
 if [ -n "$mb" ]; then
   edited=""
-  for f in $(git -C "$top" ls-tree -r --name-only "$mb" -- scripts/test | grep -E '/(gate-[a-z-]+|stack-[a-z-]+|dispatch-stepup|deploy-[a-z-]+|py-[a-z-]+)\.test\.sh$'); do
+  for f in $(git -C "$top" ls-tree -r --name-only "$mb" -- scripts/test | grep -E '/(gate-[a-z-]+|stack-[a-z-]+|dispatch-stepup|deploy-[a-z-]+|py-[a-z-]+)\.test\.sh$' \
+             | grep -v '/gate-py-run-compat\.test\.sh$'); do  # #166's own AC-8 file, which its gate half extends
     git -C "$top" diff --quiet "$mb" -- "$f" || edited="$edited $f"
   done
   [ -z "$edited" ] && pass "AC-9 the existing gate, stack, dispatch-stepup, deploy and py suites are unedited" || fail "AC-9 these suites were edited:$edited"
