@@ -1906,12 +1906,14 @@ function briefHTML(b, open) {
   const obj = (x) => !!x && typeof x === "object" && !Array.isArray(x);
   const chip = (k) => `<span class="tag">${t(k)}</span>`;
   const who = (s) => chip(s === "gate" ? "brief.by.gates" : s === "product owner" || s === "po" ? "brief.by.po" : "brief.by.review");
+  // flags are computed by brief.py (gate migration, git diff, spec, ...): gates unless an agent wrote the source
+  const flagWho = (s) => chip(!str(s) || s === "gate" || !["review", "review agent", "agent"].includes(s.trim()) ? "brief.by.gates" : "brief.by.review");
   const block = (cap, chips, body) => `<section class="bk"><div class="bk-h"><h3 class="bk-cap">${cap}</h3>${chips}</div>${body}</section>`;
   const parts = [];
   if (obj(b.what) && str(b.what.text)) parts.push(block(t("brief.what"), who(b.what.by), `<p>${esc(b.what.text)}</p>`));
   const flags = list(b.flags).map((f, i) => [f, i]).filter(([f]) => obj(f) && str(f.title));
   if (flags.length) parts.push(block(t("brief.flags"), "", `<ul>${flags.map(([f, i]) =>
-    `<li><div>${esc(f.title)} ${who(f.source)}</div>${str(f.detail) ? `<p>${esc(f.detail)}</p>` : ""}${str(f.hunk) ? `<pre>${esc(f.hunk)}</pre>` : ""}${str(f.suggestion) ? `<button class="btn ghost" data-suggest="${i}" title="${ta("brief.use.title")}">${t("brief.use")}</button>` : ""}</li>`).join("")}</ul>`));
+    `<li><div>${esc(f.title)} ${flagWho(f.source)}</div>${str(f.detail) ? `<p>${esc(f.detail)}</p>` : ""}${str(f.hunk) ? `<pre>${esc(f.hunk)}</pre>` : ""}${str(f.suggestion) ? `<button class="btn ghost" data-suggest="${i}" title="${ta("brief.use.title")}">${t("brief.use")}</button>` : ""}</li>`).join("")}</ul>`));
   const since = list(b.since_request).filter((s) => obj(s) && (str(s.old) || str(s.new)));
   if (since.length) parts.push(block(t("brief.since"), chip("brief.by.diff"), `<ul>${since.map((s) => `<li>${str(s.old) ? `<del>${esc(s.old)}</del> ` : ""}${str(s.new) ? esc(s.new) : ""}</li>`).join("")}</ul>`));
   const proven = list(b.proven).filter(str);
