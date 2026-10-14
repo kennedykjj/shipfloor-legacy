@@ -204,6 +204,17 @@ Sourced, never run; defines functions only, for the tools that differ between GN
 - `run_bounded <seconds> <command...>` returns the command's exit code, or 124 when it was stopped at its limit. It uses `timeout` when present; otherwise it runs the command in the background with a watcher that, at the limit, kills the command's process tree.
 - `_kill_tree <pid>` kills the process and all its descendants (found with `pgrep -P`), children first.
 
+## lib/py.sh
+
+Sourced by a wrapper (`templates/py-wrapper.sh`), never run on its own; it ends in `exec`, so nothing after it in the wrapper runs. It does not source `lib/project.sh`: one start, no project lookup.
+
+**Interface:** no subcommands; it takes the wrapper's arguments and hands them to `sf.py`. **Needs:** `HERE`, set by the wrapper to the folder holding `sf.py` and `lib/`; optionally `FACTORY_PYTHON` or `SHIPFLOOR_PY`.
+
+**Contracts:**
+- It picks the Python 3 command: `FACTORY_PYTHON` if set, else `SHIPFLOOR_PY` if already set, else `python3`, else `python`; it exports the choice as `SHIPFLOOR_PY`.
+- It then runs `exec <python> -I $HERE/sf.py "$@"`: always isolated mode, so a planted module in the current directory is never imported. Under Git Bash the path of `sf.py` is converted with `cygpath -m` first.
+- When no Python is found it prints `shipfloor: python 3 not found (set FACTORY_PYTHON)` on stderr and exits 127.
+
 ## shipfloor
 
 The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). Run with no argument or an unknown one it prints the header lines 2 to 10 of its own source on stderr and exits 2; the `dashboard` line (line 11) is not among them. Errors are `shipfloor: <message>` on stderr; `die` exits 1 unless it says otherwise.
