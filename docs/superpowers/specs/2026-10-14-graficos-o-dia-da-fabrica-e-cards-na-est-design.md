@@ -10,7 +10,7 @@ _Product Owner_
 **Problem:** para entender como a fábrica se comportou num dia (carga por etapa, pool cheio, paradas por limite do GitHub ou do Claude, o que entrou na `main`, por onde cada card passou), o dono hoje precisa ler o Feed run por run.
 **Audience:** o dono da fábrica, numa olhada rápida no dashboard.
 **Acceptance criteria**
-- **AC-1** — Dado um health e logs de run de fixture com ciclos e execuções em mais de um dia, quando se chama `GET /api/day?project=<p>&date=<AAAA-MM-DD>` com o token, então vêm os ciclos, as execuções e os PRs mergeados daquele dia e só deles; sem o token, a resposta é recusada como nos outros endpoints.
+- **AC-1** — Dado um health e logs de run de fixture com ciclos e execuções em mais de um dia, quando se chama `GET /api/factory-day/<p>?date=<AAAA-MM-DD>` com o token, então vêm os ciclos, as execuções e os PRs mergeados daquele dia e só deles; sem o token, a resposta é recusada como nos outros endpoints.
 - **AC-2** — Dado o Diário aberto, quando o dono não escolhe dia, então os dois gráficos mostram hoje, e a navegação leva aos dias anteriores e redesenha os dois.
 - **AC-3** — Dado um dia com ciclos, quando "O dia da fábrica" é desenhado, então cada ciclo mostra a contagem em andamento por etapa empilhada em degraus, o tamanho do pool como linha tracejada, e um ciclo com `github_limited` ou `usage_limited` ganha uma faixa na cor de alerta.
 - **AC-4** — Dado um dia com PRs mergeados na `main`, quando o gráfico é desenhado, então cada PR vira uma marca colorida pelo tipo do commit (`feat`, `fix`, `test`/`ci`, `docs`/`chore`), e passar o ponteiro numa marca mostra o número e o título; num ciclo, mostra a hora, a contagem por etapa e o pool.
@@ -19,7 +19,7 @@ _Product Owner_
 - **AC-7** — Dada uma barra de execução, quando o dono clica nela, então o card abre na aba Log, na execução clicada.
 - **AC-8** — Dado o dashboard em tema claro e escuro, em largura estreita e com movimento reduzido, quando os gráficos são desenhados, então usam só os tokens do tema, a legenda segue o idioma do dashboard, as marcas de PR não se sobrepõem, nada anima e a página não carrega recurso externo.
 **Out of scope:** gráficos de custo, intervalos de mais de um dia ou comparação entre dias, exportar dados, agregar vários projetos num gráfico, qualquer ação sobre cards a partir dos gráficos (só leitura e navegação ao Log), nova fonte de dados além do health, dos logs de run e da API REST do GitHub.
-**Product fit:** serve o princípio 3 (números exatos e com fonte: tudo vem do health, dos logs de run e do `merged_at` do GitHub, nada estimado) e o 1 (o dashboard só lê, não guarda estado de card). A chamada à API REST do GitHub é leitura do mesmo GitHub que o dashboard já consulta, não contraria o "fica local". Depende da #184 (Diário), ainda aberta: sem ela, não há onde os gráficos morarem.
+**Product fit:** serve o princípio 3 (números exatos e com fonte: tudo vem do health, dos logs de run e do `merged_at` do GitHub, nada estimado) e o 1 (o dashboard só lê, não guarda estado de card). A chamada à API REST do GitHub é leitura do mesmo GitHub que o dashboard já consulta, não contraria o "fica local". A #184 já saiu: os gráficos moram no Logbook (o Diário), que já traz o histórico do período.
 **Touches UI:** yes
 
 ## UX
@@ -27,7 +27,7 @@ _UX/UI Designer_
 
 Nenhum componente novo: os gráficos reusam o SVG à mão de `.chart`, a `.key`, o grupo `.ftools` com `aria-pressed`, `STAGE_HUE` e o abridor de card do Feed.
 
-- **Onde e fluxo (AC-2):** no Diário (#184; até lá, no History), depois dos gráficos que já existem e **só quando o período é um dia** (Hoje, um dia navegado com Anterior/Próximo ou um dia aberto no gráfico por dia). A navegação é o próprio controle de período, sem controle novo. Num período de vários dias, no lugar dos gráficos fica uma linha `.cap` `muted`. Para hoje, o redesenho segue o poll de 10s do History, e um dia passado é lido uma vez só.
+- **Onde e fluxo (AC-2):** no Logbook (Diário), depois dos gráficos do período que já existem e **só quando o período é um dia** (Hoje, um dia navegado com Anterior/Próximo ou um dia aberto no gráfico por dia). A navegação é o próprio controle de período, sem controle novo. Num período de vários dias, no lugar dos gráficos fica uma linha `.cap` `muted`. Para hoje, o redesenho segue o poll de 10s do History, e um dia passado é lido uma vez só.
 - **O dia da fábrica (AC-3):** eixo x de 00h a 24h do dia, com marcas de hora a cada 3h (a cada 6h abaixo de 600px), 12px `faint`. A área empilhada em degraus (step-after) segue a ordem Refine, Develop, Validate, Deploy, preenchida com `STAGE_HUE` a 70% via `color-mix`. O pool é uma linha de 1px tracejada (4 2) em `muted`. Um ciclo parado ganha uma faixa da altura toda em `warn` a 14% atrás da área. Em hoje, uma linha fina `faint` marca agora. Altura de 140px (110px abaixo de 600px).
 - **Marcas de PR (AC-4):** uma fileira de 14px sob o eixo, com um quadrado de 8px por PR no `merged_at`. Duas marcas a menos de 10px uma da outra se fundem numa marca com a contagem (Mono 12px), e o readout lista todos os PRs dela. A cor por tipo está em aberto (ver notes). A minha proposta é a forma carregar o tipo e a tinta ficar neutra: `feat` quadrado cheio `text`, `fix` losango `text`, `test`/`ci` quadrado vazado `muted`, `docs`/`chore` traço `faint`. Tudo isso entra na `.key`.
 - **Cards na esteira (AC-5):** uma linha de 22px por card. A coluna de 52px à esquerda leva `#n` em Mono 13px 500 `soft`, e o eixo é o mesmo do gráfico de cima. Cada execução é uma barra de 10px, `rounded.bar`, na cor da etapa, com largura mínima de 3px. Exit diferente de 0 ganha um contorno `bad` de 1.5px. Uma execução que ainda roda vai até agora e termina com a borda direita tracejada, sem animação. A ordem dos cards é a do primeiro início. Com mais de 12 cards, a esteira rola dentro do painel e o eixo fica sticky.
@@ -52,19 +52,19 @@ _Tech Lead_
 
 Camada única: `factory`. Sem migração, sem estado novo em disco.
 
-**Contrato novo — `GET /api/day/<project>?date=<AAAA-MM-DD>`** (token no header como os outros; `date` omitido = hoje no relógio da máquina; data inválida ou futura → 400; projeto desconhecido → 404; sem token → 403):
+**Contrato novo — `GET /api/factory-day/<project>?date=<AAAA-MM-DD>`** (o `/api/day/<project>` da #184 é o replay do board e não muda) (token no header como os outros; `date` omitido = hoje no relógio da máquina; data inválida ou futura → 400; projeto desconhecido → 404; sem token → 403):
 - `date`, `now` (ISO), `present` (bool: é hoje).
 - `cycles[]`: `ts`, `s`, `exit`, `pool {used, size}`, `running {refine, develop, validate, deploy}`, `github_limited`, `usage_limited` — linhas de `<home>/logs/health-<AAAA-MM>.jsonl` cujo `ts` cai no dia (data local); linha malformada é pulada.
 - `runs[]`: `issue`, `title`, `stage`, `start`, `end`, `exit`, `model`, `log`, `running` — de `Factory.runs(p)` sobre os logs do dia e do dia anterior, mantidas as que se sobrepõem ao dia; `end` nulo e o card/etapa em `Factory.live(p)` → `running: true`.
 - `prs[]`: `number`, `title`, `merged_at`, `kind` (`feat` | `fix` | `test` | `docs` | `other`, do prefixo convencional do título) e `prs_error` (nulo, ou o motivo quando o `gh` falha).
 
 **`scripts/dashboard.py`**
-- `Factory.day(p, day)`: monta a resposta acima; reusa `runs`, `live`, `titles`.
+- `Factory.factory_day(p, day)`: monta a resposta acima; reusa `runs`, `live`, `titles`.
 - `Factory.merged_prs(p, day)`: `gh api repos/<repo>/pulls?state=closed&base=<main>&sort=updated&direction=desc&per_page=100&page=<k>` (REST, fora da cota GraphQL), para quando a página termina antes do dia ou vem incompleta, no máximo 3 páginas; filtra `merged_at` pela data local. Cache em memória por `(p, day)`: 120 s para hoje, 1 h para dia passado; erro do `gh` não entra no cache.
-- `Handler.do_GET`: rota `["api", "day", <p>]`, com validação da data no estilo de `history_period`.
+- `Handler.do_GET`: rota `["api", "factory-day", <p>]`, com validação da data no estilo de `history_period`.
 
 **`scripts/dashboard.html`**
-- Bloco do dia no History (no Diário depois da #184), abaixo dos gráficos atuais, só com período de um dia; lê `/api/day` junto com `loadHistory` (poll de 10 s só para hoje).
+- Bloco do dia no painel de histórico do Logbook (`#history`), abaixo dos gráficos atuais, só com período de um dia; lê `/api/factory-day` junto com `loadHistory` (poll de 10 s só para hoje).
 - `drawDay(svg, body)` e `drawBelt(svg, body, stage)`: SVG à mão, largura do contêiner via `ResizeObserver`, cores por tokens e `STAGE_HUE`, readout `aria-live`, roving tabindex; marcas de PR a menos de 10 px se fundem.
 - Barra da esteira leva `data-open` + `data-log` e reusa o abridor do Feed (card maximizado no Log daquela execução). Texto vindo do GitHub entra só por `textContent`/escape.
 
@@ -96,9 +96,9 @@ n/a
 
 ## Decisions
 _What the pipeline decided on its own; one line each, with the reason._
-- Rota `/api/day/<project>?date=` em vez de `/api/day?project=`: segue o padrão de caminho de `/api/history/<p>` e dos outros endpoints.
+- Rota `/api/factory-day/<project>?date=` em vez de `/api/day?project=`: segue o padrão de caminho de `/api/history/<p>`, e `/api/day/<project>` já é o replay do board (#184).
+- A #184 entrou na `main`: a dependência some e os gráficos moram no painel de histórico do Logbook, sem esperar por nada.
 - Contagem por etapa e pool vêm do `stages`/`pool` globais do health (a máquina), como a issue lista: o pool é da máquina, e empilhar contagens de um projeto contra ele enganaria.
-- Os gráficos entram no History atual enquanto a #184 não sai, e mudam com ele para o Diário: assim o card não fica preso à #184.
 - Navegação entre dias é o controle de período existente; os gráficos só aparecem com período de um dia (sem controle novo).
 - Execução que cruza a meia-noite aparece nos dois dias, cortada na borda; por isso o endpoint lê também os logs do dia anterior.
 - Execução sem `== end` só conta como rodando se o card/etapa está em `live`; senão, `running: false` e `end` nulo (desenhada até o fim do dia ou agora).
