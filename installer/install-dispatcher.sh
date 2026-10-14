@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Registers the shipfloor dispatcher on Linux (systemd user timer, else the user's crontab) and macOS
 # (launchd user agent): every 1, 3, 5 or 10 minutes (--every-min, else dispatcher.every_min of the machine
-# config, else 3). It starts the installed copy: run 'shipfloor install' first. Windows has install-dispatcher.ps1.
+# config, else 3), and on systemd and launchd also as soon as a run ends (<home>/dispatcher.wake). It starts the
+# installed copy: run 'shipfloor install' first. Windows has install-dispatcher.ps1.
 #   bash install-dispatcher.sh [--every-min 1|3|5|10] [--kind systemd|cron|launchd] [--dry-run]
 #   Limits (systemd only): [--memory-max 8G|none] [--cpu-weight 1-10000|none] [--cpu-quota 200%|none]; the default is
 #   the machine config's limits (shipfloor-config.sh machine limits); cron and launchd warn that they are not supported.
@@ -85,7 +86,7 @@ if [ "$MODE" = status ]; then
 fi
 if [ "$MODE" = uninstall ]; then
   for k in systemd cron launchd; do "remove_$k"; done
-  rm -f "$H/dispatcher.path"
+  rm -f "$H/dispatcher.path" "$H/dispatcher.wake"
   echo "dispatcher unregistered"; exit 0
 fi
 
@@ -187,6 +188,19 @@ EOF
   CHANGED=1
 }
 "install_$KIND"
+
+# How a run that ended asks for a cycle now (dispatch.py wake_dispatcher), one argument a line. cron has no scheduler
+# to ask (a cycle started beside a running one stops as an overlap and alerts the owner): it keeps its interval alone.
+case "$KIND" in
+  systemd) printf '%s\n' systemctl --user start --no-block "$UNIT.service" > "$TMP/wake" ;;
+  launchd) printf '%s\n' launchctl kickstart "gui/$UIDN/$LABEL" > "$TMP/wake" ;;
+  cron) : ;;
+esac
+if [ -s "$TMP/wake" ]; then
+  cmp -s "$TMP/wake" "$H/dispatcher.wake" 2>/dev/null || { cp "$TMP/wake" "$H/dispatcher.wake"; CHANGED=1; }
+elif [ -e "$H/dispatcher.wake" ]; then
+  rm -f "$H/dispatcher.wake"; CHANGED=1
+fi
 
 [ -n "$CHANGED" ] && echo "dispatcher registered with $KIND, every $EVERY minutes" || echo "dispatcher already registered ($KIND, every $EVERY minutes)"
 if [ "$KIND" = systemd ] && has loginctl; then

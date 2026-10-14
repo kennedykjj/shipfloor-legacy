@@ -97,6 +97,7 @@ case "$lo" in *linger*) pass "AC-1 output says whether lingering is on" ;; *) fa
 case "$lo" in *"logout"*|*"log out"*|*"logs out"*) pass "AC-1 lingering off: says the dispatcher stops at logout" ;; *) fail "AC-1 lingering off but no word on stopping at logout: $out" ;; esac
 assert_contains "$out" "loginctl enable-linger"
 [ "$(cat "$SHIPFLOOR_HOME/dispatcher.path" 2>/dev/null)" = "$PATH" ] && pass "AC-1 dispatcher.path holds the installing PATH and nothing else" || fail "AC-1 $SHIPFLOOR_HOME/dispatcher.path is not exactly PATH: $(cat "$SHIPFLOOR_HOME/dispatcher.path" 2>/dev/null)"
+[ "$(cat "$SHIPFLOOR_HOME/dispatcher.wake" 2>/dev/null)" = "$(printf '%s\n' systemctl --user start --no-block shipfloor-dispatcher.service)" ] && pass "wake: systemd: a run that ends starts the cycle's service, without waiting" || fail "wake: systemd: dispatcher.wake is: $(cat "$SHIPFLOOR_HOME/dispatcher.wake" 2>/dev/null)"
 
 fresh; : > "$SF_ST/linger"; run
 case "$(lower "$out")" in *linger*) pass "AC-1 lingering on is reported" ;; *) fail "AC-1 lingering on is not mentioned: $out" ;; esac
@@ -149,6 +150,9 @@ assert_contains "$line" "$SHIPFLOOR_HOME/factory/run-dispatcher.sh"
 assert_contains "$line" " -l "
 case "$line" in *"$MARK") pass "AC-2 the line ends with the marker" ;; *) fail "AC-2 the line does not end with '$MARK': $line" ;; esac
 [ ! -e "$TMR" ] && pass "AC-2 no systemd unit written" || fail "AC-2 a systemd timer was written on a machine without systemd"
+[ ! -e "$SHIPFLOOR_HOME/dispatcher.wake" ] && pass "wake: cron: no command (cron keeps its interval alone)" || fail "wake: cron: dispatcher.wake written: $(cat "$SHIPFLOOR_HOME/dispatcher.wake")"
+fresh; run >/dev/null; : > "$SF_ST/no-systemd"; run --kind cron >/dev/null
+[ ! -e "$SHIPFLOOR_HOME/dispatcher.wake" ] && pass "wake: moving from systemd to cron removes the systemd command" || fail "wake: dispatcher.wake left after moving to cron: $(cat "$SHIPFLOOR_HOME/dispatcher.wake")"
 fresh; : > "$SF_ST/no-systemd"; run --every-min 10
 [ "$rc" -eq 0 ] && [ "$(dispatcher_lines)" = 1 ] && pass "AC-2 an empty crontab (crontab -l fails) installs cleanly" || fail "AC-2 empty crontab: exit $rc, lines $(dispatcher_lines): $out"
 case "$(grep -- "$MARK" "$TABLE" 2>/dev/null)" in '*/10 * * * * '*) pass "AC-2 --every-min 10 gives */10" ;; *) fail "AC-2 --every-min 10 line: $(grep -- "$MARK" "$TABLE" 2>/dev/null)" ;; esac
@@ -171,6 +175,7 @@ assert_contains "$p" "AbandonProcessGroup"
 assert_contains "$p" "$SHIPFLOOR_HOME"
 [ "$(count "$PLIST" '<key>Label</key>')" = 1 ] && pass "AC-5 the plist is one job" || fail "AC-5 the plist holds $(count "$PLIST" '<key>Label</key>') Label keys (want one job)"
 assert_contains "$(cat "$SF_ST/launchctl.log" 2>/dev/null)" "bootstrap gui/$(id -u) $PLIST"
+[ "$(cat "$SHIPFLOOR_HOME/dispatcher.wake" 2>/dev/null)" = "$(printf '%s\n' launchctl kickstart "gui/$(id -u)/com.shipfloor.dispatcher")" ] && pass "wake: launchd: a run that ends kickstarts the agent" || fail "wake: launchd: dispatcher.wake is: $(cat "$SHIPFLOOR_HOME/dispatcher.wake" 2>/dev/null)"
 fresh; SF_UNAME=Darwin run --every-min 5
 assert_contains "$(cat "$PLIST" 2>/dev/null)" "<integer>300</integer>"
 SF_UNAME=Darwin run --status
@@ -220,12 +225,27 @@ case "$seen" in *"git=/"*|*"git=C:"*|*"git=c:"*) pass "AC-6 git resolves" ;; *) 
 case "$seen" in *"python=/"*|*"python=C:"*|*"python=c:"*) pass "AC-6 Python resolves" ;; *) fail "AC-6 Python did not resolve under env -i: $seen" ;; esac
 [ "$(wc -l < "$SHIPFLOOR_HOME/dispatcher.path" | tr -d ' ')" -le 1 ] 2>/dev/null && pass "AC-6 dispatcher.path is one line" || fail "AC-6 dispatcher.path is not one line"
 
+# --- #218 AC-3: a reinstall needs no drop-in: the generated entries start run-dispatcher.sh (which sets TMPDIR) with no TMPDIR of their own
+fresh; run >/dev/null; run; again="$out"
+assert_contains "$again" "already registered"
+case "$(cat "$SVC" "$TMR" 2>/dev/null)" in *TMPDIR*) fail "AC-3 the systemd unit sets a TMPDIR of its own" ;; *) pass "AC-3 the systemd unit sets no TMPDIR" ;; esac
+fresh; SF_UNAME=Darwin run >/dev/null
+case "$(cat "$PLIST" 2>/dev/null)" in *TMPDIR*) fail "AC-3 the plist sets a TMPDIR of its own" ;; *) pass "AC-3 the plist sets no TMPDIR" ;; esac
+fresh; : > "$SF_ST/no-systemd"; run >/dev/null
+case "$(grep -- "$MARK" "$TABLE" 2>/dev/null)" in *TMPDIR*) fail "AC-3 the cron line sets a TMPDIR of its own" ;; *) pass "AC-3 the cron line sets no TMPDIR" ;; esac
+# the entry the install registered, run with a foreign TMPDIR, gives the cycle <SHIPFLOOR_HOME>/tmp
+printf '#!/usr/bin/env bash\necho "$TMPDIR" > "%s/seen-tmpdir"\n' "$T" > "$SHIPFLOOR_HOME/factory/shipfloor-dispatch.sh"
+cmd="$(grep -- "$MARK" "$TABLE" 2>/dev/null | sed -E 's/^([^ ]+ +){5}//; s/ *# shipfloor-dispatcher$//')"
+[ -n "$cmd" ] && env TMPDIR=/tmp sh -c "$cmd" >/dev/null 2>&1
+[ "$(cat "$T/seen-tmpdir" 2>/dev/null)" = "$SHIPFLOOR_HOME/tmp" ] && [ -d "$SHIPFLOOR_HOME/tmp" ] && pass "AC-3 the registered entry runs the cycle with TMPDIR=<SHIPFLOOR_HOME>/tmp, no drop-in" || fail "AC-3 the registered entry gave the cycle TMPDIR='$(cat "$T/seen-tmpdir" 2>/dev/null)' (want $SHIPFLOOR_HOME/tmp)"
+
 # --- AC-7: uninstall leaves nothing behind
 fresh; run >/dev/null; run --uninstall
 [ "$rc" -eq 0 ] && pass "AC-7 systemd: uninstall exits 0" || fail "AC-7 systemd: uninstall exited $rc: $out"
 [ ! -e "$SVC" ] && [ ! -e "$TMR" ] && pass "AC-7 systemd: both unit files deleted" || fail "AC-7 systemd: units left in $UNITS"
 assert_contains "$(cat "$SF_ST/systemctl.log" 2>/dev/null)" "disable --now shipfloor-dispatcher.timer"
 [ ! -e "$SHIPFLOOR_HOME/dispatcher.path" ] && pass "AC-7 dispatcher.path deleted" || fail "AC-7 dispatcher.path left behind"
+[ ! -e "$SHIPFLOOR_HOME/dispatcher.wake" ] && pass "AC-7 dispatcher.wake deleted" || fail "AC-7 dispatcher.wake left behind"
 run --status; [ "$rc" -eq 1 ] && pass "AC-7 --status says not registered afterwards" || fail "AC-7 --status after uninstall exited $rc: $out"
 
 fresh; : > "$SF_ST/no-systemd"; printf '%s' "$OTHER_TABLE" > "$TABLE"; run >/dev/null; run --uninstall

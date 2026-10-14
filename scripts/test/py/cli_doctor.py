@@ -66,6 +66,28 @@ class Doctor(CliCase):
         self.assertRegex(out, r"dispatcher limits: .*not supported")
         self.assertNotRegex(out, r"dispatcher limits: .*none")
 
+    def test_tmpdir_on_tmpfs(self):
+        "AC-6 a dispatcher TMPDIR (<home>/tmp) on tmpfs is a WARN naming the path and the fix; elsewhere, or with no mount table, no line"
+        want = os.path.join(self.sh, "tmp")
+        for fstype, warned in (("tmpfs", True), ("ext4", False), (None, False)):
+            with mock.patch.object(cli, "_fs_type", return_value=fstype):
+                out = self.doctor()
+            self.assertEqual("WARN dispatcher TMPDIR %s is on tmpfs (inode cap); move SHIPFLOOR_HOME off tmpfs" % want in out,
+                             warned, (fstype, out))
+            self.assertEqual("TMPDIR" in out, warned)
+
+    def test_fs_type_longest_mount(self):
+        "AC-6 _fs_type is the type of the longest mount point containing the path (or its nearest existing parent); None without a mount table"
+        a, b = os.path.join(self.st, "m"), os.path.join(self.st, "m", "keep")
+        os.makedirs(b)
+        os.makedirs(os.path.join(self.st, "mx"))
+        mounts = self.write_file(os.path.join(self.st, "mounts"),
+                                 "rootfs / ext4 rw 0 0\ntmpfs %s tmpfs rw 0 0\nx %s ext4 rw 0 0\n" % (a, b))
+        for path, want in ((os.path.join(a, "new", "dir"), "tmpfs"), (os.path.join(b, "z"), "ext4"),
+                           (os.path.join(self.st, "mx", "y"), "ext4")):
+            self.assertEqual(cli._fs_type(path, mounts), want, path)
+        self.assertIsNone(cli._fs_type(a, os.path.join(self.st, "no-such-mounts")))
+
     def test_gh_protection_models(self):
         "doctor: the gh-auth line, each project's branch protection and the models line; a FAIL makes it exit 1"
         self.shop()

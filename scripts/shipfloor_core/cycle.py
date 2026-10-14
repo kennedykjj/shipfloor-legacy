@@ -248,6 +248,8 @@ def _cycle(home, claim):
     if claim.overlap or os.path.exists(os.path.join(home, "PAUSE")):
         return 0
     lang = _machine_lang()  # the dispatcher's own log lines
+    for name in project.sweep_home_tmp(home):
+        _say(lang, "%s shipfloor: removed tmp/%s" % (_now(), name))
     if usage_limited(home):
         _say(lang, "%s shipfloor: Claude usage limit hit recently; waiting" % _now())
         return 0
