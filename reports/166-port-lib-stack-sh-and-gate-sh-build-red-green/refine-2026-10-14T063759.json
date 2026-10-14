@@ -1,0 +1,1 @@
+{"issue":166,"slug":"port-lib-stack-sh-and-gate-sh-build-red-green","pipeline":"refine","started_at":null,"finished_at":"2026-10-14T00:00:00Z","outcome":"ok","agents":[{"role":"product-owner","tokens":15770,"duration_s":23}],"rounds":{"po":1,"techlead":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":null}
