@@ -2,6 +2,15 @@
 # gh stand-in for deploy.sh tests. State in $FG: remote (bare repo), pr, branch, comments ("author<TAB>line"),
 # ci ("name=STATE,..."), prhead (overrides the PR head), merged (merge sha), no-pr, calls, labels.
 d="$FG"; args="$*"; echo "$args" >> "$d/calls"
+# Failure injection (#173): FAKE_GH_FAIL_AT=<n> fails the n-th call (counted in fail-count); FAKE_GH_FAIL_CMD=<ERE>
+# fails every call whose argv line matches. Both unset: no effect.
+if [ -n "${FAKE_GH_FAIL_AT:-}" ]; then
+  fd="${FAKE_GH_DIR:-$d}"; fc="$(cat "$fd/fail-count" 2>/dev/null || true)"; fc=$(( ${fc:-0} + 1 )); echo "$fc" > "$fd/fail-count"
+  [ "$fc" = "$FAKE_GH_FAIL_AT" ] && { echo "gh: injected failure" >&2; exit 1; }
+fi
+if [ -n "${FAKE_GH_FAIL_CMD:-}" ] && printf '%s\n' "$args" | grep -Eq -- "$FAKE_GH_FAIL_CMD"; then
+  echo "gh: injected failure" >&2; exit 1
+fi
 remote="$(<"$d/remote")"; pr="$(<"$d/pr")"; branch="$(<"$d/branch")"
 head() { if [ -e "$d/prhead" ]; then cat "$d/prhead"; else git --git-dir="$remote" rev-parse "refs/heads/$branch" 2>/dev/null; fi; }
 case "$args" in

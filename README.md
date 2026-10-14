@@ -56,6 +56,14 @@ It comes with twelve themes, in twelve languages: English, Simplified and Tradit
 
 The page is set in IBM Plex, embedded in the file, so it needs no network. The faces are under the SIL Open Font License 1.1; the text is in [scripts/fonts/OFL.txt](scripts/fonts/OFL.txt).
 
+## Try it: `shipfloor demo`
+
+```bash
+bash <plugin>/scripts/shipfloor demo
+```
+
+One fake card crosses the factory in about two minutes, on a temporary home: no repository of yours, no network, no tokens. The board moves, the gates, the git commits and the reports are real; what the agents write is recorded, and the screen says so (no LLM runs). It opens the dashboard on the sample, and deletes everything when you press Enter. `--no-dashboard` skips the dashboard; `--keep` keeps the temporary home and prints where it is.
+
 ## Quick start
 
 You need Python 3.11+ with PyYAML, Git, an authenticated gh, Claude Code (`claude`), and Git Bash on Windows for the wrappers and the scheduler.

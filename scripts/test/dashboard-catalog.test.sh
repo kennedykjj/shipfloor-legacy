@@ -102,6 +102,27 @@ for code in cats:
             if v in forms and not NEEDS.get(code, {"other"}) <= forms[v]: bad.append(f"{k}: {v} has the forms {sorted(forms[v])}, {code} needs {sorted(NEEDS[code])}")
         if tags(m) != tags(en[k]): bad.append(f"{k}: markup {tags(m)}, English has {tags(en[k])}")
     check(f"{code}: every message keeps the English one's values, plural forms and markup", not bad, bad)
+
+# the decision brief (#179, AC-8): its labels are catalog keys (brief.*, pass.verdict.*) with the spec's English text;
+# the languages not translated yet carry that English text, so they read in English
+want = {
+    "What you approve": "caption", "Needs your eyes": "caption", "Since your request": "caption", "What the gates proved": "caption",
+    "The rest ({n})": "caption", "routine": "pill", "written by the product owner": "chip", "written by the review agent": "chip",
+    "flagged by the gates": "chip", "diff computed": "chip", "computed, not claimed": "chip", "Use this point": "button",
+    "Fills the note. Nothing is sent.": "title", "Note filled from #{n}'s brief. Nothing was sent.": "notice", "Decision brief": "group label",
+}
+ours = {k: v for k, v in en.items() if k.startswith(("brief.", "pass.verdict."))}
+for text, what in want.items():
+    check(f"AC-8 the English catalog has the brief's {what} '{text}' under brief.* or pass.verdict.*", text in ours.values(), sorted(ours))
+points = [v for v in ours.values() if "point" in v]
+check("AC-8 the verdict point count is one message with a plural: '1 point' / '{n} points'",
+      any("plural" in v and re.search(r"one\s*\{[^}]*\bpoint\}", v) and re.search(r"other\s*\{[^}]*\bpoints\}", v) for v in points)
+      or ({"1 point", "{n} points"} <= set(ours.values())), points)
+for code in cats:
+    if code == "en": continue
+    msgs = load(code)["messages"]
+    diff = sorted(k for k in ours if msgs.get(k) != ours[k])
+    check(f"AC-8 {code}: the brief's keys carry the English text until translated", bool(ours) and not diff, diff or "no brief.* or pass.verdict.* keys in English")
 print("\n".join(res))
 PY
 )"

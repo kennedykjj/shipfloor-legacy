@@ -41,7 +41,7 @@ if [ -n "${SHARD:-}" ]; then
   mapfile -t bysize < <(ls -S "${files[@]}")
   files=(); for k in "${!bysize[@]}"; do [ $(( k % sn + 1 )) = "$si" ] && files+=("${bysize[$k]}"); done
 fi
-unset SHARD  # a test that runs run.sh itself (run-changed) must see the whole folder
+unset SHARD  # a test that runs run.sh itself (test-infra) must see the whole folder
 # the deploy tests share one base repo: built here once, not once per file
 case " ${files[*]}" in *" deploy-"*) DEPLOY_BASE="$(source ./deploy-lib.sh; echo "$BASE")"; export DEPLOY_BASE ;; esac
 printf '%s\n' "${files[@]}" | xargs -P "$jobs" -I{} bash -c \

@@ -12,6 +12,8 @@ Once the plugin is installed (the first two commands below), `shipfloor init [<r
 
 ## Install
 
+To see the factory work before you trust it with a repository, run `bash <plugin>/scripts/shipfloor demo`: it needs only `git` and Python 3.11+ with PyYAML, and touches nothing of yours.
+
 ```bash
 claude plugin marketplace add <path or URL of this repo>
 claude plugin install sf@shipfloor

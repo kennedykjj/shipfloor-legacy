@@ -251,6 +251,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). A 
 - `accept` `<slug> <n> <reason>`
 - `weight` `<slug> <n> <weight>`, the weight being `light`, `standard` or `heavy`
 - `dashboard` `[--port N] [--no-open] [--token T]`
+- `demo` `[--no-dashboard] [--keep]`
 
 **Per command:**
 - `install`: copies `scripts/` (not `test/`) and `templates/` into `~/.shipfloor/factory` by rename (so a running script keeps its inode), removes what the plugin no longer ships, writes `.source` (the plugin checkout) and, when it is a git clone, `.origin` (`<commit><TAB><branch|detached><TAB>verified|forced`). Refuses (exit 1, reasons on stderr, `install anyway: shipfloor install --force`) when the clone is not a clean, current `main`, unless `--force`. Prints `installed <src> → <dest>: <n> replaced, <n> added, <n> removed` and a `next:` line on stdout; with `--force` a `WARN installed copy is not a verified <main>: ...` line. Exit 0 when nothing failed.
@@ -262,6 +263,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). A 
 - `accept <slug> <n> <reason>`: owner only. For each file of card `<n>`'s QA commit that changed since, records a line `<file><TAB><blob or own:<hash>|deleted><TAB>#<n><TAB><ISO><TAB><reason>` in the project's `accepted.tsv` and prints `accepted <file> at <12 hex>` or `accepted the deletion of <file>`; `nothing to accept: acceptance-intact already passes for card <n>` when nothing differs. Exit 2 on a usage error, 1 on any other refusal.
 - `weight <slug> <n> <weight>`: owner only. Rewrites the one `**Weight:** <w>` line of the card's spec header, commits it on the card's branch as `docs(<scope>): weight <w> for #<n>` and pushes (reset on a failed push); prints `weight <w>`. Exit 3 when the card is no longer in Spec Review or a run is working on it; 2 on usage; 1 otherwise.
 - `dashboard`: runs `dashboard.py` with `--home`; its first stdout line is `shipfloor dashboard: <url>  (Ctrl+C stops it)`, which the dashboard skill reads and gives back as the one link; the URL carries the machine's token. When it cannot bind, it exits with `shipfloor dashboard: ports <a>-<b> are taken`.
+- `demo`: plays one fake card through refine, develop, validate and deploy on a temporary home (`SHIPFLOOR_HOME` and `HOME` of its processes point there, `FACTORY_GH` at the stand-in `scripts/demo/gh`): the board moves, `gate.sh` red, green and build, git and `report.sh` are real, what the agents write is recorded, and the screen says no LLM ran. Without `--no-dashboard` it serves the dashboard on the temporary home, prints its URL, opens the browser and waits for Enter or Ctrl+C; the temporary home is removed at the end unless `--keep`, which prints its path. Exit 0 when the card reached Done, 1 on an error, 130 on Ctrl+C, 2 on an unknown flag. The caller's `~/.shipfloor` is never read or written.
 
 ## GitHub markers
 
@@ -353,6 +355,8 @@ Readers that parse what the scripts write, which a port must not break:
 | `SHIPFLOOR_BASH`, `SHIPFLOOR_SCHEDULER` | `dashboard.py` | the bash it uses to run scripts; the scheduler it asks |
 | `SHIPFLOOR_NOTIFY_SEND` | `shipfloor_notify.py` | a script that sends a notification; it receives channel, title and body |
 | `SNAPSHOT` | `setup-board.sh` | where the board's item-status snapshot goes |
+| `FAKE_GH_FAIL_AT` | `fake-gh`, `fake-gh-deploy` (tests) | `<n>`: the n-th call to the fake (counted in its `fail-count` file) exits 1 with `gh: injected failure`; unset: no effect |
+| `FAKE_GH_FAIL_CMD` | `fake-gh`, `fake-gh-deploy` (tests) | an ERE: every call whose argument line matches it exits 1 with `gh: injected failure`; unset: no effect |
 
 **Test seams** (a test sets these to put a stand-in where the real thing would be): `FACTORY_GH` (the `gh` command: `board.sh`, `deploy.sh`, `dispatch.sh`), `FACTORY_CLAUDE` (`claude`, `dispatch.sh`), `FACTORY_BOARD` (the `board.sh` path: `dispatch.sh`, `deploy.sh`), `FACTORY_DEPLOY` (the `deploy.sh` path: `dispatch.sh`), `SHIPFLOOR_DISPATCH` (the `dispatch.sh` path: `shipfloor-dispatch.sh`), `FACTORY_CURL` (`curl`: `deploy.sh`), `FACTORY_POLL`, `SHIPFLOOR_NOW`, `FACTORY_PYTHON` (the python binary), `FACTORY_BOARD_SNAPSHOT` (a file standing in for the board), `FACTORY_CONTROL_REFRESH=0`, `SHIPFLOOR_HOME` and `FACTORY_CONFIG`. A script with a seam reads it with a default of the real thing; the seam is not a feature of production runs.
 
@@ -381,6 +385,22 @@ The skills and agents parse nothing of this; the dashboard parses the `== ` line
 - A fork's PR is never deployed. `deploy.sh` merges with `--match-head-commit`.
 - A run reads, and never writes, the factory's scripts and the reports' worktree (`--allowedTools Read(...)`); it does not load the owner's own plugins, MCP servers or memory.
 - PII never goes to a log or a report.
+
+## Failure invariant
+
+After any failure (a `gh` call, a `git` step, a killed run, a full disk), the next cycle repairs the state or the card is labelled `blocked` or `blocked:infra` with a comment saying why. Nothing stays half-done and silent. The checkable form, after a cycle:
+
+- No `locks/*.lock` whose `info` pid is dead and which is older than `FACTORY_LOCK_TTL` survives.
+- No card in a WIP column (`Technical Refinement`, `Coding`, `Validation`) lacks both a live lock and a `blocked*` label.
+- No `*.tmp`, `.*.install-tmp` or `tmp/<n>` is left for a card with no run.
+- `dashboard.py`'s readers load `~/.shipfloor` without an exception.
+
+It is proven by the `scripts/test/chaos-*.test.sh` suites, which fail the n-th `gh` call (`FAKE_GH_FAIL_AT`) or a matching one (`FAKE_GH_FAIL_CMD`) and check the state afterwards with `scripts/test/py/chaos_invariant.py`.
+
+Two decisions that the suites pin:
+
+- A lock younger than the TTL stays live even when its pid is dead (by design: the run may be starting or ending). A live pid past the TTL cannot be told from a reused pid, so it keeps its lock (`dispatch-lock` pins this).
+- `deploy.sh`'s `block` labels the card only once its reason comment landed. If the comment fails, the card stays unlabelled and the next deploy retries, so a `blocked` label never comes without its reason.
 
 ## Known quirks kept on purpose
 
