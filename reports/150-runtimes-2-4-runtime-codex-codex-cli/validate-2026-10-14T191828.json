@@ -1,0 +1,14 @@
+{
+  "issue": 150,
+  "slug": "runtimes-2-4-runtime-codex-codex-cli",
+  "pipeline": "validate",
+  "outcome": "staged",
+  "pr": 265,
+  "head": "9b3eafaee0f3b01b9bb446ef9e64a85ff85c5994",
+  "rounds": 0,
+  "failed_gates": [],
+  "gates_reused": ["green factory scripts/test/cli.test.sh", "green factory scripts/test/dashboard-cards.test.sh", "green factory scripts/test/dispatch-cost.test.sh", "green factory scripts/test/dispatch-cycle.test.sh", "green factory scripts/test/dispatch-launch.test.sh"],
+  "flaky": [],
+  "amendments": [],
+  "agents": []
+}
