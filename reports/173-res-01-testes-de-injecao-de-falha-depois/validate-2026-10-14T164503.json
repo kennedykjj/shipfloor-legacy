@@ -1,0 +1,1 @@
+{"issue":173,"pipeline":"validate","outcome":"ok","pr":245,"head":"be4d203a8f97baf09fa8612242f8bd10e5987f9c","agents":[],"rounds":0,"failed_gates":[],"amendments":[],"flaky":[],"gates_reused":["green factory scripts/test/chaos-board.test.sh","green factory scripts/test/chaos-dispatch.test.sh","green factory scripts/test/chaos-fs.test.sh"]}
