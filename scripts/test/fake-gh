@@ -31,6 +31,15 @@ case "$args" in *updateProjectV2ItemPosition*)
     && mv "$d/items.tsv.new" "$d/items.tsv"
   echo '{"data":{"updateProjectV2ItemPosition":{"clientMutationId":null}}}'; exit 0 ;;
 esac
+# The dispatcher's dependency read (#202): the issues a card is "Blocked by", a JSON array from $d/blocked-by-<n>
+# (default []). $d/fail-deps makes it fail. Every call is logged in $d/dep-calls.
+deps_read() {
+  n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/dependencies.*#\1#')"
+  echo "$args" >> "$d/dep-calls"
+  [ -e "$d/fail-deps" ] && { echo "gh: HTTP 502" >&2; exit 1; }
+  if [ -f "$d/blocked-by-$n" ]; then cat "$d/blocked-by-$n"; else echo '[]'; fi
+  exit 0
+}
 if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
   case "$args" in *--jq*) echo "fake-gh: --jq not allowed here: $args" >&2; exit 99 ;; esac
   case "$args" in
@@ -46,6 +55,7 @@ if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
     "api repos/acme/shop/issues/"*"/comments"*)  # $d/comments-<n> for one card, else $d/issue-comments for all
       n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/.*#\1#')"; [ -f "$d/comments-$n" ] && { cat "$d/comments-$n"; exit 0; }
       [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
+    "api repos/acme/shop/issues/"*"/dependencies/blocked_by"*) deps_read ;;
     "api repos/acme/shop/issues/"*)  # one issue: its labels from $d/labels-<n>, one name a line
       [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
       n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; printf '{"number":%s,"labels":[' "$n"; sep=""
@@ -69,6 +79,7 @@ case "$args" in
   "api repos/acme/shop/issues?labels=blocked:infra"*)
     cat "$d/infra" 2>/dev/null ;;
   "api -X "*) ;;
+  "api repos/acme/shop/issues/"*"/dependencies/blocked_by"*) deps_read ;;
   "api repos/acme/shop/issues/"*)
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
