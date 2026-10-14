@@ -1,0 +1,14 @@
+{
+  "issue": 181,
+  "stage": "develop",
+  "outcome": "blocked",
+  "step": 1,
+  "reason": "Spec orders develop after #176 and #180 are merged; both are open and absent from origin/main.",
+  "agents": [],
+  "tokens": 0,
+  "rounds": 0,
+  "failed_gates": [],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": []
+}
