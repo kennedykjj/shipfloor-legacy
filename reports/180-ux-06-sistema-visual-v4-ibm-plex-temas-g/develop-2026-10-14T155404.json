@@ -1,0 +1,1 @@
+{"issue": 180, "slug": "ux-06-sistema-visual-v4-ibm-plex-temas-g", "pipeline": "develop", "started_at": "2026-10-14T18:47:00Z", "finished_at": "2026-10-14T18:53:30Z", "outcome": "ok", "agents": [], "rounds": {"4": 1, "5": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": true}
