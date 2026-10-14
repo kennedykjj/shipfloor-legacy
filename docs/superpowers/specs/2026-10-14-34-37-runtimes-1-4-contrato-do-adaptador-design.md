@@ -73,7 +73,7 @@ _Tech Lead_
 | AC-5 | factory | `scripts/test/py/cli_doctor.py` |
 | AC-6 | factory | `scripts/test/py/config_project.py` |
 | AC-7 | factory | `scripts/test/py/install_copy.py` |
-| AC-8 | factory | `scripts/test/runtime.test.sh` |
+| AC-8 | factory | `scripts/test/py/runtime.py` |
 
 ## Security
 _Cybersec_ — n/a
@@ -86,7 +86,7 @@ _What the pipeline decided on its own; one line each, with the reason._
 - Adaptador em Python (`scripts/runtimes/claude_code.py`), não em `scripts/runtimes/claude-code.sh`: desde #168/#169/#170 o dispatch, o ciclo e o CLI são Python e não há mais shell onde fazer `source`; o contrato (`command`, `outcome`, `doctor`, `TRAILER`) é o mesmo do issue.
 - A regra de pausa mora em `runtimes.usage_limited`, não em `lib/project.sh`: os três leitores de hoje (`dispatch.py`, `cycle.py`, `dashboard.py`) são Python.
 - Os testes `dispatch-models`, `dispatch-weight` e `dispatch-stepup` citados no AC-2 hoje são casos de `py/dispatch_launch.py` (atrás de `dispatch-launch.test.sh`), e o `gate-scope.test.sh` do AC-6 não existe mais: o barramento é testado em `py/config_project.py` (via `BUILTIN_FORBIDDEN`).
-- Suite nova `py/runtime.py` + `runtime.test.sh`: o AC-8 pede esse arquivo e nenhuma suite cobre o pacote novo `scripts/runtimes/`.
+- Suite nova `py/runtime.py`: nenhuma suite cobre o pacote novo `scripts/runtimes/`. Ela roda pelo `config.test.sh` (`py_suite runtime`), não por um `runtime.test.sh` novo: o `hygiene.test.sh` limita os `*.test.sh` a 52 e o dono nunca sobe o teto para caber um arquivo novo (decidido no develop; o AC-8 vale para `py/runtime.py`).
 - `SHIPFLOOR_TRAILER` só é exportado quando o trailer do runtime difere do padrão: assim o env do `claude-code` fica idêntico ao de hoje (AC-2).
 - `cost-cache.json` antigo é descartado (sem campo `version`) em vez de convertido: reparsear custa um ciclo e evita código de migração.
 - `outcome=usage_limit` tem prioridade sobre o exit code: um CLI que sai 0 ao bater no limite ainda pausa a fábrica.
