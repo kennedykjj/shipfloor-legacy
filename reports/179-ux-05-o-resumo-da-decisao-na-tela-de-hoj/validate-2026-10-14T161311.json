@@ -1,0 +1,1 @@
+{"outcome": "ok", "pipeline": "validate", "issue": 179, "rounds": 0, "failed_gates": [], "flaky": [], "gates_reused": ["green factory scripts/test/dashboard-brief.test.sh", "green factory scripts/test/dashboard-catalog.test.sh"], "amendments": [], "pr": 227, "staged_head": "48edbb4c171e59d1dd1c8908193663355097a39a"}
