@@ -511,3 +511,90 @@ class Telemetry(Base):
             "bash ~/.shipfloor/factory/gate.sh green 54", "bash ~/.shipfloor/factory/board.sh move 54 Coding",
             "gh pr view 3", "x=$(gh api user)", "cd wt && gh issue list", "git status", "echo high", None)],
             ["gate", "board", "gh", "gh", "gh", "other", "other", "other"])
+
+
+class Stopped(Base):
+    """A run whose agent ended without doing its stage says so on its == end line and in runs.jsonl (stopped=<why>),
+    and the ones that hold the card leave a mark (stopped/<n>); a run that did its stage clears the marks."""
+
+    def report(self, n, outcome, stage="develop", **more):
+        d = os.path.join(self.home, "reports-wt", "reports", "%s-thing" % n)
+        os.makedirs(d, exist_ok=True)
+        self.write(os.path.join(d, "%s-%s.json" % (stage, time.strftime("%Y-%m-%dT%H%M%S"))),
+                   json.dumps(dict(issue=n, outcome=outcome, **more)))
+
+    def run54(self, *events, **kw):
+        self.set_fake(claude=dict(stream=[dict(RESULT)] if not events else list(events), **kw))
+        self.board(queues={"Ready for Dev": 54}, snapshot="54\tReady for Dev\tx\n")
+        self.cycle()
+        end = [l for l in self.log("develop", 54).splitlines() if l.startswith("== end")][-1]
+        runs = os.path.join(self.home, "logs", "runs.jsonl")
+        rows = [json.loads(l) for l in open(runs)] if os.path.exists(runs) else []
+        mark = os.path.join(self.home, "stopped", "54")
+        return end, rows, [l.split("\t")[1:] for l in open(mark).read().splitlines()] if os.path.exists(mark) else []
+
+    def test_blocked_report(self):
+        "a blocked report with no round done: stopped=blocked, exit stays 0, the summary says it; a label already holds the card, so no mark"
+        self.report(54, "blocked", step=1, reason="Spec Review is full")
+        end, rows, marks = self.run54()
+        self.assertRegex(end, r"^== end /sf:develop 54 exit=0 %s stopped=blocked outcome=ok$" % ds.ISO)
+        self.assertEqual([r["stopped"] for r in rows], ["blocked"])
+        self.assertEqual(marks, [])
+
+    def test_infra_report(self):
+        "an infra report with no round done: stopped=infra, no mark (the infra retry owns it)"
+        self.report(54, "infra", step=1, note="GitHub API rate limit exceeded")
+        end, rows, marks = self.run54()
+        self.assertIn(" stopped=infra outcome=ok", end)
+        self.assertEqual(marks, [])
+
+    def test_owner_only_report_leaves_a_mark(self):
+        "a report whose words say the change is the owner's: stopped=owner-only and a mark with the column the run started from"
+        self.report(54, "blocked", step=1, reason="owner-only change to .github/workflows/ci.yml; factory may not touch it")
+        end, rows, marks = self.run54()
+        self.assertIn(" stopped=owner-only outcome=ok", end)
+        self.assertEqual(marks, [["develop", "owner-only", "Ready for Dev"]])
+
+    def test_no_report(self):
+        "a run that ended well but wrote no report (reports-wt exists): stopped=no-report and a mark"
+        os.makedirs(os.path.join(self.home, "reports-wt", "reports"))
+        end, rows, marks = self.run54()
+        self.assertIn(" stopped=no-report outcome=ok", end)
+        self.assertEqual([r["stopped"] for r in rows], ["no-report"])
+        self.assertEqual(marks, [["develop", "no-report", "Ready for Dev"]])
+
+    def test_no_reports_wt_claims_nothing(self):
+        "without a reports-wt there is nothing to read: the end line is the one it always was"
+        end, rows, marks = self.run54()
+        self.assertRegex(end, r"^== end /sf:develop 54 exit=0 %s outcome=ok$" % ds.ISO)
+        self.assertEqual(([r["stopped"] for r in rows], marks), ([""], []))
+
+    def test_work_is_not_a_stop(self):
+        "blocked after rounds, or a report of another outcome, is work done: no stopped=, and the card's marks go"
+        self.write(os.path.join(self.home, "stopped", "54"), "1\tdevelop\tno-report\tCoding\n")
+        self.report(54, "blocked", step=7, rounds=2, failed_gates=["green"])
+        end, rows, marks = self.run54()
+        self.assertNotIn("stopped=", end)
+        self.assertEqual(marks, [])
+        self.write(os.path.join(self.home, "stopped", "54"), "1\tdevelop\tno-report\tCoding\n")
+        self.report(54, "done", pr=12)
+        end, rows, marks = self.run54()
+        self.assertNotIn("stopped=", end)
+        self.assertEqual(marks, [])
+
+    def test_usage_limit_is_not_a_stop(self):
+        "a run that ended on the usage limit is not judged: no stopped=, no mark (the pause owns it)"
+        os.makedirs(os.path.join(self.home, "reports-wt", "reports"))
+        end, rows, marks = self.run54(dict(RESULT, is_error=True, result="You've hit your session limit · resets 3pm"))
+        self.assertTrue(end.endswith("outcome=usage_limit"), end)
+        self.assertNotIn("stopped=", end)
+        self.assertEqual(marks, [])
+
+    def test_a_crash_is_not_judged(self):
+        "an agent that exits non-zero is not judged and leaves the marks as they were"
+        os.makedirs(os.path.join(self.home, "reports-wt", "reports"))
+        self.write(os.path.join(self.home, "stopped", "54"), "1\tdevelop\tno-report\tCoding\n")
+        end, rows, marks = self.run54(exit=3)
+        self.assertIn("exit=3", end)
+        self.assertNotIn("stopped=", end)
+        self.assertEqual(len(marks), 1)
