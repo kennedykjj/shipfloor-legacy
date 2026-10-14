@@ -231,10 +231,22 @@ usage_limited() {  # a run that ended on the Claude usage limit in the last 30 m
   return 1
 }
 
+# GitHub refuses the whole account for a while once its API limit is hit (primary or secondary): runs started then
+# die on their first gh call, come back as orphans and die again. A board read refused for that leaves a mark for
+# the machine, and no cycle launches or reads the board until the mark is GH_LIMIT_MIN minutes old (#190).
+GH_LIMIT_MARK="$SHIPFLOOR_HOME/github-limited" GH_LIMIT_MIN="${SHIPFLOOR_GITHUB_LIMIT_MIN:-10}"
+github_limited() { [ -n "$(find "$GH_LIMIT_MARK" -mmin -"$GH_LIMIT_MIN" 2>/dev/null)" ]; }
+github_limited && { echo "dispatch: GitHub API limit hit recently; waiting" | shipfloor_say "${MLANG:-en}"; exit 0; }
+
 # One board read per run, shared by every check below (the GraphQL quota is shared with the pipelines).
 SNAP="$HOME_DIR/board.tsv"
 # A temp file per process: two dispatches at once must not write, or move away, each other's.
-"${BOARD[@]}" snapshot > "$SNAP.$$.tmp" || { rm -f "$SNAP.$$.tmp"; echo "dispatch: board read failed" | shipfloor_say "${MLANG:-en}" >&2; exit 1; }
+if ! "${BOARD[@]}" snapshot > "$SNAP.$$.tmp" 2> "$SNAP.$$.err"; then
+  cat "$SNAP.$$.err" >&2
+  grep -Eqi 'API rate limit|secondary rate limit' "$SNAP.$$.err" && touch "$GH_LIMIT_MARK"
+  rm -f "$SNAP.$$.tmp" "$SNAP.$$.err"; echo "dispatch: board read failed" | shipfloor_say "${MLANG:-en}" >&2; exit 1
+fi
+cat "$SNAP.$$.err" >&2; rm -f "$SNAP.$$.err"
 mv "$SNAP.$$.tmp" "$SNAP"
 export FACTORY_BOARD_SNAPSHOT="$SNAP"
 
