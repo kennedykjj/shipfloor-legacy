@@ -1,0 +1,1 @@
+{"issue": 244, "slug": "shipfloor-pool-sai-com-1-quando-ha", "pipeline": "validate", "started_at": "2026-10-14T20:30:00Z", "finished_at": "2026-10-14T20:40:00Z", "outcome": "ok", "agents": [], "rounds": {}, "gates_failed": [], "flaky": [], "gates_reused": ["green factory scripts/test/cli.test.sh"], "manual_edit": false}
