@@ -260,7 +260,7 @@ class Hours(MachineCase):
 
 
 class Dispatcher(MachineCase):
-    """the dispatcher's pace: 1, 3, 5 or 10 minutes, 3 when missing; anything else names the key and the values."""
+    """the dispatcher's pace: 0.5 (30 seconds), 1, 3, 5 or 10 minutes, 3 when missing; anything else names the key and the values."""
 
     def test_pace(self):
         "AC-5 every_min defaults to 3 and reads back 1, 3, 5 and 10"
@@ -271,10 +271,17 @@ class Dispatcher(MachineCase):
             self.assertEqual(shipfloor_config.dispatcher_every({"dispatcher": {"every_min": v}}), v)
         self.assertEqual(shipfloor_config.dispatcher_every({"dispatcher": {"every_min": True}}), 3)
 
+    def test_pace_30_seconds(self):
+        "every_min: 0.5 is 30 seconds: valid, read back as 0.5 (what the installer takes), kept as a float; 1.0 or 3.0 are not the integers"
+        self.good("dispatcher: {every_min: 0.5}")
+        self.assertEqual(self.values("dispatcher.every_min"), "0.5 ")
+        self.assertEqual(shipfloor_config.dispatcher_every({"dispatcher": {"every_min": 0.5}}), 0.5)
+        self.assertEqual([shipfloor_config.dispatcher_every({"dispatcher": {"every_min": v}}) for v in (1.0, 3.0, 0.25, "0.5")], [3, 3, 3, 3])
+
     def test_refused(self):
         "AC-5 any other every_min, or a dispatcher that is no mapping, is a machine problem"
-        for v in ("0", "2", "7", "15", "true", '"5"', "3.5"):
-            self.bad("dispatcher: {every_min: %s}" % v, "dispatcher.every_min must be 1, 3, 5 or 10")
+        for v in ("0", "2", "7", "15", "true", '"5"', "3.5", "0.25", "3.0", "30", '"0.5"'):
+            self.bad("dispatcher: {every_min: %s}" % v, "dispatcher.every_min must be 0.5, 1, 3, 5 or 10")
         self.bad("dispatcher: 5", "dispatcher must be a mapping")
 
 

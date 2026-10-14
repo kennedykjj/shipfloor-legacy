@@ -252,6 +252,11 @@ def scheduler():
             str(Path(source) / "installer" / "install-dispatcher.ps1"), "-EveryMin"], None
 
 
+def dispatcher_choices():
+    """The paces Settings offers: Windows' Task Scheduler repeats at most once a minute, so it has no 30 seconds."""
+    return [c for c in shipfloor_config.DISPATCHER_EVERY if os.name != "nt" or c >= 1]
+
+
 NO_LIMITS = "Resource limits are applied on Linux with systemd only. They are saved but not applied here."
 
 
@@ -963,7 +968,7 @@ class Factory:
                   "supported": limits_applier() is not None, "why": None if limits_applier() else NO_LIMITS}
         return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "language": m.get("language") or "en", "costs": self.costs(), "limits": limits},
                 "languages": catalogs(), "paused": (self.home / "PAUSE").exists(),
-                "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
+                "dispatcher": {"every_min": every, "choices": dispatcher_choices(), "can_set": bool(command), "why": why},
                 "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours(), "unpriced": unpriced}
 
     def project_agents(self):

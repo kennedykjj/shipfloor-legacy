@@ -608,14 +608,19 @@ MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develo
                     "disk": {"min_free_gb": 2, "min_free_inodes_pct": 10},
                     "notify": {"events": {"waiting": True, "blocked": True, "reminder": True, "stuck": True, "done": False},
                                "channels": {"toast": True, "ntfy": False}, "ntfy_topic": "", "reminder_min": 60, "quiet": ""}}
-DISPATCHER_EVERY = (1, 3, 5, 10)  # minutes between dispatcher cycles; the installer's trigger reads it
+DISPATCHER_EVERY = (0.5, 1, 3, 5, 10)  # minutes between dispatcher cycles (0.5: 30 seconds); the installer's trigger reads it
+
+
+def every_ok(every):
+    """A pace the config may set: the integers 1, 3, 5, 10 or the float 0.5 (True == 1 and 3.0 are not)."""
+    return (type(every) is int and every in DISPATCHER_EVERY) or (type(every) is float and every == 0.5)
 
 
 def dispatcher_every(raw):
     """The pace a raw machine config sets (minutes between cycles), or the default when it sets none or a bad one."""
     disp = raw.get("dispatcher") if isinstance(raw, dict) else None
     every = disp.get("every_min") if isinstance(disp, dict) else None
-    return every if type(every) is int and every in DISPATCHER_EVERY else MACHINE_DEFAULTS["dispatcher"]["every_min"]
+    return every if every_ok(every) else MACHINE_DEFAULTS["dispatcher"]["every_min"]
 
 
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
@@ -882,8 +887,8 @@ def machine_problems(raw):
         errs.append("dispatcher must be a mapping {every_min}")
     else:
         every = disp.get("every_min", MACHINE_DEFAULTS["dispatcher"]["every_min"])
-        if type(every) is not int or every not in DISPATCHER_EVERY:  # True == 1: the type is checked too
-            errs.append(Msg("err.every_min", "dispatcher.every_min must be 1, 3, 5 or 10"))
+        if not every_ok(every):  # True == 1: the type is checked too
+            errs.append(Msg("err.every_min", "dispatcher.every_min must be 0.5, 1, 3, 5 or 10"))
     return errs
 
 

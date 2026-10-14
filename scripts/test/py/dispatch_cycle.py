@@ -8,6 +8,8 @@ import glob
 import json
 import os
 import re
+import subprocess
+import sys
 import time
 from unittest import mock
 
@@ -325,6 +327,31 @@ class TheCycle(CycleCase):
         self.assertEqual(self.ran(), [])
         self.assertEqual([(h["cycle"]["exit"], h["cycle"]["overlap"]) for h in self.health()], [(0, True)])
         self.assertEqual(open(pid).read(), "%d\n" % os.getpid())
+
+    def test_overlap_at_30_seconds(self):
+        "every 30 s: a cycle still running past its 30 s (another process holding dispatch.pid, 45 s old) makes the next tick an overlap that dispatches nothing; once it ends, the next tick dispatches"
+        self.register()
+        pid = os.path.join(self.shome, "dispatch.pid")
+        go = os.path.join(self.tmp, "go")
+        holder = subprocess.Popen(
+            [sys.executable, "-c", "import os, sys, time; sys.path[:0] = sys.argv[3:]; from shipfloor_core import cycle\n"
+             "c = cycle.Claim(sys.argv[1]); c.take(); assert not c.overlap\n"
+             "while not os.path.exists(sys.argv[2]): time.sleep(0.05)\nc.release()", self.shome, go, *sys.path])
+        self.addCleanup(holder.kill)
+        for _ in range(200):
+            if os.path.exists(pid) and open(pid).read().strip() == str(holder.pid):
+                break
+            time.sleep(0.05)
+        os.utime(pid, (time.time() - 45,) * 2)  # the long cycle started 45 s ago: the 30 s tick came and went
+        self.assertEqual(self.run_cycle(), 0)
+        self.assertEqual(self.ran(), [])
+        self.assertEqual([(h["cycle"]["exit"], h["cycle"]["overlap"]) for h in self.health()], [(0, True)])
+        self.assertEqual(open(pid).read().strip(), str(holder.pid), "the running cycle's marker is left alone")
+        open(go, "w").close()
+        self.assertEqual(holder.wait(10), 0)
+        self.assertFalse(os.path.exists(pid))
+        self.run_cycle()
+        self.assertEqual([h["cycle"]["overlap"] for h in self.health()], [True, False], "the next tick runs")
 
     def test_claim(self):
         "dispatch.pid: a fresh one (live pid, or still empty) is a running cycle; one older than SHIPFLOOR_CYCLE_STALE_MIN (30) or with a dead pid is taken over"
