@@ -74,6 +74,31 @@ assert_contains "$(cat "$BOARD_CALLS")" "status"
 case "$(cat "$stub_board/dispatch.out" "$stub_board/deploy.out")" in *"Permission denied"*|*"cannot execute"*) fail "AC-1 the board was run directly: $(cat "$stub_board/dispatch.out" "$stub_board/deploy.out")" ;; *) pass "AC-1 no permission error from the board call" ;; esac
 
 grep -q 'report.json schema' "$root/scripts/report.sh" && pass "AC-8 report.sh keeps the report.json schema header" || fail "AC-8 report.sh lost its schema header"
+
+# #189 AC-1 / AC-3: no skill or agent tells the agent to run the GraphQL-backed gh commands (file and line named on failure)
+gqlhits="$(cd "$root" && find skills -name '*.md' -type f | sort | xargs -r grep -nE 'gh +(issue|pr (view|checks|comment))' 2>/dev/null; grep -nE 'gh +(issue|pr (view|checks|comment))' agents/*.md 2>/dev/null || true)"
+[ -z "$gqlhits" ] && pass "#189 AC-1 no skill or agent names gh issue / gh pr view|checks|comment" || fail "#189 AC-1 GraphQL gh command in a skill or agent (use the REST form):
+$gqlhits"
+[ -z "$gqlhits" ] && pass "#189 AC-3 the scan finds no forbidden command (file:line reported otherwise)" || fail "#189 AC-3 forbidden command at file:line:
+$gqlhits"
+
+# #189 AC-2: the skills that did those operations spell out the REST form (or name the factory script)
+refine="$(cat "$root/skills/refine/SKILL.md")"; validate="$(cat "$root/skills/validate/SKILL.md")"
+needs() { # <label> <text> <needle>
+  case "$2" in *"$3"*) pass "#189 AC-2 $1 names $3" ;; *) fail "#189 AC-2 $1 lacks $3" ;; esac
+}
+needs "refine (comment)" "$refine" 'gh api repos/'
+needs "refine (comment)" "$refine" 'issues/<n>/comments'
+needs "refine (label)" "$refine" 'issues/<n>/labels'
+needs "refine (label)" "$refine" 'labels[]=blocked'
+needs "validate (PR read)" "$validate" 'gh api repos/'
+needs "validate (PR read)" "$validate" 'pulls/<pr>'
+needs "validate (PR read)" "$validate" '.mergeable'
+needs "validate (checks)" "$validate" 'commits/<sha>/check-runs'
+needs "validate (checks)" "$validate" '.head.sha'
+needs "validate (PR/issue comment)" "$validate" 'issues/<n>/comments'
+needs "validate (issue read)" "$validate" 'board.sh issue'
+
 # ---- #171 (PY-18): every script is a wrapper or a shim; the logic is the Python package
 # AC-1/AC-2: test/fixtures/wrapper-check.py reads scripts/*.sh, scripts/shipfloor and scripts/lib/*.sh of a root and
 # prints one "<file>: <why>" line per line of logic it finds (nothing when they are all wrappers and shims)
