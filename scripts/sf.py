@@ -93,7 +93,7 @@ def cmd_stack(args):
 COMMANDS = {"version": cmd_version, "board": cmd_board, "setup-board": cmd_setup_board, "report": cmd_report,
             "metrics": cmd_metrics, "review-page": cmd_review_page, "cli": cmd_cli, "gate": cmd_gate,
             "deploy": cmd_deploy, "dispatch": cmd_dispatch, "cycle": cmd_cycle, "cycle-project": cmd_cycle_project,
-            "stack": cmd_stack, "project": cmd_project, "config": cmd_config}
+            "project": cmd_project, "config": cmd_config, "stack": cmd_stack}
 
 
 def main(argv):
