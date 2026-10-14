@@ -1,6 +1,6 @@
 name: CI
 
-# The whole test suite, on every pull request. The factory's deploy merges only with this job green on
+# The whole test suite, on every pull request. The factory's deploy merges only with the `test` job green on
 # the PR's head (deploy.required_checks in .shipfloor/factory.yml), and that head already contains main:
 # a second run on main after the merge would test the same tree, and every job costs a minute at least.
 on:
@@ -14,14 +14,30 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  # The suite split over three runners (run.sh SHARD=i/N): its wall time is about a third of one runner's.
+  suite:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: suite (${{ matrix.shard }}/3)
     steps:
       - uses: actions/checkout@v4
       - name: PyYAML
         run: python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml
-      - name: Test suite
+      - name: Test suite, shard ${{ matrix.shard }} of 3
         env:
-          TEST_JOBS: 4   # the default is half the CPUs, and the tests mostly wait on git and subprocesses
+          TEST_JOBS: 4   # one per vCPU: more only makes the process starts compete
+          SHARD: ${{ matrix.shard }}/3
         run: bash scripts/test/run.sh
+
+  # The one check the ruleset and deploy.required_checks name: green only when every shard is.
+  test:
+    runs-on: ubuntu-latest
+    needs: suite
+    if: always()
+    steps:
+      - name: Every shard passed
+        run: '[ "${{ needs.suite.result }}" = success ] || { echo "suite: ${{ needs.suite.result }}"; exit 1; }'
