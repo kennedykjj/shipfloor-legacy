@@ -2,7 +2,6 @@
 # #169: the machine-wide cycle lives in shipfloor_core/cycle.py; shipfloor-dispatch.sh is a thin wrapper.
 # The cycle's behavior is pinned, unedited, by shipfloor-dispatch.test.sh, shipfloor-dispatch-cycle.test.sh,
 # health.test.sh, notify*.test.sh, run-dispatcher.test.sh and install-dispatcher.test.sh; this file checks the port:
-#  - AC-8 the wrapper sources lib/py.sh (not lib/project.sh) and runs `sf.py cycle`; sf.py knows cycle and cycle-project
 #  - AC-8 `sf.py cycle` run directly is the whole cycle (dispatches, writes the health line, removes dispatch.pid)
 #  - AC-6/7 each project runs in its own process: one whose dispatch kills that process does not stop the others
 #  - AC-8 the scheduled entry with an `env -i`-like environment and dispatcher.path runs a cycle that launches a stub run
@@ -31,15 +30,6 @@ project() {  # project <slug>: a repo with a remote whose main carries .shipfloo
   printf '%s\t%s\t%s\tmain\n' "$slug" "$r" "$SHIPFLOOR_HOME/projects/$slug/wt" >> "$SHIPFLOOR_HOME/registry.tsv"
 }
 health() { cat "$SHIPFLOOR_HOME"/logs/health-*.jsonl 2>/dev/null; }
-
-# ---- AC-8: the port's shape
-t "AC-8 shipfloor_core/cycle.py exists" test -f "$FACTORY_DIR/shipfloor_core/cycle.py"
-t "AC-8 the wrapper sources lib/py.sh" grep -q 'lib/py.sh' "$MD"
-t "AC-8 the wrapper no longer sources lib/project.sh" not grep -q 'lib/project.sh' "$MD"
-t "AC-8 the wrapper runs sf.py cycle" grep -Eq '(set -- cycle|sf\.py.* cycle)' "$MD"
-t "AC-8 the wrapper is thin (under 20 lines)" test "$(grep -c '' "$MD")" -lt 20
-t "AC-8 sf.py has the cycle command" grep -q '"cycle"' "$FACTORY_DIR/sf.py"
-t "AC-8 sf.py has the cycle-project command" grep -q '"cycle-project"' "$FACTORY_DIR/sf.py"
 
 # ---- AC-8: sf.py cycle, run directly, is the cycle
 setup; project shop

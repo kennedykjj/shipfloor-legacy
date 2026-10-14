@@ -753,6 +753,17 @@
     "hist.cards": "Cartes de la période, par coût est.",
     "th.column": "colonne",
     "th.runs": "exécutions",
-    "hist.th.cost": "D'Entrée à maintenant"
+    "hist.th.cost": "D'Entrée à maintenant",
+    "dep.h": "Dépend de",
+    "dep.closed": "fermée",
+    "dep.open": "ouverte",
+    "why.deps": "En attente de {list}",
+    "dep.unread": "Dépendances non lues ; démarre quand GitHub répond",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

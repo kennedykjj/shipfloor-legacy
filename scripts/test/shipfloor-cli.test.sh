@@ -289,13 +289,7 @@ case "$out" in *"dashboard [--port"*) fail "AC-8 the usage now lists dashboard (
 assert_exit 2 bash "$M" help
 [ "$(bash "$M" help 2>&1 >/dev/null)" = "$want" ] && pass "#170 AC-1 help prints the usage" || fail "#170 AC-1 help prints: $(bash "$M" help 2>&1)"
 [ -z "$(bash "$M" help 2>/dev/null)" ] && pass "#170 AC-1 help writes nothing on stdout" || fail "#170 AC-1 help wrote on stdout"
-# the wrapper: the header stays, the code sources lib/py.sh and runs `sf.py cli`, never lib/project.sh
-code="$(grep -vE '^[[:space:]]*(#|$)' "$M")"
-[ "$(printf '%s\n' "$code" | wc -l)" -le 5 ] && pass "#170 scripts/shipfloor is a few lines" || fail "#170 scripts/shipfloor has logic:
-$code"
-case "$code" in *'lib/py.sh'*) pass "#170 scripts/shipfloor sources lib/py.sh" ;; *) fail "#170 scripts/shipfloor does not source lib/py.sh" ;; esac
-case "$code" in *'set -- cli "$@"'*) pass "#170 scripts/shipfloor runs the cli command" ;; *) fail "#170 scripts/shipfloor never runs \`sf.py cli\`" ;; esac
-case "$code" in *'lib/project.sh'*) fail "#170 scripts/shipfloor still sources lib/project.sh" ;; *) pass "#170 scripts/shipfloor does not source lib/project.sh" ;; esac
+# the wrapper keeps the header the usage comes from (that it is a wrapper is hygiene.test.sh's)
 [ "$(sed -n '2,10p' "$M" | sed 's/^# \{0,1\}//')" = "$want" ] && pass "#170 the wrapper keeps the header the usage comes from" || fail "#170 the wrapper's header lines 2-10 changed"
 # sf.py knows the cli command
 out="$("$FACTORY_PYTHON" -I "$FACTORY_DIR/sf.py" cli nonsense 2>&1)"; rc=$?

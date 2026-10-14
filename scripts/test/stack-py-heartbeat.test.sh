@@ -7,7 +7,7 @@ LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)" || exit 1; export TMPDIR="$T"
 MAINPID=$$  # only this shell cleans up (a child that inherited the trap compares its parent's pid, not $BASHPID)
 trap '[ "$(exec sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
-source "$FACTORY_DIR/test/fixtures/portable.sh"
+mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"; }  # epoch seconds, GNU or BSD stat
 GATE="$FACTORY_DIR/gate.sh"; L="$SHIPFLOOR_HOME/locks"; d="$L/stack-0.lock"
 
 stubs="$T/stubs"; mkdir -p "$stubs"; printf '#!/usr/bin/env bash\nexit 0\n' > "$stubs/lsof"; chmod +x "$stubs/lsof"
@@ -29,7 +29,11 @@ pid="$(cat "$d/beat.pid" 2>/dev/null)"
 [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && pass "AC-2 the heartbeat outlives the gate that started it (pid in beat.pid)" || fail "AC-2 no live heartbeat: beat.pid '$pid'"
 if [ -d "/proc/$pid" ]; then
   [ "$(readlink "/proc/$pid/cwd")" = / ] && pass "AC-2 the heartbeat runs from /" || fail "AC-2 heartbeat cwd: $(readlink "/proc/$pid/cwd")"
-  fds="$(ls "/proc/$pid/fd" | sort -n | tr '\n' ' ')"
+  # a fd Python opens for a moment while it starts (reading its modules) is not inherited: wait up to 3 s for the
+  # heartbeat to settle; an inherited fd stays open and still fails the check
+  heart_fds() { ls "/proc/$pid/fd" 2>/dev/null | sort -n | tr '\n' ' '; }
+  until_ok 3 test "$(heart_fds)" = "0 1 2 "
+  fds="$(heart_fds)"
   [ "$fds" = "0 1 2 " ] && pass "AC-2 the heartbeat holds no inherited fd (only 0, 1, 2)" || fail "AC-2 heartbeat fds: $fds ($(ls -l "/proc/$pid/fd" | tail -n +2 | sed 's/.*-> //' | tr '\n' ' '))"
   nul=1; for f in 0 1 2; do [ "$(readlink "/proc/$pid/fd/$f")" = /dev/null ] || nul=0; done
   [ "$nul" = 1 ] && pass "AC-2 its stdin, stdout and stderr are /dev/null" || fail "AC-2 heartbeat std streams: $(for f in 0 1 2; do readlink "/proc/$pid/fd/$f"; done | tr '\n' ' ')"

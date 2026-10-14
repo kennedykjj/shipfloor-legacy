@@ -753,6 +753,17 @@
     "hist.cards": "Schede del periodo, per costo stim.",
     "th.column": "colonna",
     "th.runs": "esecuzioni",
-    "hist.th.cost": "Da In arrivo a ora"
+    "hist.th.cost": "Da In arrivo a ora",
+    "dep.h": "Dipende da",
+    "dep.closed": "chiusa",
+    "dep.open": "aperta",
+    "why.deps": "In attesa di {list}",
+    "dep.unread": "Dipendenze non lette; parte quando GitHub risponde",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

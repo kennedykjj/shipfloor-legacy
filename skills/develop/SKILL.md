@@ -34,7 +34,7 @@ Write `<plans><today>-<slug>.md`: tasks by layer (layer names from describe), de
 Call `qa-engineer` with `issue spec plan worktree tmp` and the layers block of describe. Then, in order:
 - `gate.sh -C <worktree> scope qa <plan>` (from the plan commit: the plan itself is not QA's area)
 - `gate.sh -C <wt> qa-commit <n> --head` prints `qa`, the QA commit, and fails unless it is the last commit (its message must contain `acceptance tests for #<n>`, which is how validation and the deploy find it): a failure goes back to QA to commit under that message. On a resumed card whose acceptance tests are done: `gate.sh -C <wt> qa-commit <n>`.
-- Read the red output in its RESULT; confirm every AC has a failing test and the failure message describes the missing behavior. If not, send back (max 2 rounds).
+- Read the red output in its RESULT; confirm every AC has a failing test and the failure message describes the missing behavior. If not, send back (max 2 rounds). Send back too a new test file where the test plan named an existing suite, or a test that greps source text instead of checking behavior.
 
 ## 4. Implementation
 - For each plan task, one at a time (they share the worktree), call the task's layer agent (`engineer` unless describe names another) with `issue spec plan task worktree tmp layer=<name> path=<path> stack=<stack>`. Before each call record `start=<HEAD sha>`.
