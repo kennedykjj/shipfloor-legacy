@@ -1188,11 +1188,16 @@ class Factory:
         return mark.exists() and mark.stat().st_mtime > time.time() - window
 
     def usage_limited(self):
+        return self.limited_runtime() is not None
+
+    def limited_runtime(self):
+        """The runtime whose usage limit holds the factory now, None when none does."""
         for log in self.home.glob("projects/*/logs/*.log"):
             if log.stat().st_mtime > time.time() - 1800:
-                if runtimes.usage_limited(log.read_text(encoding="utf-8", errors="replace")):
-                    return True
-        return False
+                name = runtimes.limited_runtime(log.read_text(encoding="utf-8", errors="replace"))
+                if name:
+                    return name
+        return None
 
     @staticmethod
     def card_deps(record, columns, n):
