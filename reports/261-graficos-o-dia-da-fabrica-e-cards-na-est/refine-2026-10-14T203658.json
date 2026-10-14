@@ -1,0 +1,1 @@
+{"outcome": "ok", "pipeline": "refine", "agents": [], "rounds": {"publish": 1}, "failed_gates": [], "notes": ["rework without owner findings: spec adapted to #184 landing on main; endpoint renamed to /api/factory-day"]}
