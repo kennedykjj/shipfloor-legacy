@@ -181,7 +181,7 @@ def silence(home):
         every = shipfloor_config.dispatcher_every(shipfloor_config.yaml.safe_load((Path(home) / "config.yml").read_text(encoding="utf-8")))
     except (OSError, ValueError, shipfloor_config.yaml.YAMLError):  # no config, or one the dispatcher itself refuses
         every = shipfloor_config.dispatcher_every(None)
-    return {"min": late, "every": every} if late > 3 * every else None
+    return {"min": late, "every": every} if late > max(3 * every, 3) else None  # 30 s: still 3 min, not 90 s
 
 
 def alerts(home, skip_silence=False):

@@ -2343,7 +2343,7 @@ function setLimit(input) {  // nothing is written until Save; the server alone j
   const again = document.querySelector(`[data-lim="${f}"]`); again?.focus(); again?.setSelectionRange(at, at);
 }
 // How often the dispatcher looks for work: the choices as the page words them, and the reason shown when the machine has no task to set.
-const every = (n) => t("disp.every_n", { n });
+const every = (n) => n === 0.5 ? t("disp.every_30s") : t("disp.every_n", { n });
 function cycleStatus(d) {
   if (d.paused) return t("disp.paused");
   const h = d.hours || {}, warn = h.error ? ` <span class="warn">${t("disp.hours_bad")}</span>` : "";
@@ -2352,7 +2352,8 @@ function cycleStatus(d) {
   let next = "";
   if (d.dispatcher?.can_set && d.cycle.next_at) {  // a pace the machine does not run is never shown as a forecast
     const left = (new Date(d.cycle.next_at) - Date.now()) / 60000;
-    next = left > 0 ? ` · ${t("disp.next_in", { m: Math.max(1, Math.ceil(left)) })}` : left > -1 ? ` · ${t("disp.overdue")}` : ` · <span class="late">${t("disp.overdue_by", { m: Math.floor(-left) })}</span>`;
+    next = left > 0 && d.dispatcher.every_min < 1 ? ` · ${t("disp.next_in_s", { s: Math.max(1, Math.ceil(left * 60)) })}`  // 30 s: whole minutes would always say 1
+      : left > 0 ? ` · ${t("disp.next_in", { m: Math.max(1, Math.ceil(left)) })}` : left > -1 ? ` · ${t("disp.overdue")}` : ` · <span class="late">${t("disp.overdue_by", { m: Math.floor(-left) })}</span>`;
   }
   const ago = dur(d.cycle.at, new Date()), took = d.cycle.took_s, exit = d.cycle.exit;
   return `${t(took != null ? exit ? "disp.cycle_took_exit" : "disp.cycle_took" : exit ? "disp.cycle_exit" : "disp.cycle", { ago, took, exit })}${next}${warn}`;
