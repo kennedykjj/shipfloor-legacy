@@ -1,0 +1,1 @@
+{"issue": 184, "stage": "validate", "outcome": "staged", "rounds": 0, "failed_gates": [], "flaky": [], "gates_reused": ["green factory scripts/test/dashboard-views.test.sh", "green factory scripts/test/dispatch-cycle.test.sh"], "amendments": [], "pr": 263, "head": "4c15ca7436644e5515b57d34c2598569bf5d8177"}
