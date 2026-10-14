@@ -95,6 +95,8 @@
     "alert.hours.text": "возобновится в {at}",
     "alert.skipped": "Проект {project} пропускается с {since}",
     "alert.skipped.text": "{reason}. Там ничего не движется, пока это не исправлено; в Ленте есть журнал диспетчера.",
+    "alert.silent": "Диспетчер молчит",
+    "alert.silent.text": "Последний цикл был {m} мин назад; он должен запускаться каждые {every} мин. Диспетчер остановился? Проверить: <code>{check}</code>. Переустановить: <code>{reinstall}</code>.",
     "alert.health": "Состояние",
     "alert.health.text": "{what}. История в <code>~/.shipfloor/logs/health-*.jsonl</code>.",
     "alert.orphans": "{n, plural, one {# брошенная блокировка} few {# брошенные блокировки} many {# брошенных блокировок} other {# брошенной блокировки}}",

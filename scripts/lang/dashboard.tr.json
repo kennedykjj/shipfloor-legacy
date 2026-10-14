@@ -95,6 +95,8 @@
     "alert.hours.text": "yeniden başlama saati {at}",
     "alert.skipped": "{project} projesi {since} itibarıyla atlanıyor",
     "alert.skipped.text": "{reason}. Bu düzeltilene kadar orada hiçbir şey ilerlemez; dağıtıcının logu Akış'ta.",
+    "alert.silent": "Dispatcher sessiz",
+    "alert.silent.text": "Son döngü {m} dk önceydi; her {every} dk'da bir çalışması gerekir. Dispatcher durmuş olabilir mi? Kontrol: <code>{check}</code>. Yeniden kurulum: <code>{reinstall}</code>.",
     "alert.health": "Sağlık",
     "alert.health.text": "{what}. Geçmiş: <code>~/.shipfloor/logs/health-*.jsonl</code>.",
     "alert.orphans": "{n, plural, one {# sahipsiz kilit} other {# sahipsiz kilit}}",
