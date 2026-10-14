@@ -1,0 +1,1 @@
+{"issue": 174, "slug": "shipfloor-init-guided-end-to-end-install", "pipeline": "validate", "outcome": "staged", "rounds": 0, "failed_gates": [], "flaky": [], "gates_reused": ["green factory scripts/test/init.test.sh"], "amendments": [], "agents": [], "pr": 224}
