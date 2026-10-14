@@ -253,6 +253,51 @@ class TheCycle(CycleCase):
         self.assertIn("shipfloor: GitHub API limit hit recently; waiting", self.out)
         self.assertEqual(self.ran(), [])
 
+    def age(self, path, days):
+        t = time.time() - days * 86400
+        for root, dirs, files in os.walk(path):
+            for n in dirs + files:
+                os.utime(os.path.join(root, n), (t, t), follow_symlinks=False)
+        os.utime(path, (t, t), follow_symlinks=False)
+
+    def test_home_tmp_sweep(self):
+        "AC-4 AC-5 a cycle removes what in <home>/tmp has not changed for over 3 days, logging each; keeps the fresh, the recently touched and anything outside it"
+        self.register()
+        open(os.path.join(self.shome, "github-limited"), "w").close()  # a cycle that only waits still sweeps
+        tmp = os.path.join(self.shome, "tmp")
+        outside = self.path("outside")
+        self.write(os.path.join(outside, "precious"), "keep")
+        self.write(os.path.join(tmp, "old-file"), "x")
+        self.write(os.path.join(tmp, "old-dir", "deep", "f"), "x")
+        self.write(os.path.join(tmp, "mixed", "old"), "x")
+        self.write(os.path.join(tmp, "mixed", "new"), "x")
+        self.write(os.path.join(tmp, "fresh-file"), "x")
+        self.write(os.path.join(tmp, "fresh-dir", "f"), "x")
+        self.write(os.path.join(tmp, "5", "tmp", "scratch"), "x")
+        os.symlink(outside, os.path.join(tmp, "old-link"))
+        for n in ("old-file", "old-dir", "5"):
+            self.age(os.path.join(tmp, n), 4)
+        self.age(os.path.join(tmp, "mixed"), 4)
+        self.write(os.path.join(tmp, "mixed", "new"), "y")  # touched now: the folder is in use
+        self.age(os.path.join(tmp, "old-link"), 4)
+        self.age(os.path.join(tmp, "fresh-file"), 2)
+        self.assertEqual(self.run_cycle(), 0)
+        self.assertEqual(sorted(os.listdir(tmp)), ["fresh-dir", "fresh-file", "mixed"])
+        self.assertTrue(os.path.isfile(os.path.join(outside, "precious")), "a symlink is unlinked, never followed")
+        for name in ("old-file", "old-dir", "old-link"):
+            self.assertRegex(self.out + self.err, r"%s shipfloor: removed tmp/%s\n" % (ISO, name))
+        self.assertNotIn("removed tmp/fresh", self.out + self.err)
+
+    def test_home_tmp_sweep_needs_the_claim(self):
+        "AC-5 a cycle that finds another one running, or a PAUSE, sweeps nothing"
+        self.register()
+        old = os.path.join(self.shome, "tmp", "old-file")
+        self.write(old, "x")
+        self.age(old, 9)
+        self.write(os.path.join(self.shome, "dispatch.pid"), "%d\n" % os.getpid())
+        self.run_cycle()
+        self.assertTrue(os.path.exists(old))
+
     def test_overlap(self):
         "a cycle that finds another one running (a live pid in a fresh dispatch.pid): exit 0, nothing dispatched, recorded as an overlap, its marker left alone"
         self.register()
