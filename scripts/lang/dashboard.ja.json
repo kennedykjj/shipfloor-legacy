@@ -753,6 +753,11 @@
     "hist.cards": "期間内のカード (推定コスト順)",
     "th.column": "列",
     "th.runs": "実行",
-    "hist.th.cost": "インボックスから現在まで"
+    "hist.th.cost": "インボックスから現在まで",
+    "dep.h": "依存先",
+    "dep.closed": "クローズ",
+    "dep.open": "オープン",
+    "why.deps": "{list} を待っています",
+    "dep.unread": "依存関係を読み込めません。GitHub が応答すると開始します"
   }
 }

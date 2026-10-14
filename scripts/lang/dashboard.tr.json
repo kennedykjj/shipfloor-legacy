@@ -753,6 +753,11 @@
     "hist.cards": "Dönemin kartları, tahmini maliyete göre",
     "th.column": "sütun",
     "th.runs": "çalıştırma",
-    "hist.th.cost": "Gelen Kutusu → şimdi"
+    "hist.th.cost": "Gelen Kutusu → şimdi",
+    "dep.h": "Bağımlı olduğu",
+    "dep.closed": "kapalı",
+    "dep.open": "açık",
+    "why.deps": "{list} bekleniyor",
+    "dep.unread": "Bağımlılıklar okunamadı; GitHub yanıt verince başlar"
   }
 }

@@ -13,6 +13,7 @@ sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
 import shipfloor_health
+from shipfloor_core import deps
 import dashboard_cost
 from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, per_card, rounded
 import yaml
@@ -1040,6 +1041,21 @@ class Factory:
                     return True
         return False
 
+    @staticmethod
+    def card_deps(record, columns, n):
+        """A card's dependencies from the dispatcher's record (deps.json), each in its board column, "closed", or "open"
+        when open but off the board; deps_unread when the dispatcher could not read them. The dashboard asks GitHub nothing."""
+        entry = record.get(str(n))
+        if not isinstance(entry, dict):
+            return {"deps": [], "deps_unread": False}
+        out = []
+        for d in entry.get("deps") or []:
+            if not isinstance(d, dict) or not isinstance(d.get("n"), int):
+                continue
+            state = "closed" if d.get("state") == "closed" else columns.get(d["n"]) or "open"
+            out.append({"n": d["n"], "title": str(d.get("title") or ""), "state": state})
+        return {"deps": out, "deps_unread": entry.get("read") is False}
+
     def overview(self):
         size, slots = self.pool()
         prices, today, limits = self.prices(), datetime.now().date().isoformat(), self.costs()
@@ -1058,7 +1074,7 @@ class Factory:
                 r["activity"] = doing.get((r["issue"], r["stage"]), [])
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
-            titles, blocked = self.titles(p, columns), self.blocked(p)
+            titles, blocked, record = self.titles(p, columns), self.blocked(p), deps.load(str(self.pdir(p)))
             opened, place, line = self._opened.get(p, {}), {}, {}
             for n, col in columns.items():  # columns come in board order: a card's place in line is its rank there
                 if col in LINED:
@@ -1082,7 +1098,8 @@ class Factory:
                                         "review": col in AWAITING and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                                         "lock": "run" if n in running else {"infra": "infra", "owner": "blocked"}.get(blocked.get(n)),
                                         "opened": opened.get(n), "position": place.get(n),
-                                        "blocked": blocked.get(n), **self.block_brief(p, n, blocked.get(n))}
+                                        "blocked": blocked.get(n), **self.block_brief(p, n, blocked.get(n)),
+                                        **self.card_deps(record, columns, n)}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}

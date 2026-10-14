@@ -753,6 +753,11 @@
     "hist.cards": "Karten des Zeitraums, nach gesch. Kosten",
     "th.column": "Spalte",
     "th.runs": "Läufe",
-    "hist.th.cost": "Eingang bis jetzt"
+    "hist.th.cost": "Eingang bis jetzt",
+    "dep.h": "Hängt ab von",
+    "dep.closed": "geschlossen",
+    "dep.open": "offen",
+    "why.deps": "Wartet auf {list}",
+    "dep.unread": "Abhängigkeiten nicht gelesen; startet, sobald GitHub antwortet"
   }
 }
