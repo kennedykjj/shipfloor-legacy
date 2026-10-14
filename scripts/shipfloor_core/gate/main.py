@@ -32,11 +32,15 @@ GATES = {
     "forbidden": ("scope", "forbidden"),
     "test-plan": ("spec", "test_plan"),
     "weight": ("spec", "weight"),
+    "acceptance-intact": ("acceptance", "acceptance_intact"),
+    "acceptance-own": ("acceptance", "acceptance_own"),
+    "qa-commit": ("acceptance", "qa_commit"),
+    "qa-amend": ("acceptance", "qa_amend"),
 }
 
 # The static gates the Python port has not taken over yet: lib/gate-legacy.sh runs them as the Bash gate did.
 # Each task that ports a gate adds it to GATES and drops it here; the last one deletes the legacy file.
-LEGACY = ("acceptance-intact", "acceptance-own", "qa-commit", "qa-amend", "migration", "fast")
+LEGACY = ("migration", "fast")
 
 NO_VERDICT = ("acceptance-own", "stack")  # their stdout/exit is read by a caller: no verdict line
 
