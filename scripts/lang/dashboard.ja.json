@@ -770,6 +770,17 @@
     "brief.filled": "Note filled from #{n}'s brief. Nothing was sent.",
     "pass.verdict.routine": "routine",
     "pass.verdict.one": "1 point",
-    "pass.verdict.n": "{n} points"
+    "pass.verdict.n": "{n} points",
+    "dep.h": "依存先",
+    "dep.closed": "クローズ",
+    "dep.open": "オープン",
+    "why.deps": "{list} を待っています",
+    "dep.unread": "依存関係を読み込めません。GitHub が応答すると開始します",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

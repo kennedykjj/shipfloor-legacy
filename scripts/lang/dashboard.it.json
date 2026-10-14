@@ -770,6 +770,17 @@
     "brief.filled": "Note filled from #{n}'s brief. Nothing was sent.",
     "pass.verdict.routine": "routine",
     "pass.verdict.one": "1 point",
-    "pass.verdict.n": "{n} points"
+    "pass.verdict.n": "{n} points",
+    "dep.h": "Dipende da",
+    "dep.closed": "chiusa",
+    "dep.open": "aperta",
+    "why.deps": "In attesa di {list}",
+    "dep.unread": "Dipendenze non lette; parte quando GitHub risponde",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

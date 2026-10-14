@@ -143,4 +143,15 @@ console.log([t("a.b", { n: 1 }), t("a.b", { n: 3 }), t("a.b", { n: 5 }), t("a.b"
 else
   pass "t(): node is not installed here; the catalog checks above still ran"
 fi
+# dur() in node (#119): long durations in days, its words the English catalog's
+if command -v node >/dev/null; then
+  durjs="$(grep -e '^function dur(' -e '^const pad = ' "$FACTORY_DIR/dashboard.html")"
+  got="$(node -e "const EN = require('$(cd "$FACTORY_DIR" && pwd)/lang/dashboard.en.json').messages, t = (k, v) => EN[k].replace(/\{(\w+)\}/g, (_, x) => v[x]);
+$durjs
+const at = (s) => dur(new Date(0).toISOString(), new Date(s * 1000).toISOString());
+console.log([42 * 60, 47 * 3600 + 59 * 60, 48 * 3600, 48 * 3600 + 60, 96 * 3600 + 8 * 60, 49 * 3600, 12 * 86400 + 23 * 3600 + 59 * 60].map(at).join('|'))")"
+  [ "$got" = "42m|47h59|48h00|2d 0h|4d 0h|2d 1h|12d 23h" ] && pass "dur(): 42m, 47h59, 48h00, then days and hours" || fail "dur() gave $got"
+else
+  pass "dur(): node is not installed here"
+fi
 finish

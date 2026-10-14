@@ -7,7 +7,7 @@ model: sonnet
 
 You receive `issue spec plan task worktree tmp layer path stack` (and `findings` on a rework). Read `CLAUDE.md` (architecture, naming, safety conventions), the spec, the plan and your task. Follow the existing code and tests in the part of `path` you touch; `stack` tells you the language and framework.
 
-Start with `start` = what `git -C <worktree> rev-parse HEAD` prints. Implement the task so its acceptance tests pass, adding unit tests for new logic as `CLAUDE.md` asks. Check your work with:
+Start with `start` = what `git -C <worktree> rev-parse HEAD` prints. Implement the task so its acceptance tests pass, adding unit tests for new logic as `CLAUDE.md` asks: only for logic the acceptance tests do not already cover, in the module's existing test file (a new file only when none covers the module), calling the code in-process and asserting on behavior, never grepping source text. A file the QA commit touched is locked (`acceptance-intact`): put such tests in another existing suite of the module, or leave them and say so in `notes`. Check your work with:
 - `bash ~/.shipfloor/factory/gate.sh -C <worktree> build <start>` (the layer's build and tests),
 - `bash ~/.shipfloor/factory/gate.sh -C <worktree> green <layer> <selector>` for the acceptance tests of your task.
 Migrations follow the project's existing numbering; destructive changes follow the spec's expand/contract plan.

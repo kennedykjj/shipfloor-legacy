@@ -770,6 +770,17 @@
     "brief.filled": "Note filled from #{n}'s brief. Nothing was sent.",
     "pass.verdict.routine": "routine",
     "pass.verdict.one": "1 point",
-    "pass.verdict.n": "{n} points"
+    "pass.verdict.n": "{n} points",
+    "dep.h": "의존 대상",
+    "dep.closed": "닫힘",
+    "dep.open": "열림",
+    "why.deps": "{list} 대기 중",
+    "dep.unread": "의존성을 읽지 못함. GitHub가 응답하면 시작합니다",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

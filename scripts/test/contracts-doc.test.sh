@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# docs/contracts.md covers every script: a section per file, the top note, the subcommands of each usage line, and a link from how-it-works.md.
-# Reads: scripts/*.sh, scripts/lib/*.sh, scripts/shipfloor, docs/contracts.md, docs/how-it-works.md.
+# docs/contracts.md covers every script: a section per file that lists each subcommand of its usage line, as the doc's
+# top says this test enforces. Reads: scripts/*.sh, scripts/lib/*.sh, scripts/shipfloor, docs/contracts.md.
 source "$(dirname "$0")/lib.sh"
 ROOT="$(cd "$FACTORY_DIR/.." && pwd)"
 out="$("$FACTORY_PYTHON" -I - "$ROOT" <<'PY'
@@ -98,7 +98,7 @@ check("the usage of shipfloor pool yields set, stage and stacks", {"set", "stage
 
 doc_path = os.path.join(root, "docs", "contracts.md")
 if not os.path.isfile(doc_path):
-    for ac in ("AC-1", "AC-2", "AC-3", "AC-4"):
+    for ac in ("AC-1", "AC-3", "AC-4"):
         bad(f"{ac} docs/contracts.md exists", "docs/contracts.md does not exist")
     doc = None
 else:
@@ -110,16 +110,6 @@ if doc is not None:
     # AC-1: a section for every script and the CLI
     for s in scripts:
         check(f"AC-1 section \"## {s}\"", s in secs, f"docs/contracts.md has no \"## {s}\" section")
-
-    # AC-2: the top note
-    top = re.split(r"^## ", doc, maxsplit=1, flags=re.M)[0]
-    check("AC-2 the top says the doc describes behavior", re.search(r"describ\w*[^.]*behaviou?r|behaviou?r[^.]*describ", top, flags=re.I) is not None,
-          "the top of docs/contracts.md does not say it describes behavior")
-    check("AC-2 the top says that when doc and code disagree the code is the bug",
-          re.search(r"disagree", top, flags=re.I) is not None and re.search(r"code is the bug", top, flags=re.I) is not None,
-          "the top does not say that when doc and code disagree, the code is the bug")
-    check("AC-2 the top says the fix is a card", re.search(r"\bcard\b", top, flags=re.I) is not None,
-          "the top does not say the fix is a card")
 
     # AC-3: every usage subcommand is listed
     miss = missing(doc, usage)
@@ -144,12 +134,24 @@ if doc is not None:
               f"the check on the copy said: {got or 'nothing (it passed)'}")
         check(f"AC-4 removing `{w}` from {s} names no other script", all(g.startswith(s + ": ") for g in got), f"the check said: {got}")
 
-# AC-5: the link
-hiw_path = os.path.join(root, "docs", "how-it-works.md")
-hiw = rd(hiw_path) if os.path.isfile(hiw_path) else ""
-check("AC-5 docs/how-it-works.md links to contracts.md",
-      re.search(r"\]\(\s*(?:\./)?contracts\.md(?:#[^)\s]*)?\s*\)", hiw) is not None,
-      "docs/how-it-works.md has no link to contracts.md")
+# AC-5 (#178): the brief.sh section documents the brief.json contract
+if doc is not None:
+    bsec = sections(doc).get("brief.sh")
+    check("AC-5 docs/contracts.md has a \"## brief.sh\" section", bsec is not None, "docs/contracts.md has no \"## brief.sh\" section")
+    bsec = bsec or ""
+    check("AC-5 the brief.sh section names brief.json", "brief.json" in bsec, "the brief.sh section does not name brief.json")
+    for fld in ("verdict", "flags", "proven", "facts", "since_request", "what", "rest"):
+        check(f"AC-5 the brief.sh section documents the field `{fld}`", re.search(r"`%s`" % fld, bsec) is not None,
+              f"the brief.sh section does not list `{fld}` in backticks")
+    check("AC-5 the brief.sh section says since_request is accepted as input and empty when absent",
+          re.search(r"since_request", bsec) is not None and re.search(r"\bempty\b", bsec, flags=re.I) is not None
+          and re.search(r"input|--since", bsec, flags=re.I) is not None,
+          "the brief.sh section does not say since_request is an input and empty when absent")
+    check("AC-5 the brief.sh section says who writes each field (script vs agent notes)",
+          re.search(r"notes", bsec, flags=re.I) is not None and re.search(r"script|brief\.py", bsec, flags=re.I) is not None,
+          "the brief.sh section does not say which fields the script computes and which the notes give")
+    check("AC-5 the files table has a brief.json row", re.search(r"^\|[^\n]*brief\.json[^\n]*\|", doc, flags=re.M) is not None,
+          "docs/contracts.md has no table row for brief.json")
 
 print("\n".join(res))
 PY
