@@ -8,11 +8,8 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import shipfloor_config
-
-# stage: (queue column, columns whose cards with no live run it resumes, WIP columns), as dispatch.sh runs them
-STAGES = {"refine": ("Ready for Refinement", ("Technical Refinement",), ("Spec Review",)),
-          "develop": ("Ready for Dev", ("Coding",), ("Coding", "Validation")),
-          "validate": ("Validation", (), ()), "deploy": ("Ready for Prod", (), ())}
+from shipfloor_core import deps
+from shipfloor_core.defaults import STAGES  # stage: (queue column, columns it resumes, WIP columns), as the dispatcher runs them
 CYCLES = 3  # an alert looks at this many cycles: one cycle with a free slot is the dispatcher's own timing
 
 
@@ -85,8 +82,14 @@ def snapshot(home, seconds, code, overlap):
         limits = shipfloor_config.merged(f.config(p), shipfloor_config.DEFAULTS)["limits"]
         stopped = paused or limited or gh_limited or cost_stop or outside or (f.pdir(p) / "PAUSE").exists() or bool(f.skipped(p))
 
+        record = deps.load(str(f.pdir(p)))
+
+        def held(n):  # the dispatcher starts nothing for a card with an open dependency or one it could not read
+            r = record.get(str(n))
+            return isinstance(r, dict) and (not r.get("read", True) or bool(deps.open_numbers(r.get("deps"))))
+
         def waiting(col):
-            return sum(c == col and n not in blocked and n not in busy for n, c in columns.items())
+            return sum(c == col and n not in blocked and n not in busy and not held(n) for n, c in columns.items())
         stages = {}
         for st, (queue, resumes, wip_cols) in STAGES.items():
             running, cap, wip = sum(r["stage"] == st for r in runs), (1 if st == "deploy" else 0), limits[st]["wip"]  # cap: deploy is serial per project

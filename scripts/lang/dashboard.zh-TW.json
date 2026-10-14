@@ -755,6 +755,17 @@
     "hist.cards": "此期間的卡片，依估算費用排序",
     "th.column": "欄",
     "th.runs": "執行",
-    "hist.th.cost": "從收件匣至今"
+    "hist.th.cost": "從收件匣至今",
+    "dep.h": "依賴於",
+    "dep.closed": "已關閉",
+    "dep.open": "未關閉",
+    "why.deps": "等待 {list}",
+    "dep.unread": "未能讀取依賴；GitHub 回應後開始",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

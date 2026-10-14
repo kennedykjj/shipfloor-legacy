@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-Bash and Python 3 (stdlib + PyYAML) scripts installed in `~/.shipfloor/factory`. The local dashboard is one self-contained HTML file served by `scripts/dashboard.py`: no framework, no CDN, no build.
+A Python 3.11+ package (stdlib + PyYAML), `scripts/shipfloor_core`, behind thin Bash wrappers that keep the script names callers know; all installed in `~/.shipfloor/factory`. The local dashboard is one self-contained HTML file served by `scripts/dashboard.py`: no framework, no CDN, no build.
 
 ## Users
 

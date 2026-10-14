@@ -389,6 +389,14 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .tip-head .meta { margin-top: 6px; font-size: 12.5px; color: var(--muted); display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; }
 .tip-head .meta a { display: inline-flex; align-items: center; min-height: 24px; margin-block: -4px; }  /* the 24px target, and the line keeps its height */
 .tip-head .meta .wait { color: var(--sand); }
+.deps { margin-top: 10px; } .deps .cap { display: block; margin-bottom: 4px; }
+.deps ul { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.deps li { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: center; }
+.deps a { display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; font-variant-numeric: tabular-nums; }
+.deps .dt { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.deps .ds { color: var(--soft); white-space: nowrap; } .deps .ds.closed { color: var(--faint); }
+.deps p { margin: 0; font-size: 12.5px; color: var(--muted); }
+@container (max-width: 540px) { .deps li { grid-template-columns: auto 1fr; } .deps .dt { grid-column: 1 / -1; grid-row: 2; } .deps .ds { justify-self: end; } }
 .tip-head .meta .live { color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
 .tip-stats { margin: 14px 0 0; display: grid; grid-template-columns: repeat(4, auto); justify-content: start; gap: 4px 28px; }
 .tip-stats div { min-width: 0; }
@@ -968,7 +976,7 @@ function renderPeek() {
   const [slug, n] = (S.peek || "/").split("/"), c = dot && cardOf(slug, +n);
   if (!c || !dot.offsetParent) { S.peek = null; el.hidden = true; return; }  // its dot is gone, or the board is not on screen
   const k = esc(S.peek), run = c.running && runOf(slug, c), of = STEP_COUNT[c.running], step = run?.step;
-  const meta = [esc(colName(c.column)), c.running ? (run?.started ? t("peek.running_min", { stage: esc(stageName(c.running)), m: mins(run.started) }) : t("peek.running", { stage: esc(stageName(c.running)) })) : kindText(kindOf(S.peek, c)),
+  const meta = [esc(colName(c.column)), c.running ? (run?.started ? t("peek.running_min", { stage: esc(stageName(c.running)), m: mins(run.started) }) : t("peek.running", { stage: esc(stageName(c.running)) })) : (!c.blocked && STAGE_OF[c.column] && (c.deps_unread || openDeps(c).length)) ? esc(whyWaits(S.overview.projects.find((x) => x.slug === slug) || {}, c)) : kindText(kindOf(S.peek, c)),
     step ? t("step.of", { i: step.i, n: of, label: esc(stepName(step.label)) }) : "", c.cost ? `<span class="gold">${money(c.cost)}</span>${warnSpan(c) ? ` ${warnSpan(c)}` : ""}` : ""].filter(Boolean).join(" · ");
   const bar = of ? `<ol class="steps" aria-hidden="true">${Array.from({ length: of }, (_, i) => `<li class="${step ? (i + 1 < step.i ? "done" : i + 1 === step.i ? "now" : "") : ""}"></li>`).join("")}</ol>` : "";
   const open = OWNER[c.column] ? `<button class="btn" data-open="${k}" data-go="review">${t("act.review")}</button>`  // the owner's cards keep the wide drawer and its decision
@@ -1461,6 +1469,8 @@ function passHtml(c) {
   const edit = S.editing === c.key && moves ? `<div class="edit"><label class="cap" for="qc">${t("pass.what_change", { n: c.issue })}</label><textarea id="qc"></textarea><div><button class="pill" aria-describedby="send-to" data-q="send">${t("act.changes")}</button><span class="hint" id="send-to">→ ${esc(colName(moves[1]))}</span><button data-q="cancel">${t("act.cancel")}</button></div></div>` : "";
   return `<li class="pass${stop ? " stop" : ""}" data-key="${k}">${head(meta)}${why}${note}</div><div class="stub">${acts}</div>${edit}</li>`;
 }
+// The dependencies still open, by number: the dispatcher's record, as the overview carries it.
+const openDeps = (c) => (c?.deps || []).filter((d) => d.state !== "closed").sort((a, b) => a.n - b.n);
 // Why a card the factory holds is not running, from what the overview knows.
 function whyWaits(p, c) {
   const o = S.overview, st = STAGE_OF[c.column], s = o.pool.stages[st] || { slots: 0, running: 0 };
@@ -1469,6 +1479,9 @@ function whyWaits(p, c) {
   if (o.costs?.day_stopped) return t("why.day_stop");
   if (o.usage_limited) return t("why.usage");
   if (p.skipped) return t("why.skipped");
+  const open = openDeps(c);
+  if (c.deps_unread) return t("dep.unread");
+  if (open.length) return t("why.deps", { list: open.map((d) => `#${d.n}`).join(t("hold.sep")) });
   if (s.running >= s.slots) return t("why.slot", { stage: stageName(st), i: s.running, n: s.slots });
   if (o.pool.used >= o.pool.size) return t("why.pool", { i: o.pool.used, n: o.pool.size });
   return t("why.queued", { stage: stageName(st) });
@@ -1802,6 +1815,18 @@ async function setWeight(sel) {
   if (status === 409) await loadCard();
 }
 const stepOf = (slug, c) => { const st = runOf(slug, c)?.step; return st ? `<span>${t("step.of", { i: st.i, n: STEP_COUNT[c.running], label: esc(stepName(st.label)) })}</span>` : ""; };
+// The "Depends on" block of the drawer: open dependencies first, then by number; nothing when the card has none.
+function depsBlock(slug, ov) {
+  if (ov?.deps_unread) return `<div class="deps"><span class="cap">${t("dep.h")}</span><p>${t("dep.unread")}</p></div>`;
+  const list = [...(ov?.deps || [])].sort((a, b) => (a.state === "closed") - (b.state === "closed") || a.n - b.n);
+  if (!list.length) return "";
+  const rows = list.map((d) => {
+    const u = issueUrl(slug, d.n), num = `#${d.n}`, closed = d.state === "closed";
+    const title = d.title ? esc(d.title) : UNTITLED, state = closed ? t("dep.closed") : d.state === "open" ? t("dep.open") : esc(colName(d.state));
+    return `<li><span>${u ? `<a href="${esc(u)}" target="_blank" rel="noopener" title="${ta("gh.title")}">${num}</a>` : num}</span><span class="dt"${d.title ? ` title="${esc(d.title)}"` : ""}>${title}</span><span class="ds${closed ? " closed" : ""}">${state}</span></li>`;
+  }).join("");
+  return `<div class="deps"><span class="cap">${t("dep.h")}</span><ul aria-label="${ta("dep.h")}">${rows}</ul></div>`;
+}
 function headHtml(c, ov, p, n, column) {
   const sessions = c?.sessions || [];
   const span = sessions.length ? dur(sessions[0].start, sessions[sessions.length - 1].end) : "–";
@@ -1815,6 +1840,7 @@ function headHtml(c, ov, p, n, column) {
   const earlier = rep && ov?.running && rep.pipeline !== ov.running ? ` <span class="muted">${t("head.before", { stage: esc(stageName(ov.running)) })}</span>` : "";
   return `<div class="tip-head"><div class="row1"><h3 id="tip-title" tabindex="-1"><span class="num">#${n}</span>${title ? esc(title) : UNTITLED}</h3></div>
     <div class="meta"><span>${esc(colName(column) || "–")}</span>${state}${issue ? `<span>${issue}</span>` : ""}${weightTag(c)}</div>
+    ${depsBlock(p, ov)}
     <dl class="tip-stats">
       <div class="total"><dt>${t("head.cost")} ${EST}</dt><dd class="num gold">${c ? money(c.total) : "–"}</dd></div>
       <div><dt>${t("head.sessions")}</dt><dd class="num">${c ? sessions.length : "–"}</dd></div>

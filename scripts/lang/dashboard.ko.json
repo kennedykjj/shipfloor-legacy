@@ -755,6 +755,17 @@
     "hist.cards": "기간 내 카드(추정 비용순)",
     "th.column": "열",
     "th.runs": "실행",
-    "hist.th.cost": "인박스→현재"
+    "hist.th.cost": "인박스→현재",
+    "dep.h": "의존 대상",
+    "dep.closed": "닫힘",
+    "dep.open": "열림",
+    "why.deps": "{list} 대기 중",
+    "dep.unread": "의존성을 읽지 못함. GitHub가 응답하면 시작합니다",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

@@ -755,6 +755,17 @@
     "hist.cards": "Карточки периода, по оценке стоимости",
     "th.column": "колонка",
     "th.runs": "запуски",
-    "hist.th.cost": "Входящие → сейчас"
+    "hist.th.cost": "Входящие → сейчас",
+    "dep.h": "Зависит от",
+    "dep.closed": "закрыта",
+    "dep.open": "открыта",
+    "why.deps": "Ждёт {list}",
+    "dep.unread": "Зависимости не прочитаны; запуск, когда GitHub ответит",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} few {# statements changed since your request} many {# statements changed since your request} other {# statements changed since your request}}"
   }
 }

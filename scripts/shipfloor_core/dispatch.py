@@ -26,7 +26,8 @@ import subprocess
 import sys
 import time
 
-from . import proc, project, stack, text
+from . import deps, proc, project, stack, text
+from .defaults import STAGES as STAGE_COLUMNS
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PIPE, DEVNULL, STDOUT = subprocess.PIPE, subprocess.DEVNULL, subprocess.STDOUT
@@ -296,6 +297,7 @@ class Cycle:
         self.costfail = False
         self.block_cards = ""
         self.snap_rows = None
+        self.deps_seen = {}
 
     def say(self, msg, err=False):
         _say(self.mlang, msg, err)
@@ -400,15 +402,13 @@ class Cycle:
             self.say("dispatch: outside working hours; runs start again at %s" % nxt)
         else:
             lr, ld = _int(lim[0]), _int(lim[1])
-            if not self.run_pipeline("refine", "Ready for Refinement", 0, lr, "Technical Refinement", "Spec Review"):
-                status = 1
-            if not self.run_pipeline("develop", "Ready for Dev", 0, ld, "Coding", "Coding", "Validation"):
-                status = 1
-            if not self.run_pipeline("validate", "Validation", 0, 0, ""):
-                status = 1
             # one deploy at a time in a project: merges into its main are serial
-            if not self.run_pipeline("deploy", "Ready for Prod", 1, 0, ""):
-                status = 1
+            for p, maxpar, limit in (("refine", 0, lr), ("develop", 0, ld), ("validate", 0, 0), ("deploy", 1, 0)):
+                queue, resumes, wip_cols = STAGE_COLUMNS[p]
+                if not self.run_pipeline(p, queue, maxpar, limit, resumes[0] if resumes else "", *wip_cols):
+                    status = 1
+        if self.deps_seen:
+            self.save_deps()
         # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
         rc, out = self.cfg("get", "deploy.refresh_staged", quiet=True)
         if _t(out).rstrip("\n") == "true" and not self.refresh_staged():
@@ -546,6 +546,26 @@ class Cycle:
                 raise Exit(0)
             if kind == "block":
                 self.block_cards += " " + a
+
+    def waits_on_deps(self, n):
+        """Read the card's "Blocked by" issues once per cycle and record them (deps.json). True = do not start it: a
+        dependency is open, or GitHub did not answer (read false)."""
+        if n not in self.deps_seen:
+            rc, out = self.cfg("get", "project.repo", quiet=True)
+            slug = _t(out).replace("\0", "").replace("\r", "").rstrip("\n")
+            found = deps.blocked_by(slug, n)
+            self.deps_seen[n] = {"read": found is not None, "deps": found or []}
+        entry = self.deps_seen[n]
+        return not entry["read"] or bool(deps.open_numbers(entry["deps"]))
+
+    def save_deps(self):
+        """deps.json: what this cycle read, and the earlier entries of cards still on the board and not Done."""
+        record = {}
+        for n, entry in deps.load(self.home).items():
+            if self.board_read() and self.snapshot_status(n) not in ("", "Done"):
+                record[n] = entry
+        record.update(self.deps_seen)
+        deps.save(self.home, record)
 
     def block_card(self, n):
         """The comment says why, then the label; a failure of either fails the cycle. True = blocked (or failed to be:
@@ -708,6 +728,8 @@ class Cycle:
 
         def start_run(n, orphan=False):
             self.started = 0
+            if p != "refine" and self.waits_on_deps(n):
+                return True  # waiting on an open dependency, or the read failed: not started, no label, no slot
             if (" %s " % n) in (" %s " % self.block_cards) and self.block_card(n):
                 return True  # blocked, not started: it takes no slot
             self.started = 1

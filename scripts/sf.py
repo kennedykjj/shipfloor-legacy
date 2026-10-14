@@ -45,9 +45,19 @@ def cmd_review_page(args):
     return review_page.main(args)
 
 
+def cmd_brief(args):
+    from shipfloor_core import brief
+    return brief.main(args)
+
+
 def cmd_cli(args):
     from shipfloor_core import cli
     return cli.main(args)
+
+
+def cmd_gate(args):
+    from shipfloor_core import gate
+    return gate.main(args)
 
 
 def cmd_deploy(args):
@@ -70,14 +80,25 @@ def cmd_cycle_project(args):
     return cycle.main_project(args)
 
 
+def cmd_project(args):
+    from shipfloor_core import project
+    return project.main(args)
+
+
+def cmd_config(args):
+    from shipfloor_core import project
+    return project.config_main(args)
+
+
 def cmd_stack(args):
     from shipfloor_core import stack
     return stack.main(args)
 
 
 COMMANDS = {"version": cmd_version, "board": cmd_board, "setup-board": cmd_setup_board, "report": cmd_report,
-            "metrics": cmd_metrics, "review-page": cmd_review_page, "cli": cmd_cli, "deploy": cmd_deploy,
-            "dispatch": cmd_dispatch, "cycle": cmd_cycle, "cycle-project": cmd_cycle_project, "stack": cmd_stack}
+            "metrics": cmd_metrics, "review-page": cmd_review_page, "cli": cmd_cli, "gate": cmd_gate,
+            "deploy": cmd_deploy, "dispatch": cmd_dispatch, "cycle": cmd_cycle, "cycle-project": cmd_cycle_project,
+            "project": cmd_project, "config": cmd_config, "stack": cmd_stack, "brief": cmd_brief}
 
 
 def main(argv):
@@ -87,5 +108,20 @@ def main(argv):
     return COMMANDS[argv[0]](argv[1:]) or 0
 
 
+def run(argv):
+    """main(argv), ended quietly with 141 when the reader of stdout went away (`| head`, a caller that stopped reading),
+    as a Bash script ends on SIGPIPE: no traceback, and nothing more is written to the closed pipe."""
+    try:
+        code = main(argv)
+        sys.stdout.flush()
+        return code
+    except BrokenPipeError:
+        try:
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        except OSError:
+            pass
+        return 141
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(run(sys.argv[1:]))

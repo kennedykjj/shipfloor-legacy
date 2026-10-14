@@ -755,6 +755,17 @@
     "hist.cards": "Dönemin kartları, tahmini maliyete göre",
     "th.column": "sütun",
     "th.runs": "çalıştırma",
-    "hist.th.cost": "Gelen Kutusu → şimdi"
+    "hist.th.cost": "Gelen Kutusu → şimdi",
+    "dep.h": "Bağımlı olduğu",
+    "dep.closed": "kapalı",
+    "dep.open": "açık",
+    "why.deps": "{list} bekleniyor",
+    "dep.unread": "Bağımlılıklar okunamadı; GitHub yanıt verince başlar",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

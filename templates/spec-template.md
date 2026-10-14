@@ -23,7 +23,8 @@ _Tech Lead_
 
 ## Test plan
 _Tech Lead_
-<!-- One row per AC: a layer from the config (or manual) and the full repo-relative test file path in backticks, inside that layer's tests. Checked by `gate.sh test-plan`. -->
+<!-- One row per AC: a layer from the config (or manual) and the full repo-relative test file path in backticks, inside that layer's tests. Checked by `gate.sh test-plan`.
+     Name the module's existing test file; several ACs share it. A new test file only when no suite covers the module, with the reason in ## Decisions. -->
 
 | AC | Layer | Test file |
 |---|---|---|

@@ -755,6 +755,17 @@
     "hist.cards": "Cards of the period, by est. cost",
     "th.column": "column",
     "th.runs": "runs",
-    "hist.th.cost": "Inbox to now"
+    "hist.th.cost": "Inbox to now",
+    "dep.h": "Depends on",
+    "dep.closed": "closed",
+    "dep.open": "open",
+    "why.deps": "Waiting on {list}",
+    "dep.unread": "Dependencies not read; it starts once GitHub answers",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }
