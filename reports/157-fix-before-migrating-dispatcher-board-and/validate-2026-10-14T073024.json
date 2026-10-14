@@ -1,0 +1,1 @@
+{"issue": 157, "slug": "fix-before-migrating-dispatcher-board-and", "pipeline": "validate", "outcome": "staged", "rounds": 0, "failed_gates": [], "flaky": [], "gates_reused": [], "amendments": [], "pr": 194}
