@@ -1,0 +1,10 @@
+{"issue": 163, "slug": "port-board-sh-and-setup-board-sh-to-python", "pipeline": "develop",
+ "started_at": "2026-10-14T12:00:00Z", "finished_at": "2026-10-14T12:50:00Z", "outcome": "ok",
+ "agents": [
+  {"role": "qa-engineer", "tokens": 223309, "duration_s": 802},
+  {"role": "engineer", "tokens": 80401, "duration_s": 189},
+  {"role": "engineer", "tokens": 34306, "duration_s": 56},
+  {"role": "engineer", "tokens": 68969, "duration_s": 391}],
+ "rounds": {"qa": 2, "task-1": 1, "task-2": 1, "task-3": 1},
+ "gates_failed": ["red factory scripts/test/py-board-unit.test.sh (exit 141, SIGPIPE in the test; fixed by QA in round 2)"],
+ "flaky": [], "gates_reused": [], "manual_edit": false}
