@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+# The gh stand-in of `shipfloor demo` (the demo and its dashboard get it as FACTORY_GH): it answers the calls board.sh,
+# dashboard.py and the demo make for one sample repository, from $SHIPFLOOR_DEMO_GH/state.json (written by the demo), and
+# keeps what is done there: a moved card, a label, a comment, a pull request. It never touches the network and reads and
+# writes nothing else. An unknown call exits 9 with its arguments on stderr.
+# It ships with the plugin (scripts/demo/), unlike the test stubs in scripts/test/, which `shipfloor install` leaves out.
+PY=python3; $PY -c '' 2>/dev/null || PY=python
+SELF="$0"; command -v cygpath >/dev/null && SELF="$(cygpath -m "$0")"
+exec "$PY" -I -c 'import sys; src = open(sys.argv[1], encoding="utf-8").read(); exec(compile(src.split("\n#PY\n", 1)[1], sys.argv[1], "exec"))' "$SELF" "$@"
+#PY
+import json, os, re, sys, time
+from urllib.parse import parse_qs, urlparse
+
+args = sys.argv[2:]
+data_dir = os.environ.get("SHIPFLOOR_DEMO_GH", "")
+state_file = os.path.join(data_dir, "state.json")
+
+
+def out(value):
+    sys.stdout.buffer.write((value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)).encode("utf-8") + b"\n")
+    sys.stdout.buffer.flush()
+
+
+def die(code, text):
+    sys.stderr.write(text + "\n")
+    sys.exit(code)
+
+
+def load():
+    with open(state_file, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save(state):
+    tmp = state_file + f".{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(state, f, ensure_ascii=False)
+    for _ in range(20):  # on Windows a reader holding the file makes the rename fail for a moment
+        try:
+            os.replace(tmp, state_file)
+            return
+        except OSError:
+            time.sleep(0.05)
+    os.replace(tmp, state_file)
+
+
+def option(args, flag):
+    return args[args.index(flag) + 1] if flag in args and args.index(flag) + 1 < len(args) else ""
+
+
+def plain(column):
+    return re.sub(r"^[^A-Za-z]+ ", "", column)
+
+
+def repo_of(state, name):
+    if name not in state["repos"]:
+        die(1, f"gh: Could not resolve to a Repository with the name '{name}'.")
+    return state["repos"][name]
+
+
+def project_of(state, number):
+    if str(number) not in state["projects"]:
+        die(1, f"gh: Could not resolve to a ProjectV2 with the number {number}.")
+    return state["projects"][str(number)]
+
+
+def mirror(project):
+    """The dispatcher's snapshot of the board follows the move, as the dispatcher's next cycle would write it."""
+    if project.get("mirror"):
+        with open(project["mirror"], "w", encoding="utf-8", newline="\n") as f:
+            f.writelines(f"{n}\t{plain(col)}\t{item}\n" for n, col, item in project["items"])
+
+
+def text_of(args):
+    """The text given with --body-file (- is stdin), --body, or on stdin."""
+    if "--body-file" in args:
+        path = option(args, "--body-file")
+        return sys.stdin.buffer.read().decode("utf-8") if path == "-" else open(path, encoding="utf-8").read()
+    if "--body" in args:
+        return option(args, "--body")
+    return sys.stdin.buffer.read().decode("utf-8")
+
+
+if not data_dir or not os.path.isfile(state_file):
+    die(2, "demo gh: SHIPFLOOR_DEMO_GH does not name a demo's gh folder")
+state = load()
+call = " ".join(args)
+
+if args[:2] == ["project", "view"]:
+    p = project_of(state, args[2])
+    if "--jq" in args:
+        out(p["id"])
+    else:
+        out({"id": p["id"], "url": p["url"], "number": int(args[2]), "title": p["title"]})
+elif args[:2] == ["project", "field-list"]:
+    project_of(state, args[2])
+    jq = option(args, "--jq")
+    status = next((f for f in state["fields"] if f["name"] == "Status"), None)
+    if jq and "options" in jq:
+        out("\n".join(f"{o['name']}\t{o['id']}" for o in status["options"]))
+    elif jq:
+        out(status["id"])
+    else:
+        out({"fields": state["fields"]})
+elif args[:2] == ["api", "graphql"] and "updateProjectV2ItemPosition" in call:  # the owner's reorder (#128)
+    fields = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in args if re.match(r"(project|item|after)=", a)}
+    p = next((p for p in state["projects"].values() if p["id"] == fields.get("project")), None)
+    row = next((r for r in p["items"] if r[2] == fields.get("item")), None) if p else None
+    if not row:
+        die(1, "gh: no such board or card")
+    p["items"].remove(row)
+    at = next((i + 1 for i, r in enumerate(p["items"]) if r[2] == fields.get("after")), 0)
+    p["items"].insert(at, row)
+    save(state)
+    mirror(p)
+    out({"data": {"updateProjectV2ItemPosition": {"clientMutationId": None}}})
+elif args[:2] == ["api", "graphql"]:
+    m = re.search(r"projectV2\(number: (\d+)\)", call)
+    if not m and "repository(owner" in call:
+        fields = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in args if re.match(r"(owner|name)=", a)}
+        r = repo_of(state, fields.get("owner", "") + "/" + fields.get("name", ""))
+        titles = {int(i["number"]): i.get("title", "") for i in r["prs"].values() if "number" in i}
+        titles.update({int(i["number"]): i.get("title", "") for i in r["issues"] if "number" in i})
+        repo = {}
+        for n in re.findall(r"\b(i\d+): issueOrPullRequest\(number: (\d+)\)", call):
+            repo[n[0]] = {"title": titles[int(n[1])]} if int(n[1]) in titles else None
+        out({"data": {"repository": repo}})
+        sys.exit(0)
+    p = project_of(state, m.group(1) if m else "")
+    if p.get("refuse"):
+        die(1, "gh: HTTP 502: the board cannot be read now")
+    for n, col, item in p["items"]:
+        out(f"{n}\t{col}\t{item}")
+elif args[:2] == ["project", "item-list"]:
+    p = project_of(state, args[2])
+    out({"items": [{"id": item, "content": {"number": n}, "status": col} for n, col, item in p["items"]]})
+elif args[:2] == ["project", "item-edit"]:
+    p = next((p for p in state["projects"].values() if p["id"] == option(args, "--project-id")), None)
+    column = next((o["name"] for f in state["fields"] for o in f["options"] if o["id"] == option(args, "--single-select-option-id")), None)
+    row = next((r for r in p["items"] if r[2] == option(args, "--id")), None) if p else None
+    if not p or not column or not row:
+        die(1, "gh: no such board, column or card")
+    row[1] = column
+    save(state)
+    mirror(p)
+elif args[:2] == ["issue", "list"]:
+    out(repo_of(state, option(args, "--repo"))["issues"])
+elif args[:2] == ["issue", "comment"]:
+    r = repo_of(state, option(args, "--repo"))
+    r["comments"].setdefault(args[2], []).append({"body": text_of(args)})
+    save(state)
+elif args[:2] == ["pr", "view"]:
+    pr = repo_of(state, option(args, "--repo"))["prs"].get(args[2])
+    if not pr:
+        die(1, f"gh: no pull requests found for {args[2]}")
+    out(pr)
+elif args[:2] == ["pr", "list"]:
+    out([{"number": pr["number"], "url": pr["url"], "title": pr.get("title", "")} for pr in repo_of(state, option(args, "--repo"))["prs"].values()])
+elif args[:2] == ["pr", "create"]:
+    name = option(args, "--repo")
+    r = repo_of(state, name)
+    number = max([int(k) for k in r["prs"]] + [int(i["number"]) for i in r["issues"]] + [0]) + 1
+    r["prs"][str(number)] = {"number": number, "url": f"https://github.com/{name}/pull/{number}", "title": option(args, "--title"),
+                             "headRefName": option(args, "--head"), "baseRefName": option(args, "--base") or "main",
+                             "state": "OPEN", "statusCheckRollup": [{"conclusion": "SUCCESS"}]}
+    save(state)
+    out(r["prs"][str(number)]["url"])
+elif args[:2] == ["pr", "merge"]:
+    pr = repo_of(state, option(args, "--repo"))["prs"].get(args[2])
+    if not pr:
+        die(1, f"gh: no pull requests found for {args[2]}")
+    pr["state"] = "MERGED"
+    save(state)
+elif args[:3] == ["api", "-X", "DELETE"]:
+    m = re.fullmatch(r"repos/([^/]+/[^/]+)/issues/(\d+)/labels/(.+)", args[3])
+    if not m:
+        die(9, f"demo gh: unexpected call: {call}")
+    labels = repo_of(state, m.group(1))["labels"].setdefault(m.group(2), [])
+    if m.group(3) not in labels:
+        die(1, "gh: HTTP 404: Label does not exist")
+    labels.remove(m.group(3))
+    save(state)
+    out([])
+elif args[:3] == ["api", "-X", "POST"]:
+    m = re.fullmatch(r"repos/([^/]+/[^/]+)/issues/(\d+)/labels", args[3])
+    if not m:
+        die(9, f"demo gh: unexpected call: {call}")
+    labels = repo_of(state, m.group(1))["labels"].setdefault(m.group(2), [])
+    for a in args:
+        if a.startswith("labels[]=") and a[len("labels[]="):] not in labels:
+            labels.append(a[len("labels[]="):])
+    save(state)
+    out([{"name": name} for name in labels])
+elif args[:2] == ["api", "user"]:
+    out("demo-owner")
+elif args[:1] == ["api"] and len(args) > 1 and args[1].startswith("repos/"):
+    url = urlparse(args[1])
+    m = re.fullmatch(r"repos/([^/]+/[^/]+)/issues(?:/(\d+)(/comments)?)?", url.path)
+    if not m:
+        die(9, f"demo gh: unexpected call: {call}")
+    r = repo_of(state, m.group(1))
+    if m.group(3):
+        pages = r["comments"].get(m.group(2), [])
+        out([pages] if "--slurp" in args else pages)
+    elif m.group(2):
+        labels = r["labels"].get(m.group(2), [])
+        if "--jq" in args:
+            out("\n".join(labels))
+        else:
+            out({"number": int(m.group(2)), "labels": [{"name": name} for name in labels]})
+    else:
+        label = parse_qs(url.query).get("labels", [""])[0]
+        if "--jq" in args:
+            out("\n".join(n for n, labels in r["labels"].items() if label in labels))
+        else:
+            out([{"number": int(n)} for n, labels in r["labels"].items() if label in labels])
+else:
+    die(9, f"demo gh: unexpected call: {call}")
