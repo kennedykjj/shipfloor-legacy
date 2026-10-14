@@ -66,10 +66,13 @@ t "AC-3 ... and dispatch.pid is removed" test ! -e "$SHIPFLOOR_HOME/dispatch.pid
 
 # ---- AC-8: the scheduled entry, env -i with dispatcher.path, runs a cycle that launches a stub run
 setup; project shop
-fake_home="$(mktemp -d)"; mkdir -p "$SHIPFLOOR_HOME"
+mkdir -p "$SHIPFLOOR_HOME"
 printf '%s\n' "$PATH" > "$SHIPFLOOR_HOME/dispatcher.path"
-env -i HOME="$fake_home" SHIPFLOOR_HOME="$SHIPFLOOR_HOME" SHIPFLOOR_DISPATCH="$SHIPFLOOR_DISPATCH" PATH=/usr/bin:/bin \
+# HOME stays the real one, as the scheduler gives it (install-dispatcher.test.sh does the same): Python finds
+# packages installed for the user, like the CI's pip-installed PyYAML
+env -i HOME="$HOME" SHIPFLOOR_HOME="$SHIPFLOOR_HOME" SHIPFLOOR_DISPATCH="$SHIPFLOOR_DISPATCH" PATH=/usr/bin:/bin \
   ${SYSTEMROOT:+SYSTEMROOT="$SYSTEMROOT"} bash -l "$FACTORY_DIR/run-dispatcher.sh" >"$tmp/out" 2>&1; rc=$?
+[ "$rc" = 0 ] || sed "s/^/  out: /" "$tmp/out" >&2  # what the scheduled entry printed, when it failed
 t "AC-8 env -i: the scheduled entry exits 0" test "$rc" = 0
 t "AC-8 env -i: nothing reaches the terminal" test ! -s "$tmp/out"
 t "AC-8 env -i: the cycle launched the stub run" grep -qx 'shop 0' "$tmp/ran"
