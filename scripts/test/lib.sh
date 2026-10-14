@@ -6,7 +6,10 @@ for v in $(compgen -v FACTORY_; compgen -v SHIPFLOOR_; compgen -v AGHANIM_); do 
 export SHIPFLOOR_GATE_FRESH=1  # the tests call a gate twice on one commit with another fake runner: it must run (gate-reuse.test.sh unsets it)
 # The tests name their branch main. Git for Windows ships init.defaultBranch=main and Linux does not: there a bare
 # remote made by a test pointed at master, and a clone of it checked nothing out.
-export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0=main
+# No background maintenance: a commit can start `git maintenance run --auto` detached, and its .lock files appear
+# and vanish under a test that copies the repo (a template copied per test failed in CI on maintenance.lock).
+export GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0=main \
+  GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false GIT_CONFIG_KEY_2=gc.auto GIT_CONFIG_VALUE_2=0
 FACTORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FAILS=0
 export FACTORY_HOME="${FACTORY_HOME:-$(mktemp -d)}"  # never touch the real ~/.shipfloor
@@ -18,7 +21,7 @@ export SHIPFLOOR_HOME="${SHIPFLOOR_HOME:-$(mktemp -d)}"  # never touch the real 
 # A dispatcher cycle reads each candidate's "Blocked by" issues through gh (#202): a test of the dispatcher with no gh of
 # its own gets the fake one (it answers [] there), never the real gh and its network. Other tests keep their own gh.
 case "$(basename "$0")" in
-  dispatch*|shipfloor-dispatch*|run-dispatcher*|tmp-sweep*|cycle-port*)
+  dispatch*)
     export FACTORY_GH="${FACTORY_GH:-$FACTORY_DIR/test/fake-gh}" FAKE_GH_DIR="${FAKE_GH_DIR:-$(mktemp -d)}" ;;
 esac
 

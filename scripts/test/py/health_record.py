@@ -278,27 +278,57 @@ class Alerts(HealthCase):
             f.write('{"cycle": {"s"')
         self.assertEqual(self.alerts(), [])  # two whole lines in the last three: not 3 cycles in a row
 
+    def missed(self):
+        return [a for a in self.alerts() if "no dispatcher cycle" in a]
+
     def test_missed_cycle(self):
-        "AC-7 a cycle missed: the newest line older than 1.5 x the pace in config.yml (default 3); on time is no alert"
+        "AC-7 a stopped dispatcher: the newest line older than 3 x the pace in config.yml (default 3); on time, or up to 3 x (#176), is no alert"
         self.put("config.yml", "dispatcher: {every_min: 10}\n")
         for m in (30, 20, 10):
             self.cyc(m)
-        self.assertFalse([a for a in self.alerts() if "no dispatcher cycle" in a])
+        self.assertEqual(self.missed(), [])
         self.setup()
         self.put("config.yml", "dispatcher: {every_min: 10}\n")
-        for m in (45, 35, 25):
+        for m in (75, 65, 55):
             self.cyc(m)
-        self.assertEqual([a for a in self.alerts() if "no dispatcher cycle" in a], ["no dispatcher cycle for 25 min (it runs every 10)"])
+        self.assertEqual(self.missed(), ["no dispatcher cycle for 55 min (it runs every 10)"])
         self.setup()
         self.put("config.yml", "dispatcher: {every_min: 10}\n")
-        self.cyc(17)  # past 1.5 x 10, short of 2 x 10
-        self.assertIn("no dispatcher cycle for 17 min (it runs every 10)", self.alerts())
-        self.setup()
-        for m in (20, 15, 10):
+        for m in (40, 30, 20):  # 2 x the pace: one slow or missed cycle, not a stopped dispatcher
             self.cyc(m)
-        self.assertIn("no dispatcher cycle for 10 min (it runs every 3)", self.alerts())
+        self.assertEqual(self.missed(), [])
+        self.cyc(31)  # appended last, so the newest: just past 3 x 10
+        self.assertEqual(self.missed(), ["no dispatcher cycle for 31 min (it runs every 10)"])
+        self.setup()
+        for m in (30, 20, 12):
+            self.cyc(m)
+        self.assertEqual(self.missed(), ["no dispatcher cycle for 12 min (it runs every 3)"])
         self.put("config.yml", "dispatcher: [")
-        self.assertIn("no dispatcher cycle for 10 min (it runs every 3)", self.alerts())
+        self.assertEqual(self.missed(), ["no dispatcher cycle for 12 min (it runs every 3)"])
+
+    def test_silence(self):
+        "#176 silence(): the age and the pace past 3 x every_min (missing or invalid: 3), else None; alerts(skip_silence=True) leaves only that line out"
+        self.assertIsNone(shipfloor_health.silence(self.H))  # no log at all
+        os.makedirs(os.path.join(self.H, "logs"))
+        self.assertIsNone(shipfloor_health.silence(self.H))  # no health line yet
+        for conf, ago, want in (("dispatcher: {every_min: 10}\n", 60, [60, 10]), ("dispatcher: {every_min: 10}\n", 20, None),
+                                (None, 12, [12, 3]), ("dispatcher: {every_min: banana}\n", 12, [12, 3]),
+                                ("dispatcher: {every_min: 5}\n", 12, None), (None, 8, None)):
+            self.setup()
+            if conf:
+                self.put("config.yml", conf)
+            self.cyc(ago)
+            got = shipfloor_health.silence(self.H)
+            self.assertEqual(got and [int(got["min"]), got["every"]], want, (conf, ago))
+        self.setup()
+        self.put("config.yml", "dispatcher: {every_min: 10}\n")
+        self.cyc(60)
+        with open(os.path.join(self.H, "logs", "health-%s.jsonl" % datetime.now().strftime("%Y-%m")), "a") as f:
+            f.write('{"ts": "2\n')  # a line cut short by a cycle that died writing it: the one before counts
+        self.assertEqual(int(shipfloor_health.silence(self.H)["min"]), 60)
+        self.put_line({"ts": "not a time", "cycle": {"s": 5, "exit": 0, "overlap": True}, "idle": [], "over": []})
+        self.assertIsNone(shipfloor_health.silence(self.H))
+        self.assertEqual(shipfloor_health.alerts(self.H, skip_silence=True), ["two dispatcher cycles ran at once"])
 
 
 class Probes(HealthCase):

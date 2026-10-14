@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The health history (shipfloor_health.py): one line per dispatcher cycle and the alerts read back from the last ones.
 # The behavior is in process (py/health_record.py: the line, idle slots, limits, pauses, cost stop, working hours,
-# dependencies, missed cycles, the platform probes). Here, through real processes: shipfloor_health.py's command line
+# dependencies, missed cycles and silence(), the platform probes). Here, through real processes: shipfloor_health.py's command line
 # (record with the real stack status, alerts), shipfloor-dispatch.sh writing the line at the end of each cycle, with
 # the overlap marker, and `shipfloor doctor` repeating the alerts.
 source "$(dirname "$0")/lib.sh"
@@ -44,4 +44,14 @@ assert_contains "$(last 'd["paused"]')" "True"
 out="$(bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
 assert_contains "$out" "WARN health: two dispatcher cycles ran at once"
 assert_contains "$out" "WARN shop: control checkout is behind origin/main"
+
+# #176: the doctor warns of a silent dispatcher past 3 x the pace (silence()), and says nothing at 2 x or with no line
+S="$(mktemp -d)"; mkdir -p "$S/logs"; printf 'dispatcher: {every_min: 10}\n' > "$S/config.yml"
+cyc() { $PY -I -c 'import json,sys; from datetime import datetime,timedelta; t=(datetime.now().astimezone()-timedelta(minutes=float(sys.argv[1]))).isoformat(timespec="seconds"); print(json.dumps({"ts":t,"cycle":{"s":5,"exit":0,"overlap":False},"paused":False,"idle":[],"over":[]}))' "$1" > "$S/logs/health-$(date +%Y-%m).jsonl"; }
+out="$(SHIPFLOOR_HOME="$S" bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
+case "$out" in *"no dispatcher cycle"*) fail "the doctor warned with no health line: $out" ;; *) pass "the doctor is quiet with no health line" ;; esac
+cyc 20; out="$(SHIPFLOOR_HOME="$S" bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
+case "$out" in *"no dispatcher cycle"*) fail "the doctor warned at 2 x the pace: $out" ;; *) pass "the doctor is quiet at 2 x the pace" ;; esac
+cyc 60; out="$(SHIPFLOOR_HOME="$S" bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
+assert_contains "$out" "WARN health: no dispatcher cycle for 60 min (it runs every 10)"
 finish
