@@ -1,0 +1,4 @@
+{"issue":183,"slug":"ux-09-endereco-aba-e-ctrl-k-o-estado-for","pipeline":"develop","started_at":"2026-10-14T00:00:00Z","finished_at":"2026-10-14T00:00:00Z","outcome":"ok",
+"agents":[{"role":"qa-engineer","tokens":106742,"duration_s":291},{"role":"engineer","tokens":36581,"duration_s":52},{"role":"engineer","tokens":140170,"duration_s":487},{"role":"qa-engineer","tokens":48778,"duration_s":132}],
+"rounds":{"qa":1,"T1":1,"T2":1,"qa-amend":1},"gates_failed":["build (hygiene ceiling: 55 test files)"],"flaky":[],"gates_reused":[],"manual_edit":false,
+"amendments":["scripts/test/dashboard-views.test.sh: QA folded dashboard-tab, dashboard-address and dashboard-palette into it (hygiene.test.sh caps *.test.sh files at 52); assertions unchanged"]}
