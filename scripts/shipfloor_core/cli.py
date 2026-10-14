@@ -895,10 +895,15 @@ def cmd_accept(args):
         die('no QA commit ("acceptance tests for #%s") on %s' % (n, _git("-C", wt, "rev-parse", "--abbrev-ref", "HEAD")[1]))
     accepted = os.path.join(home, "accepted.tsv")
     took = False
-    files = _git("-C", wt, "-c", "core.quotePath=false", "show", "--name-only", "--format=", "--diff-filter=d", qa)[1]
-    for f in files.split("\n"):
-        if not f:
-            continue
+    # every QA commit's files, each with the newest QA commit that wrote it: acceptance-intact guards them all, so a
+    # file only an earlier QA round wrote (and a merge from main later deleted or rewrote) must be acceptable too
+    qas = _git("-C", wt, "log", "--format=%H", "-E", "--grep", "acceptance tests for #%s([^0-9]|$)" % n, "HEAD")[1].split() or [qa]
+    owner_of = {}
+    for c in qas:
+        for f in _git("-C", wt, "-c", "core.quotePath=false", "show", "--name-only", "--format=", "--diff-filter=d", c)[1].split("\n"):
+            if f and f not in owner_of:
+                owner_of[f] = c
+    for f, qa in owner_of.items():
         if _run(["git", "-C", wt, "diff", "--quiet", qa, "HEAD", "--", f])[0] == 0:
             continue  # untouched since QA
         rc, blob = _git("-C", wt, "rev-parse", "-q", "--verify", "HEAD:" + f)
