@@ -41,7 +41,8 @@ FAST_WHOLE = {
         'shipfloor_python "$(shipfloor_native "$SHIPFLOOR_LIB/../inbox_hook.py")"'],
     "run-dispatcher.sh": [
         'H="${SHIPFLOOR_HOME:-$HOME/.shipfloor}"',
-        'mkdir -p "$H/logs"',
+        'mkdir -p "$H/logs" "$H/tmp"',
+        'export TMPDIR="$H/tmp"',
         'exec >>"$H/logs/dispatcher.log" 2>&1',
         '[ -e "$H/PAUSE" ] && exit 0',
         '[ -s "$H/dispatcher.path" ] && PATH="$(head -n1 "$H/dispatcher.path"):$PATH"',
