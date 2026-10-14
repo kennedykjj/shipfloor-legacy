@@ -174,37 +174,60 @@ class Registry(CliCase):
 class Pool(CliCase):
     def test_pool(self):
         "pool shows the machine pool; set, stage and stacks change it; a refused value is exit 1 and changes nothing"
-        self.assertIn("pool: 4", self.ok("pool", want=1))  # no project: no stack status, exit 1
+        self.assertIn("pool: 4", self.ok("pool"))  # AC-3: no project: the machine pool, exit 0
         self.ok("pool", "set", "6")
         self.ok("pool", "stage", "validate", "3")
-        out = self.ok("pool", want=1)
+        out = self.ok("pool")
         self.assertIn("pool: 6", out)
         self.assertIn("validate: 3", out)
         lock = os.path.join(self.sh, "projects", "a", "locks", "validate-7.lock")
         self.write_file(os.path.join(lock, "info"), "%d 0 7\n" % os.getpid())
-        self.assertIn("validate: 3 (1 running)", self.ok("pool", want=1))
+        self.assertIn("validate: 3 (1 running)", self.ok("pool"))
         self.ok("pool", "stage", "validate", "9", want=1)
         self.ok("pool", "stage", "review", "1", want=1)
         for bad in (["x"], [], ["0"]):
             self.ok("pool", "stacks", *bad, want=1)
-        self.assertIn("validate: 3 (1 running)", self.ok("pool", want=1))
+        self.assertIn("validate: 3 (1 running)", self.ok("pool"))
         self.ok("pool", "bogus", want=2)
         self.assertEqual(self.err, "shipfloor: usage: shipfloor pool [set <n> | stage <refine|develop|validate|deploy> <n> | stacks <n>]\n")
 
     def test_pool_stacks(self):
-        "pool lists the machine's stack slots through the first project's gate.sh stack status (exit 1: no queue); stacks <n> writes config.yml"
+        "pool lists the machine's stack slots through the first project's gate.sh stack status; stacks <n> writes config.yml"
         self.ok("add", self.with_config())
-        out = self.ok("pool", want=1)
+        out = self.ok("pool")  # AC-1: empty queue, exit 0
         self.assertIn("stacks: 3", out)
         for s in ("0", "1", "2"):
             self.assertIn("  slot %s: free" % s, out)
         self.ok("pool", "stacks", "5")
-        out = self.ok("pool", want=1)
+        out = self.ok("pool")
         self.assertIn("stacks: 5", out)
         self.assertIn("  slot 4: free", out)
         self.assertIn("stacks: 5", self.read(os.path.join(self.sh, "config.yml")))
         self.ok("pool", "stacks", "x", want=1)
-        self.assertIn("stacks: 5", self.ok("pool", want=1))
+        self.assertIn("stacks: 5", self.ok("pool"))
+
+    def test_pool_queued_exits_0(self):
+        "AC-2: pool with cards queued in the stack prints 'queue: N waiting' and exits 0"
+        self.ok("add", self.with_config())
+        stub = self.path("stubhere")
+        self.write_file(os.path.join(stub, "gate.sh"), "printf '0\\tfree\\t\\t\\t\\n'\nprintf 'queue\\t2\\t\\t\\t\\n'\n")
+        cli.HERE = stub
+        out = self.ok("pool")
+        self.assertIn("  slot 0: free", out)
+        self.assertIn("  queue: 2 waiting", out)
+
+    def test_pool_errors_exit_nonzero(self):
+        "AC-4: pool with an invalid machine config, or a failing stack status, reports the error and exits non-zero"
+        self.ok("add", self.with_config())
+        self.ok("pool")
+        os.rename(self.home_of(), self.home_of() + ".gone")
+        self.assertNotEqual(self.sf("pool"), 0)
+        self.assertNotEqual(self.err, "")
+        os.rename(self.home_of() + ".gone", self.home_of())
+        self.ok("pool")
+        self.write_file(os.path.join(self.sh, "config.yml"), "pool: [unclosed\n")
+        self.assertNotEqual(self.sf("pool"), 0)
+        self.assertNotEqual(self.err, "")
 
 
 class Accept(CliCase):

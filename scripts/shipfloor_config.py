@@ -525,7 +525,7 @@ def notify_problems(raw):
         errs.append(Msg("err.quiet", "Quiet hours need both times, and they cannot be the same."))
     if not isinstance(topic, str) or (topic and not NTFY_TOPIC.fullmatch(topic)):
         errs.append(Msg("err.topic", "The topic takes letters, digits, - and _, up to 64."))
-    elif not topic and (raw.get("channels") or {}).get("ntfy") is True:
+    elif not topic and isinstance(raw.get("channels"), dict) and raw["channels"].get("ntfy") is True:
         errs.append(Msg("err.ntfy_topic", "The phone push needs a topic."))
     return errs
 
