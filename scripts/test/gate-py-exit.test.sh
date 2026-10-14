@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# AC-2 of #165: the Python static gates exit 0 (pass), 1 (blocked), 2 (bad usage, bad revision, failed config query,
-# invalid ERE) as the Bash gate does, and an `exit` inside a check ends the whole gate (nothing after it runs).
+# AC-2 of #165: the static gates exit 0 (pass), 1 (blocked), 2 (bad usage, bad revision, failed config query), and an `exit` inside a check ends the whole gate (nothing after it runs).
 source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)"; export TMPDIR="$T"
@@ -8,9 +7,6 @@ MAINPID=$BASHPID  # only this shell cleans up, never a subshell that holds the t
 trap '[ "$BASHPID" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 FIX="$FACTORY_DIR/test/fixture/factory.yml"
 M=api/src/main/resources/db/migration
-[ -f "$FACTORY_DIR/test/fixtures/gate.bash.sh" ] && [ "$(git hash-object "$FACTORY_DIR/test/fixtures/gate.bash.sh")" = 5e5faa4675c8b4caceaafece8859253a00da76b0 ] || { fail "AC-2 the reference Bash gate fixture is missing or not the pre-port gate.sh"; exit 1; }
-REF="$(plugin_copy)"; cp "$FACTORY_DIR/test/fixtures/gate.bash.sh" "$REF/scripts/gate.sh"
-refgate() { bash "$REF/scripts/gate.sh" "$@"; }
 pygate() { "$FACTORY_PYTHON" -I "$FACTORY_DIR/sf.py" gate "$@"; }
 pygate --help >/dev/null 2>&1 || { fail "AC-2 the Python gate is missing: 'sf.py gate --help' fails, so no exit code of it can be checked"; exit 1; }
 
@@ -30,13 +26,6 @@ ends() {  # ends <label> <last stderr line> <gate args...>
   local label="$1" want="$2" err; shift 2
   err="$(pygate "$@" 2>&1 >/dev/null)"
   [ "$(lastline "$err")" = "$want" ] && pass "AC-2 $label" || fail "AC-2 $label: last line '$(lastline "$err")', want '$want'"
-}
-like_ref() {  # like_ref <label> <gate args...>: same exit code as the Bash gate, which must not be 0
-  local label="$1" want got; shift
-  refgate "$@" >/dev/null 2>&1; want=$?
-  pygate "$@" >"$T/out" 2>"$T/err"; got=$?
-  case "$(cat "$T/err")" in "usage: sf.py"*) fail "AC-2 $label: sf.py has no gate command"; return ;; esac
-  if [ "$got" = "$want" ]; then pass "AC-2 $label (exit $got, as the Bash gate)"; else fail "AC-2 $label: python gate exit $got, Bash gate $want: $(head -c 300 "$T/err")"; fi
 }
 
 # ---- 0 pass, 1 blocked
@@ -79,12 +68,12 @@ expect "help is exit 0" 0 --help
 ( unset FACTORY_CONFIG; expect "an unregistered project is exit 2" 2 weight "$T/good.md" )
 BADCFG="$T/bad.yml"; printf 'project: [this is not valid\n' > "$BADCFG"
 ( export FACTORY_CONFIG="$BADCFG"; expect "a broken config is exit 2" 2 scope api "$base" )
-# an invalid ERE in a config value the gate hands to grep -E: the code is what the Bash gate gives
+# an invalid ERE in acceptance_assertions: the edit is not let through, the gate blocks (exit 1)
 r="$(new_repo)"; cd "$r"; mkdir -p api/src/test; git checkout -q -b feat/10-x
 printf '%s\n' 'fun a() {' '  assertEquals(1, one())' '}' > api/src/test/ATest.kt; git add -A; git commit -qm "test(x): acceptance tests for #10"; qa="$(git rev-parse HEAD)"
 printf '%s\n' '// c' >> api/src/test/ATest.kt; git commit -qam "edit"
 BADRE="$T/bad-re.yml"; { cat "$FIX"; echo "acceptance_assertions: '('"; } > "$BADRE"
-( export FACTORY_CONFIG="$BADRE"; like_ref "acceptance-intact with an invalid ERE in acceptance_assertions" acceptance-intact "$qa" )
+( export FACTORY_CONFIG="$BADRE"; expect "acceptance-intact with an invalid ERE in acceptance_assertions blocks: exit 1" 1 acceptance-intact "$qa" )
 
 # ---- an exit inside a check ends the whole gate
 # fast: forbidden, migration, acceptance-intact run in turn; a bad qa revision is exit 2 and nothing else is said

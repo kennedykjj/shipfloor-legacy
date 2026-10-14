@@ -47,6 +47,7 @@ for col in Staged Coding "In Progress" Done; do
 done
 # an argument that is not a card number, or a mode that does not exist, is a usage error
 setup; code="$(run x)"; want "$code" 2 "bad card number → exit 2"
+assert_contains "$(cat "$T/out")" "usage: deploy.sh <n> [--refresh | --continue]"
 setup; code="$(run 7 --bogus)"; want "$code" 2 "unknown mode → exit 2"
 [ ! -s "$FG/calls" ] && pass "usage error: gh not called" || fail "gh called"
 
