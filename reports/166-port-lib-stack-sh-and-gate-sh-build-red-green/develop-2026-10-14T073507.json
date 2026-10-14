@@ -1,0 +1,1 @@
+{"issue": 166, "slug": "port-lib-stack-sh-and-gate-sh-build-red-green", "pipeline": "develop", "started_at": "2026-10-14T10:00:00Z", "finished_at": "2026-10-14T10:08:00Z", "outcome": "blocked", "agents": [], "rounds": {}, "gates_failed": [], "flaky": [], "gates_reused": [], "amendments": [], "manual_edit": null}
