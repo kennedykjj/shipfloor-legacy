@@ -1,0 +1,17 @@
+{
+  "issue": 180,
+  "slug": "ux-06-sistema-visual-v4-ibm-plex-temas-g",
+  "pipeline": "develop",
+  "outcome": "blocked",
+  "step": 4,
+  "task": "T1",
+  "agents": [
+    {"agent": "engineer", "work": "T1 font embedding (blocked: commands refused)", "tokens": 20104, "duration_s": 29}
+  ],
+  "rounds": 1,
+  "failed_gates": [],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": [],
+  "notes": "The woff2 files are present, but python3 and base64 were refused as needing approval in the headless session. The engineer tried the sandbox override once; that call was refused too. Head unchanged at f7e07731f68e597df9b7ec077c3e5e09027406ee."
+}
