@@ -31,12 +31,25 @@ jobs:
         run: python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml
       # end-to-end runs the dashboard's browser tests (#234): Playwright and Chromium in their own venv, and
       # BROWSER_TESTS=required turns a missing browser into a FAIL instead of a skip
+      # the venv and Chromium are cached by the requirements file: a hit skips the pip install and the browser
+      # download; the runner image already has the system libraries headless Chromium needs
+      - name: Cache Playwright (end-to-end)
+        if: matrix.suite == 'end-to-end'
+        id: pwcache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/browser
+            ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('scripts/test/requirements-browser.txt') }}
       - name: Playwright and Chromium (end-to-end)
         if: matrix.suite == 'end-to-end'
         run: |
-          python3 -m venv "$RUNNER_TEMP/browser"
-          "$RUNNER_TEMP/browser/bin/pip" install --quiet -r scripts/test/requirements-browser.txt
-          "$RUNNER_TEMP/browser/bin/python" -m playwright install --with-deps chromium
+          if [ "${{ steps.pwcache.outputs.cache-hit }}" != true ]; then
+            python3 -m venv "$RUNNER_TEMP/browser"
+            "$RUNNER_TEMP/browser/bin/pip" install --quiet -r scripts/test/requirements-browser.txt
+            "$RUNNER_TEMP/browser/bin/python" -m playwright install --with-deps chromium
+          fi
           echo "BROWSER_PYTHON=$RUNNER_TEMP/browser/bin/python" >> "$GITHUB_ENV"
           echo "BROWSER_TESTS=required" >> "$GITHUB_ENV"
       - name: Test suite, ${{ matrix.suite }}
