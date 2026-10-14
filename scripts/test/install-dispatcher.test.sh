@@ -252,4 +252,52 @@ cmp -s "$TABLE" "$T/before" && pass "AC-7 nothing registered: the crontab is byt
 fresh; run --uninstall
 [ "$rc" -eq 0 ] && [ ! -e "$TABLE" ] && pass "AC-7 nothing registered, no crontab: exits 0 and creates none" || fail "AC-7 no crontab at all: exit $rc, table $([ -e "$TABLE" ] && echo created || echo absent): $out"
 
+# --- #219 AC-1: no limits (no key, or all none) -> a unit with no resource directive, status says "limits: none"
+LIMITED='limits: {memory_max: 10G, cpu_weight: 200, cpu_quota: 150%}'$'\n'
+fresh; run
+[ "$rc" -eq 0 ] && ! grep -qE '^(MemoryMax|MemoryHigh|CPUWeight|CPUQuota)=' "$SVC" && pass "AC-1 limits: no config key installs a unit with no CPU or memory directive" || fail "AC-1 limits: unit without a limit config carries a directive (exit $rc): $(cat "$SVC" 2>/dev/null)"
+run --status
+assert_contains "$out" "limits: none"
+fresh; printf 'limits: {memory_max: none, cpu_weight: none, cpu_quota: none}\n' > "$SHIPFLOOR_HOME/config.yml"; run
+[ "$rc" -eq 0 ] && ! grep -qE '^(MemoryMax|MemoryHigh|CPUWeight|CPUQuota)=' "$SVC" && pass "AC-1 limits: all none installs without directives" || fail "AC-1 limits: all-none config wrote a directive (exit $rc): $(cat "$SVC" 2>/dev/null)"
+case "$(lower "$out")" in *"not supported"*) fail "AC-1 limits: no limit set but the installer warned: $out" ;; *) pass "AC-1 limits: no warning when nothing is limited" ;; esac
+run --status
+assert_contains "$out" "limits: none"
+
+# --- #219 AC-2: Linux with systemd -> the unit carries the limits; flags override the config; only a change reloads
+fresh; printf '%s' "$LIMITED" > "$SHIPFLOOR_HOME/config.yml"; run
+[ "$rc" -eq 0 ] && pass "AC-2 limits: install with limits exits 0" || fail "AC-2 limits: install exited $rc: $out"
+svc="$(cat "$SVC" 2>/dev/null)"
+assert_contains "$svc" "MemoryMax=10G"
+assert_contains "$svc" "MemoryHigh="
+assert_contains "$svc" "CPUWeight=200"
+assert_contains "$svc" "CPUQuota=150%"
+assert_contains "$svc" "KillMode=process"
+run --status
+assert_contains "$out" "limits: memory_max=10G cpu_weight=200 cpu_quota=150%"
+: > "$SF_ST/systemctl.log"; run
+assert_contains "$out" "already registered"
+[ "$(count "$SF_ST/systemctl.log" daemon-reload)" = 0 ] && pass "AC-2 limits: the same limits again reload nothing" || fail "AC-2 limits: unchanged limits reloaded: $(cat "$SF_ST/systemctl.log")"
+run --memory-max 4G --cpu-weight 50 --cpu-quota 80%
+svc="$(cat "$SVC" 2>/dev/null)"
+assert_contains "$svc" "MemoryMax=4G"
+assert_contains "$svc" "CPUWeight=50"
+assert_contains "$svc" "CPUQuota=80%"
+[ "$(count "$SF_ST/systemctl.log" daemon-reload)" -ge 1 ] && pass "AC-2 limits: a changed limit reloads the unit" || fail "AC-2 limits: changed limits did not reload: $(cat "$SF_ST/systemctl.log")"
+run --memory-max none --cpu-weight none --cpu-quota none
+! grep -qE '^(MemoryMax|MemoryHigh|CPUWeight|CPUQuota)=' "$SVC" && pass "AC-2 limits: none on every flag lifts the limits from the unit" || fail "AC-2 limits: none flags left a directive: $(cat "$SVC")"
+fresh; run --cpu-weight 0
+[ "$rc" -ne 0 ] && [ ! -e "$SVC" ] && pass "AC-2 limits: an invalid cpu-weight is refused and registers nothing" || fail "AC-2 limits: --cpu-weight 0 exit $rc, unit $([ -e "$SVC" ] && echo written || echo absent): $out"
+
+# --- #219 AC-3: macOS, and Linux on cron -> installed without limits, with a warning
+fresh; printf '%s' "$LIMITED" > "$SHIPFLOOR_HOME/config.yml"; SF_UNAME=Darwin run
+[ "$rc" -eq 0 ] && [ -f "$PLIST" ] && pass "AC-3 limits: macOS installs the agent" || fail "AC-3 limits: macOS install exit $rc, plist $([ -f "$PLIST" ] && echo yes || echo no): $out"
+case "$(lower "$out")" in *"not supported"*) pass "AC-3 limits: macOS warns that limits are not supported" ;; *) fail "AC-3 limits: macOS gave no not-supported warning: $out" ;; esac
+case "$(cat "$PLIST" 2>/dev/null)" in *MemoryMax*|*CPUQuota*|*CPUWeight*) fail "AC-3 limits: the plist carries a systemd directive" ;; *) pass "AC-3 limits: the plist carries no limit" ;; esac
+SF_UNAME=Darwin run --status
+assert_contains "$out" "limits: not supported (launchd)"
+fresh; : > "$SF_ST/no-systemd"; printf '%s' "$LIMITED" > "$SHIPFLOOR_HOME/config.yml"; run
+[ "$rc" -eq 0 ] && [ "$(dispatcher_lines)" = 1 ] && pass "AC-3 limits: cron installs its one line" || fail "AC-3 limits: cron install exit $rc, lines $(dispatcher_lines): $out"
+case "$(lower "$out")" in *"not supported with cron"*) pass "AC-3 limits: cron warns that limits are not supported" ;; *) fail "AC-3 limits: cron gave no not-supported warning: $out" ;; esac
+
 finish
