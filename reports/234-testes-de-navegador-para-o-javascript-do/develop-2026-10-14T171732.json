@@ -1,0 +1,14 @@
+{
+  "issue": 234,
+  "slug": "testes-de-navegador-para-o-javascript-do",
+  "stage": "develop",
+  "outcome": "blocked",
+  "blocked_step": 3,
+  "agents": [],
+  "rounds": {},
+  "failed_gates": ["red factory scripts/test/dashboard-browser.test.sh"],
+  "amendments": [],
+  "flaky": [],
+  "gates_reused": [],
+  "notes": "Resumed card; Playwright still unavailable to the gates (BROWSER_PYTHON / BROWSER_TESTS unset), suite skips, red cannot fail."
+}
