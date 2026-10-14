@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 
-from .. import proc, stack
+from .. import proc, stack, text
 from . import changes
 
 _SCRIPTS = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -51,7 +51,7 @@ def _git(*args):
 
 def _grep(ctx, flags, pattern, data):
     """`... | grep <flags> -- <pattern>` on data (bytes): (exit code, stdout bytes); grep's complaint goes to the gate."""
-    r = subprocess.run(["grep", flags, "--", pattern], input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    r = text.grep(flags, pattern, data)
     ctx.err_bytes(r.stderr)
     return r.returncode, r.stdout
 
@@ -66,7 +66,7 @@ def _tail(data, n):
 
 def ere_ok(pattern):
     """grep -E accepts the pattern (exit 2 = invalid)."""
-    r = subprocess.run(["grep", "-E", "--", pattern], input=b"", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    r = text.grep("-E", pattern, b"", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return r.returncode != 2
 
 

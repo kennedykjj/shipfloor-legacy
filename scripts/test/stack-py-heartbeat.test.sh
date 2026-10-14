@@ -7,7 +7,7 @@ LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)" || exit 1; export TMPDIR="$T"
 MAINPID=$$  # only this shell cleans up (a child that inherited the trap compares its parent's pid, not $BASHPID)
 trap '[ "$(exec sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
-source "$FACTORY_DIR/lib/portable.sh"
+source "$FACTORY_DIR/test/fixtures/portable.sh"
 GATE="$FACTORY_DIR/gate.sh"; L="$SHIPFLOOR_HOME/locks"; d="$L/stack-0.lock"
 
 stubs="$T/stubs"; mkdir -p "$stubs"; printf '#!/usr/bin/env bash\nexit 0\n' > "$stubs/lsof"; chmod +x "$stubs/lsof"

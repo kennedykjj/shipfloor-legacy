@@ -93,9 +93,9 @@ fi
 
 ENTRY="$H/factory/run-dispatcher.sh"
 [ -f "$ENTRY" ] || die "run 'shipfloor install' first ($ENTRY not found)"
+# No bash version check: the factory's logic is Python (scripts/shipfloor_core) and no Bash beyond the wrappers is left,
+# so the scheduled entry and the wrappers it starts run in any bash on PATH: there is no minimum version to refuse.
 BASH_BIN="$(command -v bash)"
-"$BASH_BIN" -c '(( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) ))' ||
-  die "needs bash 4.4 or newer on PATH ($BASH_BIN is $("$BASH_BIN" -c 'echo $BASH_VERSION')); install one, e.g. 'brew install bash'"
 START="$BASH_BIN -l $ENTRY"
 
 for k in systemd cron launchd; do [ "$k" = "$KIND" ] || "remove_$k"; done
