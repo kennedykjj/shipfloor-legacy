@@ -41,4 +41,49 @@ grep -q "^# Shipfloor" "$root/README.md" && pass "README carries the brand" || f
 noexec=""
 for f in "$root"/scripts/*.sh "$root/scripts/shipfloor"; do [ -x "$f" ] || noexec="$noexec ${f#"$root"/}"; done
 [ -z "$noexec" ] && pass "the factory's scripts are executable" || fail "not executable (git update-index --chmod=+x):$noexec"
+
+# AC-1: git, not the disk, is what an install copies: every .sh in scripts/ and scripts/lib/ is mode 100755 in the index
+badmode=""
+while read -r mode _ _ path; do
+  rest="${path#scripts/}"; [ "$rest" != "$path" ] || continue
+  name="${rest#lib/}"; case "$name" in */*) continue ;; *.sh) ;; *) continue ;; esac
+  [ "$mode" = 100755 ] || badmode="$badmode ${path} ($mode)"
+done < <(git -C "$root" ls-files -s -- scripts)
+[ -z "$badmode" ] && pass "AC-1 every scripts/*.sh and scripts/lib/*.sh is mode 100755 in git" || fail "AC-1 not 100755 in git (git update-index --chmod=+x):$badmode"
+
+# AC-1: an installed board.sh without the execute bit is still run: dispatch.sh and deploy.sh call it through bash
+nobit="$(plugin_copy)"; stub_board="$(mktemp -d)"
+cat > "$nobit/scripts/board.sh" <<'EOB'
+#!/usr/bin/env bash
+echo "$1" >> "$BOARD_CALLS"
+case "$1" in status) exit 1 ;; count) echo 0 ;; esac
+exit 0
+EOB
+chmod 644 "$nobit/scripts/board.sh"
+export BOARD_CALLS="$stub_board/calls"; : > "$BOARD_CALLS"
+(
+  export SHIPFLOOR_HOME="$(mktemp -d)"; export FACTORY_HOME="$SHIPFLOOR_HOME/projects/shop" FACTORY_CONTROL_REFRESH=0 FACTORY_WT_ROOT="$(mktemp -d)" FACTORY_PROJECT=shop
+  export FACTORY_CONFIG="$FACTORY_DIR/test/fixture/factory.yml"; unset FACTORY_BOARD
+  mkdir -p "$FACTORY_HOME/control"
+  bash "$nobit/scripts/dispatch.sh" > "$stub_board/dispatch.out" 2>&1; echo $? > "$stub_board/dispatch.rc"
+  bash "$nobit/scripts/deploy.sh" 7 > "$stub_board/deploy.out" 2>&1; echo $? > "$stub_board/deploy.rc"
+)
+[ "$(cat "$stub_board/dispatch.rc")" = 0 ] && pass "AC-1 dispatch.sh runs with a board.sh that lacks the execute bit" || fail "AC-1 dispatch.sh exit $(cat "$stub_board/dispatch.rc"): $(cat "$stub_board/dispatch.out")"
+assert_contains "$(cat "$BOARD_CALLS")" "snapshot"
+assert_contains "$(cat "$BOARD_CALLS")" "status"
+case "$(cat "$stub_board/dispatch.out" "$stub_board/deploy.out")" in *"Permission denied"*|*"cannot execute"*) fail "AC-1 the board was run directly: $(cat "$stub_board/dispatch.out" "$stub_board/deploy.out")" ;; *) pass "AC-1 no permission error from the board call" ;; esac
+
+# AC-8 (#164): report.sh, metrics.sh and review-page.sh hold no logic: they source lib/py.sh and run `sf.py <command>`
+for pair in report.sh:report metrics.sh:metrics review-page.sh:review-page; do
+  w="$root/scripts/${pair%%:*}"; cmd="${pair##*:}"
+  code="$(grep -vE '^[[:space:]]*(#|$)' "$w")"
+  [ "$(printf '%s\n' "$code" | wc -l)" -le 5 ] && pass "AC-8 ${pair%%:*} is a few lines" || fail "AC-8 ${pair%%:*} has logic:
+$code"
+  case "$code" in *'lib/py.sh'*) pass "AC-8 ${pair%%:*} sources lib/py.sh" ;; *) fail "AC-8 ${pair%%:*} does not source lib/py.sh" ;; esac
+  case "$code" in *"$cmd"*) pass "AC-8 ${pair%%:*} runs the $cmd command" ;; *) fail "AC-8 ${pair%%:*} never names $cmd" ;; esac
+  if printf '%s\n' "$code" | grep -qE '(^|[[:space:];])(if|case|for|while|until)[[:space:]]|git |python|shipfloor_resolve|lib/project\.sh'; then fail "AC-8 ${pair%%:*} has control flow, git or python in it:
+$code"; else pass "AC-8 ${pair%%:*} has no control flow, git or python"; fi
+done
+grep -q 'report.json schema' "$root/scripts/report.sh" && pass "AC-8 report.sh keeps the report.json schema header" || fail "AC-8 report.sh lost its schema header"
+[ ! -e "$root/scripts/review_page.py" ] && pass "AC-8 scripts/review_page.py is gone (absorbed in shipfloor_core)" || fail "AC-8 scripts/review_page.py still exists"
 finish
