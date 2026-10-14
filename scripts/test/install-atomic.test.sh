@@ -8,17 +8,16 @@ BG=()
 cleanup() { local p; for p in "${BG[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null; done; rm -rf "$ROOT" 2>/dev/null; }
 trap cleanup EXIT
 
-REAL_SHIPFLOOR="$FACTORY_DIR/shipfloor"; REAL_PROJECT="$FACTORY_DIR/lib/project.sh"
-REALMV="$(command -v mv)"; REALCP="$(command -v cp)"; REALRM="$(command -v rm)"
-PIDF="$ROOT/install.pid"
+REAL_SHIPFLOOR="$FACTORY_DIR/shipfloor"; REAL_PROJECT="$FACTORY_DIR/lib/project.sh"; REALCP="$(command -v cp)"
 
 check() { if [ "$1" = 0 ]; then pass "$2"; else fail "$2: $3"; fi; }  # check <status> <name> <message when it failed>
 same() { [ "$1" = "$2" ]; }
 
-mk_v1() {  # mk_v1 <dir>: a small plugin tree (the real shipfloor + lib, synthetic scripts and templates)
+mk_v1() {  # mk_v1 <dir>: a small plugin tree (the real shipfloor, lib and Python package, synthetic scripts and templates)
   local d="$1"
-  mkdir -p "$d/scripts/lib" "$d/scripts/old-dir" "$d/templates/old-sub"
-  cp "$REAL_SHIPFLOOR" "$d/scripts/shipfloor"; cp "$REAL_PROJECT" "$d/scripts/lib/project.sh"
+  mkdir -p "$d/scripts/lib" "$d/scripts/old-dir" "$d/templates/old-sub" "$d/scripts/shipfloor_core"
+  cp "$REAL_SHIPFLOOR" "$d/scripts/shipfloor"; cp "$REAL_PROJECT" "$d/scripts/lib/project.sh"; cp "$FACTORY_DIR/lib/py.sh" "$d/scripts/lib/py.sh"
+  cp "$FACTORY_DIR/sf.py" "$d/scripts/sf.py"; cp "$FACTORY_DIR"/shipfloor_core/*.py "$d/scripts/shipfloor_core/"
   printf '#!/usr/bin/env bash\necho gate\n' > "$d/scripts/gate.sh"
   printf 'a v1\n' > "$d/scripts/zz-a.sh"; printf 'b v1\n' > "$d/scripts/lib/zz-b.sh"
   printf 'gone v1\n' > "$d/scripts/zz-gone.sh"; printf 'x v1\n' > "$d/scripts/old-dir/x.sh"
@@ -30,47 +29,60 @@ mk_v2() {  # mk_v2 <from> <to>: 3 changed (zz-a.sh lib/zz-b.sh templates/zz-t1.m
   printf 'new v2\n' > "$2/scripts/zz-new.sh"; printf 'tnew v2\n' > "$2/templates/zz-tnew.md"
   rm -rf "$2/scripts/zz-gone.sh" "$2/scripts/old-dir" "$2/templates/zz-tgone.md" "$2/templates/old-sub"
 }
-mk_fakemv() {  # mk_fakemv <dir>: a mv that logs its calls, kills the install on call $KILL_AT, or refuses a target ending in $FAIL_FOR
-  mkdir -p "$1"
-  {
-    echo '#!/usr/bin/env bash'
-    echo "D='$1'"
-    cat <<'EOF'
-echo "$*" >> "$D/calls"
-n=0; [ -f "$D/count" ] && n="$(cat "$D/count")"; n=$((n+1)); echo "$n" > "$D/count"
-if [ -n "${KILL_AT:-}" ] && [ "$n" -eq "$KILL_AT" ]; then
-  [ -f "$INSTALL_PIDF" ] && kill -9 "$(cat "$INSTALL_PIDF")" 2>/dev/null
-  kill -9 "$PPID" 2>/dev/null
-  exit 137
-fi
-if [ -n "${FAIL_FOR:-}" ]; then
-  for last; do :; done
-  case "$last" in *"$FAIL_FOR") echo "mv: refused to replace $last" >&2; exit 1 ;; esac
-fi
+# The install is Python (shipfloor_core/cli.py) and calls no external cp, mv or rm: the faults are injected in the
+# process. harness.py runs the source tree's `cli install` with os.replace, os.unlink and os.remove wrapped:
+#   CALLS   a file that gets one line per rename (os.replace), the step that puts a file in place
+#   KILL_AT the install dies at once (os._exit, nothing flushed or cleaned up) on that rename, before it happens
+#   FAIL_FOR a rename whose target ends with this text is refused (PermissionError)
+#   WATCH_FILE / WATCH_LOG  each rename and delete notes in WATCH_LOG when WATCH_FILE is missing at that moment
+HARNESS="$ROOT/harness.py"
+cat > "$HARNESS" <<'EOF'
+import os, sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, sys.argv[1])
+env = os.environ.get
+kill_at, fail_for, watch = int(env("KILL_AT") or 0), env("FAIL_FOR") or "", env("WATCH_FILE") or ""
+real = {"replace": os.replace, "unlink": os.unlink, "remove": os.remove}
+count = [0]
+
+def note(op, args):
+    if watch and not os.path.isfile(watch):
+        with open(env("WATCH_LOG") or os.devnull, "a") as f:
+            f.write("missing when %s ran: %s\n" % (op, " ".join(map(str, args))))
+
+def replace(src, dst, *a, **k):
+    note("replace", (src, dst))
+    count[0] += 1
+    if env("CALLS"):
+        with open(env("CALLS"), "a") as f:
+            f.write("%s %s\n" % (src, dst))
+    if kill_at and count[0] == kill_at:
+        os._exit(137)
+    if fail_for and str(dst).replace("\\", "/").endswith(fail_for):
+        raise PermissionError(13, "refused to replace", str(dst))
+    return real["replace"](src, dst, *a, **k)
+
+def deleter(name):
+    def f(path, *a, **k):
+        note(name, (path,))
+        return real[name](path, *a, **k)
+    return f
+
+os.replace, os.unlink, os.remove = replace, deleter("unlink"), deleter("remove")
+from shipfloor_core import cli
+sys.exit(cli.main(["install"]))
 EOF
-    echo "exec '$REALMV' \"\$@\""
-  } > "$1/mv"
-  chmod +x "$1/mv"
-}
-mk_watch() {  # mk_watch <dir>: cp, mv and rm that note when $WATCH_FILE is missing at the moment they are called
-  local c real; mkdir -p "$1"
-  for c in cp mv rm; do
-    case "$c" in cp) real="$REALCP" ;; mv) real="$REALMV" ;; rm) real="$REALRM" ;; esac
-    {
-      echo '#!/usr/bin/env bash'
-      echo '[ -f "$WATCH_FILE" ] || echo "missing when '"$c"' ran: $*" >> "$WATCH_LOG"'
-      echo "exec '$real' \"\$@\""
-    } > "$1/$c"
-    chmod +x "$1/$c"
-  done
-}
 
 # inst <src> <home>: runs <src>/scripts/shipfloor install against that home; sets RC, OUT and ERR.
-# FAKE (a dir first on PATH), KILL_AT and FAIL_FOR steer the fake mv; the install's pid is noted so the fake can kill it.
+# With KILL_AT, FAIL_FOR or WATCH_FILE set, the same install runs through harness.py with that fault (CALLS: its log).
 inst() {
-  SHIPFLOOR_HOME="$2" PATH="${FAKE:+$FAKE:}$PATH" KILL_AT="${KILL_AT:-}" FAIL_FOR="${FAIL_FOR:-}" INSTALL_PIDF="$PIDF" \
-    WATCH_FILE="${WATCH_FILE:-}" WATCH_LOG="${WATCH_LOG:-/dev/null}" \
-    bash -c 'echo "$$" > "$1"; shift; exec "$@"' _ "$PIDF" bash "$1/scripts/shipfloor" install > "$ROOT/out" 2> "$ROOT/err"
+  if [ -n "${KILL_AT:-}${FAIL_FOR:-}${WATCH_FILE:-}" ]; then
+    SHIPFLOOR_HOME="$2" KILL_AT="${KILL_AT:-}" FAIL_FOR="${FAIL_FOR:-}" CALLS="${CALLS:-}" \
+      WATCH_FILE="${WATCH_FILE:-}" WATCH_LOG="${WATCH_LOG:-}" \
+      "$FACTORY_PYTHON" -I "$HARNESS" "$1/scripts" > "$ROOT/out" 2> "$ROOT/err"
+  else
+    SHIPFLOOR_HOME="$2" bash "$1/scripts/shipfloor" install > "$ROOT/out" 2> "$ROOT/err"
+  fi
   RC=$?
   OUT="$(tr -d '\r' < "$ROOT/out")"; ERR="$(tr -d '\r' < "$ROOT/err")"
 }
@@ -145,7 +157,6 @@ yes 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 yes 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB' | head -n 3000 > "$C/refB"
 cp "$C/refA" "$S/templates/zz-t1.md"
 inst "$S" "$H"
-mk_watch "$C/watch"
 reader() {  # reader <file> <log>: opens the template again and again until $C/stop exists
   local n=0
   while [ ! -e "$C/stop" ] && [ "$n" -lt 600 ]; do
@@ -159,10 +170,11 @@ reader() {  # reader <file> <log>: opens the template again and again until $C/s
 : > "$C/watchlog"
 for i in 1 2 3 4 5 6; do
   if [ $((i % 2)) = 1 ]; then cp "$C/refB" "$S/templates/zz-t1.md"; else cp "$C/refA" "$S/templates/zz-t1.md"; fi
-  WATCH_FILE="$H/factory/templates/zz-t1.md" WATCH_LOG="$C/watchlog" FAKE="$C/watch" inst "$S" "$H"
+  WATCH_FILE="$H/factory/templates/zz-t1.md" WATCH_LOG="$C/watchlog" CALLS="$C/watchcalls" inst "$S" "$H"
   [ "$RC" = 0 ] || fail "AC-3: install $i exits $RC: $ERR"
 done
 : > "$C/stop"; wait "$RP"
+[ -s "$C/watchcalls" ] && pass "AC-3: the watched installs put the template in place by rename" || fail "AC-3: the watched installs never renamed a file into place"
 [ ! -s "$C/readlog" ] && pass "AC-3: the reader never found the template missing or partial" \
   || fail "AC-3: the reader saw $(sort "$C/readlog" | uniq -c | tr '\n' ' ') in $(cat "$C/readlog.count" 2>/dev/null) reads"
 [ ! -s "$C/watchlog" ] && pass "AC-3: the installed template exists at every step of the install" \
@@ -196,9 +208,8 @@ same_tree "$C/B" "$H" && pass "AC-6: the installed copy equals the source" || fa
 # ---------------------------------------------------------------- AC-5 and AC-7: an install killed halfway
 C="$ROOT/ac5"; H="$C/home"; S="$C/src"; mkdir -p "$C"; mk_v1 "$S"; mk_v2 "$S" "$C/B"
 inst "$S" "$H"; SRC_BEFORE="$(cat "$H/factory/.source")"
-mk_fakemv "$C/fake"
-FAKE="$C/fake" KILL_AT=2 inst "$C/B" "$H"
-[ -s "$C/fake/calls" ] && pass "AC-5: the install puts files in place with mv" || fail "AC-5: the install never called mv, so it does not replace files by rename"
+CALLS="$C/calls" KILL_AT=2 inst "$C/B" "$H"
+[ -s "$C/calls" ] && pass "AC-5: the install puts files in place by rename" || fail "AC-5: the install never renamed a file into place (os.replace): $ERR"
 [ "$RC" != 0 ] && pass "AC-5: the killed install did not exit 0" || fail "AC-5: the install was not killed (exit 0)"
 if whole "$H" "$S" "$C/B"; then pass "AC-5: every installed file is byte-equal to its old or new version"
 else fail "AC-5: files neither old nor new (or a temporary file taken for a script):$WHOLE_BAD"; fi
@@ -213,10 +224,10 @@ src_is "$H" "$C/B" && pass "AC-7: .source names the source once everything is in
 doctor_matches "$H" && pass "AC-7: doctor reports the copy matches after the second install" || fail "AC-7: doctor does not report a match after the second install"
 
 # a first install killed halfway leaves no .source at all
-C="$ROOT/ac7first"; H="$C/home"; mkdir -p "$C"; mk_v1 "$C/A"; mk_fakemv "$C/fake"
-FAKE="$C/fake" KILL_AT=2 inst "$C/A" "$H"
-[ -s "$C/fake/calls" ] && [ ! -e "$H/factory/.source" ] && pass "AC-7: a first install killed halfway leaves no .source" \
-  || fail "AC-7: .source exists after a first install that was killed (or mv was never called)"
+C="$ROOT/ac7first"; H="$C/home"; mkdir -p "$C"; mk_v1 "$C/A"
+CALLS="$C/calls" KILL_AT=2 inst "$C/A" "$H"
+[ -s "$C/calls" ] && [ ! -e "$H/factory/.source" ] && pass "AC-7: a first install killed halfway leaves no .source" \
+  || fail "AC-7: .source exists after a first install that was killed (or no file was renamed into place): $ERR"
 inst "$C/A" "$H"
 check "$RC" "AC-7: the install after a killed first one exits 0" "exit $RC: $ERR"
 src_is "$H" "$C/A" && same_tree "$C/A" "$H" && pass "AC-7: it completes the copy and writes .source" || fail "AC-7: the copy is not complete after the install that followed"
@@ -224,9 +235,8 @@ src_is "$H" "$C/A" && same_tree "$C/A" "$H" && pass "AC-7: it completes the copy
 # ---------------------------------------------------------------- AC-8 (and AC-7): a file that cannot be replaced
 C="$ROOT/ac8"; H="$C/home"; S="$C/src"; mkdir -p "$C"; mk_v1 "$S"; mk_v2 "$S" "$C/B"
 inst "$S" "$H"; SRC_BEFORE="$(cat "$H/factory/.source")"
-mk_fakemv "$C/fake"
-FAKE="$C/fake" FAIL_FOR="/lib/zz-b.sh" inst "$C/B" "$H"
-[ -s "$C/fake/calls" ] && pass "AC-8: the install puts files in place with mv" || fail "AC-8: the install never called mv, so it cannot name a file it could not replace"
+CALLS="$C/calls" FAIL_FOR="/lib/zz-b.sh" inst "$C/B" "$H"
+[ -s "$C/calls" ] && pass "AC-8: the install puts files in place by rename" || fail "AC-8: the install never renamed a file into place, so it cannot name a file it could not replace: $ERR"
 [ "$RC" = 1 ] && pass "AC-8: exits 1 when a file could not be replaced" || fail "AC-8: exit $RC, want 1 when a file could not be replaced"
 has_line "$ERR" "shipfloor: could not replace lib/zz-b.sh" && pass "AC-8: stderr names the file that could not be replaced" \
   || fail "AC-8: stderr lacks 'shipfloor: could not replace lib/zz-b.sh' (stderr: '$ERR')"

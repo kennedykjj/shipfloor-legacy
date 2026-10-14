@@ -1,5 +1,6 @@
 """Process helpers: git, gh, native paths, uname."""
 import os
+import re
 import subprocess
 import sys
 
@@ -62,12 +63,11 @@ def uname_s():
     return {"win32": "Windows", "darwin": "Darwin"}.get(sys.platform, "Linux")
 
 
-def pid_alive(pid):
-    """kill -0 <pid>: the pid (digits) exists and may be signalled by this user."""
-    import re
-    if not re.fullmatch(r"[0-9]+", str(pid or "")):
+def alive(held):
+    """kill -0 <held> (a pid, as text or int): the pid exists and may be signalled by this user."""
+    if not re.fullmatch(r"[0-9]+", str(held or "")):
         return False
-    pid = int(pid)
+    pid = int(held)
     if os.name == "nt":
         import ctypes
         k = ctypes.windll.kernel32

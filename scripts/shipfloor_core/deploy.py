@@ -20,6 +20,8 @@ import sys
 import time
 
 from . import fs, proc, project, text
+from .proc import alive as _alive
+from .text import read_tab as _read_tab
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -106,22 +108,6 @@ def _tr(s):
     return s.replace("\n", " ")
 
 
-def _read_tab(line, n):
-    """IFS=$'\\t' read -r v1 .. vn: tabs around the line dropped, runs of tabs split, the last name takes the rest."""
-    s = line.strip("\t")
-    out = []
-    for _ in range(n - 1):
-        i = s.find("\t")
-        if i < 0:
-            out.append(s)
-            s = ""
-        else:
-            out.append(s[:i])
-            s = s[i:].lstrip("\t")
-    out.append(s)
-    return out
-
-
 def _fields(line):
     """awk's default fields: split on runs of blanks and tabs."""
     return [f for f in re.split(r"[ \t\n]+", line) if f]
@@ -179,11 +165,6 @@ def _env(name):
         print("deploy.sh: %s: unbound variable" % name, file=sys.stderr)
         raise DeployExit(1)
     return v
-
-
-def _alive(held):
-    """kill -0 <held>: the pid exists and may be signalled by this user."""
-    return proc.pid_alive(held)
 
 
 def _bounded(secs, argv, cwd, out):

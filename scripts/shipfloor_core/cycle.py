@@ -194,7 +194,7 @@ class Claim:
 
 def _alive(pid):
     """kill -0 <pid>. Under Git Bash a pid written by bash is an MSYS pid: bash's own kill -0 is asked too."""
-    if proc.pid_alive(pid.split("\n")[0]):
+    if proc.alive(pid.split("\n")[0]):
         return True
     if os.name == "nt" and re.fullmatch(r"[0-9]+", pid):
         try:
