@@ -1,11 +1,10 @@
 """report: commits a factory report to the orphan branch factory-reports (never merged, never deployed)."""
 import os
-import shutil
 import subprocess
 import sys
 import time
 
-from . import project, proc
+from . import fs, project, proc
 from .defaults import TRAILER
 
 BRANCH = "factory-reports"
@@ -98,8 +97,9 @@ def _run(issue, slug, pipeline, json, md):
     stamp = _stamp()
     d = os.path.join(wt, "reports", "%s-%s" % (issue, slug))
     os.makedirs(d, exist_ok=True)
-    shutil.copyfile(json, os.path.join(d, "%s-%s.json" % (pipeline, stamp)))
-    shutil.copyfile(md, os.path.join(d, "%s-%s.md" % (pipeline, stamp)))
+    for src, ext in ((json, "json"), (md, "md")):
+        with open(src, "rb") as f:
+            fs.write_atomic(os.path.join(d, "%s-%s.%s" % (pipeline, stamp, ext)), f.read())
     _git("-C", wt, "add", "reports")
     _git("-C", wt, "commit", "-qm", "chore(factory): report #%s %s %s" % (issue, pipeline, stamp), "-m", TRAILER)
     _git("-C", wt, "push", "-q", "origin", br)

@@ -123,7 +123,12 @@ LOCKED = {"run": "a run is in progress", "infra": "blocked by infrastructure, th
 def refused(errs):
     """A refusal: its reasons in English (error), and each one as the page translates it (errors): a shipfloor_config.Msg
     gives its key and values, any other reason only its text."""
-    return {"error": "; ".join(errs), "errors": [e.as_json() if isinstance(e, shipfloor_config.Msg) else {"text": str(e)} for e in errs]}
+    def one(e):
+        if isinstance(e, shipfloor_config.Msg):
+            return e.as_json()
+        field = re.match(r"limits\.(memory_max|cpu_weight|cpu_quota)\b", str(e))  # the machine limits name their field
+        return {"key": field.group(0), "text": str(e)} if field else {"text": str(e)}
+    return {"error": "; ".join(errs), "errors": [one(e) for e in errs]}
 
 
 def catalogs():
@@ -244,6 +249,48 @@ def scheduler():
         source = str(HERE.parent)
     return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
             str(Path(source) / "installer" / "install-dispatcher.ps1"), "-EveryMin"], None
+
+
+NO_LIMITS = "Resource limits are applied on Linux with systemd only. They are saved but not applied here."
+
+
+def installer_script():
+    try:  # the installed copy records the checkout it came from; a checkout is its own source
+        source = (HERE / ".source").read_text(encoding="utf-8").strip() or str(HERE.parent)
+    except OSError:
+        source = str(HERE.parent)
+    return Path(source) / "installer" / "install-dispatcher.sh"
+
+
+def limits_applier():
+    """The command that installs the dispatcher with the machine's limits (the flags go last), or None where there is
+    none. SHIPFLOOR_LIMITS_APPLIER (split like a command line) overrides, "none" says there is none; else on Linux
+    install-dispatcher.sh; elsewhere the limits are saved and not applied."""
+    given = os.environ.get("SHIPFLOOR_LIMITS_APPLIER")
+    if given is not None:
+        try:
+            return None if given.strip() == "none" else shlex.split(given) or None
+        except ValueError:
+            return None
+    return [bash(), str(installer_script())] if sys.platform.startswith("linux") else None
+
+
+def limits_in_effect():
+    """{memory_max, cpu_weight, cpu_quota} the installed systemd unit carries (None for none), or None when there is no
+    such unit or this system has no limits to read."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        r = subprocess.run([bash(), str(installer_script()), "--status"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
+    except (OSError, subprocess.TimeoutExpired, SystemExit):
+        return None
+    line = next((l.strip() for l in r.stdout.splitlines() if l.startswith("limits:")), "")
+    if line == "limits: none":
+        return dict.fromkeys(shipfloor_config.LIMIT_KEYS)
+    pairs = dict(w.split("=", 1) for w in line[len("limits:"):].split() if "=" in w)
+    if not pairs:
+        return None
+    return {k: None if pairs.get(k, "none") == "none" else pairs[k] for k in shipfloor_config.LIMIT_KEYS}
 
 
 def silent_banner(home):
@@ -882,7 +929,10 @@ class Factory:
         if cycle:
             cycle.setdefault("next_at", None)
         command, why = scheduler()
-        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "language": m.get("language") or "en", "costs": self.costs()},
+        saved = shipfloor_config.machine_limits(read_yaml(self.home / "config.yml").get("limits"))
+        limits = {**{k: None if v == "none" else v for k, v in saved.items()}, "in_effect": limits_in_effect(),
+                  "supported": limits_applier() is not None, "why": None if limits_applier() else NO_LIMITS}
+        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "language": m.get("language") or "en", "costs": self.costs(), "limits": limits},
                 "languages": catalogs(), "paused": (self.home / "PAUSE").exists(),
                 "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
                 "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours(), "unpriced": unpriced}
@@ -953,6 +1003,22 @@ class Factory:
                 new["costs"] = costs
             else:
                 new.pop("costs", None)
+        if "limits" in changes:  # {memory_max, cpu_weight, cpu_quota}; null or empty clears one, and no limit is left out of the file
+            if not isinstance(changes["limits"], dict):
+                return 400, refused(["limits must be a mapping of memory_max, cpu_weight, cpu_quota"])
+            lim = dict(new["limits"]) if isinstance(new.get("limits"), dict) else {}
+            for k, v in changes["limits"].items():
+                if isinstance(v, str):
+                    v = v.strip()
+                    v = int(v) if k == "cpu_weight" and v.isascii() and v.isdigit() else v
+                if v is None or v == "" or (isinstance(v, str) and v.lower() == "none"):
+                    lim.pop(k, None)
+                else:
+                    lim[k] = v
+            if lim:
+                new["limits"] = lim
+            else:
+                new.pop("limits", None)
         if "notify" in changes:
             had, ch = new.get("notify") or {}, changes["notify"]
             if isinstance(had, dict) and isinstance(ch, dict):  # key by key; events and channels too
@@ -1007,6 +1073,20 @@ class Factory:
                 return 409, {"error": "the scheduler did not answer in 60 seconds"}
             except OSError as e:
                 return 409, {"error": f"the scheduler could not start: {e}"}
+        want = shipfloor_config.machine_limits(new.get("limits"))
+        if want != shipfloor_config.machine_limits(old.get("limits")):  # told first, as the pace: if it refuses, nothing is saved
+            command = limits_applier()
+            if command:
+                flags = [a for k in shipfloor_config.LIMIT_KEYS for a in ("--" + k.replace("_", "-"), want[k])]
+                try:
+                    r = subprocess.run([*command, *flags], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+                    lines = [l.strip() for l in (r.stdout + "\n" + r.stderr).splitlines() if l.strip()]
+                    if r.returncode != 0:
+                        return 409, {"error": (lines or [f"the installer exited {r.returncode}"])[-1]}
+                except subprocess.TimeoutExpired:
+                    return 409, {"error": "the installer did not answer in 60 seconds"}
+                except OSError as e:
+                    return 409, {"error": f"the installer could not start: {e}"}
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write("# shipfloor machine config: runs at once on this machine (pool) and per stage\n")
             yaml.safe_dump(new, f, sort_keys=False)

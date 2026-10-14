@@ -91,6 +91,37 @@ class Record(HealthCase):
         self.assertEqual(d["stacks"], {"busy": 0, "total": 0, "queue": 0})
         self.assertFalse(d["paused"] or d["usage_limited"] or d["github_limited"] or d["cost_stop"] or d["outside_hours"])
 
+    def cgroup(self, current_mb, max_text):
+        """a fake cgroup root holding this process's own cgroup path, as snapshot() resolves it through /proc/self/cgroup"""
+        with open("/proc/self/cgroup") as f:
+            mine = next(l.strip().split(":", 2)[2] for l in f if l.startswith("0::"))
+        d = os.path.join(self.tmp, "cgroup", mine.strip("/"))
+        os.makedirs(d, exist_ok=True)
+        for name, text in (("memory.current", str(current_mb * 2**20)), ("memory.max", max_text)):
+            with open(os.path.join(d, name), "w") as f:
+                f.write(text + "\n")
+        os.environ["SHIPFLOOR_CGROUP_ROOT"] = os.path.join(self.tmp, "cgroup")
+        self.addCleanup(os.environ.pop, "SHIPFLOOR_CGROUP_ROOT", None)
+
+    def test_AC7_cgroup_memory(self):
+        "AC-7 memory at 90% of a finite cgroup ceiling lands in the health line with usage and ceiling, and as an alert; below it, or with no ceiling, it does not"
+        if not os.path.exists("/proc/self/cgroup"):
+            self.skipTest("Linux only")
+        self.board()
+        self.cgroup(500, str(1000 * 2**20))
+        d = self.record()
+        self.assertEqual(d["cgroup"], {"mem_mb": 500, "max_mb": 1000})
+        self.assertFalse([o for o in d["over"] if o.startswith("memory")])
+        self.cgroup(950, str(1000 * 2**20))
+        d = self.record()
+        self.assertEqual(d["cgroup"], {"mem_mb": 950, "max_mb": 1000})
+        self.assertIn("memory 950/1000 MB", d["over"])
+        self.assertIn("memory 950/1000 MB: more runs than the limit", self.alerts())
+        self.cgroup(950, "max")
+        d = self.record()
+        self.assertIsNone(d["cgroup"])
+        self.assertFalse([o for o in d["over"] if o.startswith("memory")])
+
     def test_idle_needs_three_cycles(self):
         "one idle cycle is no alert (the dispatcher's own timing); three in a row are"
         self.board((26, "Ready for Dev"))
