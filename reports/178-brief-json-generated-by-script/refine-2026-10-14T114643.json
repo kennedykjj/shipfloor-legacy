@@ -1,0 +1,1 @@
+{"issue":178,"slug":"brief-json-generated-by-script","pipeline":"refine","started_at":null,"finished_at":null,"outcome":"ok","agents":[{"role":"product-owner","tokens":14642,"duration_s":18}],"rounds":{"3":1,"6":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":null}
