@@ -1,5 +1,6 @@
 """Process helpers: git, gh, native paths, uname."""
 import os
+import re
 import subprocess
 import sys
 
@@ -60,3 +61,25 @@ def uname_s():
     except OSError:
         pass
     return {"win32": "Windows", "darwin": "Darwin"}.get(sys.platform, "Linux")
+
+
+def alive(held):
+    """kill -0 <held> (a pid, as text or int): the pid exists and may be signalled by this user."""
+    if not re.fullmatch(r"[0-9]+", str(held or "")):
+        return False
+    pid = int(held)
+    if os.name == "nt":
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        ok = k.GetExitCodeProcess(h, ctypes.byref(code))
+        k.CloseHandle(h)
+        return bool(ok) and code.value == 259  # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except (OSError, OverflowError):
+        return False
+    return True
