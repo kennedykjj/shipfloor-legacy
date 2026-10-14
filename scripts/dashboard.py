@@ -14,7 +14,7 @@ sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
 from shipfloor_core.defaults import DEPLOY_DEFAULTS
 import shipfloor_health
-from shipfloor_core import deps
+from shipfloor_core import board_history, deps
 import dashboard_cost
 import runtimes
 from dashboard_cost import LEGACY_STAGES, cost, parse_transcript, parse_ts, per_card, rounded
@@ -765,6 +765,45 @@ class Factory:
                         "rounds": r.get("rounds"),
                         "notes": "\n".join(r["notes"]) if isinstance(r.get("notes"), list) else r.get("notes") or ""})
         return out
+
+    def day(self, p):
+        """Today's board history and the marks of the logbook line (#184): a finished run of today is ok, or bad when
+        its report says blocked/infra or it exited non-zero; a card that left Spec Review/Staged (or another owner move
+        of OWNER_MOVES) between two history lines is a decision at the later line. Keys only, never English. Read on every call."""
+        today = datetime.now().astimezone().date()
+        lines = board_history.day(self.pdir(p), today)
+        reports = {}
+        for f in (self.pdir(p) / "reports-wt" / "reports").glob("*-*/*.json"):
+            m = re.fullmatch(r"(?P<stage>.+)-(?P<ts>\d{4}-\d\d-\d\dT\d{6})\.json", f.name)
+            try:
+                at = datetime.strptime(m["ts"], "%Y-%m-%dT%H%M%S").astimezone() if m else None
+                outcome = json.loads(f.read_text(encoding="utf-8")).get("outcome")
+                issue = int(f.parent.name.split("-")[0])
+            except (OSError, ValueError, AttributeError):
+                continue
+            reports.setdefault((issue, m["stage"]), []).append((at, outcome))
+        marks = []
+        for r in self.runs(p, day=today.isoformat()):
+            if not r["end"]:
+                continue
+            start, end = parse_ts(r["start"]), parse_ts(r["end"])
+            if end.astimezone().date() != today:
+                continue
+            outcomes = [o for at, o in reports.get((r["issue"], r["stage"]), []) if start <= at <= end + timedelta(seconds=60)]
+            bad = r["exit"] != 0 or any(o in ("blocked", "infra") for o in outcomes)
+            marks.append({"t": r["end"], "kind": "bad" if bad else "ok", "n": r["issue"], "stage": r["stage"],
+                          "what": "blocked" if bad else "ended"})
+        for before, after in zip(lines, lines[1:]):
+            old, new = before.get("cards") or {}, after.get("cards") or {}
+            for n, col in new.items():
+                was = old.get(n)
+                note = dict(OWNER_MOVES.get(was, ())).get(col) if was and was != col else None
+                if was not in AWAITING or col not in dict(OWNER_MOVES[was]) or not number(n):
+                    continue
+                what = "requested-changes" if note else "approved-spec" if was == "Spec Review" else "approved-pr"
+                marks.append({"t": after["t"], "kind": "decision", "n": int(n), "what": what})
+        marks.sort(key=lambda m: parse_ts(m["t"]).timestamp())
+        return {"date": today.isoformat(), "now": datetime.now().astimezone().isoformat(timespec="seconds"), "board": lines, "marks": marks}
 
     def brief(self, p, n):
         """The decision brief of a card (reviews/<n>.brief.json, made by #178): the parsed object, or None when the file
@@ -1837,6 +1876,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(400, {"error": why})
                 page = one("page") or "1"
                 return self.send(200, f.history(parts[2], per, int(page) if number(page) else 1))
+            if known and len(parts) == 3 and parts[:2] == ["api", "day"]:
+                return self.send(200, f.day(parts[2]))
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and number(parts[3]):
                 return self.send(200, f.card(parts[2], int(parts[3])))
             if known and len(parts) == 4 and parts[:2] == ["api", "decide"] and number(parts[3]):
