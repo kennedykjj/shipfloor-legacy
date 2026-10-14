@@ -1,0 +1,3 @@
+{"issue": 183, "slug": "ux-09-endereco-aba-e-ctrl-k-o-estado-for", "pipeline": "refine", "started_at": "2026-10-14T15:00:00Z", "finished_at": "2026-10-14T15:20:00Z", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 14750, "duration_s": 26}, {"role": "ux-designer", "tokens": 47956, "duration_s": 112}],
+ "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": false}
