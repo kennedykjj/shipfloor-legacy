@@ -95,6 +95,8 @@
     "alert.hours.text": "riparte alle {at}",
     "alert.skipped": "{project} saltato da {since}",
     "alert.skipped.text": "{reason}. Lì non si muove nulla finché non viene risolto; il Feed ha il log del dispatcher.",
+    "alert.silent": "Dispatcher in silenzio",
+    "alert.silent.text": "L'ultimo ciclo risale a {m} min fa; dovrebbe girare ogni {every} min. Il dispatcher si è fermato? Verifica: <code>{check}</code>. Reinstalla: <code>{reinstall}</code>.",
     "alert.health": "Salute",
     "alert.health.text": "{what}. Storico in <code>~/.shipfloor/logs/health-*.jsonl</code>.",
     "alert.orphans": "{n, plural, one {# lock orfano} other {# lock orfani}}",

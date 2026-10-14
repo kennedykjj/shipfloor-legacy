@@ -19,7 +19,7 @@ GIT_ENV = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_COUNT": "6",
            "GIT_CONFIG_KEY_1": "user.email", "GIT_CONFIG_VALUE_1": "t@t",
            "GIT_CONFIG_KEY_2": "user.name", "GIT_CONFIG_VALUE_2": "t",
            "GIT_CONFIG_KEY_3": "core.autocrlf", "GIT_CONFIG_VALUE_3": "false",
-           # no background maintenance: its transient objects/maintenance.lock breaks copying a repo
+           # no background maintenance: its .lock files appear and vanish under shutil.copytree of the template
            "GIT_CONFIG_KEY_4": "maintenance.auto", "GIT_CONFIG_VALUE_4": "false",
            "GIT_CONFIG_KEY_5": "gc.auto", "GIT_CONFIG_VALUE_5": "0"}
 

@@ -121,21 +121,55 @@ assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting 
 out="$(bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
 assert_contains "$out" "WARN health: two dispatcher cycles ran at once"
 
-# a missed cycle: the newest line is older than 1.5 x the pace in config.yml (10 min here, so 15)
+# a missed cycle: the newest line is older than 3 x the pace in config.yml (10 min here, so 30)
 cyc() {  # cyc <minutes ago>: a health line for a cycle that ended that long ago
   mkdir -p "$H/logs"
   $PY -I -c 'import json,sys; from datetime import datetime,timedelta; t=(datetime.now().astimezone()-timedelta(minutes=float(sys.argv[1]))).isoformat(timespec="seconds"); print(json.dumps({"ts":t,"cycle":{"s":5,"exit":0,"overlap":False},"paused":False,"idle":[],"over":[]}))' "$1" >> "$H/logs/health-$(date +%Y-%m).jsonl"
 }
 setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 30; cyc 20; cyc 10
 case "$(health alerts)" in *"no dispatcher cycle"*) fail "AC-7 alerted on cycles arriving on time every 10 minutes: $(health alerts)" ;; *) pass "AC-7 cycles every 10 minutes on time raise no missed-cycle alert" ;; esac
-setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 45; cyc 35; cyc 25
+setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 75; cyc 65; cyc 55
 out="$(health alerts)"
 assert_contains "$out" "no dispatcher cycle for"
 assert_contains "$out" "(it runs every 10)"
-# the pace comes from config.yml: without the key it is 3, and 10 minutes without a cycle is late
-setup; cyc 20; cyc 15; cyc 10
+# 1.5x to 3x the pace is one slow or missed cycle, not a stopped dispatcher (#176)
+setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 40; cyc 30; cyc 20
+case "$(health alerts)" in *"no dispatcher cycle"*) fail "AC-3 alerted at 2x the pace: $(health alerts)" ;; *) pass "AC-3 2x the pace raises no missed-cycle alert" ;; esac
+# the pace comes from config.yml: without the key it is 3, and 12 minutes without a cycle (4x) is late
+setup; cyc 30; cyc 20; cyc 12
 assert_contains "$(health alerts)" "(it runs every 3)"
 # no health line yet: nothing to be late
 setup; mkdir -p "$H/logs"
 case "$(health alerts)" in *"no dispatcher cycle"*) fail "AC-7 alerted with no health line yet" ;; *) pass "AC-7 no health line, no missed-cycle alert" ;; esac
+
+# --- #176: silence(home) and the doctor
+sil() { $PY -I -c 'import sys,json; sys.path.insert(0,sys.argv[1]); import shipfloor_health as h; print(json.dumps(h.silence(sys.argv[2])))' "$(nat "$FACTORY_DIR")" "$(nat "$H")" 2>&1; }
+silmin() { $PY -I -c 'import sys,json; sys.path.insert(0,sys.argv[1]); import shipfloor_health as h; s=h.silence(sys.argv[2]); print(None if s is None else [int(s["min"]), s["every"]])' "$(nat "$FACTORY_DIR")" "$(nat "$H")" 2>&1; }
+# AC-1/AC-2: stale beyond 3x
+setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 60
+[ "$(silmin)" = "[60, 10]" ] && pass "AC-1 silence() reports the age and the pace when the newest line is older than 3x" || fail "AC-1 silence() was: $(sil) (want min 60, every 10)"
+out="$(SHIPFLOOR_HOME="$H" bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
+assert_contains "$out" "WARN health: no dispatcher cycle for"
+assert_contains "$out" "(it runs every 10)"
+# AC-5/AC-1: skip_silence leaves that line out and keeps the others
+a="$($PY -I -c 'import sys; sys.path.insert(0,sys.argv[1]); import shipfloor_health as h; print(h.alerts(sys.argv[2], skip_silence=True))' "$(nat "$FACTORY_DIR")" "$(nat "$H")" 2>&1)"
+case "$a" in *"no dispatcher cycle"*|*Traceback*) fail "AC-1 alerts(skip_silence=True) still carries the silence line: $a" ;; *) pass "AC-1 alerts(skip_silence=True) omits the silence line" ;; esac
+# AC-3: within 3x (2x here), or no line, silence() is None and the doctor says nothing
+setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 20
+[ "$(sil)" = "null" ] && pass "AC-3 silence() is None at 2x the pace" || fail "AC-3 silence() at 2x was: $(sil)"
+out="$(SHIPFLOOR_HOME="$H" bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
+case "$out" in *"no dispatcher cycle"*) fail "AC-3 the doctor warned at 2x the pace: $out" ;; *) pass "AC-3 the doctor is quiet at 2x the pace" ;; esac
+setup; mkdir -p "$H/logs"
+[ "$(sil)" = "null" ] && pass "AC-3 silence() is None with no health line" || fail "AC-3 silence() with no line was: $(sil)"
+out="$(SHIPFLOOR_HOME="$H" bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
+case "$out" in *"no dispatcher cycle"*) fail "AC-3 the doctor warned with no health line: $out" ;; *) pass "AC-3 the doctor is quiet with no health line" ;; esac
+# AC-5: the pace is dispatcher.every_min; missing or invalid falls back to 3 (threshold 9: 12 min is silent, 8 is not)
+setup; cyc 12
+[ "$(silmin)" = "[12, 3]" ] && pass "AC-5 no key: the pace is 3" || fail "AC-5 no key: silence() was $(sil)"
+setup; printf 'dispatcher: {every_min: banana}\n' >> "$H/config.yml"; cyc 12
+[ "$(silmin)" = "[12, 3]" ] && pass "AC-5 an invalid every_min falls back to 3" || fail "AC-5 invalid key: silence() was $(sil)"
+setup; printf 'dispatcher: {every_min: 5}\n' >> "$H/config.yml"; cyc 12
+[ "$(sil)" = "null" ] && pass "AC-5 every_min 5 moves the threshold to 15: 12 min is not silent" || fail "AC-5 every_min 5, 12 min: silence() was $(sil)"
+setup; cyc 8
+[ "$(sil)" = "null" ] && pass "AC-5 8 min at pace 3 is under 3x" || fail "AC-5 8 min at pace 3: silence() was $(sil)"
 finish

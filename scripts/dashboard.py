@@ -240,6 +240,26 @@ def scheduler():
             str(Path(source) / "installer" / "install-dispatcher.ps1"), "-EveryMin"], None
 
 
+def silent_banner(home):
+    """The overview's "silent": how long the dispatcher has been quiet and the platform's commands to check and
+    reinstall its scheduled job; None while the newest health line is within 3x the pace."""
+    s = shipfloor_health.silence(home)
+    if not s:
+        return None
+    try:  # as scheduler(): the installed copy records the checkout it came from
+        source = (HERE / ".source").read_text(encoding="utf-8").strip() or str(HERE.parent)
+    except OSError:
+        source = str(HERE.parent)
+    installer = Path(source) / "installer"
+    if os.name == "nt":
+        check = "Get-ScheduledTask -TaskName ShipfloorDispatcher"
+        reinstall = f"powershell -File {installer / 'install-dispatcher.ps1'}"
+    else:
+        check = f"bash {installer / 'install-dispatcher.sh'} --status"
+        reinstall = f"bash {installer / 'install-dispatcher.sh'}"
+    return {"min": round(s["min"]), "every": s["every"], "check": check, "reinstall": reinstall}
+
+
 def gh(*args, input=None):  # through bash, so FACTORY_GH can be a script on Windows too
     # Never --jq: started from Python on Windows, gh crashes on it (0xC0000005). Read JSON with gh_json.
     return subprocess.run([bash(), "-c", 'exec "${FACTORY_GH:-gh}" "$@"', "gh", *args],
@@ -1124,7 +1144,7 @@ class Factory:
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
-                "alerts": shipfloor_health.alerts(self.home),
+                "alerts": shipfloor_health.alerts(self.home, skip_silence=True), "silent": silent_banner(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "moves": {f: [{"to": to, "note": note} for to, note in m] for f, m in OWNER_MOVES.items()}, "ordered": list(ORDERED),
                 "take_back": {f: list(m) for f, m in BLOCKED_MOVES.items()},
