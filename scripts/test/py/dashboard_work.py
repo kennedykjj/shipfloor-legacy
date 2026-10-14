@@ -2,9 +2,8 @@
 selected on the belt), Run for a running card, Card for any other, Calm when nothing waits. The page's own script runs in node
 on a fake DOM (belt_page.py), fed overviews shaped like the real server's (the belt's fixture, dashboard_belt.Scene) and the
 cards' payloads as /api/card/<project>/<n> answers them; the tests read what the work area drew, what the keys did, which POSTs
-left and when (the page's timers are advanced, the 5 s hold never sleeps). Area is AC-1, AC-4, AC-5, AC-6 and AC-7
-(dashboard-work-area.test.sh), Keys is AC-2 (dashboard-work-keys.test.sh), Quick is AC-3 (dashboard-quick.test.sh) and Design is
-AC-8 (design-doc.test.sh)."""
+left and when (the page's timers are advanced, the 5 s hold never sleeps). Area is AC-1, AC-4, AC-5, AC-6 and AC-7,
+Keys is AC-2, Quick is AC-3 and Design is AC-8; dashboard-views.test.sh runs them all."""
 import copy
 import json
 import re
