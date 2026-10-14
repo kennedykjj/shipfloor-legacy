@@ -1,0 +1,14 @@
+{"issue": 162, "slug": "python-foundation-the-package-the-wrapper", "pipeline": "develop",
+ "started_at": "2026-10-14T10:20:00Z", "finished_at": "2026-10-14T10:45:00Z", "outcome": "ok",
+ "agents": [
+  {"role": "qa-engineer", "tokens": 134424, "duration_s": 456},
+  {"role": "engineer (T1)", "tokens": 38682, "duration_s": 167},
+  {"role": "engineer (T2)", "tokens": 37036, "duration_s": 180},
+  {"role": "engineer (T3)", "tokens": 23649, "duration_s": 139}
+ ],
+ "rounds": {"3": 1, "4": 1},
+ "gates_failed": [],
+ "flaky": [],
+ "gates_reused": [],
+ "amendments": [],
+ "manual_edit": false}
