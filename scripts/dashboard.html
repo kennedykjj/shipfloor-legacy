@@ -155,31 +155,45 @@ main { min-height: 0; display: grid; }
 @property --sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 @keyframes sweep { from { --sweep: 0deg; } to { --sweep: 360deg; } }
 
-/* the line: every column a cell, every card a dot */
+/* the belt: every card a token in the segment of its column; the rail under it moves only while the dispatcher is alive */
 .band { padding: 12px 80px 8px 16px; overflow-x: auto; }
-.cells { display: flex; min-width: 1040px; }
-.cell { min-width: 0; border-left: 1px solid color-mix(in srgb, var(--ov) 14.9%, transparent); } .cell:first-child { border-left: 0; }
-.lab { height: 62px; padding: 4px 8px 0 12px; } .cell:first-child .lab { padding-left: 0; }
+.cells { position: relative; overflow-x: auto; padding: 4px 0 8px; }
+.belt { min-width: min-content; }
+.segs { display: flex; gap: 8px; align-items: stretch; }
+.seg { flex: 1 1 96px; min-width: 96px; padding: 8px; border-radius: 8px; }
+.seg.gate { flex: 1.2 1 132px; min-width: 132px; background: color-mix(in srgb, var(--sand) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sand) 18%, transparent); }
+.lab { height: 62px; padding: 4px 8px 0 12px; }
 .lab .g { display: block; font-size: 17px; line-height: 1.1; }
 .lab .q { display: block; font-size: 12px; font-weight: 400; color: var(--muted); line-height: 1.3; padding-top: 4px; }
-.lab .d { display: block; font-size: 12px; color: var(--soft); margin-top: 4px; white-space: nowrap; } :root:not(:lang(en)) .lab .d { white-space: normal; } .cell.y.on .d { color: var(--sand); }
-.track { position: relative; height: 40px; border-top: 2px dotted var(--track); } .cell.w .track { border-top-style: solid; border-top-color: var(--track-on); }
-.dot { position: absolute; top: -13px; width: 24px; height: 24px; margin-left: -12px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
-.dot i { width: 10px; height: 10px; border-radius: 50%; background: var(--text); position: relative; }
-.tk { position: absolute; top: -20px; transform: translateX(-50%); font-size: 12px; line-height: 1; color: var(--faint); }
-.tk::after { content: ""; position: absolute; left: 50%; top: 15px; width: 1px; height: 5px; background: var(--faint); }
-.dot em, .plus { position: absolute; top: 23px; left: 50%; transform: translateX(-50%); font: 600 12px var(--sans); white-space: nowrap; color: var(--text); }
-.plus { top: 9px; color: var(--muted); font-weight: 500; cursor: help; }
-.dot.wait i { background: var(--ground); border: 2px solid var(--muted); } .dot.wait em { color: var(--muted); }
-.dot.you i { background: var(--sand); } .dot.you em { color: var(--sand); }
-.dot.infra i { background: var(--warn); } .dot.infra em { color: var(--warn); }
-.dot.stop i { background: var(--bad); } .dot.stop em { color: var(--bad); }
-.dot.over i { outline: 2px solid var(--warn); outline-offset: 2px; }
-.dot.run i::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--text); animation: pulse 2.6s cubic-bezier(.2, .7, .2, 1) infinite; }
-@keyframes pulse { from { transform: scale(1); opacity: .55; } to { transform: scale(3.4); opacity: 0; } }
-.dot.hot i, .dot.open i { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ov) 25.1%, transparent); }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 24px; padding-top: 8px; border-top: 1px solid var(--hair); font-size: 12px; color: var(--muted); }
-.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; background: var(--k, var(--text)); } .legend .o i { background: none; border: 2px solid var(--muted); }
+.lab .d { display: block; font-size: 12px; color: var(--soft); margin-top: 4px; white-space: nowrap; } :root:not(:lang(en)) .lab .d { white-space: normal; }
+.shead { min-height: 44px; }
+.sname { display: block; font: 500 13px/1.3 var(--sans); color: var(--muted); }
+.seg.stage .sname, .seg.done .sname { color: var(--text); font-weight: 600; } .seg.gate .sname { color: var(--sand); font-weight: 600; }
+.smeta { display: block; font-size: 12px; line-height: 1.4; color: var(--faint); margin-top: 4px; } .seg.gate .smeta.on { color: var(--sand); } .seg.done .smeta.on { color: var(--ok); }
+.stoks { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+.stoks > li { display: block; margin: 0; }
+.tok { position: relative; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 54px; height: 30px; padding: 0 8px; margin: 0; overflow: hidden; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text); font: 500 13px var(--mono); font-variant-numeric: tabular-nums; cursor: pointer; }
+.tok .n { font: inherit; }
+.tok .bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--text); }
+.tok.q { background: transparent; border: 1px dashed var(--edge-hi); color: var(--muted); }
+.tok.run { background: var(--raise); border: 1px solid var(--edge); color: var(--text); }
+.tok.you { background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--sand); }
+.tok.infra { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--warn) 14%, transparent) 0 4px, transparent 4px 8px), var(--panel); border: 1px solid var(--warn); color: var(--warn); }
+.tok.done { background: color-mix(in srgb, var(--ok) 8%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent); color: var(--ok); }
+.tok.open { outline: 2px solid var(--text); outline-offset: 2px; }
+.tok.you.open { background: var(--sand); color: var(--accent-ink); }
+.tok:focus-visible, .tok.open:focus-visible { outline: 2px solid var(--sand); outline-offset: 2px; }
+.tok.ghost { border: 1px dashed var(--edge); background: transparent; color: var(--faint); font: 12px var(--sans); cursor: default; }
+.rail { height: 8px; margin-top: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--track) 0 2px, transparent 2px) 0 0 / 22px 100% repeat-x; animation: railgo 1.8s linear infinite; }
+.rail.stop { background: linear-gradient(90deg, color-mix(in srgb, var(--bad) 40%, transparent) 0 2px, transparent 2px) 0 0 / 22px 100% repeat-x, color-mix(in srgb, var(--bad) 12%, transparent); animation-play-state: paused; }
+@keyframes railgo { to { background-position: 22px 0; } }
+/* the status sentence in the header: a dot, what the factory is doing, and Restart when the dispatcher went silent */
+.stat { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+#status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--soft); }
+.sdot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ok); } .stat.stopped .sdot { background: var(--bad); }
+#status .need { color: var(--sand); font-weight: 500; }
+.rrow { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; white-space: normal; font-size: 12px; color: var(--muted); }
+.rrow[hidden] { display: none; } .rrow p { margin: 0; } .rrow code { font: 12px var(--mono); color: var(--text); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 4px; padding: 4px 8px; user-select: all; white-space: nowrap; }
 
 /* any panel, and the card drawer, grows to 90% of the screen over the blurred page; the button sits in the same corner of each */
 .panel { position: relative; }
@@ -373,7 +387,8 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   .dial { animation: none; --sweep: 90deg; }
   .drawer { transition: none; }
-  .dot, .dot.run i::before, .bar i, .steps li.now { animation: none; transition: none !important; }
+  .rail { animation: none; }
+  .tok, .bar i, .steps li.now { animation: none; transition: none !important; }
   .skeleton { animation: none; }
   #pane .themed, #pane .plain { transition: none; }
 }
@@ -508,7 +523,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .f-sys .fhead { color: var(--soft); font-size: 13px; align-items: start; } .f-sys .fraw { overflow-wrap: anywhere; }
 @media (max-width: 1180px) { .fev { grid-template-columns: 5ch 9px minmax(0, 1fr); } .fside { grid-column: 3; text-align: left; } .fside:empty { display: none; } .ftitle { white-space: normal; } .fhead { flex-wrap: wrap; } }
 .peek .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-family: var(--sans); }
-/* the peek: a card's summary, anchored to its dot on the line */
+/* the floating box: the note box of a move (#mbox) */
 .peek { position: fixed; z-index: 2; width: min(340px, calc(100vw - 24px)); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 8px; box-shadow: var(--shadow); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
 .peek[hidden] { display: none; }
 .peek::before { content: ""; position: absolute; top: -6px; left: var(--tip, 40px); width: 10px; height: 10px; background: var(--panel-hi); border-left: 1px solid var(--edge-hi); border-top: 1px solid var(--edge-hi); transform: rotate(45deg); }
@@ -613,7 +628,7 @@ iframe.plain { visibility: visible; opacity: 1; background: #fff; }
 .review .none { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--edge); font-size: 12px; color: var(--muted); }
 .placeholder { padding: 20px; color: var(--muted); max-width: 64ch; }
 /* a refused link: the page stops at the header and one message */
-body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #peek, body.refused #drawer, body.refused #dim { display: none !important; }
+body.refused .views, body.refused .stats, body.refused #alerts, body.refused #band, body.refused #cols, body.refused #feed, body.refused #settings, body.refused #drawer, body.refused #dim { display: none !important; }
 #msg.refusal { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 20px; max-width: 64ch; color: var(--muted); outline: none; }
 #msg.refusal strong { color: var(--text); font-size: 14px; font-weight: 600; }
 #msg.refusal code { font: 13px var(--mono); color: var(--text); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 4px; padding: 2px 8px; white-space: nowrap; user-select: all; }
@@ -629,6 +644,9 @@ body.refused .views, body.refused .stats, body.refused #alerts, body.refused #ba
   #changes:not(.show) { display: none; }
   .block-note { grid-template-columns: 1fr; }
   .block-note .btn { grid-column: 1; grid-row: auto; justify-self: start; }
+}
+@media (max-width: 599px) {
+  .stats { width: 100%; } .stat .more { display: none; }
 }
 @media (max-width: 1180px) {
   body { height: auto; min-height: 100%; overflow: auto; grid-template-rows: auto auto auto; grid-template-columns: minmax(0, 1fr); align-content: start; }
@@ -673,14 +691,14 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <header>
   <span class="g brand"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M12 48H44V32H20V16H40"/><rect x="40" y="8" width="16" height="16" rx="3"/></svg>Shipfloor</span>
   <nav class="views" aria-label="View" data-i-aria="nav.view"><button data-view="board" aria-pressed="true" data-i="nav.factory">Factory</button><button data-view="feed" aria-pressed="false" data-i="nav.feed">Feed</button><button data-view="settings" aria-pressed="false" data-i="nav.settings">Settings</button></nav>
-  <div class="stats"><a class="cap" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener"><span data-i="nav.docs">Docs</span><svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a><span id="scope"></span><span id="stats"></span></div>
+  <div class="stats"><a class="cap" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener"><span data-i="nav.docs">Docs</span><svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a><span id="scope"></span><div class="stat" id="stat"><span id="status" role="status" aria-live="polite"></span><span id="rbtn"></span><div class="rrow" id="rrow" hidden></div></div></div>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
 <main>
   <section class="board" id="board" aria-label="Factory" data-i-aria="nav.factory">
     <p class="placeholder" id="msg" data-i="msg.reading">Reading the factory…</p>
-    <nav class="band panel" id="band" data-maxable="band" aria-label="Where every card is in the pipeline" data-i-aria="band.aria" hidden><h1 class="g" data-i="band.h">Lifecycle</h1><div class="lhead"><label class="mvonly"><span class="sw sand"><input type="checkbox" id="mvonly" aria-label="Only what I can move" data-i-aria="band.only"><i></i></span><span data-i="band.only">Only what I can move</span></label><p class="empty" id="lempty" data-i="band.only.none" hidden>Nothing for you to move right now.</p><p class="lstat" id="lstat" role="status"></p></div><button class="max fold" data-show="band" aria-controls="cells" aria-expanded="true" aria-label="Minimize the lifecycle" title="Minimize" data-i-aria="panel.band.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="cells" id="cells"></div><div class="lanes" id="lanes"></div><div class="itoast ltoast" id="ltoast" role="status" hidden></div><p class="pnote" id="lnote" role="status"></p>
-      <div class="legend"><span><i></i><span data-i="legend.run">running, on the step it reported (1 to N)</span></span><span class="o"><i></i><span data-i="kind.wait">queued</span></span><span style="--k:var(--sand)"><i></i><span data-i="kind.you">waits for you</span></span><span style="--k:var(--bad)"><i></i><span data-i="fact.blocked">blocked</span></span><span data-i="legend.more">+N: more cards than fit</span></div></nav>
+    <nav class="band panel" id="band" data-maxable="band" aria-label="Where every card is in the pipeline" data-i-aria="band.aria" hidden><h1 class="g" data-i="band.h">Lifecycle</h1><div class="lhead"><label class="mvonly"><span class="sw sand"><input type="checkbox" id="mvonly" aria-label="Only what I can move" data-i-aria="band.only"><i></i></span><span data-i="band.only">Only what I can move</span></label><p class="empty" id="lempty" data-i="band.only.none" hidden>Nothing for you to move right now.</p><p class="lstat" id="lstat" role="status"></p></div><button class="max fold" data-show="band" aria-controls="cells" aria-expanded="true" aria-label="Minimize the lifecycle" title="Minimize" data-i-aria="panel.band.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="cells" id="cells" role="group" aria-label="The belt" data-i-aria="belt.aria"></div><div class="lanes" id="lanes"></div><div class="itoast ltoast" id="ltoast" role="status" hidden></div><p class="pnote" id="lnote" role="status"></p>
+</nav>
     <div class="cols" id="cols" hidden>
       <div class="side">
         <section class="yours panel" data-maxable="yours" aria-labelledby="hy"><h1 class="g" id="hy"></h1><ul id="list"></ul>
@@ -696,7 +714,6 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
     </div>
   </section>
   <section class="feed panel" id="feed" aria-label="Feed" data-i-aria="nav.feed" tabindex="0" hidden></section>
-  <div class="peek" id="peek" role="dialog" aria-label="Card summary" data-i-aria="peek.aria" hidden></div>
   <div class="peek mbox" id="mbox" role="dialog" aria-labelledby="mbox-h" hidden><h3 id="mbox-h"></h3><div class="iconf"><textarea id="mnote" aria-labelledby="mbox-h"></textarea><p class="ihint" id="mhint"></p><div class="macts"><button class="btn approve" id="mgo"></button><button class="btn ghost" id="mcancel" data-i="act.cancel">Cancel</button></div></div></div>
   <section class="settings" id="settings" aria-label="Settings" data-i-aria="nav.settings" hidden>
     <div class="disp panel" id="disp"></div>
@@ -834,10 +851,10 @@ function setOffline(v) { if (S.refused) return; if (S.offline !== v) { S.offline
 function setError(v) { if (S.refused) return; if (S.error !== v) { S.error = v; renderFlags(); } }
 // The server no longer accepts this page's link (it comes from a previous start): stop asking, drop the factory's data, say what to run.
 function refuse() {
-  S.open = null; S.card = null; S.full = false; S.peek = null;
+  S.open = null; S.card = null; S.full = false;
   document.querySelectorAll(".panel.maxed").forEach((p) => p.classList.remove("maxed"));
   document.querySelectorAll("iframe").forEach((f) => f.remove());  // its src carries the token and loads on its own
-  $("drawer").inert = true; $("drawer").classList.remove("open"); $("dim").hidden = true; $("peek").hidden = true;
+  $("drawer").inert = true; $("drawer").classList.remove("open"); $("dim").hidden = true;
   setHTML($("alerts"), "");
   document.body.classList.add("refused");
   const m = $("msg"); m.hidden = false; m.className = "refusal"; m.setAttribute("role", "alert"); m.setAttribute("tabindex", "-1");
@@ -904,16 +921,42 @@ const waiting = () => (project()?.cards || []).map((c) => ({ ...c, key: `${S.pro
 
 function renderStrip() {
   const o = S.overview; if (!o) return;
-  const many = o.projects.length > 1, slots = o.stacks || [], busy = slots.filter((x) => x.state !== "free").length, stuck = slots.some((x) => x.state === "stuck");
-  const held = slots.map((x) => `${t("stacks.slot", { n: x.slot, state: x.state })}${x.owner !== "-" ? ` ${x.owner}` : ""}${x.state !== "free" ? ` ${elapsed(new Date(Date.now() - x.held_s * 1000))}` : ""}${x.reason ? ` (${x.reason})` : ""}`).join("\n");
   // The project switch is its own region: the numbers beside it change at every read, and rewriting it would close its open list.
   setHTML($("scope"), `${o.projects.length > 1 ? `<label class="proj cap">${t("head.project")}<select id="proj">${o.projects.map((p) => `<option ${p.slug === S.project ? "selected" : ""}>${esc(p.slug)}</option>`).join("")}</select></label>` : ""}
     ${project()?.board_url ? `<a class="cap" href="${esc(project().board_url)}" target="_blank" rel="noopener">${t("head.board")}${EXT}</a>` : ""}${o.projects.length > 1 ? `<i class="sep"></i>` : ""}`);
-  setHTML($("stats"), `<span class="cap" title="${ta("head.pool.title")}">${t("head.pool")}<b>${o.pool.used} / ${o.pool.size}</b></span>
-    <span class="cap${stuck ? " stuck" : ""}" title="${ta("head.stacks.title")}${held ? "\n" + esc(held) : ""}">${t("head.stacks")}<b>${busy} / ${slots.length}</b>${o.queue ? ` · ${t("head.stacks.queue", { n: o.queue })}` : ""}</span>
-    <span class="cap"${many ? ` title="${ta("head.runs.title")}"` : ""}>${t("head.runs")}<b>${o.today.runs}</b>${o.today.failed ? ` · ${t("head.runs.failed", { n: o.today.failed })}` : ""}</span>
-    <span class="cap" title="${many ? ta("head.spent.many") + "\n" : ""}${ta("cost.est.title")}">${t("head.spent")}<b>${usd(o.today.cost)}</b></span>`);
+  renderStatus();
   renderFlags();
+}
+// The status sentence (the belt's voice): what the factory is doing, in one line that a screen reader hears when it changes.
+// Alive: how many decisions wait for the owner, the sessions in use, today's spend. Silent (#176): the belt stopped, with
+// Restart, which runs nothing: it shows the reinstall command to run on this machine, and copies it.
+const ageText = (m) => m < 60 ? t("status.age.m", { m }) : m % 60 ? t("status.age.hm", { h: Math.floor(m / 60), m: m % 60 }) : t("status.age.h", { h: m / 60 });
+const RESTART = { open: false, copiedAt: 0 };
+function renderStatus() {
+  const o = S.overview; if (!o) return;
+  const dead = o.silent, waits = o.projects.reduce((n, p) => n + p.cards.filter((c) => c.awaiting || c.blocked === "owner").length, 0);
+  $("stat").classList.toggle("stopped", !!dead);
+  const more = `${t("status.sessions", { a: o.pool.used, b: o.pool.size })} · ${t("status.cost", { cost: usd(o.today.cost) })}`;
+  setHTML($("status"), `<i class="sdot" aria-hidden="true"></i>` + (dead ? (dead.min == null ? t("status.none") : t("status.stopped", { age: ageText(dead.min) }))
+    : `${t("status.running")}${waits ? ` · <span class="need">${t(waits === 1 ? "status.waits_one" : "status.waits", { n: waits })}</span>` : ""}<span class="more" title="${esc(more)}"> · ${t("status.sessions", { a: o.pool.used, b: o.pool.size })} · ${t("status.cost", { cost: usd(o.today.cost) })}</span>`));
+  if (!dead) RESTART.open = false;
+  const was = $("rrow").contains(document.activeElement) ? "copy" : $("rbtn").contains(document.activeElement) ? "btn" : "";
+  setHTML($("rbtn"), dead ? `<button class="btn ghost" data-restart aria-expanded="${RESTART.open}" aria-controls="rrow">${t("status.restart")}</button>` : "");
+  $("rrow").hidden = !(dead && RESTART.open);
+  setHTML($("rrow"), dead && RESTART.open ? (dead.reinstall
+    ? `<p>${t("status.restart.what")}</p><code>${esc(dead.reinstall)}</code><button class="btn ghost" data-copy>${t(Date.now() - RESTART.copiedAt < 2000 ? "status.copied" : "status.copy")}</button>`
+    : `<a class="lnk" href="https://github.com/kennedykjj/shipfloor/blob/main/docs/install.md" target="_blank" rel="noopener">${t("status.unknown")}</a>`) : "");
+  if (was === "copy" && RESTART.open) $("rrow").querySelector("[data-copy]")?.focus({ preventScroll: true });
+  else if (was === "btn") $("rbtn").querySelector("button")?.focus({ preventScroll: true });
+}
+function restart(on) {
+  RESTART.open = on; renderStatus();
+  if (on) $("rrow").querySelector("[data-copy], a")?.focus(); else $("rbtn").querySelector("button")?.focus();
+}
+function copyCommand() {
+  const cmd = S.overview?.silent?.reinstall; if (!cmd) return;
+  navigator.clipboard?.writeText(cmd)?.catch?.(() => {});
+  RESTART.copiedAt = Date.now(); renderStatus(); setTimeout(renderStatus, 2100);
 }
 // The alerts line exists only while something is wrong.
 function renderFlags() {
@@ -977,13 +1020,12 @@ function renderBoard() {
     const sig = `${c.column}|${c.running || ""}`, k = key(c);  // a card that changed column or stage since the last read is fresh for a while
     if (!S.seen[k]) S.seen[k] = { sig, at: 0 }; else if (S.seen[k].sig !== sig) S.seen[k] = { sig, at: now };
   }
-  renderBand(p, by, key); renderPeek(); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p);
+  renderBelt(p, by, key); renderYours(); renderWork(p, key, (c) => now - S.seen[key(c)].at < 12000); renderTelem(p);
 }
 // The fold button inside a panel minimizes it to its heading, or opens it again, where it sits. Focus stays on the button.
 function show(which, on) {
   const el = $(which === "band" ? "band" : "history"), btn = el.querySelector(":scope > .fold");
   if (!on && el.classList.contains("maxed")) maximize(el, false);  // restored first, then closed
-  if (!on && which === "band" && S.peek) { S.peek = null; $("peek").hidden = true; }  // the peek hangs from a dot of the band
   S.show[which] = on; el.classList.toggle("min", !on); btn.setAttribute("aria-expanded", on);
   btn.title = t(on ? "btn.minimize" : "btn.expand"); btn.setAttribute("aria-label", t(`panel.${el.dataset.maxable}.${on ? "min" : "expand"}`));
   if (on) renderBoard();  // opening draws what the closed panel skipped
@@ -992,70 +1034,56 @@ function show(which, on) {
 // A running card sits on the step it reported; with no step yet, further right the longer it runs against the usual.
 function progress(p, c) {
   const run = runOf(p.slug, c), of = STEP_COUNT[c.running];
-  if (run?.step && of) return (run.step.i - .5) / of * 100;
+  if (run?.step && of) return run.step.i / of * 100;
   const usual = p.typical_s?.[c.running], since = run?.started;
   return usual && since ? Math.min(92, Math.max(30, 30 + 31 * (Date.now() - new Date(since)) / 1000 / usual)) : 55;
 }
-// The peek: a click on a dot shows the card's summary under it, and the line stays whole. Its buttons open the card.
-function renderPeek() {
-  const el = $("peek"), dot = S.peek && document.querySelector(`#cells .dot[data-key="${CSS.escape(S.peek)}"]`);
-  const [slug, n] = (S.peek || "/").split("/"), c = dot && cardOf(slug, +n);
-  if (!c || !dot.offsetParent) { S.peek = null; el.hidden = true; return; }  // its dot is gone, or the board is not on screen
-  const k = esc(S.peek), run = c.running && runOf(slug, c), of = STEP_COUNT[c.running], step = run?.step;
-  const meta = [esc(colName(c.column)), c.running ? (run?.started ? t("peek.running_min", { stage: esc(stageName(c.running)), m: mins(run.started) }) : t("peek.running", { stage: esc(stageName(c.running)) })) : (!c.blocked && STAGE_OF[c.column] && (c.deps_unread || openDeps(c).length)) ? esc(whyWaits(S.overview.projects.find((x) => x.slug === slug) || {}, c)) : kindText(kindOf(S.peek, c)),
-    step ? t("step.of", { i: step.i, n: of, label: esc(stepName(step.label)) }) : "", c.cost ? `<span class="gold">${money(c.cost)}</span>${warnSpan(c) ? ` ${warnSpan(c)}` : ""}` : ""].filter(Boolean).join(" · ");
-  const bar = of ? `<ol class="steps" aria-hidden="true">${Array.from({ length: of }, (_, i) => `<li class="${step ? (i + 1 < step.i ? "done" : i + 1 === step.i ? "now" : "") : ""}"></li>`).join("")}</ol>` : "";
-  const open = OWNER[c.column] ? `<button class="btn" data-open="${k}" data-go="review">${t("act.review")}</button>`  // the owner's cards keep the wide drawer and its decision
-    : `<button class="btn" data-full="${k}"${c.running ? ' data-go="live"' : ""}>${t(c.running ? "peek.open_session" : "peek.open_card")}</button>`;
-  const at = el.contains(document.activeElement) ? [...el.querySelectorAll("button, a")].indexOf(document.activeElement) : -1;
-  if (setHTML(el, `<h3><span class="num">#${c.issue}</span>${c.title ? esc(c.title) : UNTITLED}</h3><p class="meta">${meta}</p>${bar}
-    <div class="acts">${open}<button class="btn ghost" data-full="${k}" data-go="log">${t("act.log")}</button>${gh(slug, c.issue)}</div>`) && at >= 0) el.querySelectorAll("button, a")[at]?.focus({ preventScroll: true });
-  el.hidden = false;
-  const d = dot.getBoundingClientRect(), x = d.left + d.width / 2, left = Math.max(12, Math.min(x - 44, innerWidth - el.offsetWidth - 12));
-  el.style.left = `${left}px`; el.style.top = `${d.bottom + 20}px`; el.style.setProperty("--tip", `${x - left - 6}px`);
-}
-function peek(k) {
-  const dot = (key) => document.querySelector(`#cells .dot[data-key="${CSS.escape(key)}"]`), was = S.peek;
-  S.peek = was === k ? null : k;
-  for (const key of [was, k]) if (key) { const d = dot(key); d?.classList.toggle("open", S.peek === key || S.open === key); d?.setAttribute("aria-expanded", S.peek === key); }
-  renderPeek();
-  if (S.peek) $("peek").querySelector("button")?.focus({ preventScroll: true }); else dot(k)?.focus({ preventScroll: true });
-}
-function renderBand(p, by, key) {
-  const was = Object.fromEntries([...document.querySelectorAll(".dot")].map((d) => [d.dataset.key, d.getBoundingClientRect().left]));
-  const dot = (c, x) => { const k = key(c), kind = kindOf(k, c), ov = warnAt(c) == null ? "" : t("dot.over");
-    return `<button class="dot ${kind}${ov ? " over" : ""}${S.open === k || S.peek === k ? " open" : ""}" data-key="${esc(k)}" data-open="${esc(k)}" data-peek="${esc(k)}" aria-expanded="${S.peek === k}" style="left:${x.toFixed(1)}%" title="#${c.issue} ${esc(c.title)} · ${esc(kindText(kind) + ov)}" aria-label="#${c.issue} ${esc(c.title)}, ${esc(kindText(kind) + ov)}"><i></i><em>${c.issue}</em></button>`; };
-  const plus = (cs, x) => `<span class="plus" style="left:${x.toFixed(1)}%" title="${cs.map((c) => "#" + c.issue).join(", ")}">+${cs.length}</span>`;
+// The belt: each card once, as a token in the segment of its board column, oldest first; the segments come in board order and
+// each says how full it is. Stages show their free slots as ghost tokens. The page keeps no card state of its own here.
+const BELT = { tab: null };  // the token that holds the belt's one tab stop
+const KIND_CLASS = { run: "run", wait: "q", you: "you", stop: "you", infra: "infra", done: "done" };
+function renderBelt(p, by, key) {
+  const midnight = new Date().setHours(0, 0, 0, 0), today = (c) => !!c.since && new Date(c.since) >= midnight;
+  const doneToday = p.done_today ?? by.Done.filter(today).length, at = (c) => c.since ? +new Date(c.since) : Infinity;
+  const sorted = Object.fromEntries(COLS.map((col) => [col.name, by[col.name].slice().sort((a, b) => at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0)]));
+  const order = COLS.flatMap((col) => sorted[col.name].map(key)), tab = order.includes(BELT.tab) ? BELT.tab : order[0];
   const labels = {};
-  const html = COLS.map((col) => {
-    const cs = by[col.name]; let d, dots = "";
-    if (col.name === "Inbox") d = t("band.cards", { n: cs.length }); else if (col.name === "Done") d = cs.length;
-    else if (col.kind === "w") {  // queued cards wait at the left, the ones at work spread over the rest
-      const st = S.overview.pool.stages[col.stage] || { slots: 0, running: 0 }, idle = cs.filter((c) => kindOf(key(c), c) === "wait"), busy = cs.filter((c) => !idle.includes(c));
-      d = `${t("band.slots", { i: st.running, n: st.slots })}${idle.length ? ` · ${t("band.queued", { n: idle.length })}` : ""}`;
-      const xs = busy.map((c) => [c.running && !c.blocked ? progress(p, c) : 90, c]).sort((a, b) => a[0] - b[0]);
-      const gap = Math.min(15, 84 / Math.max(1, xs.length));  // dots on the same step stand side by side, never past the cell
-      for (let i = 1; i < xs.length; i++) if (xs[i][0] - xs[i - 1][0] < gap) xs[i][0] = xs[i - 1][0] + gap;
-      for (let i = xs.length - 1; i >= 0; i--) xs[i][0] = Math.min(xs[i][0], i === xs.length - 1 ? 96 : xs[i + 1][0] - gap);
-      const of = STEP_COUNT[col.stage] || 0;
-      dots = Array.from({ length: of }, (_, i) => `<span class="tk" style="left:${((i + .5) / of * 100).toFixed(1)}%">${i + 1}</span>`).join("")
-        + (idle.length ? dot(idle[0], 7) + (idle.length > 1 ? plus(idle.slice(1), 7) : "") : "") + xs.map(([x, c]) => dot(c, Math.min(96, x))).join("");
-    } else {  // queues and the owner's columns show what fits, then +N
-      d = col.kind === "y" ? (cs.length ? t("band.for_you", { n: cs.length }) : t("band.yours_empty")) : cs.length ? t("band.queued", { n: cs.length }) : t("band.empty");
-      const max = col.flex >= 110 ? 3 : 2, over = cs.length > max, shown = over ? cs.slice(0, max - 1) : cs, k = shown.length + (over ? 1 : 0);
-      dots = shown.map((c, i) => dot(c, (i + 1) / (k + 1) * 100)).join("") + (over ? plus(cs.slice(max - 1), k / (k + 1) * 100) : "");
-    }
-    labels[col.name] = d;
-    return `<div class="cell ${col.kind}${col.kind === "y" && cs.length ? " on" : ""}" style="flex:${col.flex} 0 0" title="${esc(colName(col.name))}"><div class="lab">${col.stage ? `<b class="g">${esc(stageName(col.stage))}</b>` : `<span class="q">${esc(colName(col.name))}</span>`}<span class="d">${d}</span></div><div class="track">${dots}</div></div>`;
-
+  const segs = COLS.map((col, i) => {
+    const cs = sorted[col.name], done = col.name === "Done", gate = col.kind === "y", st = S.overview.pool.stages[col.stage] || { slots: 0, running: 0 };
+    const name = col.stage ? stageName(col.stage) : colName(col.name);
+    const meta = done ? (doneToday ? t("belt.today", { n: doneToday }) : t("belt.nothing_today")) : gate ? (cs.length ? t("belt.for_you", { n: cs.length }) : t("belt.nothing_you"))
+      : col.stage ? t("belt.slots", { i: st.running, n: st.slots }) : cs.length ? String(cs.length) : t("belt.empty");
+    labels[col.name] = esc(meta);
+    const toks = cs.map((c) => {
+      const k = key(c), kind = done ? "done" : kindOf(k, c), run = kind === "run" ? runOf(p.slug, c) : null, of = STEP_COUNT[c.running], step = run?.step && of ? run.step : null;
+      const state = done ? (today(c) ? t("belt.state.done") : "") : kind === "run" ? (step ? t("belt.state.running_step", { i: step.i, n: of }) : t("belt.state.running"))
+        : kind === "you" ? t("belt.state.waits") : kind === "stop" ? t("belt.state.blocked") : kind === "infra" ? t("belt.state.infra") : t("belt.state.queued");
+      const head = `#${c.issue}${c.title ? ` ${c.title}` : ""}`, ek = esc(k);
+      const go = OWNER[c.column] ? ' data-go="review"' : ` data-full="${ek}"${c.running ? ' data-go="live"' : ""}`;  // today's routing: the owner's cards open the wide drawer on Review, a running one maximized on Live
+      return `<li><button class="tok ${KIND_CLASS[kind]}${S.open === k ? " open" : ""}" data-key="${ek}" data-open="${ek}"${go} tabindex="${k === tab ? 0 : -1}" aria-label="${esc([head, name, state].filter(Boolean).join(", "))}" title="${esc(head + (step ? ` · ${t("belt.step", { i: step.i, n: of })}` : ""))}"><b class="n">#${c.issue}</b>${kind === "run" ? `<i class="bar" style="width:${progress(p, c).toFixed(1)}%"></i>` : ""}</button></li>`;
+    }).join("");
+    const free = col.stage ? `<li class="tok ghost" aria-hidden="true">${t("belt.free")}</li>`.repeat(Math.max(0, st.slots - st.running)) : "";
+    return `<div class="seg ${done ? "done" : gate ? "gate" : col.stage ? "stage" : "queue"}"><div class="shead"><b class="sname" id="bn-${i}">${esc(name)}</b><span class="smeta${(gate || done) && cs.length ? " on" : ""}" id="bm-${i}">${esc(meta)}</span></div><ul class="stoks" role="list" aria-labelledby="bn-${i} bm-${i}">${toks}${free}</ul></div>`;
   }).join("");
   if ($("band").classList.contains("maxed") && L.hold?.via !== "drag") renderLanes(p, by, key, labels);  // a drag would end if its chip were drawn again
-  if (!setHTML($("cells"), html)) return;
-  document.querySelectorAll(".dot").forEach((d) => {  // a dot slides from where it was
-    const dx = was[d.dataset.key] - d.getBoundingClientRect().left; if (!dx) return;
-    d.style.transform = `translateX(${dx}px)`; d.getBoundingClientRect(); d.style.transition = "transform .9s cubic-bezier(.3, 0, .2, 1)"; d.style.transform = "";
-  });
+  const held = document.activeElement?.closest?.("#cells .tok")?.dataset.key;
+  if (!setHTML($("cells"), `<div class="belt"><div class="segs">${segs}</div><div class="rail${S.overview.silent ? " stop" : ""}" aria-hidden="true"></div></div>`)) return;
+  if (held) $("cells").querySelector(`.tok[data-key="${CSS.escape(held)}"]`)?.focus({ preventScroll: true });
 }
+// One tab stop for the whole belt: Left and Right walk the tokens across the segments, Home and End go to the ends.
+$("cells").addEventListener("focusin", (e) => {
+  const b = e.target.closest?.("button.tok"); if (!b) return;
+  BELT.tab = b.dataset.key;
+  $("cells").querySelectorAll("button.tok").forEach((x) => { x.tabIndex = x === b ? 0 : -1; });
+  b.scrollIntoView({ block: "nearest", inline: "nearest" });
+});
+$("cells").addEventListener("keydown", (e) => {
+  const b = e.target.closest?.("button.tok"), to = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+  if (!b || e.ctrlKey || e.metaKey || e.altKey || !(to || e.key === "Home" || e.key === "End")) return;
+  const all = [...$("cells").querySelectorAll("button.tok")], i = all.indexOf(b);
+  e.preventDefault();
+  all[e.key === "Home" ? 0 : e.key === "End" ? all.length - 1 : Math.max(0, Math.min(all.length - 1, i + to))]?.focus();
+});
 // The line maximized: upstream over downstream, each column listing its cards by name. The owner moves their cards here
 // (#125: M1 to M7, the table the overview's moves carry) and orders the three queues (#128) by drag, M + a digit or the
 // arrows, or the Move button on a touch screen. Nothing leaves for 5 s, so Undo leaves the board as it was.
@@ -2403,7 +2431,6 @@ function setView(v) {
   $("board").hidden = v !== "board"; $("feed").hidden = v !== "feed"; $("settings").hidden = v !== "settings";
   if (v === "settings") { SET.moreThemes = false; loadSettings(); }  // the themes fold starts closed every time
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === v));
-  renderPeek();
   loadFeed();
 }
 async function loadFeed() {
@@ -2483,9 +2510,8 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("toggle", (e) => { if (e.target.matches?.("details[data-brief-rest]") && S.open) S.briefOpen[S.open] = e.target.open; }, true);
 document.addEventListener("click", (e) => {
-  if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
   if (L.hold && L.hold.via !== "drag" && !e.target.closest("[data-acc],[data-rord],[data-mv],#lstat")) { const onChip = e.target.closest("#lanes .chip"); letGo(); if (onChip) return; }  // a tap elsewhere lets go
-  const t = e.target.closest("[data-hp],[data-hstep],[data-hnow],[data-hday],[data-hmore],[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-hp],[data-hstep],[data-hnow],[data-hday],[data-hmore],[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.dataset.hp) { if (t.dataset.hp === "custom") { H.custom = true; renderTelem(project()); $("hfrom")?.focus(); } else histSet({ days: +t.dataset.hp }); }
   else if (t.dataset.hstep) { if (t.getAttribute("aria-disabled") !== "true") histStep(t.dataset.hstep === "prev" ? -1 : 1); }
@@ -2520,7 +2546,6 @@ document.addEventListener("click", (e) => {
   else if (t.hasAttribute("data-dmax")) grow($("drawer"), () => { S.full = !S.full; renderDrawer(); });
   else if (t.dataset.full) grow($("drawer"), () => { S.full = true; openCard(t.dataset.full, t.dataset.go); if (t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; } }, t.closest(".tile"));  // a card in progress opens maximized, 90% of the screen: the side drawer would cover its own tile
   else if (t.dataset.feed) { S.feedFilter = t.dataset.feed; renderFeed(); }
-  else if (t.dataset.peek) peek(t.dataset.peek);
   else if (t.dataset.q) quick(t.dataset.q, t.closest("[data-key]").dataset.key);
   else if (t.dataset.open && t.dataset.log) { openCard(t.dataset.open, "log"); S.log = t.dataset.log; S.logNext = -1; S.logText = ""; }  // a feed line opens its own run's log
   else if (t.dataset.open) openCard(t.dataset.open, t.dataset.go);
@@ -2568,7 +2593,7 @@ document.addEventListener("keydown", (e) => {
     else if (e.shiftKey ? i <= 0 : i === f.length - 1) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
     return;
   }
-  if (e.key === "Escape" && S.peek && !S.open) { peek(S.peek); return; }
+  if (e.key === "Escape" && RESTART.open && ($("rrow").contains(e.target) || $("rbtn").contains(e.target))) { restart(false); return; }  // the Restart row closes where the focus is
   if (e.key === "Escape" && L.box) { closeBox(); return; }  // Esc: the note box, the held card, then the maximized panel
   if (!typing && $("band").classList.contains("maxed") && !e.ctrlKey && !e.metaKey && !e.altKey) {
     const h = L.hold, chip = document.activeElement?.closest?.("#lanes .chip");
@@ -2624,7 +2649,10 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 $("pane").addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
 for (const id of ["list", "history", "tiles"]) $(id).addEventListener("scroll", fit);
 window.addEventListener("resize", fit);
-window.addEventListener("resize", renderPeek); document.addEventListener("scroll", () => { if (S.peek) renderPeek(); }, true);
+document.addEventListener("click", (e) => {  // Restart shows the command and runs nothing; Copy puts it on the clipboard
+  if (e.target.closest("[data-restart]")) restart(!RESTART.open);
+  else if (e.target.closest("[data-copy]")) copyCommand();
+});
 // a card's pass, its row and its dot light up together
 const hot = (e, on) => { const k = e.target.closest?.("[data-key]")?.dataset.key; if (k) document.querySelectorAll(`[data-key="${CSS.escape(k)}"]`).forEach((el) => el.classList.toggle("hot", on)); };
 for (const [ev, on] of [["mouseover", true], ["focusin", true], ["mouseout", false], ["focusout", false]]) document.addEventListener(ev, (e) => hot(e, on));
