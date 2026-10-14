@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The test infrastructure itself: run.sh --changed picks the tests tied to what changed (and every test when a shared
-# helper changes), run.sh removes the temp dirs of its tests even when killed, and lib.sh's wait_for is bounded.
+# helper changes), run.sh removes the temp dirs of its tests even when killed, lib.sh's wait_for is bounded, and the
+# in-process runner (py/run.py, py/support.py) checked by py/selftest_support.py.
 source "$(dirname "$0")/lib.sh"
 
 # ---- run.sh --changed: a changed test file, or a test that names a changed script; a shared helper runs everything
@@ -45,4 +46,6 @@ assert_contains "$out" "FAIL timed out waiting for the run to end"
 [ "$rc" -eq 1 ] && pass "wait_for returns 1 on timeout" || fail "wait_for returned $rc on timeout, want 1"
 [ "$elapsed" -le 10 ] && [ "$elapsed" -ge 1 ] && pass "wait_for waits the bound, and only the bound (${elapsed}s with TEST_WAIT_SECS=1)" || fail "wait_for took ${elapsed}s with TEST_WAIT_SECS=1"
 rm -rf "$tmp"
+
+py_suite selftest_support
 finish
