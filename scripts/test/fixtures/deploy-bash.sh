@@ -9,10 +9,11 @@
 set -uo pipefail
 # FIXTURE (#167): a verbatim copy of scripts/deploy.sh before its port to Python, the baseline of
 # test/deploy-differential.test.sh. The one change: it lives in scripts/test/fixtures/, so HERE (the folder
-# holding lib/, board.sh and gate.sh) is two levels up from it. Never edit anything else.
+# holding lib/, board.sh and gate.sh) is two levels up from it; and since #171 lib/portable.sh is test/fixtures/portable.sh.
+# Never edit anything else.
 HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE/../.." && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
-source "$HERE/lib/portable.sh"
+source "$HERE/test/fixtures/portable.sh"
 
 n="${1:-}"; mode="${2:-deploy}"
 case "$mode" in deploy|--refresh|--continue) ;; *) n="" ;; esac

@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 
-from . import proc, project
+from . import proc, project, text
 
 FIELDS = ("STACKS", "BASE", "SPAN", "WAIT", "STALE", "HOLD", "NAME", "UP", "DOWN", "PORTS", "URL", "HEALTH",
           "REJECT", "TIMEOUT", "SOLO")
@@ -390,9 +390,10 @@ def _rm(path):
 
 
 class _Held:
-    """What an interrupted command gives back: its ticket, the slot it leased."""
+    """What an interrupted command gives back: its ticket, the slot it leased (k: the slot it got, kept after)."""
     ticket = None
     slot = None
+    k = None
 
 
 def lease(s, owner, held=None):
@@ -436,7 +437,7 @@ def lease(s, owner, held=None):
                     os.mkdir(d)
                 except OSError:
                     continue
-                held.slot = k
+                held.slot = held.k = k
                 if s.SOLO != "-":
                     _write(os.path.join(d, "solo"), s.SOLO + "\n")
                 _write(os.path.join(d, "info"), "%s %s %d\n" % (owner, os.environ.get("SHIPFLOOR_RUN_LOCK") or "-",
@@ -539,10 +540,9 @@ def _healthy(s, health, env, deadline):
         body = r.stdout.decode("utf-8", "surrogateescape").rstrip("\n")
     if not s.REJECT:
         return True
-    # grep itself rather than text.ere_match: a pattern grep refuses must print grep's complaint and count as healthy
+    # text.grep rather than text.ere_match: a pattern grep refuses must print grep's complaint and count as healthy
     # (`! grep -Eq` is true on exit 2), as it did in Bash
-    r = subprocess.run(["grep", "-Eq", "--", s.REJECT], input=body.encode("utf-8", "surrogateescape"),
-                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    r = text.grep("-Eq", s.REJECT, body.encode("utf-8", "surrogateescape"), stdout=subprocess.DEVNULL)
     _err_bytes(r.stderr)
     return r.returncode != 0
 
