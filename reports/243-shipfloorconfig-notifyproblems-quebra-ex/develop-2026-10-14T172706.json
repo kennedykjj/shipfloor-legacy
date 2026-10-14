@@ -1,0 +1,17 @@
+{
+  "issue": 243,
+  "slug": "shipfloorconfig-notifyproblems-quebra-ex",
+  "pipeline": "develop",
+  "started_at": "2026-10-14T20:05:00Z",
+  "finished_at": "2026-10-14T20:30:00Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 34329, "duration_s": 63},
+    {"role": "engineer", "tokens": 12363, "duration_s": 7}
+  ],
+  "rounds": {"qa": 1, "implementation": 1, "amendments": 0},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": false
+}
