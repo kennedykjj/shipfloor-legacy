@@ -1,0 +1,4 @@
+{"issue": 219, "slug": "limite-opcional-de-cpu-e-memoria-para-a", "pipeline": "validate", "started_at": "2026-10-14T20:30:00Z", "finished_at": "2026-10-14T20:45:00Z", "outcome": "ok",
+ "agents": [], "rounds": {}, "gates_failed": [], "flaky": [],
+ "gates_reused": ["green factory scripts/test/install-dispatcher.test.sh", "green factory scripts/test/cli.test.sh", "green factory scripts/test/dashboard-settings.test.sh", "green factory scripts/test/health.test.sh"],
+ "manual_edit": false, "amendments": []}
