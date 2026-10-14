@@ -1,0 +1,4 @@
+{"issue": 243, "slug": "shipfloorconfig-notifyproblems-quebra-ex", "pipeline": "refine",
+ "started_at": "2026-10-14T20:00:22Z", "finished_at": "2026-10-14T20:02:26Z", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 13045, "duration_s": 15}],
+ "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": false}
