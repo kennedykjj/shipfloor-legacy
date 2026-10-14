@@ -1,0 +1,1 @@
+{"issue": 234, "slug": "testes-de-navegador-para-o-javascript-do", "pipeline": "develop", "outcome": "blocked", "step": 3, "agents": [{"name": "qa-engineer", "tokens": 147780, "duration_s": 261}], "rounds": {"qa": 1}, "failed_gates": ["red"], "flaky": [], "gates_reused": [], "amendments": []}
