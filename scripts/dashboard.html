@@ -322,6 +322,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .itoast button { background: none; border: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 @media (max-width: 1180px) { .yours.maxed .inbox { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .ique, .idec { border: 0; overflow: visible; } .iread { overflow: visible; padding-inline: 0; } }
 #list.cut, .work:not(.maxed) .tiles.cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 44px), transparent); }
+.feed .telem:not(.maxed) { flex: none; max-height: none; overflow: visible; margin-bottom: 16px; }
 .telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); }
 /* the shortest column: fit puts .tight on .side only with History open, when the list floor, the gap and History's floor do not fit */
 .side.tight { gap: 10px; } .side.tight .yours:not(.maxed) .foot { display: none; } .side.tight #telem > :first-child { margin-top: 6px; }
@@ -719,7 +720,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <body>
 <header>
   <span class="g brand"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M12 48H44V32H20V16H40"/><rect x="40" y="8" width="16" height="16" rx="3"/></svg>Shipfloor</span>
-  <nav class="views" aria-label="View" data-i-aria="nav.view"><button data-view="board" aria-pressed="true" data-i="nav.factory">Factory</button><button data-view="feed" aria-pressed="false" data-i="nav.feed">Feed</button><button data-view="settings" aria-pressed="false" data-i="nav.settings">Settings</button></nav>
+  <nav class="views" aria-label="View" data-i-aria="nav.view"><button data-view="board" aria-pressed="true" data-i="nav.factory">Factory</button><button data-view="feed" aria-pressed="false" data-i="nav.feed">Logbook</button><button data-view="settings" aria-pressed="false" data-i="nav.settings">Settings</button></nav>
   <div class="stats"><a class="cap" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener"><span data-i="nav.docs">Docs</span><svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a><span id="scope"></span><div class="stat" id="stat"><span id="status" role="status" aria-live="polite"></span><span id="rbtn"></span><div class="rrow" id="rrow" hidden></div></div></div>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
@@ -736,13 +737,12 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
               <div class="iconf" id="ic" hidden><textarea id="inote" aria-label="Your note" data-i-aria="inbox.note"></textarea><button class="btn approve" id="igo"></button><p class="ihint" id="ihint"></p></div>
               <div class="itoast" id="itoast" role="status" hidden><span id="imsg"></span><button id="iundo" data-i="act.undo">Undo</button></div><p class="pnote" id="ierr" role="status"></p></aside></div>
           <p class="foot cap"><span class="keys-list"><span><kbd>N</kbd><span data-i="keys.next">next</span></span><span><kbd>A</kbd><span data-i="keys.approve">approve</span></span><span><kbd>R</kbd><span data-i="keys.review">review</span></span><span><kbd>L</kbd><span data-i="keys.log">log</span></span></span><span class="keys-inbox"><span><kbd>1–9</kbd><span data-i="keys.choose">choose</span></span><span><kbd>Esc</kbd><span data-i="keys.close">close</span></span></span></p></section>
-        <section class="telem panel" id="history" data-maxable="history" aria-labelledby="ht" hidden><h1 class="g" id="ht"><span data-i="hist.h">History</span> <span class="hper" id="hper" aria-live="polite"></span></h1><button class="max fold" data-show="history" aria-controls="telem" aria-expanded="true" aria-label="Minimize the history" title="Minimize" data-i-aria="panel.history.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="hctl" id="hctl"></div><div class="hcus" id="hcus" hidden></div><p class="bad hbad" id="hbad" role="status"></p><div id="telem"></div></section>
       </div>
       <section class="work panel" data-maxable="work" aria-labelledby="hw"><h1 class="g" id="hw"></h1><div class="tiles" id="tiles"></div>
         <p class="cap" id="wfoot" style="padding-top:12px;margin:auto 0 0" title="The board comes from the dispatcher's last snapshot. Approve and Request changes read the live board before they move a card." data-i-title="work.foot.title"></p></section>
     </div>
   </section>
-  <section class="feed panel" id="feed" aria-label="Feed" data-i-aria="nav.feed" tabindex="0" hidden></section>
+  <section class="feed panel" id="feed" aria-label="Logbook" data-i-aria="nav.feed" tabindex="0" hidden><section class="telem panel" id="history" data-maxable="history" aria-labelledby="ht" hidden><h1 class="g" id="ht"><span data-i="hist.h">Totals</span> <span class="hper" id="hper" aria-live="polite"></span></h1><button class="max fold" data-show="history" aria-controls="telem" aria-expanded="true" aria-label="Minimize the history" title="Minimize" data-i-aria="panel.history.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="hctl" id="hctl"></div><div class="hcus" id="hcus" hidden></div><p class="bad hbad" id="hbad" role="status"></p><div id="telem"></div></section><div id="flog"></div></section>
   <div class="peek mbox" id="mbox" role="dialog" aria-labelledby="mbox-h" hidden><h3 id="mbox-h"></h3><div class="iconf"><textarea id="mnote" aria-labelledby="mbox-h"></textarea><p class="ihint" id="mhint"></p><div class="macts"><button class="btn approve" id="mgo"></button><button class="btn ghost" id="mcancel" data-i="act.cancel">Cancel</button></div></div></div>
   <section class="settings" id="settings" aria-label="Settings" data-i-aria="nav.settings" hidden>
     <div class="disp panel" id="disp"></div>
@@ -1610,7 +1610,7 @@ function fit() {
   const foot = yours.querySelector(".foot"), footH = foot.offsetHeight;
   const chrome = Math.ceil(l.getBoundingClientRect().top - yours.getBoundingClientRect().top + parseFloat(getComputedStyle(yours).paddingBottom));
   const narrow = matchMedia("(max-width: 1180px)").matches;
-  const tight = !narrow && S.show.history && !maxed() && side.clientHeight > 0 && side.clientHeight <chrome + footH + two + 20 + (parseFloat(getComputedStyle(t).minHeight) || 100);
+  const tight = !narrow && false && side.clientHeight > 0 && side.clientHeight <chrome + footH + two + 20 + (parseFloat(getComputedStyle(t).minHeight) || 100);
   side.classList.toggle("tight", tight);
   yours.style.setProperty("--ymin", `${chrome + (tight ? 0 : footH) + two}px`);
   for (const el of [l, t, w]) el.classList.toggle("cut", el.scrollHeight - el.scrollTop - el.clientHeight > 8);
@@ -1869,7 +1869,7 @@ function histDates(e) {
   histSet({ from: a.value, to: b.value }, true);
 }
 async function loadHistory(force) {
-  if (!S.project || !S.show.history || H.busy || S.view !== "board") return;
+  if (!S.project || !S.show.history || H.busy || S.view !== "feed") return;
   const key = histKey(); if (!force && key === H.key && Date.now() - H.at < 10000) return;  // the panel's own refresh, every 10 s
   H.busy = true;
   const { status, body } = await api(`/api/history/${encodeURIComponent(S.project)}?${histQuery(H.sel)}`);
@@ -2700,6 +2700,7 @@ function setView(v) {
   if (v === "settings") { SET.moreThemes = false; loadSettings(); }  // the themes fold starts closed every time
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === v));
   loadFeed();
+  if (v === "feed") renderTelem(project());  // Totals sits at the top of the Logbook
 }
 async function loadFeed() {
   if (S.view !== "feed") return;
@@ -2719,7 +2720,7 @@ function feedLeft(e) {  // what a run left behind, each piece from its source: t
     e.step && t("feed.step", { i: e.step.i, n: e.step.of, label: esc(stepName(e.step.label)) })].filter(Boolean).join(" · ");
 }
 function renderFeed() {
-  const el = $("feed"), all = S.feed || [], f = S.feedFilter || "runs", many = (S.overview?.projects.length || 0) > 1;
+  const el = $("flog"), all = S.feed || [], f = S.feedFilter || "runs", many = (S.overview?.projects.length || 0) > 1;
   const had = document.activeElement?.closest?.("#feed [data-ev], #feed [data-feed]"), again = had && (had.dataset.ev ? `[data-ev="${CSS.escape(had.dataset.ev)}"]` : `[data-feed="${had.dataset.feed}"]`);
   let day = "";
   const rows = all.filter(FEED_IS[f]).reverse().map((e) => {  // newest first, a heading where the day changes

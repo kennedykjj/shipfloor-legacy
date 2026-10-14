@@ -322,6 +322,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.log` | the run's output with the `== ` lines | `dispatch.sh` | `dashboard.py` (`RUN_LINE`, `STEPUP_LINE`), `dispatch.sh` and `shipfloor-dispatch.sh` (`hit your session limit` after the last `== start`) |
 | `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.events.jsonl` | the agent's stream-json events, `{"t", "pid", "event"}` per line | `dispatch.sh` (`telemetry.py`) | people, analysis |
 | `<home>/logs/runs.jsonl` | one summary per agent run: duration, API time, turns, cost, tokens, seconds per tool | `dispatch.sh` (`telemetry.py`) | people, analysis |
+| `<home>/logs/board-<YYYY-MM>.jsonl` | `{"t": "<ISO local time with offset>", "cards": {"<n>": "<column>", …}}`, one line per change, the whole board each time | `dispatch.sh` (`board_history.record`) | `dashboard.py` (`GET /api/day/<project>`) |
 | `<home>/logs/<YYYY-MM-DD>-<n>-refresh.log` | the output of `deploy.sh --refresh` | `dispatch.sh` | people |
 | `~/.shipfloor/logs/dispatcher.log` | the scheduler's output | `run-dispatcher.sh` | people |
 | `~/.shipfloor/logs/stacks.log` | `<ISO> reclaimed slot <k> from <owner> <reason>` | `lib/stack.sh` | people |
@@ -332,6 +333,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 
 Readers that parse what the scripts write, which a port must not break:
 - `dashboard.py` reads the `== start`, `== end` and `== step-up` lines (and `hit your session limit`), `board.tsv`, `SKIPPED`, the locks' `info`, `step` and `inbox`, `stepup/`, `infra/`, `cost/`, `board-ids`, the health lines.
+- `dashboard.py` answers `GET /api/day/<project>` (the dashboard's replay, read on every call, nothing cached): `{"date": "<today, YYYY-MM-DD>", "now": "<ISO local time>", "board": [<today's lines of `board-<YYYY-MM>.jsonl`, each `{"t", "cards"}`>], "marks": [{"t", "kind": "ok"|"bad"|"decision", "n", "stage" (runs only), "what": "ended"|"blocked"|"approved-spec"|"approved-pr"|"requested-changes"}]}`, marks in time order; a mark is a finished run of today or a decision the owner took between two board lines.
 - `shipfloor_health.py` keeps its own copy of the stage table (queue column, resumed columns, WIP columns) that `dispatch.sh` encodes in its four `run_pipeline` calls: `refine` takes `Ready for Refinement`, resumes `Technical Refinement`, WIP `Spec Review`; `develop` takes `Ready for Dev`, resumes `Coding`, WIP `Coding` and `Validation`; `validate` takes `Validation`; `deploy` takes `Ready for Prod`. Change one, change the other.
 - `dashboard_cost.py` finds a run's Claude Code transcripts in `<claude dir>/projects/*-projects-<slug>-control` (the directory name Claude derives from the control checkout, which is the run's cwd) and the card from the first user message, which holds `<command-name>/sf:<stage></command-name>` and `<command-args><n></command-args>`: that is how the `/sf:<stage> <n>` the launch writes on stdin appears in a transcript.
 - The skills parse the first stdout line of `shipfloor dashboard`.
