@@ -1,0 +1,1 @@
+{"issue": 160, "slug": "tests-that-pin-behavior-the-dispatcher", "pipeline": "develop", "started_at": "2026-10-14T10:20:00Z", "finished_at": "2026-10-14T10:45:00Z", "outcome": "ok", "agents": [], "rounds": {"4": 1, "5": 1}, "gates_failed": [], "flaky": [], "gates_reused": ["build"], "amendments": [], "manual_edit": false}
