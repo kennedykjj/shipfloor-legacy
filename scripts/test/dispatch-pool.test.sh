@@ -80,12 +80,13 @@ setup; export FACTORY_CONFIG="$cfg"; mkdir -p "$FACTORY_HOME/locks/validate-35.l
 Q_STG="35" run_dispatch; [ -z "$(cat "$tmp/refreshed")" ] && pass "busy card not refreshed" || fail "refreshed a busy card"
 
 # AC-3: a running deploy is ONE unit of the pool, although it holds deploy-<n>.lock (dispatch) and deploysh-<n>.lock (deploy.sh)
-setup; machine $'pool: 2\nstages: {refine: 4, develop: 4, validate: 4, deploy: 1}'; live_lock shop deploy-9; live_lock shop deploysh-9
+setup; machine $'pool: 2\nstages: {refine: 2, develop: 2, validate: 2, deploy: 1}'; live_lock shop deploy-9; live_lock shop deploysh-9
 Q_DEV="26 27" run_dispatch; out="$(launched)"
 [ "$(printf '%s' "$out" | grep -o '/sf:develop' | wc -l)" -eq 1 ] && pass "AC-3 pool of 2 with one deploy running → one more launch (the deploy counts once)" || fail "AC-3 the deploy was not counted as one unit: $out"
-setup; machine $'pool: 2\nstages: {refine: 4, develop: 4, validate: 4, deploy: 1}'; live_lock shop deploy-9; live_lock shop deploysh-9; live_lock other develop-5
+# pool of 3: deploy (2 locks, 1 unit) + one develop = 2 used, so exactly one more launch; counting the deploy twice would leave none
+setup; machine $'pool: 3\nstages: {refine: 3, develop: 3, validate: 3, deploy: 1}'; live_lock shop deploy-9; live_lock shop deploysh-9; live_lock other develop-5
 Q_DEV="26 27" run_dispatch; out="$(launched)"
-[ -z "$out" ] && pass "AC-3 a deploy and a develop run fill a pool of 2" || fail "AC-3 launched past the pool: $out"
+[ "$(printf '%s' "$out" | grep -o '/sf:develop' | wc -l)" -eq 1 ] && pass "AC-3 a deploy and a develop run use 2 of a pool of 3" || fail "AC-3 the deploy was counted more than once: $out"
 
 # an invalid machine config launches nothing
 setup; machine 'pool: 0'; Q_REF="25" run_dispatch; code=$?
