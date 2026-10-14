@@ -25,7 +25,7 @@ started() { grep -q -- "$1" "$RECPY_LOG"; }
 
 # ---------------------------------------------------------------- AC-6: lib/project.sh is a shim over sf.py project
 lib="$FACTORY_DIR/lib/project.sh"
-code="$(grep -vE '^[[:space:]]*(#|$)' "$lib")"
+code="$(grep -vE '^[[:space:]]*(#|$)' "$lib" | sed -E 's/[[:space:]]+#[[:space:]].*$//')"  # code only: no comment
 case "$code" in *"sf.py"*) pass "AC-6 lib/project.sh runs sf.py" ;; *) fail "AC-6 lib/project.sh never names sf.py" ;; esac
 if printf '%s\n' "$code" | grep -qE '(^|[^_a-z])(awk|sed|grep|find|git) '; then fail "AC-6 lib/project.sh still runs awk, sed, grep, find or git:
 $(printf '%s\n' "$code" | grep -nE '(^|[^_a-z])(awk|sed|grep|find|git) ')"; else pass "AC-6 lib/project.sh runs no awk, sed, grep, find or git"; fi
