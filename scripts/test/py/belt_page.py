@@ -12,6 +12,10 @@ belt_page.run(ops, width=1280, reduced=False) -> {"results": [one per op], "erro
   click      {"op": "click", "key": "shop/120"}  a click on that token                   result: the snapshot, with the page's S
   advance    {"op": "advance", "ms": 2000}       the page's timers due within that time run
   find       {"op": "find", "needle": "text"}    the smallest elements whose text holds needle (with their ancestors)
+The work area (#182) adds: route (GET answers by path; "post" sets every POST's answer, else the board's), readw (read, then a work
+snapshot), work, advancew, clickx / focusx / typex / keyx (an element by sel and/or text, within an id's subtree), pagehide and eval
+(an expression of the page, as JSON); each but route and eval answers {"work": #work's tree, "S": {open, full, tab, work}, "posts":
+every POST so far {path, body, keepalive}, "anim", "styles", "active": the focused element, "hit"}.
 A snapshot is {"cells": node, "chain": [ancestors of #cells], "anim": [...], "styles": [...], "scrolls": [...], "active": ...,
 "S": {...}}; a node is {"tag", "attrs", "css": {property: winning value}, "kids": [node or text]}.
 Standard library only (node is the browser stand-in, as in dashboard-brief.test.sh)."""
@@ -33,7 +37,7 @@ const fs = require("fs"), vm = require("vm");
 const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const source = fs.readFileSync(cfg.html, "utf8").replace(/\r\n/g, "\n");
 const EN = JSON.parse(fs.readFileSync(cfg.lang, "utf8")).messages;
-const LOG = { anim: [], styles: [], scrolls: [], errors: [] };
+const LOG = { anim: [], styles: [], scrolls: [], errors: [], posts: [] };
 process.on("unhandledRejection", (e) => LOG.errors.push("rejection: " + ((e && e.stack) || e)));
 process.on("uncaughtException", (e) => { LOG.errors.push("exception: " + ((e && e.stack) || e)); });
 
@@ -402,13 +406,24 @@ const WIN = { ls: {}, addEventListener(type, fn) { (this.ls[type] ||= []).push(f
 
 // ---------------------------------------------------------------- timers, frames, network
 let NOW = 0; const TIMERS = []; let RAFS = [], TID = 1;
-const routes = { overview: null };
-const fetchStub = (path) => {
-  if (String(path).startsWith("/api/overview")) {
-    if (!routes.overview) return new Promise(() => {});
-    const body = JSON.parse(JSON.stringify(routes.overview));
-    return Promise.resolve({ status: 200, json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) });
+const routes = { overview: null, api: {}, post: null };
+const MOVES = { "Spec Review": ["Ready for Dev", "Ready for Refinement"], "Staged": ["Ready for Prod", "Coding"] };
+const reply = (status, body) => Promise.resolve({ status, json: () => Promise.resolve(JSON.parse(JSON.stringify(body))), text: () => Promise.resolve(JSON.stringify(body)) });
+const fetchStub = (path, opts) => {
+  path = String(path);
+  const bare = path.split("?")[0];
+  if (opts && opts.method === "POST") {  // the owner's sends are recorded; the answer is the board's (moved_to) unless a route says otherwise
+    let sent = {}; try { sent = JSON.parse(opts.body || "{}"); } catch (e) { /* not json */ }
+    LOG.posts.push({ path: bare, body: sent, keepalive: !!opts.keepalive });
+    if (routes.post) return reply(routes.post.status, routes.post.body || {});
+    const m = /\/(approve|request-changes)$/.exec(bare), pair = MOVES[sent.column];
+    return reply(200, m && pair ? { moved_to: pair[m[1] === "approve" ? 0 : 1] } : {});
   }
+  if (bare.startsWith("/api/overview")) {
+    if (!routes.overview) return new Promise(() => {});
+    return reply(200, routes.overview);
+  }
+  if (bare in routes.api) return reply(200, routes.api[bare]);
   return Promise.resolve({ status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve("") });
 };
 const media = (q) => ({ media: q, get matches() { return mq(q); }, addEventListener: noop, removeEventListener: noop, addListener: noop, removeListener: noop });
@@ -460,6 +475,27 @@ function snapshot() {
 }
 const tokenEl = (key) => { const c = byId("cells"); return c ? queryAll(c, '[data-key="' + key.replace(/"/g, '\\"') + '"]', false).find((e) => e.tag === "button") || queryAll(c, '[data-key="' + key.replace(/"/g, '\\"') + '"]', true)[0] : null; };
 const norm = (s) => s.replace(/\s+/g, " ").trim();
+async function settle() { for (let i = 0; i < 6; i++) { await new Promise((r) => setImmediate(r)); flush(); } }
+// an element of the page by a selector (within an id's subtree, default the body) and/or by its text: the whole text, or its start with prefix
+function pick(op) {
+  const root = op.within ? byId(op.within) : BODY; if (!root) return null;
+  const list = queryAll(root, op.sel || "button, a, [role=button]", false).filter((e) => op.within === "cells" || !hiddenIn(e));
+  const want = op.text === undefined ? null : norm(op.text), starts = !!op.prefix;
+  const hits = want === null ? list : list.filter((e) => { const x = norm(e.textContent), a = e.attrs["aria-label"] || ""; return starts ? (x.startsWith(want) || a.startsWith(want)) : (x === want || a === want); });
+  return hits[op.nth || 0] || null;
+}
+function pageText() {  // what the page shows now: the text outside scripts and hidden elements
+  const out = [];
+  (function go(e) { if (e.tag === "script" || e.tag === "style" || e.hidden) return; for (const n of e.nodes) { if (n.nodeType === 3) out.push(n.text); else go(n); } })(BODY);
+  return norm(out.join(" "));
+}
+function workSnap(extra) {
+  const w = byId("work"), a = ACTIVE; let S2 = null;
+  try { S2 = JSON.parse(vm.runInContext("JSON.stringify({open: S.open, full: S.full, tab: S.tab, project: S.project, work: S.work ? {key: S.work.key || null, skipped: [...(S.work.skipped || [])]} : null})", ctx)); } catch (e) { S2 = { error: String(e) }; }
+  if (S2 && !S2.work) S2.work = { key: null, skipped: [] };  // the page keeps no selection yet
+  return { work: w ? dump(w, true) : null, page: pageText(), S: S2, posts: LOG.posts.slice(), anim: LOG.anim.splice(0), styles: LOG.styles.splice(0),
+    active: a ? { tag: a.tag, id: a.id, text: norm(a.textContent).slice(0, 200), inWork: !!(w && w.contains(a)), value: a.value || "" } : null, ...(extra || {}) };
+}
 async function run() {
   const results = [];
   for (const op of cfg.ops) {
@@ -488,7 +524,30 @@ async function run() {
           hits.push({ tag: e.tag, id: e.id, attrs: { ...e.attrs }, text: text(e), html: ser(e), chain });
         });
         results.push(hits);
-      } else results.push({ error: "unknown op " + op.op });
+      } else if (op.op === "route") {  // answers for GETs by path; "post" overrides the answer of every POST ({status, body}); "overview" is the next read's
+        if (op.path) routes.api[op.path] = op.body; if ("post" in op) routes.post = op.post;
+        results.push(null);
+      } else if (op.op === "readw") { routes.overview = op.overview; await vm.runInContext("loadOverview()", ctx); await settle(); results.push(workSnap());
+      } else if (op.op === "work") { await settle(); results.push(workSnap()); }
+      else if (op.op === "advancew") { advance(op.ms); flush(); await settle(); results.push(workSnap()); }
+      else if (op.op === "clickx") {
+        const e = pick(op); if (e) { if (["button", "input", "textarea", "select", "a"].includes(e.tag)) e.focus(); dispatch(mkEvent("click", e, {})); }
+        flush(); await settle(); results.push(workSnap({ hit: !!e }));
+      } else if (op.op === "focusx") { const e = pick(op); if (e) e.focus(); flush(); await settle(); results.push(workSnap({ hit: !!e })); }
+      else if (op.op === "typex") {  // what a person typing leaves: the value, then an input event
+        const e = op.sel ? pick(op) : ACTIVE; if (e) { if (e !== ACTIVE) e.focus(); e.value = op.value; dispatch(mkEvent("input", e, {})); if (op.change) dispatch(mkEvent("change", e, {})); }
+        flush(); await settle(); results.push(workSnap({ hit: !!e }));
+      } else if (op.op === "keyx") {  // a key on the focused element (or the body, or sel/text); Enter and Space click a button as a browser does
+        const e = (op.sel || op.text) ? pick(op) : (ACTIVE || BODY);
+        if (e) {
+          const ev = mkEvent("keydown", e, { key: op.key, code: op.key, shiftKey: !!op.shift });
+          dispatch(ev);
+          if (!ev.defaultPrevented && (op.key === "Enter" || op.key === " ") && e.tag === "button" && !e.disabled) dispatch(mkEvent("click", e, {}));
+        }
+        flush(); await settle(); results.push(workSnap({ hit: !!e }));
+      } else if (op.op === "pagehide") { dispatch(mkEvent("pagehide", DOC, {})); flush(); await settle(); results.push(workSnap()); }
+      else if (op.op === "eval") { results.push({ value: JSON.parse(vm.runInContext("JSON.stringify((" + op.expr + "))", ctx) ?? "null") }); }
+      else results.push({ error: "unknown op " + op.op });
     } catch (e) { LOG.errors.push(`op ${op.op}: ${(e && e.stack) || e}`); results.push(null); }
   }
   process.stdout.write(JSON.stringify({ results, errors: [...bootErrors, ...LOG.errors] }));
