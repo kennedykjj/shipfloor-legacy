@@ -1,0 +1,17 @@
+{
+  "issue": 159,
+  "slug": "tests-that-pin-behavior-deploy",
+  "pipeline": "develop",
+  "started_at": "2026-10-14T06:25:00-03:00",
+  "finished_at": "2026-10-14T06:51:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 148574, "duration_s": 675}
+  ],
+  "rounds": {"3": 1},
+  "gates_failed": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [],
+  "manual_edit": null
+}
