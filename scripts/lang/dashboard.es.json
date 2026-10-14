@@ -755,6 +755,17 @@
     "hist.cards": "Tarjetas del período, por costo est.",
     "th.column": "columna",
     "th.runs": "ejecuciones",
-    "hist.th.cost": "De Entrada a ahora"
+    "hist.th.cost": "De Entrada a ahora",
+    "dep.h": "Depende de",
+    "dep.closed": "cerrada",
+    "dep.open": "abierta",
+    "why.deps": "Esperando a {list}",
+    "dep.unread": "Dependencias sin leer; empieza cuando GitHub responda",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }
