@@ -6,6 +6,7 @@ The doubles: gh is test/fake-gh-deploy (state in $FG: remote, pr, branch, commen
 labels, run-<sha>, concl-<id>, rerun-<id>), the board and curl are small scripts reading $FG; git and gate.sh are real,
 because the repo and the fast gates are what a deploy acts on."""
 import atexit
+import contextlib
 import io
 import os
 import shutil
@@ -125,24 +126,44 @@ def _gate_in_process(argv, out=None, err=None, cwd=None, input=None):
     return rc, data
 
 
-_REAL_CFG = project.cfg
+_REAL_CFG, _REAL_MACHINE = project.cfg, project.machine
 
 
-def _cfg_in_process(*query, input=None):
-    """project.cfg answered by shipfloor_config in this process: the same CompletedProcess (bytes), no Python start."""
+def _answer(fn, query, input=None):
+    """fn(query) (shipfloor_config in this process) as the CompletedProcess (bytes) its process would give."""
     out, err = io.BytesIO(), io.BytesIO()
     saved = sys.stdout, sys.stderr, sys.stdin
     sys.stdout = io.TextIOWrapper(out, encoding="utf-8", errors="surrogateescape", newline="\n", write_through=True)
     sys.stderr = io.TextIOWrapper(err, encoding="utf-8", errors="surrogateescape", newline="\n", write_through=True)
     sys.stdin = io.TextIOWrapper(io.BytesIO(input or b""), encoding="utf-8", errors="surrogateescape")
     try:
-        rc = project._cfg_in_process(list(query))
+        rc = fn(list(query))
     finally:
         for s in (sys.stdout, sys.stderr):
             s.flush()
             s.detach()
         sys.stdout, sys.stderr, sys.stdin = saved
     return subprocess.CompletedProcess(list(query), rc, out.getvalue(), err.getvalue())
+
+
+def _cfg_in_process(*query, input=None):
+    """project.cfg answered in this process: the same CompletedProcess, no Python start."""
+    return _answer(project._cfg_in_process, query, input)
+
+
+def _machine_in_process(*query):
+    """project.machine answered in this process (it sets SHIPFLOOR_MACHINE_CONFIG, as its process had it)."""
+    return _answer(project._machine_in_process, query)
+
+
+@contextlib.contextmanager
+def config_in_process():
+    """project.cfg and project.machine answered in this process for the block."""
+    project.cfg, project.machine = _cfg_in_process, _machine_in_process
+    try:
+        yield
+    finally:
+        project.cfg, project.machine = _REAL_CFG, _REAL_MACHINE
 
 
 class DeployCase(support.Case):
