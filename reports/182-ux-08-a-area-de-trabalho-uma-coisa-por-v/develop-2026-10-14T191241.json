@@ -1,0 +1,19 @@
+{
+  "issue": 182,
+  "slug": "ux-08-a-area-de-trabalho-uma-coisa-por-v",
+  "pipeline": "develop",
+  "started_at": "2026-10-14T21:00:00Z",
+  "finished_at": "2026-10-14T22:13:00Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 213877, "duration_s": 564},
+    {"role": "engineer", "tokens": 746222, "duration_s": 3015},
+    {"role": "engineer", "tokens": 761254, "duration_s": 211}
+  ],
+  "rounds": {"3": 1, "4": 2, "5": 1},
+  "gates_failed": [],
+  "amendments": [],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": false
+}
