@@ -468,6 +468,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .cin { display: inline-flex; align-items: center; height: 34px; box-sizing: border-box; border: 1px solid var(--edge-hi); border-radius: 8px; padding-left: 8px; background: var(--panel-hi); } .cin > span { font: 13px var(--mono); color: var(--muted); }
 .cin input { width: 9ch; height: 100%; border: 0; background: none; color: var(--text); font: 600 15px var(--mono); padding: 0 8px 0 4px; } .cin input:focus-visible { outline: none; } .cin:focus-within { outline: 2px solid var(--text); outline-offset: 2px; }
 .cin.dirty input { color: var(--text); } .cin.inv { border-color: var(--bad); }
+.cin.model { width: min(100%, 28ch); min-height: 34px; } .cin.model input { width: 100%; min-width: 0; text-overflow: clip; }
 .disp .sknob { align-items: flex-start; } .disp .sknob small { max-width: 34ch; } .disp select.dirty { color: var(--text); } .disp .late { color: var(--warn); }
 .sw { position: relative; height: 24px; flex: none; display: inline-flex; align-items: center; gap: 8px; } .sw input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
 .sw-w { display: inline-grid; font-size: 12px; font-weight: 500; color: var(--muted); pointer-events: none; } .sw-w b { grid-area: 1 / 1; font-weight: 500; text-align: right; } .sw-w b:first-child { visibility: hidden; }
@@ -900,7 +901,7 @@ function elapsed(since) {
   return t("clock.hm", { h: Math.floor(s / 3600), mm: pad(Math.floor((s % 3600) / 60)) });
 }
 function ago(s) { if (s == null) return t("board.none"); if (s < 90) return t("board.read_s", { s }); return t("board.read_min", { m: Math.round(s / 60) }); }
-const model = (m) => (m || "").replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, " $1.$2");
+const model = (m) => (m || "").startsWith("claude-") ? m.replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, " $1.$2") : m || "";  // Claude's names are shortened; any other model shows literally
 
 /* overview */
 async function loadOverview() {
@@ -1494,7 +1495,7 @@ function costWhy(b) {
 // changed, what the factory already tried.
 function readHtml(c, d) {
   const tag = (text, k = "") => text ? `<span class="tag ${k}">${text}</span>` : "", sec = (h, body, cls = "body") => body ? `<div class="isec"><h3>${h}</h3><div class="${cls}">${body}</div></div>` : "";
-  const stop = c.blocked === "owner", b = d?.block, s = d?.spec, pr = d?.pr, k = esc(c.key), cost = tag(c.cost ? t("cost.so_far", { spent: usd(c.cost) }) : ""), cb = stop && b?.kind === "cost";
+  const stop = c.blocked === "owner", b = d?.block, s = d?.spec, pr = d?.pr, k = esc(c.key), cost = tag(c.cost === null ? t("cost.so_far", { spent: money(null) }) : c.cost ? t("cost.so_far", { spent: usd(c.cost) }) : ""), cb = stop && b?.kind === "cost";
   const blocked = c.since ? t("fact.blocked_ago", { ago: dur(c.since, new Date()) }) : t("fact.blocked");
   const facts = cb ? tag(blocked, "bad") + tag(t("fact.cost_limit"), "bad") + cost
     : stop ? tag(blocked, "bad") + tag(b?.stage ? esc(stageName(b.stage)) : "") + tag(b?.times > 1 ? t("fact.stopped", { n: b.times }) : "", "warn") + tag(b?.gate ? t("fact.gate", { gate: esc(b.gate) }) : "", "bad") + cost
@@ -1512,7 +1513,7 @@ function readHtml(c, d) {
   if (c.column === "Spec Review") return head + (s ? ask + sec(t("read.problem"), esc(s.problem), "plain") + criteria : `<p class="empty">${t("read.no_page")}</p>`);
   const gates = c.column === "Staged" && !c.review ? sec(t("read.gates"), d.report?.gates && Object.keys(d.report.gates).length ? `<div class="gate-list">${gateChips(d.report)}</div>` : "") : "";  // the review page is where the gates would show
   return head + gates + sec(t("read.validation"), d.report?.notes ? mdLite(d.report.notes) : "") + criteria
-    + (pr || d.report || s || c.cost ? "" : `<p class="empty">${t("read.nothing")} <button class="lnk" data-open="${k}" data-go="log">${t("read.open_log")}</button></p>`);
+    + (pr || d.report || s || c.cost || c.cost === null ? "" : `<p class="empty">${t("read.nothing")} <button class="lnk" data-open="${k}" data-go="log">${t("read.open_log")}</button></p>`);
 }
 async function loadDecide(key) {
   if (INB.loading === key) return; INB.loading = key; const [p, n] = key.split("/");
@@ -1900,7 +1901,7 @@ function renderDrawer() {
 }
 // The card's weight, from its spec header (none yet before Refine ends): it picks the model of each run.
 const weightTag = (c) => c?.weight ? `<span class="tag"${c.weight_set ? "" : ` title="${ta("weight.none")}"`}>${t("weight.tag", { weight: wlow(c.weight) })}</span>` : "";
-const capModel = (m) => m ? m[0].toUpperCase() + m.slice(1) : t("model.default");
+const capModel = (m) => m ? ["opus", "sonnet", "haiku", "fable"].includes(m) ? m[0].toUpperCase() + m.slice(1) : m : t("model.default");  // only Claude's aliases are capitalized
 function weightLine(key, column) {  // Spec Review only: the owner changes the weight here, one POST per choice
   if (column !== "Spec Review") return "";
   const c = S.card && `${S.card.project}/${S.card.issue}` === key ? S.card : null, saving = S.weightSaving?.key === key;
@@ -2317,28 +2318,29 @@ function renderSettings() {
         ${lim.supported === false && LIM_KEYS.some((f) => limText(f).trim()) ? `<div class="spool"><p class="note warn">${t("mres.unsupported")}</p></div>` : ""}</div>`;
 
   } else if (SET.sec === "models") {
-    const m = d.models, cap = (x) => x[0].toUpperCase() + x.slice(1), priced = (x) => Object.keys(d.prices || {}).some((p) => p.startsWith(`claude-${x}-`));
-    const sel = (k, label, def) => { const v = setVal(k), mine = k in SET.draft;
+    const m = d.models, cap = (x) => m.choices.includes(x) ? x[0].toUpperCase() + x.slice(1) : x, priced = (x) => m.choices.includes(x) ? Object.keys(d.prices || {}).some((p) => p.startsWith(`claude-${x}-`)) : x in (d.prices || {});
+    const sel = (k, label, def, free) => { const v = setVal(k), mine = k in SET.draft;
+      if (free) return `<span class="cin model${mine ? " dirty" : ""}"><input type="text" autocomplete="off" spellcheck="false" data-model="${esc(k)}" value="${esc(v || "")}" placeholder="${esc(t("models.default", { model: def }))}" aria-label="${esc(label)}"></span>`;
       return `<select data-model="${esc(k)}"${mine ? ' class="dirty"' : ""} aria-label="${esc(label)}"><option value="">${t("models.default", { model: esc(def) })}</option>${m.choices.map((c) => `<option value="${c}"${c === v ? " selected" : ""}>${cap(c)}</option>`).join("")}</select>`; };
     const notes = (k, x, def, xpriced, bad, w) => { const v = setVal(k), mine = k in SET.draft, pre = (s) => w ? t("models.w", { weight: wcap(w), text: s }) : s;
-      return `${v ? `<small>${pre(t("models.default_is", { model: esc(def) }))}</small>` : ""}${v && !(mine ? priced(v) : xpriced) ? `<small class="warn">${pre(t("models.no_price", { model: cap(v) }))}</small>` : ""}${bad && !mine ? `<small class="warn">${pre(t("models.unknown", { value: esc(bad.value) }))}</small>` : ""}`; };
+      return `${v ? `<small>${pre(t("models.default_is", { model: esc(def) }))}</small>` : ""}${v && !(mine ? priced(v) : xpriced) ? `<small class="warn">${pre(t("models.no_price", { model: esc(cap(v)) }))}</small>` : ""}${bad && !mine ? `<small class="warn">${pre(t("models.unknown", { value: esc(bad.value) }))}</small>` : ""}`; };
     const badOf = (key) => m.problems.find((p) => p.key === key && p.why === "model");
     const pick = (group, name, html, text, def, more = "") => {
       const k = `m|${group}|${name}`, x = m[group][name];
-      return row(html, text, `<span class="sknob">${sel(k, t("models.aria", { who: group === "stages" ? stageName(name) : name }), def)}
+      return row(html, text, `<span class="sknob">${sel(k, t("models.aria", { who: group === "stages" ? stageName(name) : name }), def, x.free)}
         ${notes(k, x, def, x.priced, badOf(`models.${group}.${name}`))}${more}</span>`);
     };
     const trio = (st, x, more) => {  // a stage per weight: three selects, a caption over each
       const whole = badOf(`models.stages.${st}`);
-      return row(esc(stageName(st)), stageHelp(st), `<span class="sknob"><span class="trio">${WEIGHTS.map((w) => `<label><span>${wcap(w)}</span>${sel(`m|stages|${st}|${w}`, t(`models.aria.${w}`, { who: stageName(st) }), cap(x.default[w]))}</label>`).join("")}</span>
-        ${WEIGHTS.map((w) => notes(`m|stages|${st}|${w}`, x, cap(x.default[w]), x.priced[w], whole ? null : badOf(`models.stages.${st}.${w}`), w)).join("")}${whole && !WEIGHTS.some((w) => `m|stages|${st}|${w}` in SET.draft) ? `<small class="warn">${t("models.unknown", { value: esc(whole.value) })}</small>` : ""}${more}</span>`);
+      return row(esc(stageName(st)), stageHelp(st), `<span class="sknob"><span class="trio">${WEIGHTS.map((w) => `<label><span>${wcap(w)}</span>${sel(`m|stages|${st}|${w}`, t(`models.aria.${w}`, { who: stageName(st) }), x.free ? t(`models.def.${x.runtime}`) : cap(x.default[w]), x.free)}</label>`).join("")}</span>
+        ${WEIGHTS.map((w) => notes(`m|stages|${st}|${w}`, x, x.free ? t(`models.def.${x.runtime}`) : cap(x.default[w]), x.priced[w], whole ? null : badOf(`models.stages.${st}.${w}`), w)).join("")}${whole && !WEIGHTS.some((w) => `m|stages|${st}|${w}` in SET.draft) ? `<small class="warn">${t("models.unknown", { value: esc(whole.value) })}</small>` : ""}${more}</span>`);
     };
     const own = Object.entries(m.agents).filter(([, a]) => a.projects.length).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
     body = `<h1 class="g">${t("sec.models")}</h1><p class="lead">${t("models.lead")}</p>
       ${m.problems.filter((p) => p.why === "name").map((p) => `<p class="note warn">${t(p.key.split(".").length === 4 ? "models.name.weight" : "models.name.other", { key: esc(p.key) })}</p>`).join("")}
       <div class="sgroup panel"><h2>${t("models.stages")} <code>config.yml · models.stages</code></h2>
         ${Object.entries(m.stages).map(([st, x]) => { const more = `<small>${x.cost?.avg == null ? t("models.no_cost") : `<span class="coin num gold">${usd(x.cost.avg)}</span>${EST}<span> ${t("models.per_card", { n: x.cost.cards })}</span>`}</small>`;
-          return x.default && typeof x.default === "object" ? trio(st, x, more) : pick("stages", st, esc(stageName(st)), st === "refine" ? `${stageHelp(st)} ${t("models.refine")}` : stageHelp(st), x.default ? cap(x.default) : t("models.def.claude"), more); }).join("")}</div>
+          return x.default && typeof x.default === "object" ? trio(st, x, more) : pick("stages", st, esc(stageName(st)), st === "refine" ? `${stageHelp(st)} ${t("models.refine")}` : stageHelp(st), x.default ? cap(x.default) : x.free ? t(`models.def.${x.runtime}`) : t("models.def.claude"), more); }).join("")}</div>
       <div class="sgroup panel"><h2>${t("models.agents")} <code>config.yml · models.agents</code></h2>
         ${[...Object.entries(m.agents).filter(([, a]) => !a.projects.length), ...own].map(([name, a]) => pick("agents", name, `<code>${esc(name)}</code>`,
           a.projects.length ? esc(a.projects.map((x) => t("models.project_agent", { project: x.project, layer: x.layer })).join(" / ")) : AGENT_HELP[name] ? t(AGENT_HELP[name]) : "", a.default ? cap(a.default) : t("models.def.session"))).join("")}</div>`;
@@ -2444,10 +2446,11 @@ function setNotify(el) {  // a switch or a field of Notifications is a draft lik
   const f = [...document.querySelectorAll("[data-nk]")].find((x) => x.dataset.nk === k); f?.focus(); if (at != null) f?.setSelectionRange(at, at);
 }
 function setModel(t) {
-  const k = t.dataset.model, v = t.value || null;  // Default is no key
-  if (v === setWas(k)) delete SET.draft[k]; else SET.draft[k] = v;
+  const k = t.dataset.model, v = t.value.trim() || null, at = t.type === "text" ? t.selectionStart : null;  // Default is no key; a typed name is trimmed
+  if (v === (setWas(k) ?? null)) delete SET.draft[k]; else SET.draft[k] = v;
   SET.err = ""; renderSettings();
-  [...document.querySelectorAll("[data-model]")].find((x) => x.dataset.model === k)?.focus();  // the rewrite took the focus with it
+  const again = [...document.querySelectorAll("[data-model]")].find((x) => x.dataset.model === k);  // the rewrite took the focus with it
+  again?.focus(); if (at != null) again?.setSelectionRange(at, at);
 }
 function setPlang(t) {  // a project's language: a draft like a model's; the empty option is null, back to the repository
   const k = t.dataset.plang, v = t.value || null;
@@ -2660,12 +2663,12 @@ document.addEventListener("click", (e) => {
 document.addEventListener("submit", (e) => { if (e.target.id === "compose") { e.preventDefault(); say(); } });
 document.addEventListener("keydown", (e) => { if (e.target.id === "say" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); say(); } });
 document.addEventListener("keydown", (e) => { if (e.target.id === "hours-in" && e.key === "Enter") { e.preventDefault(); if (Object.keys(SET.draft).length) setSave(); } });
-document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "changes") syncDecide(); if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "inote") renderInbox(); if (e.target.id === "mnote") boxHint(); if (e.target.dataset?.cost) setCost(e.target); if (e.target.dataset?.lim) setLimit(e.target); });
+document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "changes") syncDecide(); if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "inote") renderInbox(); if (e.target.id === "mnote") boxHint(); if (e.target.dataset?.cost) setCost(e.target); if (e.target.dataset?.lim) setLimit(e.target); if (e.target.type === "text" && e.target.dataset?.model) setModel(e.target); });
 document.addEventListener("change", (e) => {
   if (e.target.matches?.('input[role="switch"]')) e.target.setAttribute("aria-checked", String(e.target.checked));
   if (e.target.matches?.("[data-pause]")) setPause(e.target);
   if (e.target.dataset?.nk && e.target.type !== "text") setNotify(e.target);
-  if (e.target.matches?.("[data-model]")) setModel(e.target);
+  if (e.target.matches?.("[data-model]") && e.target.type !== "text") setModel(e.target);
   if (e.target.id === "weight") setWeight(e.target);
   if (e.target.matches?.("[data-plang]")) setPlang(e.target);
   if (e.target.id === "every") {  // a draft like a stepper's: Save applies it, picking the saved value again drops it

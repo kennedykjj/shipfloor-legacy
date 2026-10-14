@@ -509,6 +509,7 @@
     "models.per_card": "por card · {n, plural, one {# card} other {# cards}}, últimos 7 dias",
     "models.refine": "Roda antes de o card ter peso, então tem um modelo só.",
     "models.def.claude": "o do Claude Code",
+    "models.def.codex": "o do Codex",
     "models.agents": "Agentes",
     "models.project_agent": "Agente do projeto · {project}, camada {layer}",
     "models.def.session": "o da sessão",

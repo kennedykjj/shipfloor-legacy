@@ -509,6 +509,7 @@
     "models.per_card": "카드당 · {n, plural, other {카드 #장}}, 최근 7일",
     "models.refine": "카드에 가중치가 생기기 전에 실행되므로 모델이 하나입니다.",
     "models.def.claude": "Claude Code 기본값",
+    "models.def.codex": "Codex 기본값",
     "models.agents": "에이전트",
     "models.project_agent": "프로젝트 에이전트 · {project}, 레이어 {layer}",
     "models.def.session": "세션 기본값",

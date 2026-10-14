@@ -509,6 +509,7 @@
     "models.per_card": "per card · {n, plural, one {# card} other {# cards}}, last 7 days",
     "models.refine": "Runs before the card has a weight, so it has one model.",
     "models.def.claude": "Claude Code's",
+    "models.def.codex": "Codex's",
     "models.agents": "Agents",
     "models.project_agent": "Project agent · {project}, layer {layer}",
     "models.def.session": "the session's",

@@ -509,6 +509,7 @@
     "models.per_card": "per scheda · {n, plural, one {# scheda} other {# schede}}, ultimi 7 giorni",
     "models.refine": "Viene eseguita prima che la scheda abbia un peso, quindi ha un solo modello.",
     "models.def.claude": "quello di Claude Code",
+    "models.def.codex": "quello di Codex",
     "models.agents": "Agenti",
     "models.project_agent": "Agente del progetto · {project}, livello {layer}",
     "models.def.session": "quello della sessione",

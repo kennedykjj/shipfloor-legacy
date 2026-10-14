@@ -509,6 +509,7 @@
     "models.per_card": "pro Karte · {n, plural, one {# Karte} other {# Karten}}, letzte 7 Tage",
     "models.refine": "Läuft, bevor die Karte ein Gewicht hat, daher ein Modell.",
     "models.def.claude": "das von Claude Code",
+    "models.def.codex": "das von Codex",
     "models.agents": "Agents",
     "models.project_agent": "Projekt-Agent · {project}, Schicht {layer}",
     "models.def.session": "das der Session",

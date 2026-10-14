@@ -241,6 +241,27 @@ class Browser(support.Case):
         self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),
                         page.evaluate("[document.documentElement.scrollWidth, window.innerWidth]"))
 
+    def test_codex_stage_model_is_a_text_field_kept_literal(self):
+        """#150 a stage on Codex has a text field (placeholder, trimmed, dirty, saved under runtime.models, name shown literally, unpriced warned); claude-code stages keep their select"""
+        with open(os.path.join(self.home, "config.yml"), "a", encoding="utf-8") as f:
+            f.write("\nruntime:\n  stages: {develop: codex}\n")
+        page = self.open_page()
+        expect(page.locator("#list .pass").first).to_be_visible(timeout=SLOW)
+        page.click('[data-view="settings"]')
+        page.click('[data-setsec="models"]')
+        field = page.locator('input[data-model="m|stages|develop|heavy"]')
+        expect(field).to_be_visible()
+        self.assertEqual([field.get_attribute("autocomplete"), field.get_attribute("spellcheck"), field.get_attribute("placeholder")], ["off", "false", "Default (Codex's)"])
+        self.assertTrue(field.get_attribute("aria-label"))
+        expect(page.locator('select[data-model="m|stages|validate|heavy"]')).to_be_visible()
+        field.fill("  gpt-6-sol ")
+        expect(page.locator(".cin.model.dirty")).to_have_count(1)
+        self.assertEqual(field.input_value(), "gpt-6-sol")
+        expect(page.locator("small.warn")).to_contain_text("gpt-6-sol")
+        page.click('[data-set="save"]')
+        self.until("the model saved", lambda: "gpt-6-sol" in self.machine_config())
+        self.assertIn("models:", self.machine_config().split("runtime:")[1])
+
     def machine_config(self):
         with open(os.path.join(self.home, "config.yml"), encoding="utf-8") as f:
             return f.read()
