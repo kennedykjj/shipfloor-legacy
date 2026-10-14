@@ -1,0 +1,19 @@
+{
+  "issue": 183,
+  "slug": "ux-09-endereco-aba-e-ctrl-k-o-estado-for",
+  "pipeline": "develop",
+  "date": "2026-10-14",
+  "outcome": "blocked",
+  "step": 1,
+  "reason": "The spec requires #182 (UX-08) to be merged before develop; #182 is still open in Ready for Dev",
+  "base": "a18d625c8d3b83065ec3d33c1657a101ee2e71b0",
+  "agents": [],
+  "tokens": null,
+  "duration": null,
+  "rounds": 0,
+  "gates": [{"name": "test-plan", "result": "pass"}],
+  "failed_gates": [],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": []
+}
