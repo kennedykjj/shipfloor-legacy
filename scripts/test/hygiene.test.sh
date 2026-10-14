@@ -86,4 +86,117 @@ $code"; else pass "AC-8 ${pair%%:*} has no control flow, git or python"; fi
 done
 grep -q 'report.json schema' "$root/scripts/report.sh" && pass "AC-8 report.sh keeps the report.json schema header" || fail "AC-8 report.sh lost its schema header"
 [ ! -e "$root/scripts/review_page.py" ] && pass "AC-8 scripts/review_page.py is gone (absorbed in shipfloor_core)" || fail "AC-8 scripts/review_page.py still exists"
+# ---- #171 (PY-18): every script is a wrapper or a shim; the logic is the Python package
+# AC-1/AC-2: test/fixtures/wrapper-check.py reads scripts/*.sh, scripts/shipfloor and scripts/lib/*.sh of a root and
+# prints one "<file>: <why>" line per line of logic it finds (nothing when they are all wrappers and shims)
+WCHECK="$FACTORY_DIR/test/fixtures/wrapper-check.py"
+wcheck() { "$FACTORY_PYTHON" -I "$WCHECK" "$1"; }
+if [ -f "$WCHECK" ]; then
+  found="$(wcheck "$root" 2>&1)"
+  [ -z "$found" ] && pass "AC-1/AC-2 every scripts/*.sh, scripts/shipfloor and scripts/lib/*.sh is a wrapper or a shim" || fail "AC-1/AC-2 logic left in the scripts:
+$found"
+else
+  fail "AC-1/AC-2 no test/fixtures/wrapper-check.py"
+fi
+[ ! -e "$root/scripts/lib/portable.sh" ] && pass "AC-2 lib/portable.sh is gone from scripts/lib (Bash only the old fixtures use)" || fail "AC-2 scripts/lib/portable.sh still ships"
+
+# AC-3: one line of logic added to any wrapper, fast path or shim of a copy is caught, and the file is named
+wcopy() {  # wcopy: a copy of the files the check reads; prints its root
+  local d; d="$(mktemp -d)"; mkdir -p "$d/scripts/lib"
+  cp "$root"/scripts/*.sh "$root/scripts/shipfloor" "$d/scripts/"; cp "$root"/scripts/lib/*.sh "$d/scripts/lib/"
+  echo "$d"
+}
+caught() {  # caught <label> <file under scripts/> <python edit of the text s>: the check names the file once edited
+  local d; d="$(wcopy)"
+  "$FACTORY_PYTHON" -I -c 'import sys
+p = sys.argv[1]; s = open(p, encoding="utf-8").read()
+exec(sys.argv[2])
+open(p, "w", encoding="utf-8").write(s)' "$d/scripts/$2" "$3" "${4:-}"
+  case "$(wcheck "$d" 2>&1)" in *"$2: "*) pass "AC-3 $1 is caught ($2)" ;; *) fail "AC-3 $1 in $2 passed the check" ;; esac
+}
+LOGIC='if [ -n "${X:-}" ]; then exit 9; fi'
+if [ -f "$WCHECK" ]; then
+  for f in "$root"/scripts/*.sh "$root/scripts/shipfloor"; do
+    f="${f##*/}"
+    # the line goes before the last line of code: the wrapper's source line, the fast path's own last line
+    caught "a line of logic" "$f" "i = s.rstrip(chr(10)).rfind(chr(10)) + 1; s = s[:i] + sys.argv[3] + chr(10) + s[i:]" "$LOGIC"
+  done
+  for f in "$root"/scripts/lib/*.sh; do
+    caught "a top-level line of logic" "lib/${f##*/}" "s = s + sys.argv[3] + chr(10)" '[ -n "${X:-}" ] && exit 9'
+  done
+  caught "control flow in a one-line function" lib/project.sh "s = s + 'shipfloor_x() { if true; then _shipfloor_sf x; fi; }' + chr(10)"
+  caught "a line inside the pinned Python lookup" lib/project.sh "s = s.replace('  export SHIPFLOOR_PY', '  [ -x \"\$SHIPFLOOR_PY\" ] || exit 9' + chr(10) + '  export SHIPFLOOR_PY', 1)"
+  caught "a line inside the pinned signal forwarding" lib/stack.sh "s = s.replace('  _STACK_CHILD=\$!', '  _STACK_CHILD=\$!; [ -n \"\$X\" ] && exit 9', 1)"
+  caught "a line in the launcher" lib/py.sh "s = s.replace('export SHIPFLOOR_PY', '[ -n \"\$X\" ] && exit 9' + chr(10) + 'export SHIPFLOOR_PY', 1)"
+  caught "an extra command in the step fast path" shipfloor-config.sh "s = s.replace('  exit 0', '  echo step' + chr(10) + '  exit 0', 1)"
+  caught "a grep in a wrapper's export" board.sh "s = s.replace('set -- board', 'export X=\"\$(grep -c . /dev/null)\"' + chr(10) + 'set -- board', 1)"
+fi
+
+# AC-5: nothing under scripts/ but test/ (and the lang/ catalogs) starts awk or jq; sed only for the catalog and grep only
+# for the ERE helpers, both in shipfloor_core/text.py
+tools="$("$FACTORY_PYTHON" -I - "$root" <<'PY'
+import os, re, sys
+S = os.path.join(sys.argv[1], "scripts")
+SH = re.compile(r"(^|[\s;|&(`])(awk|gawk|sed|jq|grep|egrep|fgrep)(?=[\s;|&)]|$)")
+ARGV = re.compile(r"([\"'])(awk|gawk|sed|jq|grep|egrep|fgrep)\1")
+for d, dirs, files in os.walk(S):
+    rel = os.path.relpath(d, S).replace(os.sep, "/")
+    if rel.split("/")[0] in ("test", "lang") or "__pycache__" in rel:
+        dirs[:] = []
+        continue
+    for f in sorted(files):
+        p = os.path.join(d, f)
+        r = os.path.normpath(os.path.join(rel, f)).replace(os.sep, "/")
+        text = open(p, encoding="utf-8", errors="replace").read().split("\n")
+        if f.endswith(".sh") or f == "shipfloor":
+            for n, l in enumerate(text, 1):
+                c = re.sub(r"(^|\s)#.*$", "", l)
+                if SH.search(c):
+                    print("%s:%d: %s" % (r, n, l.strip()))
+        elif f.endswith(".py") and r != "shipfloor_core/text.py":
+            for n, l in enumerate(text, 1):
+                if ARGV.search(l):
+                    print("%s:%d: %s" % (r, n, l.strip()))
+PY
+)"
+[ -z "$tools" ] && pass "AC-5 no awk or jq; sed and grep only in shipfloor_core/text.py (the catalog and the ERE helpers)" || fail "AC-5 a text tool started outside shipfloor_core/text.py:
+$tools"
+grep -q '"sed"' "$root/scripts/shipfloor_core/text.py" && grep -q '"grep"' "$root/scripts/shipfloor_core/text.py" \
+  && pass "AC-5 the catalog and the ERE helpers are still in shipfloor_core/text.py" || fail "AC-5 shipfloor_core/text.py no longer starts sed or grep"
+
+# AC-9: the commit trailer, the deploy defaults and the stage/column table are defined once, in shipfloor_core/defaults.py
+once="$("$FACTORY_PYTHON" -I - "$root" <<'PY'
+import os, re, sys
+S = os.path.join(sys.argv[1], "scripts")
+FACTS = {"the commit trailer": (re.compile(r"Co-Authored-By:"), None),
+         "the deploy defaults": (re.compile(r'timeout_min"?\W{1,4}30\b|conflict_max_files"?\W{1,4}5\b|V\[4\] or "30"|V\[5\] or "5"'), None),
+         "the stage/column table": (re.compile(r'"Ready for (Refinement|Dev|Prod)"'), ("shipfloor_health.py", "shipfloor_core/dispatch.py"))}
+hits = {k: [] for k in FACTS}
+for d, dirs, files in os.walk(S):
+    rel = os.path.relpath(d, S).replace(os.sep, "/")
+    if rel.split("/")[0] in ("test", "lang") or "__pycache__" in rel:
+        dirs[:] = []
+        continue
+    for f in files:
+        if not (f.endswith(".py") or f.endswith(".sh") or f == "shipfloor"):
+            continue
+        r = os.path.normpath(os.path.join(rel, f)).replace(os.sep, "/")
+        text = open(os.path.join(d, f), encoding="utf-8", errors="replace").read()
+        for k, (rx, only) in FACTS.items():
+            if (only is None or r in only or r == "shipfloor_core/defaults.py") and rx.search(text):
+                hits[k].append(r)
+for k, files in hits.items():
+    print("%s\t%s" % (k, " ".join(sorted(files))))
+PY
+)"
+while IFS=$'\t' read -r what files; do
+  [ "$files" = shipfloor_core/defaults.py ] && pass "AC-9 $what is defined once, in shipfloor_core/defaults.py" || fail "AC-9 $what is written in: ${files:-nowhere}"
+done <<< "$once"
+for m in "shipfloor_core.deploy TRAILER TRAILER" "shipfloor_core.report TRAILER TRAILER" "shipfloor_health STAGES STAGES"; do
+  set -- $m
+  "$FACTORY_PYTHON" -I -c 'import sys; sys.dont_write_bytecode = True; sys.path.insert(0, sys.argv[1]); import importlib
+m = importlib.import_module(sys.argv[2]); from shipfloor_core import defaults
+sys.exit(0 if getattr(m, sys.argv[3]) is getattr(defaults, sys.argv[4]) else 1)' "$root/scripts" "$1" "$2" "$3" 2>/dev/null \
+    && pass "AC-9 $1.$2 is shipfloor_core.defaults.$3" || fail "AC-9 $1.$2 is not taken from shipfloor_core.defaults"
+done
 finish
