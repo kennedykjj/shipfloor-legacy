@@ -3,6 +3,7 @@
 # its own compose project. The one place slot state is computed (gate.sh, dispatch.sh, shipfloor and
 # the dashboard all ask here). Sourced after lib/project.sh, with a resolved project.
 
+source "${BASH_SOURCE[0]%/*}/portable.sh"
 STACK_LOCKS="$SHIPFLOOR_HOME/locks"
 
 stack_settings() {  # machine and project settings: STACKS BASE SPAN WAIT STALE HOLD NAME UP DOWN PORTS URL HEALTH REJECT TIMEOUT
@@ -21,7 +22,7 @@ slot_state() {  # slot_state <k>: "free", "busy" or "stuck <reason>"
   local d owner run epoch beat now; d="$(slot_dir "$1")"; now="$(date +%s)"
   [ -d "$d" ] || { echo free; return; }
   read -r owner run epoch < "$d/info" 2>/dev/null || { echo "stuck no-info"; return; }
-  beat="$(stat -c %Y "$d/beat" 2>/dev/null || echo "${epoch:-0}")"
+  beat="$(mtime "$d/beat" 2>/dev/null || echo "${epoch:-0}")"
   # a lease owned by a run lives as long as that run; the heartbeat only guards leases without one
   if [ "${run:--}" != - ] && [ ! -d "$run" ]; then echo "stuck run-ended"
   elif [ "${run:--}" = - ] && [ $(( now - beat )) -gt "$STALE" ]; then echo "stuck heartbeat"

@@ -46,7 +46,7 @@ lock_live() {  # lock_live <lock dir>: 0 = still held; an old lock whose process
   local dir="$1" pid epoch
   [ -d "$dir" ] || return 1
   { read -r pid epoch _ < "$dir/info"; } 2>/dev/null || true
-  [ -z "${epoch:-}" ] && epoch="$(stat -c %Y "$dir" 2>/dev/null || date +%s)"
+  [ -z "${epoch:-}" ] && epoch="$(mtime "$dir" 2>/dev/null || date +%s)"
   [ $(( $(date +%s) - epoch )) -le "$TTL" ] && return 0
   [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null && return 0
   rm -rf "$dir"; return 1

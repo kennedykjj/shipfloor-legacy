@@ -9,6 +9,7 @@
 set -uo pipefail
 HERE="${0%[/\\]*}"; [ "$HERE" != "$0" ] || HERE=.; HERE="$(cd "$HERE" && pwd)"  # no dirname: one process less per start
 source "$HERE/lib/project.sh"
+source "$HERE/lib/portable.sh"
 
 n="${1:-}"; mode="${2:-deploy}"
 case "$mode" in deploy|--refresh|--continue) ;; *) n="" ;; esac
@@ -243,8 +244,7 @@ fast_gates() {  # deterministic checks only: CI runs build and tests on this exa
 local_ci() {  # local_ci <sha>: deploy.local_ci run in the card's worktree on this head: 0 green, 1 red (CI_STATES), 2 timed out
   # For a project with no CI on GitHub, or none it can pay for: the head merged with main is still tested before it ships.
   local rc; say "local CI on $1"
-  if command -v timeout >/dev/null 2>&1; then (cd "$WT" && timeout "$(( TIMEOUT_MIN * 60 ))" bash -c "$LOCAL_CI") >"$TMP/local-ci.txt" 2>&1; rc=$?
-  else (cd "$WT" && bash -c "$LOCAL_CI") >"$TMP/local-ci.txt" 2>&1; rc=$?; fi
+  (cd "$WT" && run_bounded "$(( TIMEOUT_MIN * 60 ))" bash -c "$LOCAL_CI") >"$TMP/local-ci.txt" 2>&1; rc=$?
   [ "$rc" = 0 ] && { say "local CI passed on $1"; return 0; }
   [ "$rc" = 124 ] && { say "local CI did not finish on $1 in $TIMEOUT_MIN min"; return 2; }
   CI_STATES="local-ci=FAILURE"; say "local CI failed on $1 (exit $rc)"; return 1
