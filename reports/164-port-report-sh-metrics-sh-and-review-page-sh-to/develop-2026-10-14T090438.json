@@ -1,0 +1,4 @@
+{"issue": 164, "slug": "port-report-sh-metrics-sh-and-review-page-sh-to", "pipeline": "develop", "started_at": "2026-10-14T08:55:00-03:00", "finished_at": "2026-10-14T09:04:30-03:00", "outcome": "ok",
+ "agents": [{"role": "qa-engineer", "tokens": 60555, "duration_s": 115}, {"role": "engineer", "tokens": 29231, "duration_s": 41}, {"role": "engineer", "tokens": 31407, "duration_s": 30}, {"role": "engineer", "tokens": 20683, "duration_s": 26}],
+ "rounds": {"qa": 1, "task-1-report": 1, "task-2-metrics": 1, "task-3-review-page": 1},
+ "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": false, "amendments": []}
