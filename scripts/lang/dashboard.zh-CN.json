@@ -531,6 +531,7 @@
     "models.per_card": "每张卡片 · {n, plural, other {# 张卡片}}，过去 7 天",
     "models.refine": "在卡片有权重之前运行，因此只有一个模型。",
     "models.def.claude": "Claude Code 的",
+    "models.def.codex": "Codex 的",
     "models.agents": "智能体",
     "models.project_agent": "项目智能体 · {project}，{layer} 层",
     "models.def.session": "会话的",

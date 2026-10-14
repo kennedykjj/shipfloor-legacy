@@ -531,6 +531,7 @@
     "models.per_card": "kart başına · {n, plural, one {# kart} other {# kart}}, son 7 gün",
     "models.refine": "Kartın ağırlığı olmadan önce çalışır, bu yüzden tek modeli vardır.",
     "models.def.claude": "Claude Code varsayılanı",
+    "models.def.codex": "Codex varsayılanı",
     "models.agents": "Ajanlar",
     "models.project_agent": "Proje ajanı · {project}, katman {layer}",
     "models.def.session": "oturumunki",

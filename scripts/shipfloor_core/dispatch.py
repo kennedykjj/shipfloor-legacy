@@ -370,7 +370,8 @@ class Cycle:
         if len(pool) != 7:
             self.die("dispatch: cannot read the machine pool", 2)
         self.stage_slots = dict(zip(STAGES, pool[1:5]))
-        models = _nul(self.machine("stage-models")[1])  # each stage x light standard heavy; empty = no --model flag
+        # each stage x light standard heavy; empty = no --model flag. A stage off claude-code takes runtime.models.
+        models = _nul(self.machine("stage-models", proc.native_path(os.environ.get("FACTORY_CONFIG", "")))[1])
         if len(models) != 12:
             self.die("dispatch: cannot read the stage models", 2)
         self.stage_model = {}
@@ -388,8 +389,9 @@ class Cycle:
             self.say("dispatch: GitHub API limit hit recently; waiting")
             return 0
         self.read_board()
-        if self.usage_limited():
-            self.say("dispatch: Claude usage limit hit recently; waiting")
+        limited = self.usage_limited()
+        if limited:
+            self.say("dispatch: %s usage limit hit recently; waiting" % runtimes.label(limited))
             return 0
         self.clean_markers()
         if pool[5] + pool[6]:
@@ -495,8 +497,8 @@ class Cycle:
         return age is not None and age < minutes * 60
 
     def usage_limited(self):
-        """A run that ended on the Claude usage limit in the last 30 min pauses new launches: its log's last run (from
-        the last == start line) says so."""
+        """The runtime whose usage limit a run ended on in the last 30 min (None when no one did): that pauses new
+        launches. Its log's last run (from the last == start line) says so."""
         for root, dirs, files in os.walk(os.path.join(self.home, "logs")):
             dirs.sort()
             for name in sorted(files):
@@ -511,9 +513,10 @@ class Cycle:
                         lines = f.read().split(b"\n")
                 except OSError:
                     continue
-                if runtimes.usage_limited(b"\n".join(lines)):
-                    return True
-        return False
+                name = runtimes.limited_runtime(b"\n".join(lines))
+                if name:
+                    return name
+        return None
 
     # --- markers whose card left the board
     def clean_markers(self):
@@ -696,13 +699,16 @@ class Cycle:
         envs.append("TMPDIR=" + scratch + "/tmp")
         if rt.TRAILER != TRAILER:  # the commits' trailer names the agent that wrote them; the default needs no variable
             envs.append("SHIPFLOOR_TRAILER=" + rt.TRAILER)
+        # the agent's final message, for a runtime that writes it to a file (the dispatcher appends it to the log)
+        last = log + rt.LAST_SUFFIX if getattr(rt, "LAST_SUFFIX", None) else ""
         argv, envs, stdin = rt.command({
             "stage": p, "issue": n, "model": model, "plugin": self.plugin, "system_prompt": SYSTEM_PROMPT,
             "write": [self.wt_root, self.home + "/tmp", self.home + "/reviews"],
-            "read": [SCRIPTS, self.home + "/reports-wt"], "envs": envs})
+            "read": [SCRIPTS, self.home + "/reports-wt"], "envs": envs, "control": self.control, "last": last})
         binary = (os.environ.get("FACTORY_CLAUDE") or rt.BINARY) if rt.NAME == "claude-code" else rt.BINARY
-        _detach({"mode": "run", "p": p, "n": n, "dir": d, "log": log, "model": model, "weight": weight,
+        _detach({"mode": "run", "p": p, "n": n, "dir": d, "log": log, "last": last, "model": model, "weight": weight,
                  "step": step, "from": frm, "gate": gate, "runtime": rt.NAME, "binary": binary, "argv": argv,
+                 "config": proc.native_path(os.environ.get("FACTORY_CONFIG", "")),
                  "envs": envs, "stdin": stdin,
                  "control": self.control, "wt_root": self.wt_root, "home": self.home, "mlang": self.mlang,
                  "deploy": os.environ.get("FACTORY_DEPLOY") or os.path.join(SCRIPTS, "deploy.sh")})
@@ -860,7 +866,7 @@ def step_up(spec, model, log):
     name, verdict = text.read_tab(first[0], 2)
     if verdict != "FAIL":
         return
-    r = project.machine("model-up", model)
+    r = project.machine("model-up", model, spec.get("runtime") or "claude-code", spec.get("config") or "")
     up = _t(r.stdout).rstrip("\n")
     if not up:
         return
@@ -926,10 +932,21 @@ def supervise(spec):
         # Its stdout is a stream-json read by telemetry: the log gets the text a plain -p printed, the events and a
         # summary go beside it (telemetry.py).
         argv = proc.script_argv(spec["binary"], *spec["argv"])
-        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso()}
+        last = spec.get("last")
+        # a runtime with a final-message file streams its own JSON: the log keeps it as it comes
+        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso(), "raw": bool(last)}
         _flush()
-        return telemetry.run_agent(argv, log, control, env, spec["stdin"].encode("utf-8"), meta,
-                                   os.path.join(spec["home"], "logs", "runs.jsonl"), iso=_iso)
+        rc = telemetry.run_agent(argv, log, control, env, spec["stdin"].encode("utf-8"), meta,
+                                 os.path.join(spec["home"], "logs", "runs.jsonl"), iso=_iso)
+        if last:
+            try:
+                with open(last, "rb") as f:
+                    final = f.read()
+                os.unlink(last)
+                _append(log, final.rstrip(b"\n").decode("utf-8", "replace") + "\n" if final.strip() else "")
+            except OSError:
+                pass
+        return rc
 
     def deploy(*args):
         with open(log, "ab") as f:

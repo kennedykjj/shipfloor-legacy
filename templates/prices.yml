@@ -5,3 +5,14 @@ claude-opus-5-5:   {input: 4.00,  output: 20.00, cache_write_5m: 5.00,  cache_wr
 claude-sonnet-5-5: {input: 2.00,  output: 10.00, cache_write_5m: 2.50,  cache_write_1h: 4.00,  cache_read: 0.20}
 claude-haiku-5-5:  {input: 0.10,  output: 0.50,  cache_write_5m: 0.125, cache_write_1h: 0.20,  cache_read: 0.01}
 claude-fable-5-1:  {input: 10.00, output: 50.00, cache_write_5m: 12.50, cache_write_1h: 20.00, cache_read: 0.25}
+
+# OpenAI models the Codex runtime reports (OpenAI API list prices per million tokens; cache_read is the cached-input price).
+# OpenAI does not charge for cache writes. A model not listed here costs "$ ?" on the dashboard, never $0:
+# copy this file to ~/.shipfloor/prices.yml and add the model you set in runtime.models.
+gpt-5:               {input: 1.25, output: 10.00, cache_read: 0.125}
+gpt-5-codex:         {input: 1.25, output: 10.00, cache_read: 0.125}
+gpt-5-mini:          {input: 0.25, output: 2.00,  cache_read: 0.025}
+gpt-5-nano:          {input: 0.05, output: 0.40,  cache_read: 0.005}
+gpt-5.1:             {input: 1.25, output: 10.00, cache_read: 0.125}
+gpt-5.1-codex:       {input: 1.25, output: 10.00, cache_read: 0.125}
+gpt-5.1-codex-mini:  {input: 0.25, output: 2.00,  cache_read: 0.025}

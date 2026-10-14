@@ -531,6 +531,7 @@
     "models.per_card": "每張卡片 · {n, plural, other {# 張卡片}}，過去 7 天",
     "models.refine": "在卡片有權重之前執行，因此只有一個模型。",
     "models.def.claude": "Claude Code 的",
+    "models.def.codex": "Codex 的",
     "models.agents": "代理",
     "models.project_agent": "專案代理 · {project}，{layer} 層",
     "models.def.session": "工作階段的",
