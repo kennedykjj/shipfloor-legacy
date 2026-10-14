@@ -25,7 +25,12 @@ def cmd_report(args):
     return report.main(args)
 
 
-COMMANDS = {"version": cmd_version, "report": cmd_report}
+def cmd_metrics(args):
+    from shipfloor_core import metrics
+    return metrics.main(args)
+
+
+COMMANDS = {"version": cmd_version, "report": cmd_report, "metrics": cmd_metrics}
 
 
 def main(argv):
