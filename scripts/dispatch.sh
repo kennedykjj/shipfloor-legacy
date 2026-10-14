@@ -14,7 +14,7 @@ CONTROL="$HOME_DIR/control"
 WT_ROOT="${FACTORY_WT_ROOT:-$HOME_DIR/wt}"
 CLAUDE="${FACTORY_CLAUDE:-claude}"
 PLUGIN="$(cat "$HERE/.source" 2>/dev/null || (cd "$HERE/.." && pwd))"  # the plugin checkout, as in scripts/shipfloor
-BOARD="${FACTORY_BOARD:-$HERE/board.sh}"
+if [ -n "${FACTORY_BOARD:-}" ]; then BOARD=("$FACTORY_BOARD"); else BOARD=(bash "$HERE/board.sh"); fi  # run by bash: no dependence on the mode bit
 TTL="${FACTORY_LOCK_TTL:-10800}"
 export FACTORY_HOME="$HOME_DIR" FACTORY_WT_ROOT="$WT_ROOT" SHIPFLOOR_HOME
 mkdir -p "$HOME_DIR/locks" "$HOME_DIR/logs" "$HOME_DIR/tmp" "$HOME_DIR/reviews" "$WT_ROOT"
@@ -35,18 +35,19 @@ unset i st w
 
 refresh_control() {  # control checkout = exactly origin/main
   [ "${FACTORY_CONTROL_REFRESH:-1}" = "0" ] && return 0
-  git -C "$REPO" fetch -q origin main || return 1
+  local main="${FACTORY_MAIN:-main}"
+  git -C "$REPO" fetch -q origin "$main" || return 1
   if [ ! -e "$CONTROL/.git" ]; then
-    git -C "$REPO" worktree add -q --detach "$CONTROL" origin/main || return 1
+    git -C "$REPO" worktree add -q --detach "$CONTROL" "origin/$main" || return 1
   fi
-  git -C "$CONTROL" -c core.longpaths=true reset -q --hard origin/main && git -C "$CONTROL" -c core.longpaths=true clean -qfdx
+  git -C "$CONTROL" -c core.longpaths=true reset -q --hard "origin/$main" && git -C "$CONTROL" -c core.longpaths=true clean -qfdx
 }
 
 lock_live() {  # lock_live <lock dir>: 0 = still held; an old lock whose process is gone is removed
   local dir="$1" pid epoch
   [ -d "$dir" ] || return 1
   { read -r pid epoch _ < "$dir/info"; } 2>/dev/null || true
-  [ -z "${epoch:-}" ] && epoch="$(stat -c %Y "$dir" 2>/dev/null || date +%s)"
+  [ -z "${epoch:-}" ] && epoch="$(mtime "$dir" 2>/dev/null || date +%s)"
   [ $(( $(date +%s) - epoch )) -le "$TTL" ] && return 0
   [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null && return 0
   rm -rf "$dir"; return 1
@@ -72,6 +73,7 @@ live_runs() {  # live_runs [stage]: live runs on this machine (every project), o
   for d in "$SHIPFLOOR_HOME"/projects/*/locks/$stage-*.lock "$HOME_DIR"/locks/$stage-*.lock; do
     [ -d "$d" ] || continue
     case "${d##*/}" in refresh-*) continue ;; esac  # refreshes are scripts, not agents
+    case "${d##*/}" in deploysh-*) continue ;; esac  # a deploy is ONE unit: deploy-<n>.lock counts, deploy.sh's own lock does not
     case "$seen" in *" $d "*) continue ;; esac
     seen="$seen$d "; lock_live "$d" && n=$((n + 1))
   done
@@ -129,7 +131,7 @@ launch() {  # launch <pipeline> <issue>
     # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into
     # "C:/Program Files/Git/develop 54", and MSYS_NO_PATHCONV would leak into mvn and break it.
     agent() { printf '/sf:%s %s' "$p" "$n" | env -u FACTORY_BOARD_SNAPSHOT "${envs[@]}" "$CLAUDE" -p --permission-mode acceptEdits       --add-dir "$WT_ROOT" --add-dir "$HOME_DIR/tmp" --add-dir "$HOME_DIR/reviews" "${extra[@]}" >>"$log" 2>&1; }
-    cd "$CONTROL" || exit 1
+    cd "$CONTROL" || { echo "== end /sf:$p $n exit=1 $(date -Is): no $CONTROL" >>"$log"; rm -rf "$dir"; exit 1; }  # no lock left to hold the slot
     if [ "$p" = deploy ]; then
       # The deploy is a script, not an agent: it can wait for CI and production as long as needed.
       # An agent is called only for what the script hands over (exit 3): merge conflicts with main, then up to
@@ -163,7 +165,7 @@ step_up() {  # step_up <issue> <model> <lock> <log>: a develop run that ended on
   [ "$verdict" = FAIL ] || return 0
   up="$(shipfloor_machine model-up "$model" 2>/dev/null)"; [ -n "$up" ] || return 0
   mkdir -p "$HOME_DIR/stepup"; printf '%s\t%s\t%s\n' "$model" "$up" "$name" > "$HOME_DIR/stepup/$n"
-  env -u FACTORY_BOARD_SNAPSHOT "$BOARD" label "$n" remove blocked >/dev/null
+  env -u FACTORY_BOARD_SNAPSHOT "${BOARD[@]}" label "$n" remove blocked >/dev/null
   echo "== step-up /sf:develop $n $model -> $up: gate $name failed $(date -Is)" >>"$4"
   echo "$(date -Is) dispatch: #$n failed gate $name on $model; the next run is on $up" | shipfloor_say "${MLANG:-en}"
 }
@@ -191,7 +193,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = t
   IFS=',' read -r -a cols <<< "$orphan_cols"
   for col in "${cols[@]}"; do
     [ -z "$col" ] && continue
-    cards="$("$BOARD" eligible "$col")" || return 1
+    cards="$("${BOARD[@]}" eligible "$col")" || return 1
     for n in $cards; do
       { [ "$free" -le 0 ] || [ "$GLOBAL" -le 0 ]; } && return 0
       printf '%s\n' "$running" | grep -qx "$n" && continue
@@ -202,7 +204,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = t
   # 2. new cards from the queue, within the WIP limit
   local slots="$free"
   if [ "$limit" -gt 0 ]; then
-    local used; used="$("$BOARD" count "$@")" || return 1
+    local used; used="$("${BOARD[@]}" count "$@")" || return 1
     for n in $running; do  # runs whose card is not in a WIP column yet still take a WIP slot
       case " $resumed " in *" $n "*) continue ;; esac
       st="$(snapshot_status "$n")"; printf '%s\n' "$@" | grep -qxF "$st" || inflight=$((inflight + 1))
@@ -210,7 +212,7 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = t
     [ $(( limit - used - inflight )) -lt "$slots" ] && slots=$(( limit - used - inflight ))
   fi
   [ "$slots" -le 0 ] && return 0
-  cards="$("$BOARD" eligible "$queue")" || return 1
+  cards="$("${BOARD[@]}" eligible "$queue")" || return 1
   for n in $cards; do
     { [ "$slots" -le 0 ] || [ "$GLOBAL" -le 0 ]; } && break
     printf '%s\n' "$running" | grep -qx "$n" && continue
@@ -223,9 +225,9 @@ run_pipeline() {  # run_pipeline <name> <queue> <max runs in this project, 0 = t
 
 usage_limited() {  # a run that ended on the Claude usage limit in the last 30 min pauses new launches
   local f
-  for f in $(find "$HOME_DIR/logs" -name '*.log' -mmin -30 2>/dev/null); do
+  while IFS= read -r -d '' f; do
     awk '/^== start/{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}' "$f" | grep -q 'hit your session limit' && return 0
-  done
+  done < <(find "$HOME_DIR/logs" -name '*.log' -mmin -30 -print0 2>/dev/null)
   return 1
 }
 
@@ -239,7 +241,7 @@ github_limited && { echo "dispatch: GitHub API limit hit recently; waiting" | sh
 # One board read per run, shared by every check below (the GraphQL quota is shared with the pipelines).
 SNAP="$HOME_DIR/board.tsv"
 # A temp file per process: two dispatches at once must not write, or move away, each other's.
-if ! "$BOARD" snapshot > "$SNAP.$$.tmp" 2> "$SNAP.$$.err"; then
+if ! "${BOARD[@]}" snapshot > "$SNAP.$$.tmp" 2> "$SNAP.$$.err"; then
   cat "$SNAP.$$.err" >&2
   grep -Eqi 'API rate limit|secondary rate limit' "$SNAP.$$.err" && touch "$GH_LIMIT_MARK"
   rm -f "$SNAP.$$.tmp" "$SNAP.$$.err"; echo "dispatch: board read failed" | shipfloor_say "${MLANG:-en}" >&2; exit 1
@@ -282,11 +284,12 @@ STARTED=0 COSTFAIL=0
 
 block_card() {  # block_card <issue>: the comment says why, then the label; a failure of either fails the cycle
   local n="$1" m="$HOME_DIR/cost/$1.json" body="$HOME_DIR/tmp/cost-$1.md" rc=0 gh="${FACTORY_GH:-gh}"
+  local slug; slug="$(shipfloor_cfg get project.repo 2>/dev/null | tr -d '\0\r')"  # owner/repo, never the clone's path in $REPO
   cp "$m" "$m.prev" 2>/dev/null
   "${COST_PY[@]}" block "${COST_ARGS[@]}" --issue "$n" --out "$(shipfloor_native "$body")" || rc=$?
   if [ "$rc" = 1 ]; then rm -f "$m.prev"; return 1; fi  # no known estimate: never judged, it starts
   if [ "$rc" = 0 ]; then
-    "$gh" issue comment "$n" ${REPO:+-R "$REPO"} --body-file "$body" >/dev/null && "$BOARD" label "$n" add blocked && { rm -f "$m.prev" "$body"; echo "dispatch: #$n reached costs.card_block; blocked" | shipfloor_say "${MLANG:-en}"; return 0; }
+    "$gh" issue comment "$n" -R "$slug" --body-file "$body" >/dev/null && "${BOARD[@]}" label "$n" add blocked && { rm -f "$m.prev" "$body"; echo "dispatch: #$n reached costs.card_block; blocked" | shipfloor_say "${MLANG:-en}"; return 0; }
     rc=1
   fi
   # not told: put the marker back, or the next cycle would take this block for done and start the card
@@ -297,7 +300,7 @@ block_card() {  # block_card <issue>: the comment says why, then the label; a fa
 
 refresh_staged() {  # keep approved-to-be PRs on top of main: deploy.sh --refresh, a script, no agent slot
   local n dir log cards
-  cards="$("$BOARD" eligible Staged)" || return 1
+  cards="$("${BOARD[@]}" eligible Staged)" || return 1
   for n in $cards; do
     card_busy "$n" && continue
     dir="$HOME_DIR/locks/refresh-$n.lock"; mkdir "$dir" 2>/dev/null || continue
@@ -312,7 +315,7 @@ refresh_staged() {  # keep approved-to-be PRs on top of main: deploy.sh --refres
 }
 
 retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a second block goes to the owner
-  local n f cards; cards="$("$BOARD" infra)" || return 1
+  local n f cards; cards="$("${BOARD[@]}" infra)" || return 1
   mkdir -p "$HOME_DIR/infra"
   for f in "$HOME_DIR"/infra/*; do  # a marker whose card is no longer blocked by infrastructure is spent
     [ -f "$f" ] || continue; n="${f##*/}"
@@ -321,9 +324,9 @@ retry_infra() {  # cards blocked by infrastructure: clean up and retry once; a s
   for n in $cards; do
     card_busy "$n" && continue
     if [ -e "$HOME_DIR/infra/$n" ]; then
-      "$BOARD" label "$n" add blocked; "$BOARD" label "$n" remove blocked:infra; rm -f "$HOME_DIR/infra/$n"; continue
+      "${BOARD[@]}" label "$n" add blocked; "${BOARD[@]}" label "$n" remove blocked:infra; rm -f "$HOME_DIR/infra/$n"; continue
     fi
-    shipfloor_clean_tmp "$n"; date +%s > "$HOME_DIR/infra/$n"; "$BOARD" label "$n" remove blocked:infra
+    shipfloor_clean_tmp "$n"; date +%s > "$HOME_DIR/infra/$n"; "${BOARD[@]}" label "$n" remove blocked:infra
   done
 }
 

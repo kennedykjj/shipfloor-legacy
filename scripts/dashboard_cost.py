@@ -6,6 +6,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))  # `python -I` leaves the script's folder out of the path
+sys.dont_write_bytecode = True  # importing inbox_hook / shipfloor_config must not leave a __pycache__ in the installed factory
 
 import yaml
 from inbox_hook import INTRO
