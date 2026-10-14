@@ -101,6 +101,24 @@ class Machine(MachineCase):
         self.bad("notify: 3", "notify must be a mapping")
         self.good('notify: {quiet: "23:00-08:00", ntfy_topic: abc_1-2, channels: {ntfy: true}}')
 
+    def test_notify_channels_not_a_mapping_without_topic(self):
+        "AC-1 channels a list or a string and no ntfy_topic: validate names the key, no traceback, exit 1"
+        for channels in ("[toast]", "toast", "3", "[]"):
+            for topic in ("", ', ntfy_topic: ""'):
+                self.conf("notify: {channels: %s%s}" % (channels, topic))
+                rc, _, err = self.mach("validate")
+                self.assertEqual(rc, 1, "%s%s" % (channels, topic))
+                self.assertIn("notify.channels must be a mapping", err)
+                self.assertNotIn("Traceback", err)
+
+    def test_notify_valid_unchanged(self):
+        "AC-3 channels a mapping with or without a topic, or no channels at all: validate is silent and exits 0"
+        self.good("notify: {channels: {toast: true}}")
+        self.good("notify: {channels: {ntfy: true}, ntfy_topic: abc_1}")
+        self.good("notify: {channels: {toast: false}, ntfy_topic: abc_1}")
+        self.good("notify: {reminder_min: 30}")
+        self.bad("notify: {channels: {ntfy: true}}", "The phone push needs a topic.")
+
 
 class Costs(MachineCase):
     """costs: optional limits in US$, no defaults; each a number > 0, card_warn <= card_block, no other key."""
@@ -131,6 +149,45 @@ class Costs(MachineCase):
         self.bad("costs:\n  - 10", "costs must be a mapping of limit: US$")
         self.conf("costs:\n  card_warn: 50\n  card_block: 40")
         self.assertEqual(self.mach("values", "costs.card_block")[0], 2, "an invalid costs section is never read as a limit")
+
+
+class Limits(MachineCase):
+    """limits: the dispatcher's optional memory and CPU ceilings; `machine limits` prints the systemd lines."""
+
+    def lines(self, *flags):
+        rc, out, err = self.mach("limits", *flags)
+        return rc, out.splitlines(), err
+
+    def test_directives(self):
+        "no limits prints nothing; the file's limits become directives, MemoryHigh at 90%; flags win over the file"
+        self.assertEqual(self.lines(), (0, [], ""))
+        self.conf("limits: {memory_max: 10G, cpu_weight: 200, cpu_quota: 150%}")
+        self.assertEqual(self.lines(), (0, ["MemoryMax=10G", "MemoryHigh=9437184K", "CPUWeight=200", "CPUQuota=150%"], ""))
+        self.assertEqual(self.lines("--memory-max", "4G", "--cpu-weight", "none", "--cpu-quota", "none"),
+                         (0, ["MemoryMax=4G", "MemoryHigh=3774873K"], ""))
+        self.conf("limits: {memory_max: none, cpu_weight: none, cpu_quota: none}")
+        self.assertEqual(self.lines(), (0, [], ""))
+        self.assertEqual(self.lines("--cpu-weight", "50")[1], ["CPUWeight=50"])
+
+    def test_normalized(self):
+        "machine_limits fills none for what is missing"
+        self.assertEqual(shipfloor_config.machine_limits(None), {"memory_max": "none", "cpu_weight": "none", "cpu_quota": "none"})
+        self.assertEqual(shipfloor_config.machine_limits({"cpu_weight": 100, "cpu_quota": None}),
+                         {"memory_max": "none", "cpu_weight": "100", "cpu_quota": "none"})
+
+    def test_refused(self):
+        "every problem names limits.<field>, in the file and in a flag (exit 2)"
+        for text, field in (("cpu_weight: 0", "cpu_weight"), ("cpu_weight: 10001", "cpu_weight"), ("cpu_weight: abc", "cpu_weight"),
+                            ("memory_max: lots", "memory_max"), ("memory_max: 8X", "memory_max"), ("memory_max: 8", "memory_max"),
+                            ("cpu_quota: fast", "cpu_quota"), ("cpu_quota: 0%", "cpu_quota"), ("cpu_quota: 99999%", "cpu_quota")):
+            self.bad("limits: {%s}" % text, "limits.%s " % field)
+        self.bad("limits: {speed: 1}", "limits.speed: unknown limit")
+        self.bad("limits: 5", "limits must be a mapping")
+        self.conf("")
+        for flag, field in (("--cpu-weight", "cpu_weight"), ("--memory-max", "memory_max"), ("--cpu-quota", "cpu_quota")):
+            rc, out, err = self.lines(flag, "0x")
+            self.assertEqual((rc, out), (2, []))
+            self.assertIn("limits.%s " % field, err)
 
 
 class Hours(MachineCase):

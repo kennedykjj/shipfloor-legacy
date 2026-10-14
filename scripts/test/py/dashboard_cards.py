@@ -701,3 +701,66 @@ class Marks(ds.Dash):
         self.assertEqual(self.save("shop", 7, {"rev": rev, "marks": {"a": ok}}, token=False), 403)
         self.assertEqual(self.req("POST", "/api/card/shop/7/marks?t=" + self.token, {"rev": rev, "marks": {"a": ok}}, token=False).code, 403)
         self.assertFalse(os.path.exists(self.pdir("shop", "reviews", "7.marks.json")), "refused saves left no file")
+
+
+class Amend(ds.Dash):
+    """#204 AC-7: a card blocked by qa-amend carries the acceptance-test diff of its newest QA commit and can be approved."""
+    OWNER_DECIDES = ("Factory validate, step 2 (gates): blocked.\nqa-amend failed: qa-amend: the acceptance tests of #7 were already "
+                     "amended 2 times; the owner decides now. To allow one more amendment, add the label qa-amend-ok to the issue, "
+                     'or press "Approve this amendment" on the card in the dashboard.\nTried: nothing.')
+    TEST = "api/src/test/ATest.kt"
+
+    def git(self, *a):
+        return subprocess.run(["git", *a], cwd=self.w7, capture_output=True, text=True)
+
+    def setUp(self):
+        super().setUp()
+        os.environ.update(GIT_CONFIG_COUNT="3", GIT_CONFIG_KEY_0="init.defaultBranch", GIT_CONFIG_VALUE_0="main",
+                          GIT_CONFIG_KEY_1="maintenance.auto", GIT_CONFIG_VALUE_1="false", GIT_CONFIG_KEY_2="gc.auto", GIT_CONFIG_VALUE_2="0",
+                          GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+        self.W = self.path("wt")
+        self.w7 = os.path.join(self.W, "7")
+        os.makedirs(self.w7)
+        self.git("init", "-q", "-b", "main")
+        self.write("wt/7/README.md", "base\n")
+        self.git("add", "-A"); self.git("commit", "-qm", "base")
+        self.git("checkout", "-q", "-b", "feat/7-x")
+        self.write("wt/7/" + self.TEST, "fun a() {\n  assertEquals(1, one())\n}\n")
+        self.git("add", "-A"); self.git("commit", "-qm", "test(x): acceptance tests for #7")
+        self.write("wt/7/api/Impl.kt", "impl\n")
+        self.git("add", "-A"); self.git("commit", "-qm", "feat(api): impl")
+        self.write("wt/7/" + self.TEST, "fun a() {\n  assertEquals(1, oneTrimmed())\n  assertTrue(ok())\n}\n")
+        self.git("add", "-A"); self.git("commit", "-qm", "test(x): acceptance tests for #7")
+        self.write("shome/registry.tsv", "shop\t/x/shop\t%s\tmain\n" % self.W)
+        self.items((7, "🤖 Validation"), (8, "🤖 Validation"))
+        self.gh("labels-7", "blocked\n")
+        self.gh("issue-comments", json.dumps([{"body": self.OWNER_DECIDES}]))
+        self.fresh()
+
+    def block(self):
+        return self.get("/api/decide/shop/7").json["block"]
+
+    def test_block_note_carries_the_amendment_diff(self):
+        "AC-7: a qa-amend block shows the diff of the acceptance tests against the previous QA commit; other blocks do not"
+        b = self.block()
+        self.assertEqual(b["gate"], "qa-amend")
+        self.assertIn("-  assertEquals(1, one())", b["diff"])
+        self.assertIn("+  assertEquals(1, oneTrimmed())", b["diff"])
+        self.assertIn("+  assertTrue(ok())", b["diff"])
+        self.assertNotIn("Impl.kt", b["diff"])
+        self.gh("issue-comments", json.dumps([{"body": "Factory validate, step 2 (gates): blocked.\nqa-amend failed: the amendment "
+                                                       "switches a test off.\nTried: nothing."}]))
+        self.fresh()
+        self.assertNotEqual(self.block()["gate"], "qa-amend", "only 'the owner decides now' is the extra-amendment block")
+
+    def test_approve_amend_adds_the_label_then_unblocks(self):
+        "AC-7: approve-amend adds qa-amend-ok, then removes blocked; a card that is not blocked is refused and nothing is written"
+        self.assertEqual(self.card_post(7, "approve-amend", {}, p="shop").code, 200)
+        calls = self.calls()
+        add = next(i for i, l in enumerate(calls) if "issues/7/labels" in l and "qa-amend-ok" in l and "DELETE" not in l)
+        rm = next(i for i, l in enumerate(calls) if "DELETE" in l and l.endswith("issues/7/labels/blocked"))
+        self.assertLess(add, rm, "the label is written before the card is unblocked")
+        self.assertEqual(self.post("/api/card/shop/7/approve-amend", {}, token=False).code, 403)
+        self.gh("calls", "")
+        self.assertEqual(self.card_post(8, "approve-amend", {}).code, 409)
+        self.assertFalse(any("qa-amend-ok" in l for l in self.calls()))

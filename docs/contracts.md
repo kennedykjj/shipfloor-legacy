@@ -51,7 +51,7 @@ Two more words exist that the usage text does not print: `fast` `<base> <spec> [
 - The selector reaches the layer's test command as `"$1"` of `bash -c`, never as shell code. `NO_COLOR=1` and `FORCE_COLOR=0` are exported for the runner. A layer with `needs_stack` runs on its own stack slot (`lib/stack.sh`, owner `gate-<pid>`); if the slot does not come up the gate exits 3.
 - `red` is never retried; `green` and `build` run once more for a layer with `retry: 1`.
 - A layer's `install` command runs once per content of the layer's directory (marker in the git dir), by the gate, not by an agent.
-- `qa-amend` allows at most `FACTORY_QA_AMEND_MAX` (default 2) amendments, refuses a commit touching files outside the QA scope, a switched-off test, or fewer assertion lines than before.
+- `qa-amend` allows at most `FACTORY_QA_AMEND_MAX` (default 2) amendments, refuses a commit touching files outside the QA scope, a switched-off test, or fewer assertion lines than before. Past the limit the owner can allow one more: the label `qa-amend-ok` on the issue, added by a login of the trusted set (`board.sh` trusted logins), or the dashboard's `approve-amend` action (`POST /api/card/<project>/<n>/approve-amend`, which adds the label and unblocks the card). The gate then removes the label and records the commit in `<FACTORY_HOME>/qa-amend-ok.tsv` (`#<n>`, commit, login, time), so a rerun on that commit passes without GitHub, and prints `approved by the owner (qa-amend-ok)`. Without approval it fails with exit 1 and the message names both ways; when GitHub cannot be read or the label cannot be removed, it exits 3 (infrastructure).
 - The language of the stderr comes from `FACTORY_LANGUAGE` (set at launch), else the machine's `overrides.yml`, else the project's `factory.yml`.
 
 ## board.sh
@@ -294,6 +294,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `PAUSE` (here and in `<home>`) | empty file | `shipfloor pause`, the dashboard | `shipfloor-dispatch.sh`, `dispatch.sh`, `run-dispatcher.sh`, `shipfloor_health.py`, `shipfloor_notify.py`, `dashboard.py` |
 | `dispatch.pid` | the cycle's pid | `shipfloor-dispatch.sh` | the same script, to detect an overlap |
 | `dispatcher.path` | a PATH prefix, first line | the installer | `run-dispatcher.sh` |
+| `dispatcher.wake` | the command that asks the scheduler for a cycle now, one argument a line (systemd, launchd; absent on cron and Windows) | the installer | `dispatch.py` (a run that ended, after its lock is gone) |
 | `factory/` | the installed copy of `scripts/` and `templates/`; `factory/.source` the plugin checkout path, `factory/.origin` `<commit><TAB><branch><TAB>verified|forced` | `shipfloor install` | `dispatch.sh` (`.source`), `shipfloor doctor`, `dashboard.py` |
 | `<home>/factory.yml` | the config snapshot of `origin/main` | `shipfloor-dispatch.sh`, `shipfloor add` | every script, through `FACTORY_CONFIG` |
 | `<home>/control/` | worktree of `origin/<main>`, where runs start | `shipfloor add`, the dispatcher | pipelines (cwd) |
