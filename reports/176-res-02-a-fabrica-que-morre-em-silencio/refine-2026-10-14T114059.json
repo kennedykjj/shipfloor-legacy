@@ -1,0 +1,1 @@
+{"issue":176,"slug":"res-02-a-fabrica-que-morre-em-silencio","pipeline":"refine","started_at":null,"finished_at":null,"outcome":"ok","agents":[{"role":"product-owner","tokens":15294,"duration_s":14}],"rounds":{"po":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":null}
