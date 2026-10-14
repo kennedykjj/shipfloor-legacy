@@ -1,0 +1,1 @@
+{"issue":168,"slug":"port-dispatch-sh-to-python","pipeline":"refine","started_at":null,"finished_at":null,"outcome":"ok","agents":[{"role":"product-owner","tokens":15890,"duration_s":22}],"rounds":{"po":1,"weight":1,"scope techlead":1,"test-plan":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":false}
