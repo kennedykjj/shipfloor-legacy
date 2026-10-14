@@ -567,6 +567,25 @@ def _agents():
     return found
 
 
+def _limits_hint(src, home, got):
+    """WARN when config.yml asks for limits the installed unit does not carry (systemd only)."""
+    try:
+        sys.path.insert(0, os.path.join(src, "scripts"))
+        import shipfloor_config
+        cfg = os.path.join(home, "config.yml")
+        raw = shipfloor_config.load(cfg) if os.path.isfile(cfg) else None
+        lim = shipfloor_config.machine_limits(raw.get("limits") if isinstance(raw, dict) else None)
+    except Exception:  # no config or an invalid one: the installer says so itself
+        return got
+    want = "none" if all(v == "none" for v in lim.values()) else \
+        "memory_max=%(memory_max)s cpu_weight=%(cpu_weight)s cpu_quota=%(cpu_quota)s" % lim
+    if got.startswith("not supported"):  # "not supported" matters only when limits are configured
+        return got if want != "none" else "none"
+    if want not in ("none", got):
+        _out("WARN config.yml asks for limits (%s) the installed dispatcher does not carry; reinstall: bash %s/installer/install-dispatcher.sh" % (want, src))
+    return got
+
+
 def _fs_type(path, mounts="/proc/self/mounts"):
     """The filesystem type of the longest mount point containing path (or its nearest existing parent); None when
     the mount table is unreadable."""
@@ -625,7 +644,12 @@ def cmd_doctor(args):
         _out("WARN installed copy differs from %s (shipfloor install)" % src)
     dst, dkind = _cap(["bash", os.path.join(src, "installer", "install-dispatcher.sh"), "--status"], err=DEVNULL)
     if dst == 0:
+        rows = dkind.splitlines()
+        dkind = rows[0] if dkind.strip() else dkind
         _out("ok   dispatcher registered (%s)" % (dkind[len("registered: "):] if dkind.startswith("registered: ") else dkind))
+        got = rows[1][len("limits: "):] if len(rows) > 1 and rows[1].startswith("limits: ") else ""
+        if got:
+            _out("ok   dispatcher limits: " + _limits_hint(src, home, got))
     elif dst == 1:
         _out("WARN no dispatcher registered; run: bash %s/installer/install-dispatcher.sh" % src)
     if os.path.isdir(inst):

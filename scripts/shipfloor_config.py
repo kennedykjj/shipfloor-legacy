@@ -636,6 +636,64 @@ def cost_problems(costs):
     return errs
 
 
+LIMIT_KEYS = ("memory_max", "cpu_weight", "cpu_quota")
+MEMORY_RE = re.compile(r"([1-9][0-9]*)([KMGT])")
+QUOTA_RE = re.compile(r"([1-9][0-9]*)%")
+MEMORY_K = {"K": 1, "M": 1024, "G": 1024 ** 2, "T": 1024 ** 3}
+
+
+def is_none(v):
+    return v is None or (isinstance(v, str) and v.strip().lower() == "none")
+
+
+def limits_problems(raw):
+    """The machine's `limits` (memory_max, cpu_weight, cpu_quota), each a value or none; every line starts with
+    the field it is about: limits.<field>. Missing or None is no limit."""
+    if raw is None:
+        return []
+    if not isinstance(raw, dict):
+        return ["limits must be a mapping of memory_max, cpu_weight, cpu_quota"]
+    errs = [f"limits.{k}: unknown limit (use {', '.join(LIMIT_KEYS)})" for k in raw if k not in LIMIT_KEYS]
+    v = raw.get("memory_max")
+    if not is_none(v) and not (isinstance(v, str) and MEMORY_RE.fullmatch(v.strip())):
+        errs.append("limits.memory_max must be a whole number with K, M, G or T (like 8G), or none")
+    v = raw.get("cpu_weight")
+    if not is_none(v):
+        w = v.strip() if isinstance(v, str) else v
+        w = int(w) if isinstance(w, str) and w.isascii() and w.isdigit() else w
+        if type(w) is not int or not 1 <= w <= 10000:
+            errs.append("limits.cpu_weight must be a whole number from 1 to 10000, or none")
+    v = raw.get("cpu_quota")
+    if not is_none(v):
+        cpus = os.cpu_count() or 1
+        m = QUOTA_RE.fullmatch(v.strip()) if isinstance(v, str) else None
+        if not m:
+            errs.append("limits.cpu_quota must be a percentage like 200%, or none")
+        elif int(m.group(1)) > cpus * 100:
+            errs.append(f"limits.cpu_quota must be from 1% to {cpus * 100}% ({cpus} CPUs), or none")
+    return errs
+
+
+def machine_limits(raw):
+    """{memory_max, cpu_weight, cpu_quota} as strings, "none" where there is no limit. Call it on a valid `limits`."""
+    raw = raw if isinstance(raw, dict) else {}
+    return {k: "none" if is_none(raw.get(k)) else str(raw[k]).strip() for k in LIMIT_KEYS}
+
+
+def limits_directives(limits):
+    """The systemd [Service] lines for the limits: MemoryMax=, MemoryHigh= (90% of it), CPUWeight=, CPUQuota=."""
+    lim = machine_limits(limits)
+    out = []
+    if lim["memory_max"] != "none":
+        m = MEMORY_RE.fullmatch(lim["memory_max"])
+        out += [f"MemoryMax={lim['memory_max']}", f"MemoryHigh={int(m.group(1)) * MEMORY_K[m.group(2)] * 9 // 10}K"]
+    if lim["cpu_weight"] != "none":
+        out.append(f"CPUWeight={lim['cpu_weight']}")
+    if lim["cpu_quota"] != "none":
+        out.append(f"CPUQuota={lim['cpu_quota']}")
+    return out
+
+
 def machine_problems(raw):
     if not isinstance(raw, dict):
         return ["the file is not a YAML mapping"]
@@ -643,6 +701,7 @@ def machine_problems(raw):
     if raw.get("language", "en") not in LANGS:
         errs.append(lang_problem())
     errs += cost_problems(raw.get("costs"))
+    errs += limits_problems(raw.get("limits"))
     errs += notify_problems(raw["notify"]) if "notify" in raw else []
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
     if not isinstance(pool, int) or isinstance(pool, bool) or pool < 1:
@@ -783,6 +842,21 @@ def machine(rest):
         return 0
     if errs:
         raise Unusable(f"{path} is invalid: " + "; ".join(errs))
+    if cmd == "limits":  # the systemd directive lines; --memory-max, --cpu-weight, --cpu-quota override the file
+        over, rest_args = {}, list(args)
+        while rest_args:
+            flag = rest_args.pop(0)
+            if flag not in ("--memory-max", "--cpu-weight", "--cpu-quota") or not rest_args:
+                raise Unusable("usage: machine limits [--memory-max V] [--cpu-weight V] [--cpu-quota V]")
+            over[flag[2:].replace("-", "_")] = rest_args.pop(0)
+        file_limits = raw.get("limits") if isinstance(raw.get("limits"), dict) else {}
+        limits = {**file_limits, **over}
+        bad = limits_problems(limits)
+        if bad:
+            raise Unusable("; ".join(bad))
+        for line in limits_directives(limits):
+            print(line)
+        return 0
     if cmd == "stage-models" and not args:  # each stage x light, standard, heavy
         stages = models_of(raw)["stages"]
         sys.stdout.write("".join(f"{stage_model(stages, s, w) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
@@ -805,7 +879,7 @@ def machine(rest):
             print(f"  {k}: {data['stages'][k]}")
         print(f"stacks: {data['stacks']}")
         return 0
-    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | models-check [<agent>...]")
+    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | models-check [<agent>...] | limits [--memory-max V] [--cpu-weight V] [--cpu-quota V]")
 
 
 def main(argv):

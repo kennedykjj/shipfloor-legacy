@@ -55,6 +55,17 @@ class Doctor(CliCase):
         os.environ["SF_UNAME"] = "MINGW64_NT-10.0"
         self.assertNotIn("dispatcher registered", self.doctor())
 
+    def test_AC6_dispatcher_limits(self):
+        "AC-6 doctor shows the limits in effect on the installed dispatcher: none when unlimited, not supported on a scheduler without cgroups"
+        self.assertNotIn("dispatcher limits", self.doctor(), "no dispatcher, no limits line")
+        self.write_file(self.table, "*/3 * * * * /usr/bin/bash -l %s/factory/run-dispatcher.sh # shipfloor-dispatcher\n" % self.sh)
+        out = self.doctor()
+        self.assertRegex(out, r"ok   dispatcher limits: .*none")
+        self.write_file(os.path.join(self.sh, "config.yml"), "limits: {memory_max: 8G, cpu_weight: 200}\n")
+        out = self.doctor()
+        self.assertRegex(out, r"dispatcher limits: .*not supported")
+        self.assertNotRegex(out, r"dispatcher limits: .*none")
+
     def test_tmpdir_on_tmpfs(self):
         "AC-6 a dispatcher TMPDIR (<home>/tmp) on tmpfs is a WARN naming the path and the fix; elsewhere, or with no mount table, no line"
         want = os.path.join(self.sh, "tmp")
