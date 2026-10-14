@@ -1,0 +1,19 @@
+{
+  "issue": 176,
+  "stage": "develop",
+  "outcome": "ok",
+  "agents": [
+    {"name": "qa-engineer", "mode": "write", "rounds": 1, "tokens": 46536, "duration_s": 97},
+    {"name": "engineer", "layer": "factory", "task": "Task 1", "rounds": 1, "tokens": 47339, "duration_s": 189},
+    {"name": "qa-engineer", "mode": "amend", "rounds": 1, "tokens": 14369, "duration_s": 29}
+  ],
+  "tokens": 108244,
+  "rounds": 1,
+  "failed_gates": [],
+  "amendments": [
+    {"file": "scripts/test/dashboard-silent.test.sh", "reason": "AC-5 case used every_min 15, not a valid pace (1, 3, 5, 10), so it fell back to 3; now uses pace 10 with 25 min (not silent) and 40 min (silent)"}
+  ],
+  "flaky": [],
+  "gates_reused": [],
+  "commits": {"base": "f764b2e3692bb81455595e9daa8096a83d2b7c00", "plan": "f296cd6cabd8d40e4661e84535f2f6d3177514cb", "qa": "4bb8ecdb0c04cc604bbe4bd5ebf9c648ce1d8b8e"}
+}
