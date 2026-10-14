@@ -207,6 +207,29 @@ def _fresh(path, days=3):
     return False
 
 
+def sweep_home_tmp(home, days=3):
+    """Remove the direct entries of <home>/tmp untouched for `days`; symlinks are unlinked, never followed."""
+    d = os.path.join(home, "tmp")
+    try:
+        names = sorted(os.listdir(d))
+    except OSError:
+        return []
+    out = []
+    for name in names:
+        e = os.path.join(d, name)
+        if _fresh(e, days):
+            continue
+        try:
+            if os.path.isdir(e) and not os.path.islink(e):
+                shutil.rmtree(e)
+            else:
+                os.unlink(e)
+        except OSError:
+            continue
+        out.append(name)
+    return out
+
+
 def sweep_tmp():
     """Remove what outlived its card under the project's tmp/; the list of each as tmp/<name>."""
     home = os.environ["FACTORY_HOME"]

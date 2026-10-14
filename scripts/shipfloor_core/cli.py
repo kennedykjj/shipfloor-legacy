@@ -567,6 +567,27 @@ def _agents():
     return found
 
 
+def _fs_type(path, mounts="/proc/self/mounts"):
+    """The filesystem type of the longest mount point containing path (or its nearest existing parent); None when
+    the mount table is unreadable."""
+    try:
+        with open(mounts, encoding="utf-8", errors="replace") as f:
+            rows = [ln.split() for ln in f]
+    except OSError:
+        return None
+    p = os.path.abspath(path)
+    while not os.path.exists(p) and os.path.dirname(p) != p:
+        p = os.path.dirname(p)
+    best, kind = -1, None
+    for row in rows:
+        if len(row) < 3:
+            continue
+        mp = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), row[1])
+        if (p == mp or p.startswith(mp.rstrip("/") + "/")) and len(mp) > best:
+            best, kind = len(mp), row[2]
+    return kind
+
+
 def cmd_doctor(args):
     bad, agents, warned = 0, [], False
     for t in ("git", "gh", "claude"):
@@ -620,6 +641,9 @@ def cmd_doctor(args):
                  % (ob, oc[:7], mb, mb))
         else:
             _out("WARN installed copy has no recorded commit (not a git clone, or installed before this check)")
+    tmpdir = os.path.join(home, "tmp")
+    if _fs_type(tmpdir) == "tmpfs":
+        _out("WARN dispatcher TMPDIR %s is on tmpfs (inode cap); move SHIPFLOOR_HOME off tmpfs" % tmpdir)
     rc, alerts = _cap([sys.executable, "-I", os.path.join(HERE, "shipfloor_health.py"), "alerts", "--home", home],
                       err=DEVNULL)
     for alert in alerts.replace("\r", "").split("\n"):

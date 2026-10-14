@@ -225,6 +225,20 @@ case "$seen" in *"git=/"*|*"git=C:"*|*"git=c:"*) pass "AC-6 git resolves" ;; *) 
 case "$seen" in *"python=/"*|*"python=C:"*|*"python=c:"*) pass "AC-6 Python resolves" ;; *) fail "AC-6 Python did not resolve under env -i: $seen" ;; esac
 [ "$(wc -l < "$SHIPFLOOR_HOME/dispatcher.path" | tr -d ' ')" -le 1 ] 2>/dev/null && pass "AC-6 dispatcher.path is one line" || fail "AC-6 dispatcher.path is not one line"
 
+# --- #218 AC-3: a reinstall needs no drop-in: the generated entries start run-dispatcher.sh (which sets TMPDIR) with no TMPDIR of their own
+fresh; run >/dev/null; run; again="$out"
+assert_contains "$again" "already registered"
+case "$(cat "$SVC" "$TMR" 2>/dev/null)" in *TMPDIR*) fail "AC-3 the systemd unit sets a TMPDIR of its own" ;; *) pass "AC-3 the systemd unit sets no TMPDIR" ;; esac
+fresh; SF_UNAME=Darwin run >/dev/null
+case "$(cat "$PLIST" 2>/dev/null)" in *TMPDIR*) fail "AC-3 the plist sets a TMPDIR of its own" ;; *) pass "AC-3 the plist sets no TMPDIR" ;; esac
+fresh; : > "$SF_ST/no-systemd"; run >/dev/null
+case "$(grep -- "$MARK" "$TABLE" 2>/dev/null)" in *TMPDIR*) fail "AC-3 the cron line sets a TMPDIR of its own" ;; *) pass "AC-3 the cron line sets no TMPDIR" ;; esac
+# the entry the install registered, run with a foreign TMPDIR, gives the cycle <SHIPFLOOR_HOME>/tmp
+printf '#!/usr/bin/env bash\necho "$TMPDIR" > "%s/seen-tmpdir"\n' "$T" > "$SHIPFLOOR_HOME/factory/shipfloor-dispatch.sh"
+cmd="$(grep -- "$MARK" "$TABLE" 2>/dev/null | sed -E 's/^([^ ]+ +){5}//; s/ *# shipfloor-dispatcher$//')"
+[ -n "$cmd" ] && env TMPDIR=/tmp sh -c "$cmd" >/dev/null 2>&1
+[ "$(cat "$T/seen-tmpdir" 2>/dev/null)" = "$SHIPFLOOR_HOME/tmp" ] && [ -d "$SHIPFLOOR_HOME/tmp" ] && pass "AC-3 the registered entry runs the cycle with TMPDIR=<SHIPFLOOR_HOME>/tmp, no drop-in" || fail "AC-3 the registered entry gave the cycle TMPDIR='$(cat "$T/seen-tmpdir" 2>/dev/null)' (want $SHIPFLOOR_HOME/tmp)"
+
 # --- AC-7: uninstall leaves nothing behind
 fresh; run >/dev/null; run --uninstall
 [ "$rc" -eq 0 ] && pass "AC-7 systemd: uninstall exits 0" || fail "AC-7 systemd: uninstall exited $rc: $out"
