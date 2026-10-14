@@ -152,7 +152,7 @@ The `PostToolUse` hook of a factory run (`hooks/hooks.json`).
 
 ## review-page.sh
 
-**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html>`. No subcommands. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). `FACTORY_PROJECT` is passed through.
+**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html>`. No subcommands. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). `FACTORY_PROJECT` is passed through.
 
 ## setup-board.sh
 
