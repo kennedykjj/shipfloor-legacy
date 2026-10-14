@@ -1,0 +1,6 @@
+{"issue": 219, "slug": "limite-opcional-de-cpu-e-memoria-para-a", "pipeline": "refine",
+ "started_at": "2026-10-14T16:53:30-03:00", "finished_at": "2026-10-14T16:58:30-03:00", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 14667, "duration_s": 25},
+            {"role": "explore", "tokens": null, "duration_s": null},
+            {"role": "ux-designer", "tokens": 41426, "duration_s": 60}],
+ "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": null}
