@@ -9,6 +9,7 @@
 #   accept <slug> <n> <reason>    owner only: take card <n>'s acceptance tests as they stand (acceptance-intact)
 #   weight <slug> <n> <light|standard|heavy>  owner only: card <n>'s weight, in Spec Review (the model its runs take)
 #   dashboard [--port N] [--no-open] [--token T]  local dashboard: pool, runs, logs, cost per card, reviews
+#   init [<repo>] [--yes]         guided install: factory, .shipfloor/factory.yml, add, board, dispatcher, doctor
 # The logic is shipfloor_core/cli.py (#170); lines 2-10 above are the usage it prints. Its usage errors:
 #   usage: shipfloor install [--force]
 #   usage: shipfloor add <repo> [--worktrees DIR] [--main BRANCH]

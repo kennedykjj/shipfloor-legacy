@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 
-from . import proc, project, stack, text
+from . import deps, proc, project, stack, text
 from .defaults import STAGES as STAGE_COLUMNS
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -297,6 +297,7 @@ class Cycle:
         self.costfail = False
         self.block_cards = ""
         self.snap_rows = None
+        self.deps_seen = {}
 
     def say(self, msg, err=False):
         _say(self.mlang, msg, err)
@@ -406,6 +407,8 @@ class Cycle:
                 queue, resumes, wip_cols = STAGE_COLUMNS[p]
                 if not self.run_pipeline(p, queue, maxpar, limit, resumes[0] if resumes else "", *wip_cols):
                     status = 1
+        if self.deps_seen:
+            self.save_deps()
         # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
         rc, out = self.cfg("get", "deploy.refresh_staged", quiet=True)
         if _t(out).rstrip("\n") == "true" and not self.refresh_staged():
@@ -543,6 +546,26 @@ class Cycle:
                 raise Exit(0)
             if kind == "block":
                 self.block_cards += " " + a
+
+    def waits_on_deps(self, n):
+        """Read the card's "Blocked by" issues once per cycle and record them (deps.json). True = do not start it: a
+        dependency is open, or GitHub did not answer (read false)."""
+        if n not in self.deps_seen:
+            rc, out = self.cfg("get", "project.repo", quiet=True)
+            slug = _t(out).replace("\0", "").replace("\r", "").rstrip("\n")
+            found = deps.blocked_by(slug, n)
+            self.deps_seen[n] = {"read": found is not None, "deps": found or []}
+        entry = self.deps_seen[n]
+        return not entry["read"] or bool(deps.open_numbers(entry["deps"]))
+
+    def save_deps(self):
+        """deps.json: what this cycle read, and the earlier entries of cards still on the board and not Done."""
+        record = {}
+        for n, entry in deps.load(self.home).items():
+            if self.board_read() and self.snapshot_status(n) not in ("", "Done"):
+                record[n] = entry
+        record.update(self.deps_seen)
+        deps.save(self.home, record)
 
     def block_card(self, n):
         """The comment says why, then the label; a failure of either fails the cycle. True = blocked (or failed to be:
@@ -705,6 +728,8 @@ class Cycle:
 
         def start_run(n, orphan=False):
             self.started = 0
+            if p != "refine" and self.waits_on_deps(n):
+                return True  # waiting on an open dependency, or the read failed: not started, no label, no slot
             if (" %s " % n) in (" %s " % self.block_cards) and self.block_card(n):
                 return True  # blocked, not started: it takes no slot
             self.started = 1

@@ -41,7 +41,7 @@ case "$1 ${2:-}" in
 esac
 EOB
   printf '#!/usr/bin/env bash\necho "$(cat)" >> "$T/launched"\n' > "$T/claude"
-  printf '#!/usr/bin/env bash\necho "gh $*" >> "$T/gh.calls"\nexit 0\n' > "$T/gh"
+  printf '#!/usr/bin/env bash\ncase "$*" in *dependencies/blocked_by*) echo "[]"; exit 0 ;; esac\necho "gh $*" >> "$T/gh.calls"\nexit 0\n' > "$T/gh"
   chmod +x "$T/board" "$T/claude" "$T/gh"
   export FACTORY_BOARD="$T/board" FACTORY_CLAUDE="$T/claude" FACTORY_GH="$T/gh"
   : > "$T/launched"; : > "$T/board.calls"
