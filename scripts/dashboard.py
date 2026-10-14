@@ -808,10 +808,10 @@ class Factory:
             for n, col in new.items():
                 was = old.get(n)
                 note = dict(OWNER_MOVES.get(was, ())).get(col) if was and was != col else None
-                if was not in OWNER_MOVES or col not in dict(OWNER_MOVES[was]) or not number(n):
+                if was not in AWAITING or col not in dict(OWNER_MOVES[was]) or not number(n):
                     continue
-                what = ("requested-changes" if note else "approved-spec" if was == "Spec Review" else "approved-pr") if was in AWAITING else "moved"
-                marks.append({"t": after["t"], "kind": "decision", "n": int(n), "what": what, **({"to": col} if what == "moved" else {})})
+                what = "requested-changes" if note else "approved-spec" if was == "Spec Review" else "approved-pr"
+                marks.append({"t": after["t"], "kind": "decision", "n": int(n), "what": what})
         marks.sort(key=lambda m: parse_ts(m["t"]).timestamp())
         return {"date": today.isoformat(), "now": datetime.now().astimezone().isoformat(timespec="seconds"), "board": lines, "marks": marks}
 
