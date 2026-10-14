@@ -1027,6 +1027,11 @@ class Factory:
             f.write(json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "text": text.strip()[:4000]}) + "\n")
         return 200, {"queued": True}
 
+    def github_limited(self):  # the mark a board read refused for GitHub's API limit leaves (dispatch.sh, #190)
+        mark = self.home / "github-limited"
+        window = 60 * int(os.environ.get("SHIPFLOOR_GITHUB_LIMIT_MIN") or 10)
+        return mark.exists() and mark.stat().st_mtime > time.time() - window
+
     def usage_limited(self):
         for log in self.home.glob("projects/*/logs/*.log"):
             if log.stat().st_mtime > time.time() - 1800:
