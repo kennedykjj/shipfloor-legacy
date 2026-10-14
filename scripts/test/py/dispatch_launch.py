@@ -488,6 +488,16 @@ class Telemetry(Base):
         log, _, _ = self.stream(dict(RESULT, is_error=True, result="You've hit your session limit · resets 3pm"))
         self.assertIn("You've hit your session limit · resets 3pm", log)
 
+    def test_usage_limit_quoted_by_a_tool_is_not_the_limit(self):
+        "a file the agent read, or text it wrote into one, that quotes the limit message does not pause the factory"
+        quoted = "LIMIT = \"You've hit your session limit \u00b7 resets 6pm\""
+        log, _, _ = self.stream(_use("t1", "Read", file_path="a"),
+                                {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1",
+                                                                          "content": quoted}]}},
+                                _use("t2", "Edit", file_path="b", new_string=quoted), _done("t2"), RESULT)
+        self.assertFalse(any("hit your session limit" in l for l in log), log)
+        self.assertTrue(log[-1].endswith("outcome=ok"), log[-1])
+
     def test_usage_limit_from_any_event_reaches_the_log(self):
         "the usage limit in an event the log does not get (an earlier turn, a system event) is written to it, once"
         said = {"type": "assistant", "message": {"content": [{"type": "text", "text": "You've hit your session limit"}]}}
