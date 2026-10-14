@@ -92,10 +92,10 @@ queue_ticket() {  # queue_ticket <owner>: write the owner's ticket, named by the
 }
 
 stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order (a no-up project's second run is skipped while its first runs), up to WAIT seconds on the clock; 3 = gave up
-  local q="$STACK_LOCKS/stack-queue" t f pid run solo k st head deadline=$(( SECONDS + WAIT )) note=$SECONDS
-  t="$(queue_ticket "$1")"
+  local q="$STACK_LOCKS/stack-queue" t="" f pid run solo k st head deadline=$(( SECONDS + WAIT )) note=$SECONDS
   local saved; saved="$(trap -p INT TERM)"  # the caller's INT/TERM traps come back on every return; no EXIT trap here
-  trap 'rm -f "$t"; exit 3' INT TERM
+  trap '[ -n "${t:-}" ] && [ -f "$t" ] && rm -f "$t"; exit 3' INT TERM  # armed before the ticket exists: no window where a signal leaves it behind
+  t="$(queue_ticket "$1")"
   while :; do
     for f in "$q"/*; do  # tickets of waiters or runs that are gone leave the queue
       [ -f "$f" ] || continue; read -r pid run _ < "$f"
