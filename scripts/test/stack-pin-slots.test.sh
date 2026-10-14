@@ -8,9 +8,9 @@ T="$(mktemp -d)"; export TMPDIR="$T"
 # only this shell cleans up: a subshell that still holds the trap (the lease's heartbeat loop ends when the test resets
 # the lock, and some bash versions run the inherited EXIT trap there) must not remove $T under the test
 MAINPID=$BASHPID
-# the pid comes from a child (sh's $PPID), not $BASHPID: bash 5.2 can run the inherited EXIT trap in a subshell
+# the pid comes from a child (sh exec'd from the substitution, so its $PPID is this shell), not $BASHPID: bash 5.2 can run the inherited EXIT trap in a subshell
 # killed right after fork while $BASHPID still reads the parent's pid, and that removed $T under the running test
-trap '[ "$(sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; kill $(jobs -p) 2>/dev/null; rm -rf "$T" "${LIBTMP[@]}"' EXIT
+trap '[ "$(exec sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; kill $(jobs -p) 2>/dev/null; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 source "$FACTORY_DIR/lib/project.sh"
 source "$FACTORY_DIR/lib/stack.sh"
 
