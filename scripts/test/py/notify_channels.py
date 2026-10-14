@@ -178,6 +178,45 @@ class Send(NotifyCase):
         outcome[0] = urllib.error.URLError("https://ntfy.sh/abc_123 unreachable")
         self.assertEqual(shipfloor_notify.send("ntfy", "x", "y", "abc_123"), "URLError")
 
+    def test_ac5_click_link(self):
+        "AC-5 the link to the card goes as the Click header (ntfy) or the sender's fourth argument; with no link, ntfy sends no Click and the sender gets an empty fourth argument"
+        link = "http://127.0.0.1:7719/#card/7"
+        out = self.path("args5")
+        os.environ["SHIPFLOOR_NOTIFY_SEND"] = self.write("send5.sh", 'printf "%%s\\n" "$@" > %s/got\n' % out)
+        self.assertIsNone(shipfloor_notify.send("toast", "a title", "the body", "t", link))
+        self.assertEqual(open(out + "/got").read(), "toast\na title\nthe body\n%s\n" % link)
+        self.assertIsNone(shipfloor_notify.send("toast", "a title", "the body", "t", ""))
+        self.assertEqual(open(out + "/got").read(), "toast\na title\nthe body\n\n")
+        del os.environ["SHIPFLOOR_NOTIFY_SEND"]
+        seen = []
+
+        class Reply(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def urlopen(req, timeout):
+            seen.append(req.get_header("Click"))
+            return Reply(b"")
+        saved = urllib.request.urlopen
+        self.addCleanup(setattr, urllib.request, "urlopen", saved)
+        urllib.request.urlopen = urlopen
+        self.assertIsNone(shipfloor_notify.send("ntfy", "shop · #7", "Seven", "abc_123", link))
+        self.assertIsNone(shipfloor_notify.send("ntfy", "shop · #7", "Seven", "abc_123", ""))
+        self.assertEqual(seen, [link, None])
+
+    def test_ac5_click_url_reads_the_port_file(self):
+        "AC-5 click_url(home, n) is http://127.0.0.1:<port>/#card/<n> when <home>/dashboard.port holds a port in 1-65535, else empty"
+        path = os.path.join(self.H, "dashboard.port")
+        self.assertEqual(shipfloor_notify.click_url(self.H, 7), "")
+        for text, want in (("7719\n", "http://127.0.0.1:7719/#card/7"), ("65535", "http://127.0.0.1:65535/#card/7"),
+                           ("0\n", ""), ("65536\n", ""), ("abc\n", ""), ("", "")):
+            with open(path, "w") as f:
+                f.write(text)
+            self.assertEqual(shipfloor_notify.click_url(self.H, 7), want, repr(text))
+
 
 Send.real_send = staticmethod(shipfloor_notify.send)
 
