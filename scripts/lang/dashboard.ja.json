@@ -531,6 +531,7 @@
     "models.per_card": "カードあたり · {n, plural, other {#枚}}、過去7日間",
     "models.refine": "カードにウェイトがつく前に実行されるため、モデルは1つです。",
     "models.def.claude": "Claude Code のもの",
+    "models.def.codex": "Codex のもの",
     "models.agents": "エージェント",
     "models.project_agent": "プロジェクトエージェント · {project}、レイヤー {layer}",
     "models.def.session": "セッションのもの",

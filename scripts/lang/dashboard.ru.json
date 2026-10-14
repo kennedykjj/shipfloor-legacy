@@ -531,6 +531,7 @@
     "models.per_card": "на карточку · {n, plural, one {# карточка} few {# карточки} many {# карточек} other {# карточки}}, последние 7 дней",
     "models.refine": "Идёт до того, как у карточки появится вес, поэтому модель одна.",
     "models.def.claude": "как в Claude Code",
+    "models.def.codex": "как в Codex",
     "models.agents": "Агенты",
     "models.project_agent": "Агент проекта · {project}, слой {layer}",
     "models.def.session": "как у сессии",

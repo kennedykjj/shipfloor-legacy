@@ -4,7 +4,7 @@ What the machine needs, how a repository joins the factory, and the dispatcher o
 
 ## Requirements
 
-Python 3.11+ with PyYAML (`pip install pyyaml`), Git, an authenticated gh, Claude Code (`claude`), and Git Bash on Windows for the wrappers and the scheduler. Any bash runs the wrappers: there is no minimum version.
+Python 3.11+ with PyYAML (`pip install pyyaml`), Git, an authenticated gh, Claude Code (`claude`) and, only for a config that uses `runtime: codex`, the Codex CLI (`codex`, 0.50 or newer), and Git Bash on Windows for the wrappers and the scheduler. Any bash runs the wrappers: there is no minimum version.
 
 ## The short path
 
@@ -29,6 +29,13 @@ For each repository:
 3. `shipfloor setup-board <project>` creates the columns and the `ui`, `cybersec` and `blocked` labels.
 4. Optionally add `.shipfloor/review-criteria.md` and project agents in `.claude/agents/<name>.md`, referenced by `agent:` in a layer.
 5. Permissions for the headless pipelines in the project's `.claude/settings.json`: `Bash(bash ~/.shipfloor/factory/gate.sh:*)`, `Bash(bash ~/.shipfloor/factory/board.sh:*)`, `Bash(bash ~/.shipfloor/factory/shipfloor-config.sh:*)`, `Bash(bash ~/.shipfloor/factory/report.sh:*)`, `Bash(bash ~/.shipfloor/factory/review-page.sh:*)`, plus `git` and `gh`.
+
+To run stages on Codex (see [Runtime: Codex](configuration.md#runtime-codex)): set `runtime: codex` in `~/.shipfloor/config.yml` or a project's `factory.yml`, run `shipfloor install` again (it generates the factory's `CODEX_HOME`, `SHIPFLOOR_CODEX_HOME` or `~/.shipfloor/runtimes/codex`, and leaves `auth.json` alone), then log in to that home, not to your personal `~/.codex`:
+
+```bash
+CODEX_HOME=~/.shipfloor/runtimes/codex codex login    # or export CODEX_API_KEY
+shipfloor doctor                                      # ok/FAIL for codex, its login and the generated CODEX_HOME
+```
 
 Dispatcher on Windows: `powershell -File <plugin>/installer/install-dispatcher.ps1` registers the `ShipfloorDispatcher` task. It runs every 3 minutes unless you choose 1, 5 or 10: pick it in Settings in the dashboard ("Looks for work every"), or pass `-EveryMin` to `installer/install-dispatcher.ps1`. The value lives in `~/.shipfloor/config.yml` as `dispatcher.every_min`.
 

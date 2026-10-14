@@ -531,6 +531,7 @@
     "models.per_card": "par carte · {n, plural, one {# carte} other {# cartes}}, 7 derniers jours",
     "models.refine": "Tourne avant que la carte ait un poids, donc un seul modèle.",
     "models.def.claude": "celui de Claude Code",
+    "models.def.codex": "celui de Codex",
     "models.agents": "Agents",
     "models.project_agent": "Agent du projet · {project}, couche {layer}",
     "models.def.session": "celui de la session",

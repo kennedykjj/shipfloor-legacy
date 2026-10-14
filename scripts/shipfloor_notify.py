@@ -9,6 +9,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
+import runtimes
 import shipfloor_config
 from dashboard import Factory, bash, gh_json, read_yaml
 
@@ -20,7 +21,7 @@ BLOCKED = "blocked in "  # the state of a blocked card, then the stage it stoppe
 WAITS = {"Spec Review": "spec to review", "Staged": "ready to ship"}  # where the owner decides, and what the dashboard says there
 STAGE_OF = {"Ready for Refinement": "refine", "Technical Refinement": "refine", "Ready for Dev": "develop", "Coding": "develop",
             "Validation": "validate", "Ready for Prod": "deploy", "Staged": "deploy"}  # the stage a card in this column is in
-CAUSES = {"usage_limit": ("Shipfloor · the factory is stuck", "The Claude usage limit was hit. New runs wait for it to reset.", "usage limit hit"),
+CAUSES = {"usage_limit": ("Shipfloor · the factory is stuck", "The {runtime} usage limit was hit. New runs wait for it to reset.", "usage limit hit"),
           "skipped": ("{project} · the factory is stuck", "The dispatcher skips this project. The dashboard says why.", "project skipped"),
           "idle": ("{project} · the factory is stuck", "No card moved for an hour and nothing is paused.", "no card moved for an hour")}
 # the text is data: the script reads it from the environment and never has it in its source
@@ -108,7 +109,8 @@ def waiting(boards, last):
 
 def stuck(f, boards, last, moved_at, now):
     """The causes that hold now: the usage limit, a skipped project, a project where nothing moved for an hour."""
-    out = [{"cause": "usage_limit", "project": ""}] if last.get("usage_limited") else []
+    out = [{"cause": "usage_limit", "project": "", "runtime": runtimes.label(f.limited_runtime() or runtimes.NAMES[0])}] \
+        if last.get("usage_limited") else []
     for p, cards in boards.items():
         if f.skipped(p):
             out.append({"cause": "skipped", "project": p})
@@ -254,7 +256,7 @@ def cycle(home, now):
                          if cards[w["key"]]["told"] and cards[w["key"]]["reminded"] is None and waited(w)]
         for c in fresh_causes:
             head, body, _ = CAUSES[c["cause"]]
-            messages.append((t(head, project=c["project"]), t(body), [(stucks[c["key"]], "told", stamp)]))
+            messages.append((t(head, project=c["project"]), t(body, runtime=c.get("runtime", "")), [(stucks[c["key"]], "told", stamp)]))
         if on["done"]:
             messages += [(t("{project} · #{n} reached production", project=p, n=n), title(p, n), []) for p, n in done]
 

@@ -531,6 +531,7 @@
     "models.per_card": "por tarjeta · {n, plural, one {# tarjeta} other {# tarjetas}}, últimos 7 días",
     "models.refine": "Se ejecuta antes de que la tarjeta tenga peso, así que tiene un solo modelo.",
     "models.def.claude": "el de Claude Code",
+    "models.def.codex": "el de Codex",
     "models.agents": "Agentes",
     "models.project_agent": "Agente del proyecto · {project}, capa {layer}",
     "models.def.session": "el de la sesión",
