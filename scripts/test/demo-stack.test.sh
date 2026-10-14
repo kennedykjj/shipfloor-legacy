@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# The demo stack (card #72): scripts/test/demo-stack.sh up / down serves the dashboard on sample data, and
-# dashboard.py takes --token. Every server runs on a port the system gave, under a stack name of its own, and is
+# The demo stack (card #72): scripts/test/demo-stack.sh up / down serves the dashboard on sample data (dashboard.py's
+# --token is in dashboard-server.test.sh). Every server runs on a port the system gave, under a stack name of its own, and is
 # stopped by the trap even when an assertion fails. Nothing here reads or writes the real ~/.shipfloor or calls the real gh.
 source "$(dirname "$0")/lib.sh"
 PY=python3; $PY -c '' 2>/dev/null || PY=python
 nat() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
-T="$(mktemp -d)"; DEMO="$FACTORY_DIR/test/demo-stack.sh"; DASH="$FACTORY_DIR/dashboard.py"
+T="$(mktemp -d)"; DEMO="$FACTORY_DIR/test/demo-stack.sh"
 RUN="qa72-$$-$RANDOM"; NAMES=""; PIDS=""; EXTRA=""
 STATE_ROOT="${TMPDIR:-/tmp}/shipfloor-demo"
 TMO=""; command -v timeout >/dev/null 2>&1 && TMO="timeout 90"
@@ -158,25 +158,4 @@ eq "AC-5 a settings change answers 200" "$(post /api/settings/machine "{\"pool\"
 [ "$UP5" = 0 ] && [ ! -e "$T/gh-called" ] && pass "AC-5 the caller's gh was never called" || fail "AC-5 the caller's gh was called: $(head -n 2 "$T/gh-called")"
 down_demo "$N5"
 
-# --- AC-8: without --token, a random token of 16 or more characters, its own in each home; with it, the chosen one.
-# Amended with the owner's approval (2026-10-12): since #52 a home keeps its token across restarts, so the two starts
-# that must differ are in two homes, where they were two starts in one.
-H8="$(mktemp -d)"; EXTRA="$EXTRA $H8"
-start_dash() {  # start_dash <tag> [dashboard args]: sets DURL from the line the server prints
-  local tag="$1"; shift
-  CLAUDE_CONFIG_DIR="$(nat "$H8")" $PY -I "$(nat "$DASH")" --home "$(nat "$H8")" --port 0 --no-open "$@" > "$T/dash-$tag" 2>&1 < /dev/null &
-  PIDS="$PIDS $!"
-  for _ in $(seq 1 100); do grep -qs 'http://' "$T/dash-$tag" && break; sleep 0.1; done
-  DURL="$(grep -o 'http://[^ ]*' "$T/dash-$tag" | head -n 1 | tr -d '\r')"
-}
-start_dash r1; TOKA="${DURL##*t=}"
-H8A="$H8"; H8="$(mktemp -d)"; EXTRA="$EXTRA $H8"; start_dash r2; TOKB="${DURL##*t=}"; H8="$H8A"
-[ "${#TOKA}" -ge 16 ] && [ "${#TOKB}" -ge 16 ] && pass "AC-8 both random tokens have 16 or more characters" || fail "AC-8 random tokens too short or missing: '$TOKA' '$TOKB'"
-[ -n "$TOKA" ] && [ "$TOKA" != "$TOKB" ] && pass "AC-8 two homes print two different tokens" || fail "AC-8 two homes printed '$TOKA' and '$TOKB'"
-start_dash t1 --token x
-eq "AC-8 with --token x the URL carries ?t=x" "${DURL##*\?t=}" "x"
-[ -n "$DURL" ] && eq "AC-8 the server accepts the chosen token" "$(code -H "X-Shipfloor-Token: x" "${DURL%%/\?t=*}/api/overview")" "200"
-start_dash t2 --token ""
-TOKE="${DURL##*t=}"
-[ -n "$DURL" ] && [ "${#TOKE}" -ge 16 ] && pass "AC-8 an empty --token keeps the random token" || fail "AC-8 an empty --token printed '$DURL' (want a random token of 16 or more characters)"
 finish
