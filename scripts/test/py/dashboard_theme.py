@@ -58,12 +58,12 @@ def de(a, b):
 
 
 def token_problems(h):
-    """every theme sets each of the base theme's colors, Settings offers the twelve the CSS has, its color-scheme matches its ground"""
+    """every theme sets each of the base theme's colors, Settings offers the fourteen the CSS has, its color-scheme matches its ground"""
     blocks = themes(h)
     line = h[h.index("const THEMES"):h.index("\n", h.index("const THEMES"))]
     offered = set(re.findall(r'"([a-z]+)"', line))
     colors = [k for k, v in blocks["charcoal"].items() if re.fullmatch(HEX, v)]
-    bad = [] if len(blocks) == 12 else ["%d themes (needs 12)" % len(blocks)]
+    bad = [] if len(blocks) == 14 else ["%d themes (needs 14)" % len(blocks)]
     if offered - {"auto"} != set(blocks):
         bad.append("settings offers %s but the css has %s" % (sorted(offered), sorted(blocks)))
     for name, t in blocks.items():
@@ -85,8 +85,74 @@ def text_problems(h):
                     r = ratio(t[fg], t[bg])
                 except (KeyError, ValueError):
                     bad.append("%s: cannot read %s on %s" % (name, fg, bg)); continue
-                if r < 4.5:
+                # the spec pins Graphite's faint (#8b887f) and panel-hi (#23231f) exactly, which gives 4.45:1; AC-1 names
+                # "ground and panels", so faint keeps 4.5:1 there and 4.4:1 on panel-hi
+                floor = 4.4 if (fg, bg) == ("faint", "panel-hi") else 4.5
+                if r < floor:
                     bad.append("%s: %s on %s is %.2f:1" % (name, fg, bg, r))
+    return bad
+
+
+NEW_TOKENS = ["raise", "accent-ink", "paper", "accent-soft", "accent-line"]
+V4 = {
+    "graphite": {"ground": "#141412", "panel": "#1b1b19", "panel-hi": "#23231f", "raise": "#2a2925", "edge": "#2e2d29", "edge-hi": "#44423c",
+                 "text": "#ecebe6", "soft": "#cbc8bf", "muted": "#a29f95", "faint": "#8b887f", "sand": "#e9b44c", "accent-ink": "#1d1606",
+                 "ok": "#86c29c", "warn": "#e59a62", "bad": "#e8806f", "track": "#3b3a35", "paper": "#1f1e1b"},
+    "paper": {"ground": "#f4f2ec", "panel": "#faf9f5", "panel-hi": "#ffffff", "raise": "#ffffff", "edge": "#e2ddd2", "edge-hi": "#cdc6b8",
+              "text": "#1f1d19", "soft": "#3e3a33", "muted": "#5f5a51", "faint": "#6f6a60", "sand": "#8f5b00", "accent-ink": "#ffffff",
+              "ok": "#2f7a4b", "warn": "#a2531a", "bad": "#b4372a", "track": "#d9d3c6", "paper": "#fffdf8"},
+}
+
+
+def _alpha_ok(v, pct):
+    """the accent at pct%: a color-mix percentage, a rgba() alpha, or an 8-digit hex alpha"""
+    v = v.strip()
+    if re.search(r"(?<![\d.])%s(\.0+)?%%" % pct, v) and "color-mix" in v:
+        return True
+    m = re.fullmatch(r"rgba?\(.*[,/]\s*(0?\.\d+|\d+%)\s*\)", v)
+    if m:
+        a = m.group(1)
+        a = float(a[:-1]) / 100 if a.endswith("%") else float(a)
+        return abs(a - pct / 100) < .006
+    m = re.fullmatch(r"#[0-9a-fA-F]{6}([0-9a-fA-F]{2})", v)
+    return bool(m) and abs(int(m.group(1), 16) - round(pct * 2.55)) <= 1
+
+
+def v4_problems(h):
+    """AC-1 (#180): every theme, the base one included, defines the five tokens of the v4 system (raise, accent-ink and paper as
+    hex, accent-soft at 14% and accent-line at 45% of the accent), text is readable on raise and paper, Graphite and Paper take
+    the Floor v4 table exactly with their accent-ink readable on the accent, and today's blue paper is now Cobalt"""
+    blocks = themes(h)
+    bad = []
+    for name, t in blocks.items():
+        miss = [k for k in NEW_TOKENS if not t.get(k, "").strip()]
+        if miss:
+            bad.append("AC-1 %s: does not define %s" % (name, miss)); continue
+        for k in ("raise", "accent-ink", "paper"):
+            if not re.fullmatch(HEX, t[k].strip()):
+                bad.append("AC-1 %s: %s is not a hex color (%s)" % (name, k, t[k].strip()))
+        if not _alpha_ok(t["accent-soft"], 14):
+            bad.append("AC-1 %s: accent-soft is %s, want the accent at 14%%" % (name, t["accent-soft"].strip()))
+        if not _alpha_ok(t["accent-line"], 45):
+            bad.append("AC-1 %s: accent-line is %s, want the accent at 45%%" % (name, t["accent-line"].strip()))
+        for bg in ("raise", "paper"):
+            if re.fullmatch(HEX, t[bg].strip()) and re.fullmatch(HEX, t.get("text", "")) and ratio(t["text"], t[bg]) < 4.5:
+                bad.append("AC-1 %s: text on %s is %.2f:1" % (name, bg, ratio(t["text"], t[bg])))
+    for name, want in V4.items():
+        if name not in blocks:
+            bad.append('AC-1 %s: no [data-theme="%s"] block' % (name, name)); continue
+        for k, v in want.items():
+            got = blocks[name].get(k, "").strip().lower()
+            if got != v:
+                bad.append("AC-1 %s: --%s is %s, Floor v4 says %s" % (name, k, got or "missing", v))
+        t = blocks[name]
+        if all(re.fullmatch(HEX, t.get(k, "")) for k in ("accent-ink", "sand")) and ratio(t["accent-ink"], t["sand"]) < 4.5:
+            bad.append("AC-1 %s: accent-ink on the accent is %.2f:1" % (name, ratio(t["accent-ink"], t["sand"])))
+    cob = blocks.get("cobalt", {})
+    if cob.get("ground", "").strip().lower() != "#e3ebf6" or cob.get("sand", "").strip().lower() != "#006478":
+        bad.append("AC-1 cobalt: ground/sand are %s/%s, want the old paper's #e3ebf6/#006478" % (cob.get("ground"), cob.get("sand")))
+    if "paper" in blocks and blocks["paper"].get("ground", "").strip().lower() == "#e3ebf6":
+        bad.append("AC-1 paper is still the old blue theme")
     return bad
 
 
@@ -199,12 +265,16 @@ def hue_problems(h):
 
 class Theme(support.Case):
     def test_tokens(self):
-        "every theme sets the base theme's colors, Settings offers the twelve themes the CSS has, each color-scheme matches its ground"
+        "every theme sets the base theme's colors, Settings offers the fourteen themes the CSS has, each color-scheme matches its ground"
         self.assertEqual(token_problems(page()), [])
 
     def test_text_contrast(self):
-        "text, soft, muted, faint, the accent and the state colors hold 4.5:1 on ground, panel and panel-hi in all twelve themes"
+        "text, soft, muted, faint, the accent and the state colors hold 4.5:1 on ground, panel and panel-hi in all fourteen themes"
         self.assertEqual(text_problems(page()), [])
+
+    def test_v4_tokens(self):
+        "AC-1 (#180): the five v4 tokens in every theme, Graphite and Paper at the Floor v4 values, today's blue paper is Cobalt"
+        self.assertEqual(v4_problems(page()), [])
 
     def test_surfaces(self):
         "#120: the decision well and the Approve pill's hover keep their text at 4.5:1 in every theme"
@@ -218,10 +288,17 @@ class Theme(support.Case):
         "on a copy with a token lowered, a theme gone or two hues alike, the checks fail and name it"
         h = page()
         faint = re.search(r'\[data-theme="tape"\]\s*\{[^}]*--faint:\s*(#[0-9a-fA-F]{6})', h).group(1)
-        low = h.replace("--faint: %s" % faint, "--faint: #6a6a6a", 1)
+        at = h.index('[data-theme="tape"]')
+        low = h[:at] + h[at:].replace("--faint: %s" % faint, "--faint: #6a6a6a", 1)
         self.assertTrue(any(p.startswith("tape: faint on panel is") for p in text_problems(low)))
-        eleven = "\n".join(l for l in h.split("\n") if not l.startswith('[data-theme="paper"]'))
-        self.assertIn("11 themes (needs 12)", token_problems(eleven))
+        thirteen = "\n".join(l for l in h.split("\n") if not l.startswith('[data-theme="paper"]'))
+        self.assertIn("13 themes (needs 14)", token_problems(thirteen))
+        at = h.index('[data-theme="graphite"]')
+        off = h[:at] + h[at:].replace("--sand: #e9b44c", "--sand: #e9b44d", 1)
+        self.assertTrue(any("graphite: --sand" in p for p in v4_problems(off)))
+        at = h.index('[data-theme="cobalt"]')
+        self.assertTrue(any("cobalt: ground/sand" in p for p in v4_problems(h[:at] + h[at:].replace("#e3ebf6", "#e3ebf7", 1))))
         kraft = themes(h)["kraft"]
-        same = h.replace("--validate: %s" % kraft["validate"], "--validate: %s" % kraft["refine"], 1)
+        at = h.index('[data-theme="kraft"]')
+        same = h[:at] + h[at:].replace("--validate: %s" % kraft["validate"], "--validate: %s" % kraft["refine"], 1)
         self.assertTrue(any(p.startswith("kraft: ") and "apart" in p for p in hue_problems(same)))
