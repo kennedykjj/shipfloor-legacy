@@ -134,6 +134,25 @@ if doc is not None:
               f"the check on the copy said: {got or 'nothing (it passed)'}")
         check(f"AC-4 removing `{w}` from {s} names no other script", all(g.startswith(s + ": ") for g in got), f"the check said: {got}")
 
+# AC-5 (#178): the brief.sh section documents the brief.json contract
+if doc is not None:
+    bsec = sections(doc).get("brief.sh")
+    check("AC-5 docs/contracts.md has a \"## brief.sh\" section", bsec is not None, "docs/contracts.md has no \"## brief.sh\" section")
+    bsec = bsec or ""
+    check("AC-5 the brief.sh section names brief.json", "brief.json" in bsec, "the brief.sh section does not name brief.json")
+    for fld in ("verdict", "flags", "proven", "facts", "since_request", "what", "rest"):
+        check(f"AC-5 the brief.sh section documents the field `{fld}`", re.search(r"`%s`" % fld, bsec) is not None,
+              f"the brief.sh section does not list `{fld}` in backticks")
+    check("AC-5 the brief.sh section says since_request is accepted as input and empty when absent",
+          re.search(r"since_request", bsec) is not None and re.search(r"\bempty\b", bsec, flags=re.I) is not None
+          and re.search(r"input|--since", bsec, flags=re.I) is not None,
+          "the brief.sh section does not say since_request is an input and empty when absent")
+    check("AC-5 the brief.sh section says who writes each field (script vs agent notes)",
+          re.search(r"notes", bsec, flags=re.I) is not None and re.search(r"script|brief\.py", bsec, flags=re.I) is not None,
+          "the brief.sh section does not say which fields the script computes and which the notes give")
+    check("AC-5 the files table has a brief.json row", re.search(r"^\|[^\n]*brief\.json[^\n]*\|", doc, flags=re.M) is not None,
+          "docs/contracts.md has no table row for brief.json")
+
 print("\n".join(res))
 PY
 )"
