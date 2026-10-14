@@ -1,183 +1,80 @@
 #!/usr/bin/env bash
-# Stack slots: each run that needs the local stack leases a slot, which gives it a port range and
-# its own compose project. The one place slot state is computed (gate.sh, dispatch.sh, shipfloor and
-# the dashboard all ask here). Sourced after lib/project.sh, with a resolved project.
+# Stack slots: each run that needs the local stack leases a slot, which gives it a port range and its own compose
+# project. The logic is shipfloor_core/stack.py; these functions are the shim gate.sh, dispatch.sh and the tests call,
+# each running `sf.py stack <command>`. Sourced after lib/project.sh, with a resolved project.
+#   stack_settings  sets STACKS BASE SPAN WAIT STALE HOLD NAME UP DOWN PORTS URL HEALTH REJECT TIMEOUT SOLO here;
+#                   the functions after it hand those values (changed or not) to sf.py, and their $$ for the ticket
+#   stack_lease/stack_up  set SLOT here (stack_up also exports the slot's SHIPFLOOR_* for the runner); they wait in
+#                   the background, so INT/TERM reach this shell at once: sf.py gives its ticket or slot back, exit 3
 
 source "${BASH_SOURCE[0]%/*}/portable.sh"
 STACK_LOCKS="$SHIPFLOOR_HOME/locks"
+_STACK_SF="$SHIPFLOOR_LIB/../sf.py"
+if command -v cygpath >/dev/null 2>&1; then _STACK_SF="$(cygpath -m "$_STACK_SF")"; fi  # the path Windows Python reads
 
-stack_settings() {  # machine and project settings: STACKS BASE SPAN WAIT STALE HOLD NAME UP DOWN PORTS URL HEALTH REJECT TIMEOUT
-  local m p
-  mapfile -d '' -t m < <(shipfloor_machine values stacks ports.base ports.span stack_wait stack_stale stack_hold_max)
-  mapfile -d '' -t p < <(shipfloor_cfg values project.name stack.up stack.down stack.ports stack.url stack.health stack.reject stack.timeout)
-  STACKS="${m[0]:-3}" BASE="${m[1]:-20000}" SPAN="${m[2]:-20}" WAIT="${FACTORY_STACK_WAIT:-${m[3]:-1800}}" STALE="${m[4]:-90}" HOLD="${m[5]:-2700}"
-  NAME="${p[0]:-project}" UP="${p[1]:-}" DOWN="${p[2]:-}" PORTS="${p[3]:-}" URL="${p[4]:-}" HEALTH="${p[5]:-}" REJECT="${p[6]:-}" TIMEOUT="${p[7]:-300}"
-  SOLO=-; [ -z "$UP" ] && SOLO="$NAME"  # a project that starts no stack of its own shares one fixed stack: one of its runs at a time
-  mkdir -p "$STACK_LOCKS/stack-queue" "$SHIPFLOOR_HOME/logs"
+_stack_prep() {  # _stack_prep [fresh]: _STACK_S = this shell's settings for sf.py ("" = read the configs)
+  shipfloor_py; _STACK_S=""
+  [ -z "${1:-}" ] && [ -n "${STACKS+x}" ] || return 0
+  _STACK_S="$(printf '%s\037' "$STACKS" "$BASE" "$SPAN" "$WAIT" "$STALE" "$HOLD" "$NAME" "$UP" "$DOWN" "$PORTS" "$URL" \
+    "$HEALTH" "$REJECT" "$TIMEOUT" "$SOLO")"
+}
+_stack_exec() {  # _stack_exec <command> [args]: sf.py stack with _STACK_S, in the foreground
+  SHIPFLOOR_HOME="$SHIPFLOOR_HOME" SHIPFLOOR_STACK_SETTINGS="$_STACK_S" SHIPFLOOR_STACK_PID="$$" \
+    "$SHIPFLOOR_PY" -I "$_STACK_SF" stack "$@"
+}
+_stack_sf() { _stack_prep; _stack_exec "$@"; }           # with this shell's settings (once stack_settings ran)
+_stack_fresh() { _stack_prep fresh; _stack_exec "$@"; }  # with the configs' settings, read anew
+_stack_bg() {  # _stack_bg <out> [fresh] <command> [args]: sf.py stack in the background, stdout to <out>; 3 on INT/TERM
+  local out="$1" fresh="$2" saved rc; shift 2
+  _stack_prep "$fresh"
+  saved="$(trap -p INT TERM)"  # the caller's INT/TERM traps come back on every return
+  trap '[ -n "${_STACK_CHILD:-}" ] && { kill -TERM "$_STACK_CHILD" 2>/dev/null; wait "$_STACK_CHILD" 2>/dev/null; }; exit 3' INT TERM
+  SHIPFLOOR_HOME="$SHIPFLOOR_HOME" SHIPFLOOR_STACK_SETTINGS="$_STACK_S" SHIPFLOOR_STACK_PID="$$" \
+    "$SHIPFLOOR_PY" -I "$_STACK_SF" stack "$@" > "$out" &
+  _STACK_CHILD=$!
+  wait "$_STACK_CHILD"; rc=$?
+  _STACK_CHILD=""; trap - INT TERM; eval "$saved"
+  return "$rc"
+}
+
+stack_settings() {  # machine and project settings: STACKS BASE SPAN WAIT STALE HOLD NAME UP DOWN PORTS URL HEALTH REJECT TIMEOUT SOLO
+  local v
+  mapfile -d '' -t v < <(_stack_fresh settings)
+  STACKS="${v[0]-}" BASE="${v[1]-}" SPAN="${v[2]-}" WAIT="${v[3]-}" STALE="${v[4]-}" HOLD="${v[5]-}" NAME="${v[6]-}"
+  UP="${v[7]-}" DOWN="${v[8]-}" PORTS="${v[9]-}" URL="${v[10]-}" HEALTH="${v[11]-}" REJECT="${v[12]-}" TIMEOUT="${v[13]-}" SOLO="${v[14]-}"
 }
 
 slot_dir() { echo "$STACK_LOCKS/stack-$1.lock"; }
-
-slot_state() {  # slot_state <k>: "free", "busy" or "stuck <reason>"
-  local d owner run epoch beat now; d="$(slot_dir "$1")"; now="$(date +%s)"
-  [ -d "$d" ] || { echo free; return; }
-  read -r owner run epoch < "$d/info" 2>/dev/null || { echo "stuck no-info"; return; }
-  beat="$(mtime "$d/beat" 2>/dev/null || echo "${epoch:-0}")"
-  # a lease owned by a run lives as long as that run; the heartbeat only guards leases without one
-  if [ "${run:--}" != - ] && [ ! -d "$run" ]; then echo "stuck run-ended"
-  elif [ "${run:--}" = - ] && [ $(( now - beat )) -gt "$STALE" ]; then echo "stuck heartbeat"
-  elif [ $(( now - ${epoch:-0} )) -gt "$HOLD" ]; then echo "stuck hold-max"
-  else echo busy; fi
-}
-
-fill_ports() {  # fill_ports <k> <template>: {name} → that port of slot k
-  local out="$2" name i=0
-  for name in $PORTS; do out="${out//\{$name\}/$(( BASE + $1 * SPAN + i ))}"; i=$(( i + 1 )); done
-  printf '%s' "$out"
-}
-
+slot_state() { _stack_sf slot-state "$1"; }        # slot_state <k>: "free", "busy" or "stuck <reason>"
+fill_ports() { _stack_sf fill-ports "$1" "$2"; }   # fill_ports <k> <template>: {name} → that port of slot k
 slot_env() {  # slot_env <k>: export the slot's environment for up, down, tests and agents
-  local name i=0
-  export SHIPFLOOR_SLOT="$1" SHIPFLOOR_STACK="shipfloor-$NAME-$1"
-  for name in $PORTS; do export "SHIPFLOOR_PORT_${name^^}=$(( BASE + $1 * SPAN + i ))"; i=$(( i + 1 )); done
-  export SHIPFLOOR_STACK_URL; SHIPFLOOR_STACK_URL="$(fill_ports "$1" "$URL")"
+  local line
+  while IFS= read -r line; do export "$line"; done < <(_stack_sf slot-env "$1")
+}
+free_range() { _stack_sf free-range "$1"; }        # free_range <k>: stop what still listens on the slot's ports
+slot_down() { _stack_sf slot-down "$1"; }          # slot_down <k>: the slot's own stored down command, then free its ports
+slot_release() { _stack_sf slot-release "$1" "${2:-}"; }  # slot_release <k> [heartbeat]: stop its heartbeat, drop the lock
+slot_reclaim() { _stack_sf slot-reclaim "$1" "$2"; }      # slot_reclaim <k> <reason>
+solo_busy() { _stack_sf solo-busy "$1"; }          # solo_busy <project>: 0 when a live slot is held by a run of it
+queue_ticket() { _stack_sf queue-ticket "$1"; }    # queue_ticket <owner>: write the owner's ticket; prints its path
+
+stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order, up to WAIT seconds on the clock; 3 = gave up
+  local f rc; f="$(mktemp)" || return 3
+  _stack_bg "$f" "" lease "$1"; rc=$?
+  [ "$rc" = 0 ] && read -r SLOT < "$f"
+  rm -f "$f"; [ "$rc" = 0 ] || return 3
 }
 
-free_range() {  # free_range <k>: stop what still listens on the slot's ports; Docker's own processes are left to `down`
-  local lo=$(( BASE + $1 * SPAN )) hi=$(( BASE + ($1 + 1) * SPAN - 1 )) pid name
-  if command -v netstat.exe >/dev/null; then
-    for pid in $(netstat.exe -ano 2>/dev/null | awk -v lo="$lo" -v hi="$hi" '$1 == "TCP" && $4 == "LISTENING" { n = split($2, a, ":"); if (a[n] >= lo && a[n] <= hi) print $5 }' | sort -u); do
-      name="$(tasklist.exe //FI "PID eq $pid" //FO CSV //NH 2>/dev/null | cut -d, -f1 | tr -d '"')"
-      case "$name" in com.docker*|docker*|vpnkit*|wslrelay*|"") ;; *) taskkill.exe //PID "$pid" //F >/dev/null 2>&1 ;; esac
-    done
-  elif command -v lsof >/dev/null; then
-    lsof -nP -iTCP:"$lo-$hi" -sTCP:LISTEN -Fpc 2>/dev/null |
-      awk '/^p/ { p = substr($0, 2) } /^c/ && $0 !~ /^c(com\.docker|docker|vpnkit)/ { print p }' | xargs -r kill -9 2>/dev/null
+stack_up() {  # stack_up <owner>: lease, clean the range, up, wait for health; prints the URL; 3 = infrastructure
+  local f line rc; f="$(mktemp)" || return 3
+  _stack_bg "$f.url" fresh up --export "$f" "$1"; rc=$?
+  if [ "$rc" = 0 ]; then
+    while IFS= read -r line; do case "$line" in SLOT=*) SLOT="${line#SLOT=}" ;; *) export "$line" ;; esac; done < "$f"
+    cat "$f.url"
   fi
-  return 0
+  rm -f "$f" "$f.url"; [ "$rc" = 0 ] || return 3
 }
 
-slot_down() {  # slot_down <k>: the slot's own stored down command (it may be another project's), then free its ports
-  local d; d="$(slot_dir "$1")"
-  if [ -s "$d/down" ]; then
-    ( set -a; . "$d/env" 2>/dev/null; set +a; { cd "$(cat "$d/cwd" 2>/dev/null)" 2>/dev/null || cd /; }; bash -c "$(cat "$d/down")" ) >/dev/null 2>&1
-  fi
-  free_range "$1"
-}
-
-slot_release() {  # slot_release <k> [heartbeat]: stop its heartbeat (unless it is already dead) and drop the lock
-  local d pid; d="$(slot_dir "$1")"
-  [ "${2:-}" != heartbeat ] && [ -f "$d/beat.pid" ] && read -r pid < "$d/beat.pid" && kill "$pid" 2>/dev/null
-  rm -rf "$d"
-}
-
-slot_reclaim() {  # slot_reclaim <k> <reason>
-  local owner=?; [ -f "$(slot_dir "$1")/info" ] && read -r owner _ < "$(slot_dir "$1")/info"
-  echo "$(date -Is) reclaimed slot $1 from ${owner:-?} $2" >> "$SHIPFLOOR_HOME/logs/stacks.log"
-  slot_down "$1"; slot_release "$1" "$2"
-}
-
-solo_busy() {  # solo_busy <project>: 0 when a live slot is held by a run of that no-up project
-  local k
-  for (( k = 0; k < STACKS; k++ )); do
-    [ "$(cat "$(slot_dir "$k")/solo" 2>/dev/null)" = "$1" ] && [ "$(slot_state "$k")" = busy ] && return 0
-  done
-  return 1
-}
-
-queue_ticket() {  # queue_ticket <owner>: write the owner's ticket, named by the next sequence taken under a mkdir lock; prints its path
-  local q="$STACK_LOCKS/stack-queue" tries=0 f n max=0 t
-  until mkdir "$q/.lock" 2>/dev/null; do tries=$(( tries + 1 )); [ "$tries" -ge 50 ] && { rmdir "$q/.lock" 2>/dev/null; tries=0; }; sleep 0.1; done
-  for f in "$q"/*; do [ -e "$f" ] || continue; n="${f##*/}"; n="${n%%-*}"; n="${n//[!0-9]/}"; [ -n "$n" ] && [ $(( 10#$n )) -gt "$max" ] && max=$(( 10#$n )); done
-  t="$q/$(printf '%019d' $(( max + 1 )))-$1"; echo "$$ ${SHIPFLOOR_RUN_LOCK:--} $SOLO" > "$t"; rmdir "$q/.lock"; echo "$t"
-}
-
-stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order (a no-up project's second run is skipped while its first runs), up to WAIT seconds on the clock; 3 = gave up
-  local q="$STACK_LOCKS/stack-queue" t="" f pid run solo k st head deadline=$(( SECONDS + WAIT )) note=$SECONDS
-  local saved; saved="$(trap -p INT TERM)"  # the caller's INT/TERM traps come back on every return; no EXIT trap here
-  trap '[ -n "${t:-}" ] && [ -f "$t" ] && rm -f "$t"; exit 3' INT TERM  # armed before the ticket exists: no window where a signal leaves it behind
-  t="$(queue_ticket "$1")"
-  while :; do
-    for f in "$q"/*; do  # tickets of waiters or runs that are gone leave the queue
-      [ -f "$f" ] || continue; read -r pid run _ < "$f"
-      if ! kill -0 "${pid:-0}" 2>/dev/null || { [ "${run:--}" != - ] && [ ! -d "$run" ]; }; then rm -f "$f"; fi
-    done
-    head=""
-    for f in $(ls "$q" | sort); do  # the first ticket not blocked by its own project's running slot
-      read -r pid run solo < "$q/$f" 2>/dev/null || continue
-      if [ "${solo:--}" != - ] && solo_busy "$solo"; then continue; fi
-      head="$f"; break
-    done
-    if [ "$head" = "${t##*/}" ]; then
-      for (( k = 0; k < STACKS; k++ )); do
-        st="$(slot_state "$k")"; [ "${st%% *}" = stuck ] && slot_reclaim "$k" "${st#stuck }"
-        if mkdir "$(slot_dir "$k")" 2>/dev/null; then
-          [ "$SOLO" != - ] && echo "$SOLO" > "$(slot_dir "$k")/solo"
-          echo "$1 ${SHIPFLOOR_RUN_LOCK:--} $(date +%s)" > "$(slot_dir "$k")/info"; touch "$(slot_dir "$k")/beat"
-          rm -f "$t"; trap - INT TERM; eval "$saved"; SLOT="$k"; return 0
-        fi
-      done
-    fi
-    if [ "$SECONDS" -ge "$deadline" ]; then rm -f "$t"; trap - INT TERM; eval "$saved"; echo "stack: no free slot after ${WAIT}s" >&2; return 3; fi
-    [ "$SECONDS" -ge "$note" ] && { note=$(( SECONDS + 60 )); echo "stack: waiting, position $(ls "$q" | sort | grep -nxF "${t##*/}" | cut -d: -f1) of $(ls "$q" | wc -l | tr -d ' ')" >&2; }
-    sleep 1
-  done
-}
-
-stack_up() {  # stack_up <owner>: lease, clean the range, up, wait for health up to TIMEOUT seconds on the clock; prints the URL; 3 = infrastructure
-  local d body="" health deadline healthy=0 m
-  stack_settings; stack_lease "$1" || return 3
-  d="$(slot_dir "$SLOT")"; slot_env "$SLOT"
-  env | grep -E '^SHIPFLOOR_(SLOT|STACK|STACK_URL|PORT_[A-Z0-9]+)=' > "$d/env"; printf '%s' "$DOWN" > "$d/down"; pwd > "$d/cwd"
-  ( trap '' HUP; cd /; while [ -d "$d" ]; do touch "$d/beat" 2>/dev/null; sleep 15; done ) </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
-  echo $! > "$d/beat.pid"
-  slot_down "$SLOT"
-  if [ -n "$UP" ]; then
-    if ! bash -c "$UP" > "$d/up.log" 2>&1; then
-      echo "stack: up failed:" >&2; tail -20 "$d/up.log" >&2; slot_down "$SLOT"; slot_release "$SLOT"; return 3
-    fi
-    health="$(fill_ports "$SLOT" "$HEALTH")"
-    deadline=$(( SECONDS + TIMEOUT ))
-    while :; do
-      m=$(( deadline - SECONDS )); [ "$m" -gt 5 ] && m=5; [ "$m" -lt 1 ] && m=1
-      if [ -z "$health" ] || body="$(curl -fsS -m "$m" "$health" 2>/dev/null)" && { [ -z "$REJECT" ] || ! printf '%s' "$body" | grep -Eq -- "$REJECT"; }; then
-        healthy=1; break
-      fi
-      [ "$SECONDS" -ge "$deadline" ] && break
-      sleep 1
-    done
-    if [ "$healthy" -eq 0 ]; then
-      echo "stack: not healthy after ${TIMEOUT}s at $health" >&2; tail -20 "$d/up.log" >&2
-      slot_down "$SLOT"; slot_release "$SLOT"; return 3
-    fi
-  fi
-  echo "${SHIPFLOOR_STACK_URL:-$URL}"
-}
-
-stack_down() {  # stack_down <owner>: down, free the range, release; a no-op when <owner> holds no slot
-  local k owner; stack_settings
-  for (( k = 0; k < STACKS; k++ )); do
-    [ -f "$(slot_dir "$k")/info" ] && read -r owner _ < "$(slot_dir "$k")/info" || continue
-    [ "$owner" = "$1" ] && { slot_down "$k"; slot_release "$k"; }
-  done
-  return 0
-}
-
-stack_release_run() {  # stack_release_run <run lock>: release every slot a finished run still holds
-  local f run k
-  for f in "$STACK_LOCKS"/stack-*.lock/info; do
-    [ -f "$f" ] || continue; read -r _ run _ < "$f"
-    [ "$run" = "$1" ] || [ "$run" -ef "$1" ] || continue
-    k="${f%.lock/info}"; k="${k##*stack-}"; slot_down "$k"; slot_release "$k"
-  done
-}
-
-stack_status() {  # one line per slot: k state owner held_s reason; then the queue length
-  local k st owner epoch now; stack_settings; now="$(date +%s)"
-  for (( k = 0; k < STACKS; k++ )); do
-    st="$(slot_state "$k")"; owner=- epoch="$now"
-    [ -f "$(slot_dir "$k")/info" ] && read -r owner _ epoch < "$(slot_dir "$k")/info"
-    printf '%s\t%s\t%s\t%s\t%s\n' "$k" "${st%% *}" "${owner:--}" "$(( now - ${epoch:-$now} ))" "$( [ "${st%% *}" = stuck ] && echo "${st#stuck }")"
-  done
-  printf 'queue\t%s\n' "$(ls "$STACK_LOCKS/stack-queue" 2>/dev/null | wc -l | tr -d ' ')"
-}
+stack_down() { _stack_fresh down "$1"; }            # stack_down <owner>: down, free the range, release; a no-op when <owner> holds no slot
+stack_release_run() { _stack_sf release-run "$1"; }  # stack_release_run <run lock>: release every slot a finished run still holds
+stack_status() { _stack_fresh status; }              # one line per slot: k state owner held_s reason; then the queue length
