@@ -1,0 +1,7 @@
+{"issue": 202, "slug": "explicit-dependencies-dispatcher", "pipeline": "validate", "outcome": "ok",
+ "agents": [{"role": "engineer", "tokens": 36295, "duration_s": 74}],
+ "rounds": {"merge-conflicts": 1},
+ "gates_failed": ["build (stack-py-heartbeat.test.sh, flaky under load; passed on rerun and alone)"],
+ "flaky": ["factory scripts/test/stack-py-heartbeat.test.sh"],
+ "gates_reused": ["green factory scripts/test/dispatch-deps.test.sh", "green factory scripts/test/dashboard-deps.test.sh", "green factory scripts/test/health-deps.test.sh"],
+ "manual_edit": false, "pr": 233}
