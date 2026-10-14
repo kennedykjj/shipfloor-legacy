@@ -1,0 +1,17 @@
+{
+  "issue": 244,
+  "slug": "shipfloor-pool-sai-com-1-quando-ha",
+  "pipeline": "develop",
+  "started_at": "2026-10-14T12:00:00-03:00",
+  "finished_at": "2026-10-14T12:10:00-03:00",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 32119, "duration_s": 51},
+    {"role": "engineer", "tokens": 16404, "duration_s": 30}
+  ],
+  "rounds": {"3": 1, "4": 1},
+  "gates_failed": ["green factory scripts/test/py/cli_registry.py (wrong selector, rerun with scripts/test/cli.test.sh: pass)"],
+  "flaky": [],
+  "amendments": [],
+  "manual_edit": null
+}
