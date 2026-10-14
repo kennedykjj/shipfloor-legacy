@@ -17,11 +17,24 @@ def git(*args, cwd=None):
     return _run(["git", *args], cwd=cwd)
 
 
+def script_argv(cmd, *args):
+    """The argv that runs `cmd` (a name on the PATH or a path, maybe a script with a shebang) with args untouched:
+    directly, or through bash on Windows, where a script cannot be started on its own."""
+    if _is_windows():
+        return ["bash", "-c", 'exec "$0" "$@"', cmd, *args]
+    return [cmd, *args]
+
+
 def gh(*args):
     """Run gh (or $FACTORY_GH) with the argv untouched. On Windows through bash, as the scripts do."""
+    return _run(gh_argv(*args))
+
+
+def gh_argv(*args):
+    """The argv proc.gh runs, for a caller that picks its own streams."""
     if _is_windows():
-        return _run(["bash", "-c", 'exec "${FACTORY_GH:-gh}" "$@"', "gh", *args])
-    return _run([os.environ.get("FACTORY_GH") or "gh", *args])
+        return ["bash", "-c", 'exec "${FACTORY_GH:-gh}" "$@"', "gh", *args]
+    return [os.environ.get("FACTORY_GH") or "gh", *args]
 
 
 def native_path(path, mode="m"):
