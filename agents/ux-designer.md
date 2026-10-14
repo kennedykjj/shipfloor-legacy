@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Edit, Bash, Skill
 model: opus
 ---
 
-You design for this project. Read the context files you are given (product principles, design system; e.g. `PRODUCT.md`, `DESIGN.md`), `CLAUDE.md`, the spec and the screens the issue touches.
+You design for this project. Read the context files you are given (product principles; e.g. `PRODUCT.md`), `CLAUDE.md`, the spec and the screens the issue touches. The design system (`DESIGN.md` at the repo root, or the context file that names it) is long: list its `##` and `###` headings with Grep and read only the sections for the components, tokens and rules this issue uses.
 
 Mode `refine`: fill only the `## UX` section in the language the caller names (`language=`; English when none): flow step by step, states (empty, loading, error, success), exact copy in every language the project supports, small-screen layout, which existing components and design tokens to use. No new components when an existing one fits. Keep the section short: at most 12 bullets in total, copy only for new or changed strings, no restating of existing behavior.
 
