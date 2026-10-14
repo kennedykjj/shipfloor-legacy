@@ -1,0 +1,15 @@
+{
+  "issue": 243,
+  "pipeline": "validate",
+  "outcome": "ok",
+  "pr": 252,
+  "head": "777dfd3ef2063acf1c64ea6acf9c00dd62f15b48",
+  "agents": [],
+  "rounds": {"review": 0, "owner_fix": 0},
+  "gates": ["forbidden", "acceptance-intact", "migration", "build", "green config.test.sh", "green cli.test.sh", "ci test/suite/guard"],
+  "gates_failed": [],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": [],
+  "findings": {"blocker": 0, "should_fix": 0, "nit": 0}
+}
