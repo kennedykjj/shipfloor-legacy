@@ -1,0 +1,8 @@
+{"issue": 149, "slug": "34-37-runtimes-1-4-contrato-do-adaptador", "pipeline": "validate",
+ "started_at": "2026-10-14T21:10:00Z", "finished_at": "2026-10-14T21:40:00Z", "outcome": "ok",
+ "agents": [{"role": "engineer", "tokens": 32019, "duration_s": 30}, {"role": "engineer", "tokens": 12061, "duration_s": 5},
+            {"role": "engineer", "tokens": 13011, "duration_s": 9}],
+ "rounds": {"merge-conflict": 1, "ci": 2}, "gates_failed": ["build", "green factory scripts/test/dispatch.test.sh"],
+ "flaky": [], "gates_reused": ["green factory scripts/test/config.test.sh", "green factory scripts/test/hygiene.test.sh",
+ "green factory scripts/test/dispatch-launch.test.sh", "green factory scripts/test/dispatch-cost.test.sh",
+ "green factory scripts/test/install.test.sh", "green factory scripts/test/cli.test.sh"], "manual_edit": false}
