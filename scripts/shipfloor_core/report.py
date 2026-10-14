@@ -6,9 +6,9 @@ import sys
 import time
 
 from . import project, proc
+from .defaults import TRAILER
 
 BRANCH = "factory-reports"
-TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 
 def usage(out):

@@ -290,3 +290,152 @@ def card_weight(n):
     """The weight of card <n>'s spec; standard when there is no worktree, spec or weight line."""
     spec = card_spec(n)
     return spec_weight(spec) if spec else "standard"
+
+
+def config_path(d, rev):
+    """The config path committed at <rev> in the git dir <d>, or None."""
+    rel = ".shipfloor/factory.yml"
+    try:
+        return rel if proc.git("-C", d, "cat-file", "-e", "%s:%s" % (rev, rel)).returncode == 0 else None
+    except OSError:
+        return None
+
+
+# ---- the command line behind lib/project.sh (sf.py project <command>) and shipfloor-config.sh (sf.py config)
+
+_EXPORTS = ("FACTORY_PROJECT", "FACTORY_REPO", "FACTORY_MAIN", "FACTORY_HOME", "FACTORY_WT_ROOT", "FACTORY_CONFIG")
+
+
+def _exports():
+    """What the shim evals: one `export` of the project's six variables, each value quoted for the shell."""
+    import shlex
+    return "export " + " ".join("%s=%s" % (k, shlex.quote(os.environ.get(k, ""))) for k in _EXPORTS)
+
+
+def _config_module():
+    sys.path.insert(0, _SCRIPTS)
+    import shipfloor_config
+    return shipfloor_config
+
+
+def _cfg_in_process(query):
+    """shipfloor_cfg: shipfloor_config.py's answer for the resolved project, in this process (one Python start)."""
+    config = os.environ.get("FACTORY_CONFIG", "")
+    home = os.environ.get("FACTORY_HOME", "")
+    wt = os.environ.get("FACTORY_WT_ROOT", "")
+    return _config_module().run(["--config", proc.native_path(config), "--home", proc.native_path(home) if home else "",
+                                 "--worktrees", proc.native_path(wt) if wt else "", *query])
+
+
+def _machine_in_process(args):
+    """shipfloor_machine: the machine-wide settings (config.yml in the Shipfloor home), in this process."""
+    os.environ["SHIPFLOOR_MACHINE_CONFIG"] = proc.native_path(os.path.join(shipfloor_home(), "config.yml"))
+    return _config_module().run(["machine", *args])
+
+
+def _validate():
+    from . import cli
+    return 0 if cli._validate() else 1
+
+
+def _say(lang):
+    """shipfloor_say: stdin, written in English, comes out in that language (lang/<language>.sed)."""
+    from . import text
+    data = sys.stdin.buffer.read()
+    rc, out, err = text.say_bytes(lang, data)
+    sys.stdout.buffer.write(out)
+    sys.stderr.buffer.write(err)
+    return rc
+
+
+def _lines(items):
+    for i in items:
+        print(i)
+    return 0
+
+
+def main(args):
+    """sf.py project <command> [args]: the functions of lib/project.sh, for the shell that sourced it."""
+    from . import text
+    cmd, rest = (args[0], args[1:]) if args else ("", [])
+    arg = lambda i: rest[i] if len(rest) > i else ""
+    if cmd == "resolve":
+        if os.environ.get("FACTORY_CONFIG"):
+            return 0
+        try:
+            resolve(rest[0] if rest and rest[0] else ".")
+        except ProjectError as e:
+            print(e, file=sys.stderr)
+            print("return 1")
+            return 1
+        print(_exports())
+        return 0
+    if cmd == "use" and len(rest) >= 2:
+        use(rest[0], rest[1], arg(2) or None, arg(3) or None)
+        print(_exports())
+        return 0
+    if cmd == "cfg":
+        return _cfg_in_process(rest)
+    if cmd == "machine":
+        return _machine_in_process(rest)
+    if cmd == "validate":
+        return _validate()
+    if cmd == "native":
+        print(proc.native_path(arg(0)))
+        return 0
+    if cmd == "git-common":
+        out = git_common(arg(0))
+        if out:
+            print(out)
+        return 0 if out else 1
+    if cmd == "config-path" and len(rest) == 2:
+        p = config_path(rest[0], rest[1])
+        if p:
+            print(p)
+        return 0 if p else 1
+    if cmd == "ere-ok":
+        try:
+            text.ere_match(arg(0), "")
+        except ValueError:
+            return 1
+        return 0
+    if cmd == "snapshot":
+        return 0 if snapshot() else 1
+    if cmd == "clean-tmp":
+        clean_tmp(arg(0))
+        return 0
+    if cmd == "stale-tmp":
+        return _lines(stale_tmp())
+    if cmd == "sweep-tmp":
+        return _lines(sweep_tmp())
+    if cmd == "card-spec":
+        spec = card_spec(arg(0), arg(1) or None)
+        if spec:
+            print(spec)
+        return 0
+    if cmd == "spec-weight":
+        print(spec_weight(arg(0)))
+        return 0
+    if cmd == "card-weight":
+        print(card_weight(arg(0)))
+        return 0
+    if cmd == "say":
+        return _say(arg(0) or "en")
+    print("usage: sf.py project resolve|use|cfg|machine|validate|native|git-common|config-path|ere-ok|snapshot|"
+          "clean-tmp|stale-tmp|sweep-tmp|card-spec|spec-weight|card-weight|say ...", file=sys.stderr)
+    return 2
+
+
+def config_main(args):
+    """sf.py config <query...>: shipfloor-config.sh past its step fast path. `machine` needs no project; anything else
+    needs the resolved project (exit 2 when there is none); `validate` also checks every pattern with grep -E."""
+    if args[:1] == ["machine"]:
+        return _machine_in_process(args[1:])
+    try:
+        resolve(".")
+    except ProjectError as e:
+        print(e, file=sys.stderr)
+        return 2
+    if args[:1] == ["validate"]:
+        return _validate()
+    return _cfg_in_process(args)

@@ -12,7 +12,7 @@ MAINPID=$$  # only this shell cleans up (a child that inherited the trap compare
 trap '[ "$(exec sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 
 FIXLIB="$T/fixture-lib"; mkdir -p "$FIXLIB" "$T/rec"
-cp "$FACTORY_DIR/test/fixtures/stack.bash.sh" "$FIXLIB/stack.sh" 2>/dev/null; cp "$FACTORY_DIR/lib/portable.sh" "$FIXLIB/"
+cp "$FACTORY_DIR/test/fixtures/stack.bash.sh" "$FIXLIB/stack.sh" 2>/dev/null; cp "$FACTORY_DIR/test/fixtures/portable.sh" "$FIXLIB/"
 stubs="$T/stubs"; curlstub="$T/curlstub"; mkdir -p "$stubs" "$curlstub"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$stubs/lsof"
 # curl stub: logs its arguments; $H/health.mode is fail (exit 22), fail-once (then ok) or body:<text>
