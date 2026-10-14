@@ -1,0 +1,18 @@
+{
+  "issue": 189,
+  "slug": "agents-use-rest-api-for-issues",
+  "pipeline": "develop",
+  "started_at": "2026-10-14T15:55:00Z",
+  "finished_at": "2026-10-14T16:21:04Z",
+  "outcome": "ok",
+  "agents": [
+    {"role": "qa-engineer", "tokens": 19984, "duration_s": 22},
+    {"role": "engineer", "tokens": 13988, "duration_s": 15},
+    {"role": "engineer", "tokens": 17702, "duration_s": 20}
+  ],
+  "rounds": {"3": 1, "4": 2, "5": 1},
+  "gates_failed": ["build (after task 2, expected: validate checks still red)"],
+  "flaky": [],
+  "gates_reused": [],
+  "manual_edit": false
+}
