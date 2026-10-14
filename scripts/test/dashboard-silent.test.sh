@@ -72,8 +72,10 @@ o="$(ov)"
 [ "$(jget "$o" '"silent" in d and d["silent"] is None')" = True ] && pass "AC-3 with no health line overview.silent is null" || fail "AC-3 overview.silent with no line was: $(jget "$o" 'd.get("silent", "missing")')"
 
 # --- AC-5: the pace of config.yml sets the threshold: 40 min is silent at pace 10, not at pace 15; no key falls back to 3
-fresh_home 15 40; start_dash d
-[ "$(jget "$(ov)" '"silent" in d and d["silent"] is None')" = True ] && pass "AC-5 40 min at pace 15 (threshold 45) is not silent" || fail "AC-5 40 min at pace 15 was: $(jget "$(ov)" 'd.get("silent", "missing")')"
+fresh_home 10 25; start_dash d
+[ "$(jget "$(ov)" '"silent" in d and d["silent"] is None')" = True ] && pass "AC-5 25 min at pace 10 (threshold 30) is not silent" || fail "AC-5 25 min at pace 10 was: $(jget "$(ov)" 'd.get("silent", "missing")')"
+fresh_home 10 40; start_dash f
+[ "$(jget "$(ov)" 'd["silent"]["every"]')" = 10 ] && pass "AC-5 40 min at pace 10 (threshold 30) is silent, every 10" || fail "AC-5 40 min at pace 10 was: $(jget "$(ov)" 'd.get("silent", "missing")')"
 fresh_home "" 12; start_dash e
 [ "$(jget "$(ov)" 'd["silent"]["every"]')" = 3 ] && pass "AC-5 without the key the overview uses the default pace, 3" || fail "AC-5 default pace was: $(jget "$(ov)" 'd.get("silent", "missing")')"
 
