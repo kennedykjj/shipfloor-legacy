@@ -1,6 +1,8 @@
 """The gates around QA's acceptance tests: acceptance-intact, acceptance-own (for shipfloor accept), qa-commit, qa-amend."""
+import json
 import os
 import re
+import time
 import shutil
 import subprocess
 import tempfile
@@ -349,6 +351,93 @@ def _int(value):
         return 0
 
 
+AMEND_LABEL = "qa-amend-ok"
+
+
+def _amend_tsv():
+    return os.path.join(os.environ.get("FACTORY_HOME", ""), "qa-amend-ok.tsv")
+
+
+def _recorded(n, sha):
+    """HEAD's commit was already approved (the label was spent on it): a rerun passes without GitHub."""
+    try:
+        with open(_amend_tsv(), "rb") as f:
+            rows = _lines(f.read())
+    except OSError:
+        return False
+    return any(_text(r).split("\t")[:2] == ["#" + n, sha] for r in rows)
+
+
+def _gh_json(ctx, *args):
+    """gh's JSON answer (pages joined when it prints several arrays); a failure ends the gate with exit 3 (infra)."""
+    try:
+        r = proc.gh(*args)
+    except OSError:
+        r = None
+    if r is None or r.returncode == 4:
+        return None  # no gh, or none signed in: there is no label to read, so no approval
+    if r.returncode != 0 and b"HTTP 404" in r.stderr:
+        return None  # no such issue: it has no label
+    if r.returncode != 0:
+        ctx.err("qa-amend: cannot read GitHub (gh %s):%s" % (" ".join(args[:2]), _text(r.stderr).strip()))
+        ctx.exit(3)
+    dec, s, pos, got = json.JSONDecoder(), _text(r.stdout), 0, []
+    try:
+        while True:
+            while pos < len(s) and s[pos].isspace():
+                pos += 1
+            if pos >= len(s):
+                break
+            v, pos = dec.raw_decode(s, pos)
+            got.extend(v) if isinstance(v, list) else got.append(v)
+    except ValueError:
+        ctx.err("qa-amend: cannot read GitHub (gh %s)" % " ".join(args[:2]))
+        ctx.exit(3)
+    return got
+
+
+def _approval(ctx, n, sha):
+    """None: no approval. "": this commit was approved before. Otherwise the owner's login: the label is pending."""
+    if _recorded(n, sha):
+        return ""
+    repo = changes.config_query(ctx, "get", "project.repo")
+    issue = _gh_json(ctx, "api", "repos/%s/issues/%s" % (repo, n))
+    if issue is None:
+        return None
+    names = [(l or {}).get("name") for i in issue if isinstance(i, dict) for l in i.get("labels") or []]
+    if AMEND_LABEL not in names:
+        return None
+    events = _gh_json(ctx, "api", "repos/%s/issues/%s/events?per_page=100" % (repo, n), "--paginate")
+    if events is None:
+        return None
+    last = [e for e in events if isinstance(e, dict) and e.get("event") == "labeled"
+            and (e.get("label") or {}).get("name") == AMEND_LABEL]
+    if not last:
+        return None
+    actor = ((last[-1].get("actor") or {}).get("login")) or ""
+    from .. import board
+    trusted = board.trusted_logins()
+    if trusted is None:
+        ctx.err("qa-amend: cannot read the GitHub user")
+        ctx.exit(3)
+    return actor if actor and ("*" in trusted or actor in trusted) else None
+
+
+def _spend(ctx, n, sha, actor):
+    """Use the approval: remove the label, then record the commit. A label that stays would approve a second time."""
+    repo = changes.config_query(ctx, "get", "project.repo")
+    try:
+        r = proc.gh("api", "-X", "DELETE", "repos/%s/issues/%s/labels/%s" % (repo, n, AMEND_LABEL))
+    except OSError:
+        r = None
+    if r is None or r.returncode != 0:
+        ctx.err("qa-amend: cannot remove the label %s from #%s" % (AMEND_LABEL, n))
+        ctx.exit(3)
+    os.makedirs(os.environ.get("FACTORY_HOME", "") or ".", exist_ok=True)
+    with open(_amend_tsv(), "a", encoding="utf-8", newline="\n") as f:
+        f.write("#%s\t%s\t%s\t%s\n" % (n, sha, actor, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
+
+
 def qa_amend(ctx, args):
     n = args[0] if args else ""
     if not _NUMBER.fullmatch(n):
@@ -364,9 +453,14 @@ def qa_amend(ctx, args):
     if not prev:
         ctx.err("qa-amend: #%s has one QA commit, so nothing was amended" % n)
         return 1
+    approval = None
     if len(every) > _int(most) + 1:
-        ctx.err("qa-amend: the acceptance tests of #%s were already amended %s times; the owner decides now" % (n, most))
-        return 1
+        approval = _approval(ctx, n, new)
+        if approval is None:
+            ctx.err("qa-amend: the acceptance tests of #%s were already amended %s times; the owner decides now. "
+                    "To allow one more amendment, add the label qa-amend-ok to the issue, or press "
+                    '"Approve this amendment" on the card in the dashboard.' % (n, most))
+            return 1
     allowed = changes.config_query(ctx, "regex", "scope", "qa")
     bad = _bad(grep(ctx, allowed, [_text(l) for l in _names(ctx, new)], invert=True))
     if bad:
@@ -393,5 +487,10 @@ def qa_amend(ctx, args):
         ctx.err("qa-amend: the amendment removes %s assertion lines and adds %s; an amended test may check differently, "
                 "not less" % (lost, gained))
         return 1
-    ctx.err("qa-amend: ok, %s assertion lines replaced by %s" % (lost, gained))
+    suffix = ""
+    if approval is not None:
+        if approval:  # pending: spend the label, then record the commit
+            _spend(ctx, n, new, approval)
+        suffix = "; one amendment over the limit approved by the owner (qa-amend-ok)"
+    ctx.err("qa-amend: ok, %s assertion lines replaced by %s%s" % (lost, gained, suffix))
     return 0
