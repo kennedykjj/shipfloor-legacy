@@ -16,7 +16,8 @@ from shipfloor_core.defaults import DEPLOY_DEFAULTS
 import shipfloor_health
 from shipfloor_core import deps
 import dashboard_cost
-from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, per_card, rounded
+import runtimes
+from dashboard_cost import LEGACY_STAGES, cost, parse_transcript, parse_ts, per_card, rounded
 import yaml
 
 # The steps a run announces with `shipfloor-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
@@ -432,19 +433,8 @@ class Factory:
         return hit[1]
 
     def sessions(self, p, issue=None):
-        out = []
-        for d in (self.claude_dir / "projects").glob(f"*-projects-{p}-control"):
-            for f in d.glob("*.jsonl"):
-                try:  # Claude Code may delete a transcript under us, or a line may carry a bad time
-                    s = self.transcript(f)
-                    if s["start"]:
-                        parse_ts(s["start"])
-                except (OSError, ValueError):
-                    continue
-                if s["stage"] and s["start"] and issue in (None, s["issue"]):
-                    subs = [self.transcript(a) for a in sorted((d / f.stem / "subagents").glob("*.jsonl"))]
-                    out.append(dict(s, id=f.stem, subagents=subs, path=f))
-        return sorted(out, key=lambda s: s["start"] or "")
+        found = runtimes.sessions(p, self.transcript, {"claude-code": self.claude_dir})
+        return [s for s in found if issue in (None, s["issue"])]
 
     def runs(self, p, issue=None, day=None):
         """Runs as the dispatcher logged them: == start / == end lines, the model each one started with, and the
@@ -1172,9 +1162,10 @@ class Factory:
         and the owner's messages the lead has not read yet."""
         out = []
         for s in self.sessions(p, n)[-1:]:
-            out = list(self.transcript(s["path"], events))
-            for a in (s["path"].parent / s["id"] / "subagents").glob("*.jsonl"):
-                out += [dict(e, sub=True) for e in self.transcript(a, events)]
+            read = runtimes.get(s["runtime"]).events
+            out = list(self.transcript(s["path"], read))
+            for a in s["subagent_paths"]:
+                out += [dict(e, sub=True) for e in self.transcript(a, read)]
         inbox, pending = self.inbox(p, n), []
         if inbox and inbox.is_file():
             seen = inbox.with_name("inbox.lead")
@@ -1199,8 +1190,7 @@ class Factory:
     def usage_limited(self):
         for log in self.home.glob("projects/*/logs/*.log"):
             if log.stat().st_mtime > time.time() - 1800:
-                text = log.read_text(encoding="utf-8", errors="replace")
-                if "hit your session limit" in text[max(0, text.rfind("== start")):]:
+                if runtimes.usage_limited(log.read_text(encoding="utf-8", errors="replace")):
                     return True
         return False
 
