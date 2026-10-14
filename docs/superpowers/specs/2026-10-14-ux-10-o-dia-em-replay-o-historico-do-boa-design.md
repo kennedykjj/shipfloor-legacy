@@ -84,16 +84,16 @@ _Tech Lead_
 
 | AC | Layer | Test file |
 |---|---|---|
-| AC-1 | factory | `scripts/test/board-history.test.sh` |
-| AC-2 | factory | `scripts/test/board-history.test.sh` |
-| AC-3 | factory | `scripts/test/dashboard-day.test.sh` |
-| AC-4 | factory | `scripts/test/dashboard-replay.test.sh` |
-| AC-5 | factory | `scripts/test/dashboard-replay.test.sh` |
-| AC-6 | factory | `scripts/test/dashboard-replay.test.sh` |
-| AC-7 | factory | `scripts/test/dashboard-replay.test.sh` |
-| AC-8 | factory | `scripts/test/dashboard-replay.test.sh` |
+| AC-1 | factory | `scripts/test/py/board_history.py` |
+| AC-2 | factory | `scripts/test/py/board_history.py` |
+| AC-3 | factory | `scripts/test/py/dashboard_day.py` |
+| AC-4 | factory | `scripts/test/py/dashboard_replay.py` |
+| AC-5 | factory | `scripts/test/py/dashboard_replay.py` |
+| AC-6 | factory | `scripts/test/py/dashboard_replay.py` |
+| AC-7 | factory | `scripts/test/py/dashboard_replay.py` |
+| AC-8 | factory | `scripts/test/py/dashboard_replay.py` |
 
-The page tests read `dashboard.html` as text, as `dashboard-page.test.sh` does. Validation checks the running screen with verify-ui.
+The modules run inside existing suites (`board_history` in `scripts/test/dispatch-cycle.test.sh`, `dashboard_day` and `dashboard_replay` in `scripts/test/dashboard-views.test.sh`), because `hygiene.test.sh` caps the number of `*.test.sh` files. The page tests run the page's script in node on `belt_page.py`'s fake DOM. Validation checks the running screen with verify-ui.
 
 ## Security
 _Cybersec_ — n/a
@@ -111,6 +111,7 @@ _What the pipeline decided on its own; one line each, with the reason._
 - The feed's new English name is Logbook, matching "The logbook scrubber" in floor-v4.md; pt-BR is Diário, as the issue names it.
 - Develop waits for #181 (the belt is not on main yet): the issue already orders it after #28/37, and #169 is closed.
 - Weight is heavy: 8 acceptance criteria and more than 8 files.
+- Develop: the test plan names Python modules run by existing suites instead of three new `*.test.sh` files, because `hygiene.test.sh` caps the suite at 52 files (main is at 52) and the ceiling is never raised to fit a new file.
 
 ## Open questions
 - none
