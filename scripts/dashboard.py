@@ -331,6 +331,16 @@ def gh_json(*args):
         return None, "gh did not print JSON"
 
 
+def page_source():
+    """dashboard.html as the browser gets it: the page is one self-contained file, but its twelve @font-face rules are
+    woff2 data URIs (~270 KB of base64) that nobody edits, so the source keeps them in fonts/dashboard-fonts.css and
+    the `/*@dashboard-fonts*/` line of the page's <style> stands for them. An agent reading or editing the page never
+    has to read the fonts."""
+    html = (HERE / "dashboard.html").read_text(encoding="utf-8")
+    fonts = (HERE / "fonts" / "dashboard-fonts.css").read_text(encoding="utf-8")
+    return html.replace("/*@dashboard-fonts*/\n", fonts, 1)
+
+
 class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
@@ -1740,7 +1750,7 @@ class Factory:
         already in that language and the browser picks the language's glyphs and case rules."""
         lang = self.lang()
         data = json.dumps(lang, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-        html = (HERE / "dashboard.html").read_text(encoding="utf-8")
+        html = page_source()
         html = html.replace('<html lang="en">', f'<html lang="{lang["language"]}">', 1)
         html = html.replace('<script type="application/json" id="lang-data">null</script>', f'<script type="application/json" id="lang-data">{data}</script>', 1)
         return html.encode("utf-8")
