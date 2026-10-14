@@ -17,6 +17,7 @@ from runtimes import TOKEN_KINDS
 from shipfloor_core.defaults import TRAILER  # the commit trailer of the runs' commits
 
 NAME = "claude-code"
+LABEL = "Claude"  # how a line for the owner names it
 BINARY = os.environ.get("FACTORY_CLAUDE") or "claude"
 MODELS = ("opus", "sonnet", "haiku", "fable")  # what `claude --model` and the Agent tool's model take
 LADDER = ("haiku", "sonnet", "opus")  # a run that fails a gate steps one up; fable is not on it: the factory cannot rank it

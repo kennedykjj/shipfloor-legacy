@@ -354,6 +354,28 @@ def source_state(src):
     return st
 
 
+def _generate_codex_home(src, inst, home, bad):
+    """The factory's CODEX_HOME, when a runtime of the machine or of a project is codex (runtimes/codex_gen.py)."""
+    from runtimes import codex, codex_gen
+    import shipfloor_config
+    try:
+        import yaml
+        with open(os.path.join(home, "config.yml"), encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+    except (OSError, ValueError, ImportError):
+        raw = None
+    except Exception:  # YAML that does not parse: doctor and validate say so
+        raw = None
+    models = shipfloor_config.runtime_setting(raw, None, "models") or {}
+    agents = models.get("agents") if isinstance(models, dict) and isinstance(models.get("agents"), dict) else {}
+    try:
+        n = codex_gen.generate(src, codex.data_dir(), inst, agents)
+    except (OSError, ValueError) as e:
+        bad("CODEX_HOME (%s)" % (getattr(e, "strerror", None) or e))
+        return
+    _out("codex: CODEX_HOME %s: %d file%s written" % (codex.data_dir(), n, "" if n == 1 else "s"))
+
+
 def cmd_install(args):
     src, force, kind = source_dir(), False, "verified"
     for a in args:
@@ -450,6 +472,8 @@ def cmd_install(args):
         # by rename too: other commands read it while an install runs
         if _put_text((src + "\n").encode("utf-8", "surrogateescape"), os.path.join(inst, ".source")) == "failed":
             bad(".source")
+    if counts["bad"] == 0 and "codex" in _runtimes_in_use():
+        _generate_codex_home(src, inst, home, bad)
     _out("installed %s → %s: %d replaced, %d added, %d removed" % (src, inst, counts["replaced"], counts["added"],
                                                                   counts["removed"]))
     if re.match(r"(MINGW|MSYS|CYGWIN)", proc.uname_s()):
@@ -632,6 +656,15 @@ def _runtimes_in_use():
     return found or [runtimes.NAMES[0]]
 
 
+def _pace_words(pace):
+    """'every 30 seconds' stays; 'every 180 seconds' reads 'every 3 minutes', 'every 60 seconds' 'every 1 minute'."""
+    m = re.fullmatch(r"every (\d+) seconds", pace)
+    if not m or int(m.group(1)) < 60 or int(m.group(1)) % 60:
+        return pace
+    n = int(m.group(1)) // 60
+    return "every %d minute%s" % (n, "" if n == 1 else "s")
+
+
 def cmd_doctor(args):
     bad, agents, warned = 0, [], False
     for t in ("git", "gh"):
@@ -641,11 +674,11 @@ def cmd_doctor(args):
             _out("FAIL %s not found" % t)
             bad = 1
     for name in _runtimes_in_use():
-        for found, line in runtimes.get(name).doctor():
+        for found, line, *failed in runtimes.get(name).doctor():  # a runtime may say its own FAIL text
             if found:
                 _out("ok   " + line)
             else:
-                _out("FAIL %s not found" % line)
+                _out("FAIL " + (failed[0] if failed else "%s not found" % line))
                 bad = 1
     try:
         import yaml  # noqa: F401  (the factory's Python is the one running this)
@@ -682,6 +715,9 @@ def cmd_doctor(args):
         got = rows[1][len("limits: "):] if len(rows) > 1 and rows[1].startswith("limits: ") else ""
         if got:
             _out("ok   dispatcher limits: " + _limits_hint(src, home, got))
+        pace = next((r[len("pace: "):] for r in rows if r.startswith("pace: ")), "")
+        if pace:
+            _out("ok   dispatcher pace: " + _pace_words(pace))
     elif dst == 1:
         _out("WARN no dispatcher registered; run: bash %s/installer/install-dispatcher.sh" % src)
     if os.path.isdir(inst):
@@ -729,6 +765,23 @@ def cmd_doctor(args):
         if line:
             _out("WARN models: " + line)
             warned = True
+    # models.stages is Claude Code's: set for a stage that runs on another runtime, it does nothing
+    seen = set()
+    cfgs = [""]
+    if os.path.isfile(reg) and os.path.getsize(reg) > 0:
+        for row in _rows():
+            slug, repo, wt, main = text.read_tab(row, 4)
+            if slug:
+                with _ProjectEnv(slug, repo, wt, main):
+                    cfg = os.environ.get("FACTORY_CONFIG", "")
+                    cfgs.append(proc.native_path(cfg) if cfg and os.path.isfile(cfg) else "")
+    for cfg in cfgs:
+        r = project.machine("models-stages-check", *([cfg] if cfg else []))
+        for line in _t(r.stdout).replace("\r", "").split("\n"):
+            if line and line not in seen:
+                seen.add(line)
+                _out("WARN models: " + line)
+                warned = True
     if not warned:
         _out("ok   models")
     return bad

@@ -338,13 +338,15 @@ class Alerts(HealthCase):
         self.assertEqual(self.missed(), ["no dispatcher cycle for 12 min (it runs every 3)"])
 
     def test_silence(self):
-        "#176 silence(): the age and the pace past 3 x every_min (missing or invalid: 3), else None; alerts(skip_silence=True) leaves only that line out"
+        "#176 silence(): the age and the pace past 3 x every_min and at least 3 min (missing or invalid: 3), else None; alerts(skip_silence=True) leaves only that line out"
         self.assertIsNone(shipfloor_health.silence(self.H))  # no log at all
         os.makedirs(os.path.join(self.H, "logs"))
         self.assertIsNone(shipfloor_health.silence(self.H))  # no health line yet
         for conf, ago, want in (("dispatcher: {every_min: 10}\n", 60, [60, 10]), ("dispatcher: {every_min: 10}\n", 20, None),
                                 (None, 12, [12, 3]), ("dispatcher: {every_min: banana}\n", 12, [12, 3]),
-                                ("dispatcher: {every_min: 5}\n", 12, None), (None, 8, None)):
+                                ("dispatcher: {every_min: 5}\n", 12, None), (None, 8, None),
+                                # 30 seconds: 3 x the pace would be 90 s, a long cycle's length; the floor stays 3 min
+                                ("dispatcher: {every_min: 0.5}\n", 2, None), ("dispatcher: {every_min: 0.5}\n", 4, [4, 0.5])):
             self.setup()
             if conf:
                 self.put("config.yml", conf)

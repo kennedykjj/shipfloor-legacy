@@ -2,10 +2,11 @@
 dispatcher (through the real installer/install-dispatcher.sh --status, the machine faked by stand-ins), every project's
 config, language, tmp dirs, SKIPPED, control checkout and branch protection, and the models line; its exit code."""
 import os
+import shutil
 import sys
 from unittest import mock
 
-from cli_support import CliCase, ROOT, git, plugin_copy
+from cli_support import CliCase, ROOT, git, plugin_copy, script
 from shipfloor_core import cli
 
 SCRIPTS_HERE = cli.HERE
@@ -54,6 +55,50 @@ class Doctor(CliCase):
         out = self.doctor()
         self.assertEqual(out.count("claude-code: claude"), 1, out)
 
+    def fake_codex(self):
+        """A `codex` first on PATH: --version prints one, `login status` fails while $SF_ST/codex-logged-out exists."""
+        script(os.path.join(self.path("bin"), "codex"), '#!/usr/bin/env bash\ncase "$*" in\n'
+               '  --version) echo "codex-cli 0.200.0" ;;\n'
+               '  "login status") [ -e "$SF_ST/codex-logged-out" ] && { echo "Not logged in" >&2; exit 1; }; echo "Logged in using ChatGPT" ;;\n'
+               'esac\n')
+
+    def test_AC8_codex_lines(self):
+        "AC-8 with runtime: codex doctor says ok or FAIL for the codex binary, its login (or CODEX_API_KEY) and the generated CODEX_HOME; claude-code alone says nothing of codex"
+        self.fake_codex()
+        os.environ.pop("CODEX_API_KEY", None)
+        home = os.environ["SHIPFLOOR_CODEX_HOME"] = os.path.join(self.st, "codex-home")
+        self.write_file(os.path.join(self.sh, "config.yml"), "runtime: codex\n")
+        out = self.doctor()
+        self.assertIn("ok   codex: codex", out)
+        self.assertRegex(out, r"(?mi)^ok   .*(login|logged in)")
+        self.assertRegex(out, r"(?m)^FAIL .*CODEX_HOME", "nothing generated yet")
+        self.assertEqual(self.rc, 1)
+        self.write_file(os.path.join(home, "config.toml"), "# generated\n")
+        self.write_file(os.path.join(home, "agents", "architect.toml"), "name = 'architect'\n")
+        out = self.doctor()
+        self.assertRegex(out, r"(?m)^ok   .*CODEX_HOME")
+        self.assertNotRegex(out, r"(?m)^FAIL .*CODEX_HOME")
+        self.write_file(os.path.join(self.st, "codex-logged-out"), "")
+        self.assertRegex(self.doctor(), r"(?mi)^FAIL .*(login|logged in)")
+        os.environ["CODEX_API_KEY"] = "sk-test"
+        self.assertRegex(self.doctor(), r"(?mi)^ok   .*(login|logged in)")
+        real = shutil.which
+        with mock.patch.object(shutil, "which", lambda name, *a, **k: None if name == "codex" else real(name, *a, **k)):
+            self.assertIn("FAIL codex: codex", self.doctor())
+        self.write_file(os.path.join(self.sh, "config.yml"), "runtime: claude-code\n")
+        out = self.doctor()
+        self.assertIn("ok   claude-code: claude", out)
+        self.assertNotIn("codex", out.lower())
+
+    def test_AC3_models_stages_warns_off_claude_code(self):
+        "AC-3 models.stages.<stage> set while that stage runs on another runtime is a WARN naming the key; on claude-code it is not"
+        self.fake_codex()
+        os.environ["SHIPFLOOR_CODEX_HOME"] = os.path.join(self.st, "codex-home")
+        self.write_file(os.path.join(self.sh, "config.yml"), "runtime: {stages: {develop: codex}}\nmodels:\n  stages: {develop: opus}\n")
+        self.assertRegex(self.doctor(), r"(?m)^WARN .*models\.stages\.develop")
+        self.write_file(os.path.join(self.sh, "config.yml"), "models:\n  stages: {develop: opus}\n")
+        self.assertNotRegex(self.doctor(), r"(?m)^WARN .*models\.stages\.develop")
+
     def test_dispatcher_line(self):
         "doctor says whether a dispatcher is registered (cron here); a missing one is a WARN that leaves the exit code alone; none on Windows"
         out = self.doctor()
@@ -66,6 +111,15 @@ class Doctor(CliCase):
         self.assertEqual(self.rc, without)
         os.environ["SF_UNAME"] = "MINGW64_NT-10.0"
         self.assertNotIn("dispatcher registered", self.doctor())
+
+    def test_dispatcher_pace(self):
+        "doctor shows the pace the registration runs at (installer --status), in words; 30 seconds stays seconds"
+        self.assertNotIn("dispatcher pace", self.doctor(), "no dispatcher, no pace line")
+        for line, want in (("*/3", "every 3 minutes"), ("*/1", "every 1 minute")):
+            self.write_file(self.table, "%s * * * * /usr/bin/bash -l %s/factory/run-dispatcher.sh # shipfloor-dispatcher\n" % (line, self.sh))
+            self.assertIn("ok   dispatcher pace: " + want, self.doctor())
+        self.assertEqual([cli._pace_words(p) for p in ("every 30 seconds", "every 600 seconds", "every 90 seconds", "odd")],
+                         ["every 30 seconds", "every 10 minutes", "every 90 seconds", "odd"])
 
     def test_AC6_dispatcher_limits(self):
         "AC-6 doctor shows the limits in effect on the installed dispatcher: none when unlimited, not supported on a scheduler without cgroups"

@@ -10,13 +10,14 @@ import os, re, sys
 root = sys.argv[1]
 rd = lambda p: open(os.path.join(root, p), encoding="utf-8", newline=None).read()
 html = rd("scripts/dashboard.html")
+fonts = rd("scripts/fonts/dashboard-fonts.css")  # the page's @font-face rules live beside the OFL license (dashboard.py splices them in)
 design = rd("DESIGN.md")
 readme = rd("README.md")
 res = []
 def check(name, cond, why): res.append(("PASS " + name) if cond else ("FAIL " + name + ": " + why))
 
 # ---- AC-3: the fonts
-style = html[html.index("<style>") + 7:html.index("</style>")]
+style = html[html.index("<style>") + 7:html.index("</style>")] + fonts
 faces = re.findall(r"@font-face\s*\{([^}]*)\}", style)
 def face(b):
     fam = re.search(r"font-family\s*:\s*[\"']?([^\"';]+?)[\"']?\s*;", b)

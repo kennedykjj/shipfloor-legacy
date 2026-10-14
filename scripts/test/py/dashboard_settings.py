@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+from unittest import mock
 
 import dashboard_support as ds
 
@@ -390,6 +391,24 @@ class Models(Settings):
         self.assertEqual(save({"stages": {"deploy": {"light": "gpt"}}}).code, 400)
         self.assertEqual(self.config_text(), before)
 
+    def test_codex_stage_takes_any_model_name(self):
+        "#150: a stage on a runtime with no model list is free text: priced by its exact name, saved under runtime.models, claude-code stages unchanged"
+        self.write("shome/prices.yml", self.PRICES + "gpt-5-codex: {input: 1.25, output: 10.00, cache_read: 0.125}\n")
+        self.config("pool: 6\nruntime:\n  default: claude-code\n  stages: {develop: codex}\n")
+        m = self.models()["stages"]
+        self.assertEqual([(m[s]["runtime"], m[s]["free"]) for s in m], [("claude-code", False), ("codex", True), ("claude-code", False), ("claude-code", False)])
+        self.assertEqual((m["develop"]["default"], m["develop"]["value"]), ({"light": None, "standard": None, "heavy": None}, {"light": None, "standard": None, "heavy": None}))
+        self.assertEqual(self.machine({"models": {"stages": {"develop": {"heavy": "  gpt-5-codex "}, "validate": "opus"}}}).code, 200)
+        c = self.read_config()
+        self.assertEqual(c["runtime"], {"default": "claude-code", "stages": {"develop": "codex"}, "models": {"stages": {"develop": {"heavy": "gpt-5-codex"}}}})
+        self.assertEqual(c["models"], {"stages": {"validate": "opus"}}, "the model of a claude-code stage stays in models")
+        m = self.models()["stages"]["develop"]
+        self.assertEqual((m["value"]["heavy"], m["priced"]), ("gpt-5-codex", {"light": True, "standard": True, "heavy": True}), "priced by the exact name")
+        self.assertEqual(self.machine({"models": {"stages": {"develop": {"light": "gpt-no-price"}}}}).code, 200)
+        self.assertFalse(self.models()["stages"]["develop"]["priced"]["light"], "a name with no price is flagged, still saved")
+        self.assertEqual(self.machine({"models": {"stages": {"develop": {"light": None, "heavy": "   "}}}}).code, 200)
+        self.assertNotIn("models", self.read_config()["runtime"], "empty is the runtime's default: nothing is kept")
+
 
 class Dispatcher(Settings):
     def disp(self):
@@ -397,7 +416,7 @@ class Dispatcher(Settings):
 
     def test_pace(self):
         "the dispatcher's pace: 3 by default of 1, 3, 5, 10; a save re-registers the task with the minutes last and leaves a running cycle alone; 7 is refused before anything runs"
-        self.assertEqual((self.disp()["every_min"], self.disp()["choices"], self.disp()["can_set"], self.disp()["why"]), (3, [1, 3, 5, 10], True, None))
+        self.assertEqual((self.disp()["every_min"], self.disp()["choices"], self.disp()["can_set"], self.disp()["why"]), (3, [0.5, 1, 3, 5, 10], True, None))
         sleeper = subprocess.Popen(["sleep", "300"])
         self.addCleanup(sleeper.kill)
         self.write("shome/dispatch.pid", "%d\n" % sleeper.pid)
@@ -413,6 +432,18 @@ class Dispatcher(Settings):
         os.unlink(os.path.join(self.tmp, "sched.calls"))
         self.assertEqual(self.machine({"dispatcher": {"every_min": 7}}).code, 400)
         self.assertEqual(self.sched_calls(), "", "the scheduler is not called")
+
+    def test_pace_30_seconds(self):
+        "30 seconds is offered and saved as every_min 0.5, the scheduler told 0.5; the next cycle is 30 s after the last one started; Windows offers no 30 s"
+        self.assertEqual(self.machine({"dispatcher": {"every_min": 0.5}}).code, 200)
+        self.assertEqual(self.sched_calls().strip(), "0.5")
+        self.assertEqual((self.read_config()["dispatcher"]["every_min"], self.disp()["every_min"]), (0.5, 0.5))
+        self.write("shome/logs/health-2026-10.jsonl", '{"ts":"2026-10-11T10:00:10+00:00","cycle":{"s":10,"exit":0,"overlap":false},"paused":false,"idle":[],"over":[]}\n')
+        from datetime import datetime, timezone
+        n = self.settings()["cycle"].get("next_at")
+        self.assertEqual(datetime.fromisoformat(n).astimezone(timezone.utc).isoformat(), "2026-10-11T10:00:30+00:00")
+        with mock.patch.object(ds.server()[0].os, "name", "nt"):
+            self.assertEqual(ds.server()[0].dispatcher_choices(), [1, 3, 5, 10])
 
     def test_scheduler_fails(self):
         "a failing re-register is a 409 with the scheduler's last line; config.yml stays byte for byte (the other limits are not saved either)"

@@ -318,7 +318,7 @@ class Deploy:
         self.FIX_FILES, self.FIX_LINES = V[11] or "3", V[12] or "40"  # a fix within both ships without a new approval
         self.GATE = os.path.join(SCRIPTS, "gate.sh")
         self.CURL = os.environ.get("FACTORY_CURL") or "curl"
-        self.POLL = _int(os.environ.get("FACTORY_POLL") or "30")
+        self.POLL = _int(os.environ.get("FACTORY_POLL") or "10")
         self.WT = "%s/%s" % (_env("FACTORY_WT_ROOT"), self.n)
         self.TMP = "%s/tmp/%s" % (_env("FACTORY_HOME"), self.n)
         try:
@@ -728,8 +728,14 @@ class Deploy:
         self.say("local CI failed on %s (exit %d)" % (sha, rc))
         return 1
 
-    def wait_checks(self, sha):  # 0 green, 1 red (CI_STATES), 2 timed out
+    def wait_checks(self, sha, pushed):  # 0 green, 1 red (CI_STATES), 2 timed out
+        # pushed: this run pushed sha just now (main merged in, a renumbered migration, a fix). Right after a push
+        # GitHub lists only the workflows registered so far, and a late one (or one chained on another's end) can
+        # appear after the first ones went green: such a head has to be seen green on two polls. A head this run did
+        # not push (the approved head, or a merge of main pushed by an earlier run or by --refresh) has had its
+        # workflows registered long ago: all green on the first poll merges at once, with no poll more and no sleep.
         empty = settle = 0
+        need = 2 if pushed else 1
         states = ""
         for _ in range(self.polls(1800)):
             out = _cap(self.gh("pr", "view", self.PR, "--repo", self.REPO, "--json", "headRefOid,statusCheckRollup",
@@ -754,8 +760,8 @@ class Deploy:
                     for req in self.REQUIRED.split("\n"):
                         if req and (",%s=" % req) not in (",%s," % states):
                             missing += " " + req
-                    settle += 1  # late workflows register after the first ones finish: see green twice
-                    if not missing and settle >= 2:
+                    settle += 1
+                    if not missing and settle >= need:
                         return 0
             self.sleep(self.POLL)
         self.say("checks did not finish (last: %s)" % (states or "none"))
@@ -790,6 +796,7 @@ class Deploy:
                 self.check_resolution()
             merged = True
         sha = ""
+        pushed = False
         for attempt in (1, 2, 3):
             if self.mode != "--continue" or attempt > 1:
                 rc = self.merge_main()
@@ -816,10 +823,11 @@ class Deploy:
             sha = _cap(self.g("rev-parse", "HEAD"))[1]
             if sha != self.HEAD_SHA:
                 self.push_recorded(sha)
+                pushed = True
             if self.mode == "--refresh":
                 self.say("up to date with main")
                 raise DeployExit(0)
-            rc = self.local_ci(sha) if self.LOCAL_CI else self.wait_checks(sha)
+            rc = self.local_ci(sha) if self.LOCAL_CI else self.wait_checks(sha, pushed)
             if rc != 0:
                 if not merged:
                     self.block("CI failed on the PR (%s)" % sha)

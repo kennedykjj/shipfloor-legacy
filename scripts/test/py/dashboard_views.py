@@ -66,6 +66,20 @@ class Card(Views):
         self.assertEqual(s["since"], "2026-10-09T20:06:50-03:00")
         self.assertTrue(s["reason"].startswith("cannot bring the control checkout"))
 
+    def test_shipped_today(self):
+        "#182: the overview lists per project the cards that reached Done today, newest first, with their last PR and cost estimate; yesterday's and cards still before Done are left out"
+        clear_of_midnight(120)
+        now = datetime.now().astimezone()
+        at = lambda minutes: (now - timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        self.board({30: "Done", 31: "Done", 32: "Done", 33: "Staged"})
+        for n, ago in ((30, 20), (31, 10), (32, 24 * 60 + 10), (33, 5)):
+            day = (now - timedelta(minutes=ago)).strftime("%Y-%m-%d")
+            self.log("%s-%d-deploy.log" % (day, n), "== start /sf:deploy %d %s pid=1\n== end /sf:deploy %d exit=0 %s\n" % (n, at(ago + 5), n, at(ago)))
+        self.write("shome/projects/shop/reports-wt/reports/30-a/deploy-%sT100000.json" % now.strftime("%Y-%m-%d"), '{"outcome":"done","pr":66}\n')
+        shipped = self.overview()["projects"][0]["shipped"]
+        self.assertEqual([(s["issue"], s["pr"], s["at"]) for s in shipped], [(31, None, at(10)), (30, 66, at(20))])
+        self.assertEqual(sorted(shipped[0]), ["at", "cost", "issue", "pr", "title"])
+
     def test_live_step(self):
         "a live run tells its step, as its place among the stage's steps, and the last things its session did"
         d = self.lock("validate-9", 9)

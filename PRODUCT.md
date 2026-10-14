@@ -20,7 +20,7 @@ Shipfloor is a software factory: GitHub issues become shipped PRs through agents
 
 ## Positioning
 
-The gates are scripts, not the agents' word; the agents build and the gates hold. Cost is measured from the Claude Code transcripts of every run, not from what an agent reports.
+The gates are scripts, not the agents' word; the agents build and the gates hold. Cost is measured from each runtime's transcripts of every run, not from what an agent reports.
 
 ## Operating Context
 

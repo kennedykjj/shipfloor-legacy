@@ -79,14 +79,27 @@ class Browser(support.Case):
         return page
 
     def waiting_keys(self, page):
-        return page.eval_on_selector_all("#list .pass", "els => els.map(e => e.dataset.key)")
+        """the work area's decision queue: the cards that wait for the owner, the oldest first"""
+        return page.evaluate("workView().queue.map((c) => c.key)")
+
+    def ready(self, page):
+        """the first overview is read: the work area shows a card (Decide) or Calm"""
+        expect(page.locator("#wk-title")).to_be_visible(timeout=SLOW)
+
+    def pick(self, page, key):
+        """a click on a card's token on the belt: the work area shows that card"""
+        self.ready(page)
+        page.click('#cells button[data-key="%s"]' % key)
+        expect(page.locator("#wk-title")).to_be_visible()
 
     def open_lanes(self, page, project=None):
         """the lifecycle line maximized: the owner's cards as chips in their columns"""
-        expect(page.locator("#list .pass").first).to_be_visible(timeout=SLOW)
+        self.ready(page)
         if project:
             page.select_option("#proj", project)
         page.click("#band > button[data-max]")
+        # the panel grows out of its place in 280 ms: a chip is dragged where it will stay, not where the animation passes
+        page.evaluate("Promise.all(document.getAnimations().filter((a) => a.effect.getComputedTiming().iterations !== Infinity).map((a) => a.finished))")
 
     def chip(self, page, key):
         return page.locator('#lanes .chip[data-key="%s"]' % key)
@@ -122,7 +135,7 @@ class Browser(support.Case):
     def test_ac1_token_link_loads_and_a_bad_token_shows_the_expired_screen(self):
         """AC-1 the token link loads the dashboard; an invalid token shows the expired-link screen"""
         page = self.open_page()
-        expect(page.locator("#list .pass").first).to_be_visible(timeout=SLOW)
+        self.ready(page)
         self.assertFalse(page.evaluate("document.body.classList.contains('refused')"))
         expect(page.locator("#cols")).to_be_visible()
 
@@ -130,23 +143,24 @@ class Browser(support.Case):
         expect(bad.locator("#msg.refusal")).to_be_visible(timeout=SLOW)
         self.assertTrue(bad.evaluate("document.body.classList.contains('refused')"))
         expect(bad.locator("#cols")).to_be_hidden()
-        expect(bad.locator("#list .pass")).to_have_count(0)
+        expect(bad.locator("#wk-title")).to_have_count(0)
 
     # ---- AC-2
-    def test_ac2_waiting_list_in_order_and_a_card_opens_with_its_tabs(self):
-        """AC-2 the waiting list shows the cards waiting for the owner, oldest first, and a card opens with its tabs"""
+    def test_ac2_waiting_queue_in_order_and_a_card_opens_with_its_tabs(self):
+        """AC-2 the work area queues the cards waiting for the owner, oldest first, shows the oldest, and a card opens with its tabs"""
         page = self.open_page()
-        expect(page.locator("#list .pass").first).to_be_visible(timeout=SLOW)
+        self.ready(page)
         overview = page.evaluate("async t => (await fetch('/api/overview', {headers: {'X-Shipfloor-Token': t}})).json()", TOKEN)
         cards = next(p for p in overview["projects"] if p["slug"] == "atlas")["cards"]
-        want = ["atlas/%d" % c["issue"] for c in sorted((c for c in cards if c.get("awaiting") or c.get("blocked") == "owner"),
-                                                         key=lambda c: c.get("since") or "~")]
+        want = ["atlas/%d" % c["issue"] for c in sorted((c for c in cards if c.get("awaiting")), key=lambda c: c.get("since") or "~")]
         keys = self.waiting_keys(page)
         self.assertEqual(keys, want)
         self.assertTrue({"atlas/120", "atlas/127", "atlas/129"} <= set(keys), keys)  # Staged and Spec Review wait for the owner
         self.assertFalse({"atlas/124", "atlas/131"} & set(keys), keys)  # a queued card and a card in the factory's hands do not
+        self.assertIn("#%s" % keys[0].split("/")[1], page.inner_text("#work .wk-id"))  # Decide opens on the oldest
 
-        page.click('#list .pass[data-key="atlas/127"] .ptitle')
+        self.pick(page, "atlas/127")
+        page.click('#work [data-full][data-go="review"]')
         expect(page.locator("#drawer.open")).to_be_visible()
         expect(page.locator('#d-tabs [role="tab"][aria-selected="true"]')).to_have_attribute("data-tab", "review")
         tabs = page.eval_on_selector_all('#d-tabs [role="tab"]', "els => els.map(e => e.dataset.tab)")
@@ -192,25 +206,26 @@ class Browser(support.Case):
     # ---- AC-4
     def test_ac4_request_changes_reaches_the_api_with_its_note_and_target(self):
         """AC-4 requesting changes on a spec sends the note and moves the card back to refinement"""
-        page = self.open_page()
-        expect(page.locator("#list .pass").first).to_be_visible(timeout=SLOW)
-        page.click('#list .pass[data-key="atlas/129"] .ptitle')
-        expect(page.locator("#drawer.open")).to_be_visible()
-        note = "Say which time zone the last sync time is shown in."
-        page.fill("#changes", note)
+        page = self.open_page(clock=True)
+        self.pick(page, "atlas/129")
         page.click("#request")
+        note = "Say which time zone the last sync time is shown in."
+        page.fill("#wk-note", note)
+        page.click("#wk-send")
+        expect(page.locator("#work .itoast")).to_be_visible()  # the 5 s window, with Undo
+        page.clock.fast_forward(5000)
         self.until("the note on the card", lambda: any(note in c for c in self.comments(129)))
         self.until("the card back in refinement", lambda: self.column(129) == "Ready for Refinement")
         self.assertEqual(self.column(127), "Spec Review")  # the other spec stayed
 
     def test_ac4_approving_a_spec_moves_it_to_ready_for_dev(self):
         """AC-4 approving a spec moves the card to Ready for Dev, with no note"""
-        page = self.open_page()
-        expect(page.locator("#list .pass").first).to_be_visible(timeout=SLOW)
-        page.click('#list .pass[data-key="atlas/129"] .ptitle')
-        expect(page.locator("#drawer.open")).to_be_visible()
+        page = self.open_page(clock=True)
+        self.pick(page, "atlas/129")
         expect(page.locator("#approve")).to_be_enabled()
         page.click("#approve")
+        expect(page.locator("#work .itoast")).to_be_visible()  # the 5 s window, with Undo
+        page.clock.fast_forward(5000)
         self.until("the card in Ready for Dev", lambda: self.column(129) == "Ready for Dev")
         self.assertEqual(self.comments(129), [])
         self.assertEqual(self.column(127), "Spec Review")
@@ -219,7 +234,7 @@ class Browser(support.Case):
     def test_ac5_theme_and_language_persist_across_a_reload(self):
         """AC-5 the chosen theme (localStorage) and language (config.yml, shown as html lang) survive a reload"""
         page = self.open_page()
-        expect(page.locator("#list .pass").first).to_be_visible(timeout=SLOW)
+        self.ready(page)
         page.click('[data-view="settings"]')
         page.click('[data-setsec="themes"]')
         page.click('[data-theme-pick="paper"]')
@@ -237,9 +252,30 @@ class Browser(support.Case):
         """AC-5 at a phone-width viewport the page does not scroll sideways"""
         page = self.open_page(width=375, height=667)
         expect(page.locator("#cols")).to_be_visible(timeout=SLOW)
-        expect(page.locator("#list .pass").first).to_be_attached(timeout=SLOW)
+        expect(page.locator("#wk-title")).to_be_attached(timeout=SLOW)
         self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),
                         page.evaluate("[document.documentElement.scrollWidth, window.innerWidth]"))
+
+    def test_codex_stage_model_is_a_text_field_kept_literal(self):
+        """#150 a stage on Codex has a text field (placeholder, trimmed, dirty, saved under runtime.models, name shown literally, unpriced warned); claude-code stages keep their select"""
+        with open(os.path.join(self.home, "config.yml"), "a", encoding="utf-8") as f:
+            f.write("\nruntime:\n  stages: {develop: codex}\n")
+        page = self.open_page()
+        expect(page.locator("#wk-title")).to_be_visible(timeout=SLOW)  # the work area is drawn: the page has read the factory
+        page.click('[data-view="settings"]')
+        page.click('[data-setsec="models"]')
+        field = page.locator('input[data-model="m|stages|develop|heavy"]')
+        expect(field).to_be_visible()
+        self.assertEqual([field.get_attribute("autocomplete"), field.get_attribute("spellcheck"), field.get_attribute("placeholder")], ["off", "false", "Default (Codex's)"])
+        self.assertTrue(field.get_attribute("aria-label"))
+        expect(page.locator('select[data-model="m|stages|validate|heavy"]')).to_be_visible()
+        field.fill("  gpt-6-sol ")
+        expect(page.locator(".cin.model.dirty")).to_have_count(1)
+        self.assertEqual(field.input_value(), "gpt-6-sol")
+        expect(page.locator("small.warn")).to_contain_text("gpt-6-sol")
+        page.click('[data-set="save"]')
+        self.until("the model saved", lambda: "gpt-6-sol" in self.machine_config())
+        self.assertIn("models:", self.machine_config().split("runtime:")[1])
 
     def machine_config(self):
         with open(os.path.join(self.home, "config.yml"), encoding="utf-8") as f:
