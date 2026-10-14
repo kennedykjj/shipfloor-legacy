@@ -132,11 +132,11 @@ check("AC-4 untouched rows are demoted with the --muted color", "color:var(--mut
 check("AC-4 untouched rows are demoted by color, not by opacity or hiding", not re.search(r"opacity|display\s*:\s*none|visibility", body))
 
 # AC-6 what the owner's change added to the template uses only the themed variables of the page
-base = subprocess.run(["git", "-C", str(here), "merge-base", "HEAD", "origin/main"], capture_output=True, text=True).stdout.strip() or "origin/main"
-old = subprocess.run(["git", "-C", str(here), "show", f"{base}:{'scripts/' if (here / 'scripts').is_dir() else ''}review-template.html"], capture_output=True, text=True).stdout
-if not old:
-    old = subprocess.run(["git", "-C", str(here), "show", f"{base}:scripts/review-template.html"], capture_output=True, text=True).stdout
-added = [l for l in tpl.splitlines() if l not in set(old.splitlines())]
+# (taken from the template itself, by the selectors the card added: no git history needed, a shallow CI checkout works)
+style = re.search(r"<style>(.*?)</style>", tpl, re.S)
+new_sel = re.compile(r"^\s*(\.tag|\.item\.same|\.item\.gone|\.item \.was|details\.ro li\.gone|section \.res)\b")
+added = [l for l in (style.group(1) if style else "").splitlines() if new_sel.match(l)]
+check("AC-6 the template has a rule for each new selector (.tag, same, gone, was, li.gone, .res)", len(added) >= 8)
 css = "\n".join(l for l in added if "{" in l and ":" in l and "var(" in l or "tag" in l.lower() and "{" in l)
 check("AC-6 the template gained styles for the marks and the summary", bool(css.strip()))
 used = set(re.findall(r"var\(--([a-z-]+)\)", "\n".join(added)))
