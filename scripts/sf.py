@@ -103,5 +103,20 @@ def main(argv):
     return COMMANDS[argv[0]](argv[1:]) or 0
 
 
+def run(argv):
+    """main(argv), ended quietly with 141 when the reader of stdout went away (`| head`, a caller that stopped reading),
+    as a Bash script ends on SIGPIPE: no traceback, and nothing more is written to the closed pipe."""
+    try:
+        code = main(argv)
+        sys.stdout.flush()
+        return code
+    except BrokenPipeError:
+        try:
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        except OSError:
+            pass
+        return 141
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(run(sys.argv[1:]))
