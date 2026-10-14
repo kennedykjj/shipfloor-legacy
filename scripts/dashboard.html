@@ -1378,7 +1378,7 @@ function whyWaits(p, c) {
 // The work area (#182): below the belt, one panel for one thing at a time. Decide shows the oldest card that waits for the owner
 // (or the one picked on the belt) and settles it in place; Run shows a card that runs; Card, any other; Calm, when nothing waits,
 // what comes next. The queue and "Skip for now" are this page's memory (S.work) and are never stored: the board is the only truth.
-const W = { cur: null, shown: null, card: {}, at: {}, loading: {}, decided: 0, hold: null, flight: null, req: null, notes: {}, hint: {}, msg: null, moved: false, tool: {} };
+const W = { cur: null, shown: null, card: {}, at: {}, loading: {}, decided: 0, hold: null, flight: null, req: null, notes: {}, bnotes: {}, hint: {}, msg: null, moved: false, tool: {} };
 const WSTEPS = { refine: ["Pick the card", "Worktree", "Product Owner", "UX/UI and architecture", "Cybersec", "Publish for review", "Report"],
   develop: ["Pick the card", "Plan", "Acceptance tests", "Implementation", "Last gates", "Hand over to validation", "Report"], validate: ["Pick the card", "Gates", "Review", "Pull request", "Report"] };
 const DEST = { "Spec Review": ["work.to_dev", "work.back_refine"], "Staged": ["work.to_prod", "work.back_develop"] };  // where Approve and Request changes send a card, in words
@@ -1441,6 +1441,8 @@ function renderWork() {
   $("wk-keys").hidden = v.mode !== "decide";
   const box = $("wk-note");  // the note is kept per card; whether Send can go is not part of the markup, so typing never rewrites it
   if (box) { const want = W.notes[W.cur] || ""; if (box.value !== want) box.value = want; $("wk-send").disabled = !want.trim(); }
+  const bn = $("wk-bnote");  // the note of a blocked card, kept per card; the buttons wait for it
+  if (bn) { const want = W.bnotes[W.cur] || ""; if (bn.value !== want) bn.value = want; for (const id of ["wk-baccept", "wk-bsend"]) if ($(id)) $(id).disabled = !want.trim(); }
   if (changed) {
     W.msg = null; slide(old);
     if (W.moved) {
@@ -1539,7 +1541,7 @@ async function holdSend(keep) {
   if (W.flight === h) W.flight = null;
   if (status === 200) {
     if (body.moved_to) S.moving[h.key] = body.moved_to;
-    delete S.notice[h.key]; W.decided++; W.moved = true; delete W.notes[h.key]; delete W.card[h.key]; delete W.at[h.key]; if (W.req === h.key) W.req = null; if (S.work.key === h.key) S.work.key = null;
+    delete S.notice[h.key]; W.decided++; W.moved = true; delete W.notes[h.key]; delete W.bnotes[h.key]; delete W.card[h.key]; delete W.at[h.key]; if (W.req === h.key) W.req = null; if (S.work.key === h.key) S.work.key = null;
     loadOverview();  // the queue resumes with the next card
   } else if (status === 502 && body.commented) {  // the note is on the issue but the card did not move: the move can be tried again alone
     S.notice[h.key] = { cls: "", html: `${t("act.commented", { why: esc(told(body, "act.failed")) })} <button class="btn" data-w="retry" data-act="${esc(h.action)}">${t("act.retry")}</button>` };
@@ -1566,6 +1568,8 @@ function skip(v) {  // to the end of this page's queue; the one card that waits 
 }
 function workAct(a, ds) {
   if (a === "undo") return holdUndo();
+  if (a === "baccept") return ownerSend("accept");
+  if (a === "bsend") return ownerSend("send-back");
   const v = workView(); if (!v || v.mode !== "decide" || W.hold) return;
   if (a === "retry") retryMove(v.cur, ds.act);
   else if (a === "approve") approveStart(v.cur);
@@ -1609,7 +1613,21 @@ function paintCard(v) {
   setHTML($("wk-top"), elseToast(key) + wkHead(c, ""));
   const cost = c.cost == null || c.cost > 0 ? `<p class="wk-cost">${t("work.cost_since", { cost: c.cost == null ? money(null) : usd(c.cost) })} ${flag(c)}</p>` : "";
   const block = c.blocked && data ? blockNote({ ...data, blocked: c.blocked, project: v.p.slug, issue: c.issue }) : "";
-  setHTML($("wk-card"), !data ? linkRow(c, ALL_TABS, true) : `<p class="wk-state">${stateWords(v, c)}</p>${cost}${block}${linkRow(c, ALL_TABS)}`);
+  const mine = (W.hold || W.flight)?.key === key ? toastHtml() : "";
+  setHTML($("wk-card"), !data ? linkRow(c, ALL_TABS, true) : `<p class="wk-state">${stateWords(v, c)}</p>${cost}${block}${c.blocked === "owner" ? ownerBlockHtml(c) : ""}${mine}${linkRow(c, ALL_TABS)}`);
+}
+// A card blocked for the owner: besides Unblock and retry (in the block note), send it back to Coding with a note, or, when the
+// acceptance-intact gate stopped it, accept the edited tests with the reason. Both need the note and wait 5 s with Undo.
+function ownerBlockHtml(c) {
+  if (!INB.data[c.key]) loadDecide(c.key);
+  const accept = INB.data[c.key]?.block?.gate === "acceptance-intact";
+  return `<div class="wk-req" id="wk-bblock"><textarea id="wk-bnote" aria-label="${ta("opt.rework.note")}" placeholder="${ta(accept ? "opt.accept.note" : "opt.rework.note")}"></textarea><p class="hint">${t("hint.note_first")}</p>
+    ${accept ? `<button class="btn" id="wk-baccept" data-w="baccept" disabled>${t("opt.accept.verb")}</button>` : ""}<button class="btn" id="wk-bsend" data-w="bsend" disabled>${t("act.send_back")}</button></div>`;
+}
+function ownerSend(action) {
+  const c = workView()?.cur; if (!c || c.blocked !== "owner") return;
+  const text = (W.bnotes[c.key] || "").trim(); if (!text) return $("wk-bnote")?.focus();
+  holdStart(c, action, text);
 }
 function paintCalm(v) {
   setHTML($("wk-swap"), SKEL.calm);
@@ -2547,7 +2565,7 @@ document.addEventListener("keydown", (e) => {  // Enter in the note sends it; Sh
   if (e.target.id === "wk-note" && e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); const c = workView()?.cur; if (c) sendRequest(c); }
 });
 document.addEventListener("keydown", (e) => { if (e.target.id === "hours-in" && e.key === "Enter") { e.preventDefault(); if (Object.keys(SET.draft).length) setSave(); } });
-document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "wk-note" && W.cur) { W.notes[W.cur] = e.target.value; $("wk-send").disabled = !e.target.value.trim(); }if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "mnote") boxHint(); if (e.target.dataset?.cost) setCost(e.target); if (e.target.dataset?.lim) setLimit(e.target); });
+document.addEventListener("input", (e) => { if (e.target.id === "hours-in") setHours(e.target); if (e.target.id === "wk-bnote" && W.cur) { W.bnotes[W.cur] = e.target.value; for (const id of ["wk-baccept", "wk-bsend"]) if ($(id)) $(id).disabled = !e.target.value.trim(); } if (e.target.id === "wk-note" && W.cur) { W.notes[W.cur] = e.target.value; $("wk-send").disabled = !e.target.value.trim(); }if (e.target.type === "text" && e.target.dataset.nk) setNotify(e.target); if (e.target.id === "mnote") boxHint(); if (e.target.dataset?.cost) setCost(e.target); if (e.target.dataset?.lim) setLimit(e.target); });
 document.addEventListener("change", (e) => {
   if (e.target.matches?.('input[role="switch"]')) e.target.setAttribute("aria-checked", String(e.target.checked));
   if (e.target.matches?.("[data-pause]")) setPause(e.target);

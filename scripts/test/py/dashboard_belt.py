@@ -339,6 +339,27 @@ class BeltRender(Scene):
         self.assertEqual(picked, [KEY % 50, KEY % 21, KEY % 31, None], "AC-6 the picked card after a click on #50, Enter on #21, a click on #31 and another on #31")
         self.assertEqual([s["S"]["open"] for s in r["results"][1:]], [None] * 4, "no drawer opens")
 
+    def test_blocked_for_the_owner_can_be_sent_back_or_accepted(self):
+        "#182 AC-7: a card blocked for the owner offers send-back (and, at the acceptance-intact gate, accept) in the work area: both need the note and go after 5 s"
+        card = {"project": "shop", "issue": 42, "title": "Title 42", "column": "Validation", "review": False, "sessions": [], "runs": [], "reports": [], "weight": "standard"}
+        decide = {"block": {"gate": "acceptance-intact", "kind": "gate"}}
+        tok = {"op": "clickx", "within": "cells", "sel": 'button[data-key="%s"]' % (KEY % 42)}
+        by = lambda text: {"op": "clickx", "within": "work", "text": text}
+        setup = [{"op": "route", "path": "/api/card/shop/42", "body": card}, {"op": "route", "path": "/api/decide/shop/42", "body": decide}, {"op": "readw", "overview": self.ov}, tok]
+        for label, action in (("Send back to Coding", "send-back"), ("Accept the tests and continue", "accept")):
+            r = bp.run(setup + [{"op": "typex", "within": "work", "sel": "#wk-bnote", "value": "the edits are right"}, by(label), {"op": "advancew", "ms": 4900},
+                                {"op": "advancew", "ms": 200}])
+            self.assertEqual(r["errors"], [])
+            shown, _typed, _held, early, sent = r["results"][3:]
+            labels = [bp.squash(bp.text(n)) for n, _ in bp.walk(shown["work"]) if n["tag"] == "button"]
+            self.assertIn("Send back to Coding", labels)
+            self.assertIn("Accept the tests and continue", labels)
+            posts = [p for p in sent["posts"] if p["path"].endswith("/42/" + action)]
+            self.assertEqual([p["body"] for p in posts], [{"column": "Validation", "text": "the edits are right", "move_only": False}], action)
+            self.assertEqual(early["posts"], [], "nothing leaves inside the 5 s")
+        empty = bp.run(setup + [{"op": "clickx", "within": "work", "text": "Send back to Coding"}, {"op": "advancew", "ms": 6000}])
+        self.assertEqual(empty["results"][-1]["posts"], [], "without the note nothing is sent")
+
 
 # ------------------------------------------------------------------------------------------------------ AC-3, AC-4, AC-7
 
