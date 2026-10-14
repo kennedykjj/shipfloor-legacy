@@ -1,0 +1,24 @@
+{
+ "issue": "219",
+ "slug": "limite-opcional-de-cpu-e-memoria-para-a",
+ "pipeline": "develop",
+ "started_at": "2026-10-14T17:00:00-03:00",
+ "finished_at": "2026-10-14T17:18:30-03:00",
+ "outcome": "ok",
+ "agents": [
+  {"role": "qa-engineer", "tokens": 89242, "duration_s": 129},
+  {"role": "engineer (task 1, config)", "tokens": 56345, "duration_s": 62},
+  {"role": "engineer (task 2, installer)", "tokens": 36950, "duration_s": 94},
+  {"role": "engineer (task 3, dashboard)", "tokens": 82470, "duration_s": 191},
+  {"role": "engineer (task 4, doctor and health)", "tokens": 34324, "duration_s": 129}
+ ],
+ "rounds": {"qa": 1, "task1": 1, "task2": 1, "task3": 1, "task4": 1},
+ "gates": {"test-plan": "pass", "scope": "pass", "qa-commit": "pass", "acceptance-intact": "pass", "migration": "pass", "build": "pass", "green": "pass", "forbidden": "pass"},
+ "gates_failed": [],
+ "flaky": [],
+ "gates_reused": [],
+ "amendments": [],
+ "manual_edit": false,
+ "pr": null,
+ "notes": "The build gate ran only after the last task, because until then it was failing on acceptance tests owned by tasks not yet done. Doctor maps the installer's 'limits: not supported (cron)' to 'none' when nothing is configured. Validation should check whether that mapping belongs in install-dispatcher.sh --status."
+}
