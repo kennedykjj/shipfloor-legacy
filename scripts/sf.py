@@ -20,7 +20,12 @@ def cmd_version(args):
     return 0
 
 
-COMMANDS = {"version": cmd_version}
+def cmd_report(args):
+    from shipfloor_core import report
+    return report.main(args)
+
+
+COMMANDS = {"version": cmd_version, "report": cmd_report}
 
 
 def main(argv):
