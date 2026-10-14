@@ -162,6 +162,24 @@ A wrapper of `sf.py report`: the logic is `shipfloor_core/report.py` (the commit
 
 **Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html> [--request-file F]` and `review-page.sh --diff <old.md> <new.md>`. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). Beside the page it keeps `<issue>.published.md` (the spec as last built) and `<issue>.read.md` (the previous published spec, once the spec changes); with a `.read.md` the page marks each statement new, changed or untouched against it and quotes the request in `F`. `--diff` prints the JSON entries `{section, status, old, new}` and writes nothing. `FACTORY_PROJECT` is passed through.
 
+## brief.sh
+
+**Interface:** `brief.sh` `build` `<n> --column "Spec Review"|Staged --spec <spec> --head <sha> --notes <file> [--since <json>] [--out <file>]`. A wrapper of `sf.py brief`: the logic is `shipfloor_core/brief.py`. The refine skill runs it before moving a card to Spec Review, the validate skill before moving it to Staged.
+
+**Output:** writes `<reviews>/<n>.brief.json` (or `--out`), atomically; nothing on stdout. The dashboard reads it. Fields:
+- `card`: the issue number. `column`: `Spec Review` or `Staged`. `built`: the UTC time.
+- `verdict`: `routine` or `look`; `look` when `flags` or `since_request` is not empty. Computed by the script.
+- `flags`: a list of `{id, kind, title, detail, hunk, source, suggestion}`, computed by the script from the diff against `origin/<main>`, the spec, the develop `report.json` and the `infra/<n>` marker. The kinds are `migration`, `outside-architecture`, `qa-amended`, `open-question`, `security` and `infra-retry`; `suggestion` is the only text taken from the notes file.
+- `proven`: the gates (`build`, `green ...`) with a recorded pass for `--head`, from `gate-passes/`. Computed by the script.
+- `facts`: `{pr, files, added, removed, statements}` from `git diff --numstat` and `gh pr view`; `statements` is 0 for now. Computed by the script.
+- `since_request`: a list of `{old, new}` pairs. It is an input: the `--since` file (a JSON list) is copied in, and the field is an empty list when `--since` is absent or unreadable. A non-empty `since_request` makes the verdict `look`.
+- `what`: `{text, by}`; `text` is the notes file's `what` (at most 280 characters), `by` is `agent`.
+- `rest`: an empty list, reserved.
+
+**The notes file** (`--notes`, `<tmp>/brief-notes.json`, written by the agent) holds only `what` (a sentence) and `suggestions` (an object from a flag kind to one line, at most 120 characters). Anything else in it is ignored; an absent or unreadable file gives an empty `what` and no suggestions. The agent never writes `verdict`, `flags`, `proven` or `facts`: they come from the script.
+
+**Exit codes:** always 0. Any problem (bad usage, no spec, git failing, an unwritable output) is one `brief: skipped: <reason>` line on stderr and no file: a brief never blocks a card.
+
 ## setup-board.sh
 
 A wrapper of `sf.py setup-board`: the logic is `shipfloor_core/setup.py`.
@@ -233,6 +251,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). A 
 - `accept` `<slug> <n> <reason>`
 - `weight` `<slug> <n> <weight>`, the weight being `light`, `standard` or `heavy`
 - `dashboard` `[--port N] [--no-open] [--token T]`
+- `demo` `[--no-dashboard] [--keep]`
 
 **Per command:**
 - `install`: copies `scripts/` (not `test/`) and `templates/` into `~/.shipfloor/factory` by rename (so a running script keeps its inode), removes what the plugin no longer ships, writes `.source` (the plugin checkout) and, when it is a git clone, `.origin` (`<commit><TAB><branch|detached><TAB>verified|forced`). Refuses (exit 1, reasons on stderr, `install anyway: shipfloor install --force`) when the clone is not a clean, current `main`, unless `--force`. Prints `installed <src> → <dest>: <n> replaced, <n> added, <n> removed` and a `next:` line on stdout; with `--force` a `WARN installed copy is not a verified <main>: ...` line. Exit 0 when nothing failed.
@@ -244,6 +263,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). A 
 - `accept <slug> <n> <reason>`: owner only. For each file of card `<n>`'s QA commit that changed since, records a line `<file><TAB><blob or own:<hash>|deleted><TAB>#<n><TAB><ISO><TAB><reason>` in the project's `accepted.tsv` and prints `accepted <file> at <12 hex>` or `accepted the deletion of <file>`; `nothing to accept: acceptance-intact already passes for card <n>` when nothing differs. Exit 2 on a usage error, 1 on any other refusal.
 - `weight <slug> <n> <weight>`: owner only. Rewrites the one `**Weight:** <w>` line of the card's spec header, commits it on the card's branch as `docs(<scope>): weight <w> for #<n>` and pushes (reset on a failed push); prints `weight <w>`. Exit 3 when the card is no longer in Spec Review or a run is working on it; 2 on usage; 1 otherwise.
 - `dashboard`: runs `dashboard.py` with `--home`; its first stdout line is `shipfloor dashboard: <url>  (Ctrl+C stops it)`, which the dashboard skill reads and gives back as the one link; the URL carries the machine's token. When it cannot bind, it exits with `shipfloor dashboard: ports <a>-<b> are taken`.
+- `demo`: plays one fake card through refine, develop, validate and deploy on a temporary home (`SHIPFLOOR_HOME` and `HOME` of its processes point there, `FACTORY_GH` at the stand-in `scripts/demo/gh`): the board moves, `gate.sh` red, green and build, git and `report.sh` are real, what the agents write is recorded, and the screen says no LLM ran. Without `--no-dashboard` it serves the dashboard on the temporary home, prints its URL, opens the browser and waits for Enter or Ctrl+C; the temporary home is removed at the end unless `--keep`, which prints its path. Exit 0 when the card reached Done, 1 on an error, 130 on Ctrl+C, 2 on an unknown flag. The caller's `~/.shipfloor` is never read or written.
 
 ## GitHub markers
 
@@ -298,6 +318,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `~/.shipfloor/logs/dispatcher.log` | the scheduler's output | `run-dispatcher.sh` | people |
 | `~/.shipfloor/logs/stacks.log` | `<ISO> reclaimed slot <k> from <owner> <reason>` | `lib/stack.sh` | people |
 | `~/.shipfloor/logs/health-<YYYY-MM>.jsonl` | one JSON object per cycle | `shipfloor_health.py record` | `shipfloor doctor`, `shipfloor_notify.py`, `dashboard.py` |
+| `<reviews>/<n>.brief.json` | the card's brief: `verdict`, `flags`, `proven`, `facts`, `since_request`, `what`, `rest` (see `brief.sh`) | `brief.sh build`, from the refine and validate skills | `dashboard.py` |
 | `<home>/reports-wt/` | worktree of the `factory-reports` branch | `report.sh` | `metrics.sh`, `dashboard.py` |
 | `~/.shipfloor/cost-cache.json`, `notify.json` | caches | `dashboard_cost.py`, `shipfloor_notify.py` | the same |
 

@@ -120,7 +120,34 @@ def snapshot(home, seconds, code, overlap):
             "projects": projects, "idle": idle, "over": over}
 
 
-def alerts(home):
+def silence(home):
+    """{"min", "every"} when the newest health line is older than 3x the dispatcher pace, else None."""
+    logs = sorted((Path(home) / "logs").glob("health-*.jsonl"))
+    if not logs:
+        return None
+    ts = None
+    try:
+        lines = logs[-1].read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        try:
+            ts = json.loads(line)["ts"]
+            break
+        except (ValueError, KeyError, TypeError):  # a line cut short by a cycle that died while writing it
+            continue
+    try:
+        late = (datetime.now().astimezone() - datetime.fromisoformat(ts)).total_seconds() / 60
+    except (ValueError, TypeError):
+        return None  # no health line yet, or an unreadable timestamp: nothing to be late
+    try:
+        every = shipfloor_config.dispatcher_every(shipfloor_config.yaml.safe_load((Path(home) / "config.yml").read_text(encoding="utf-8")))
+    except (OSError, ValueError, shipfloor_config.yaml.YAMLError):  # no config, or one the dispatcher itself refuses
+        every = shipfloor_config.dispatcher_every(None)
+    return {"min": late, "every": every} if late > 3 * every else None
+
+
+def alerts(home, skip_silence=False):
     """What the last cycles say is wrong, as lines for the owner; [] when nothing is."""
     logs = sorted((Path(home) / "logs").glob("health-*.jsonl"))
     if not logs:
@@ -140,16 +167,9 @@ def alerts(home):
         out.append(f"{key}: more runs than the limit")
     if any(c["cycle"]["overlap"] for c in last):
         out.append("two dispatcher cycles ran at once")
-    try:
-        every = shipfloor_config.dispatcher_every(shipfloor_config.yaml.safe_load((Path(home) / "config.yml").read_text(encoding="utf-8")))
-    except (OSError, ValueError, shipfloor_config.yaml.YAMLError):  # no config, or one the dispatcher itself refuses
-        every = shipfloor_config.dispatcher_every(None)
-    try:
-        late = (datetime.now().astimezone() - datetime.fromisoformat(last[-1]["ts"])).total_seconds() / 60
-    except (IndexError, KeyError, ValueError, TypeError):
-        late = 0  # no health line yet: nothing to be late
-    if late > 1.5 * every:
-        out.append(f"no dispatcher cycle for {round(late)} min (it runs every {every})")
+    s = None if skip_silence else silence(home)
+    if s:
+        out.append(f"no dispatcher cycle for {round(s['min'])} min (it runs every {s['every']})")
     return out
 
 

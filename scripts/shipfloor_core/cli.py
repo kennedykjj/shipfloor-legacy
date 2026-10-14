@@ -1028,6 +1028,12 @@ def cmd_metrics(args):
     return _run(["bash", os.path.join(HERE, "metrics.sh")])[0]
 
 
+def cmd_init(args):
+    """init [<repo>] [--yes]: install, config, add, board, dispatcher and doctor in one guided run (#174)."""
+    from . import init
+    return init.run(args)
+
+
 def usage():
     """The wrapper's header lines 2-10, comment marks off, on stderr."""
     data = _read_bytes(os.path.join(HERE, "shipfloor"))
@@ -1037,7 +1043,13 @@ def usage():
     return 2
 
 
-COMMANDS = {"install": cmd_install, "doctor": cmd_doctor, "add": cmd_add, "remove": cmd_remove, "list": cmd_list,
+def cmd_demo(args):
+    """demo [--no-dashboard] [--keep]: a fake card crosses the factory on a temporary home (no network, no LLM)."""
+    from . import demo
+    return demo.main(args)
+
+
+COMMANDS = {"demo": cmd_demo, "init": cmd_init, "install": cmd_install, "doctor": cmd_doctor, "add": cmd_add, "remove": cmd_remove, "list": cmd_list,
             "pool": cmd_pool, "clean": cmd_clean, "accept": cmd_accept, "weight": cmd_weight, "pause": cmd_pause,
             "resume": cmd_resume, "setup-board": cmd_setup_board, "dashboard": cmd_dashboard, "metrics": cmd_metrics}
 
