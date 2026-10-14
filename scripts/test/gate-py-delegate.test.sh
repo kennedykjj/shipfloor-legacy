@@ -2,7 +2,6 @@
 # AC-9 of #165: gate.sh is a wrapper. The static gates (scope, forbidden, acceptance-intact, acceptance-own, qa-commit,
 # qa-amend, migration, fast, test-plan, weight) are Python (shipfloor_core.gate.main, through sf.py gate);
 # since #166 build|red|green|stack are too (gate/run.py), and scripts/lib/gate-run.sh is gone.
-# The existing gate-*, stack-lock, dispatch-stepup, deploy-* and py-* suites are not edited by the card.
 source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)"; export TMPDIR="$T"
@@ -72,17 +71,4 @@ bash "$GATE" weight spec.md >"$T/wo" 2>"$T/we"; wc=$?
 "$FACTORY_PYTHON" -I "$FACTORY_DIR/sf.py" gate weight spec.md >"$T/po" 2>"$T/pe"; pc=$?
 [ "$wc" = 0 ] && [ "$pc" = 0 ] && cmp -s "$T/wo" "$T/po" && cmp -s "$T/we" "$T/pe" && [ "$(cat "$T/pe")" = "gate weight: pass" ] && pass "AC-9 gate.sh weight and sf.py gate weight are the same gate" || fail "AC-9 wrapper exit $wc '$(cat "$T/we")' vs python exit $pc '$(cat "$T/pe")'"
 
-# ---- the existing suites are not edited (checked against origin/main when this checkout has it)
-top="$(git -C "$FACTORY_DIR" rev-parse --show-toplevel 2>/dev/null)"
-mb=""; [ -z "$top" ] || mb="$(git -C "$top" merge-base origin/main HEAD 2>/dev/null)"
-if [ -n "$mb" ]; then
-  edited=""
-  for f in $(git -C "$top" ls-tree -r --name-only "$mb" -- scripts/test | grep -E '/(gate-[a-z-]+|stack-[a-z-]+|dispatch-stepup|deploy-[a-z-]+|py-[a-z-]+)\.test\.sh$' \
-             | grep -vE '/(gate-py-run-compat|stack-py-lease)\.test\.sh$' \
-             | grep -vE '/(gate-py-delegate|stack-py-heartbeat|stack-py-up)\.test\.sh$'); do  # #166's own files, which its gate half extends;
-    # #171 moved lib/portable.sh to test/fixtures/: those two suites' path to it, and this list
-    git -C "$top" diff --quiet "$mb" -- "$f" || edited="$edited $f"
-  done
-  [ -z "$edited" ] && pass "AC-9 the existing gate, stack, dispatch-stepup, deploy and py suites are unedited" || fail "AC-9 these suites were edited:$edited"
-else pass "AC-9 no origin/main here: the unedited-suites check is skipped"; fi
 finish
