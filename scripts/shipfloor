@@ -83,7 +83,7 @@ cmd_install() {
   while IFS= read -r f; do
     put_file "$src/scripts/$f" "$INSTALLED/$f"
     case "$PUT" in replaced) nrep=$((nrep+1)) ;; added) nadd=$((nadd+1)) ;; failed) nbad=$((nbad+1)); echo "shipfloor: could not replace ${f#./}" >&2 ;; esac
-  done < <(cd "$src/scripts" && find . -path ./test -prune -o -type f -print)
+  done < <(cd "$src/scripts" && find . \( -path ./test -o -name __pycache__ \) -prune -o -type f ! -name '*.pyc' -print)
   while IFS= read -r f; do
     put_file "$src/templates/$f" "$INSTALLED/templates/$f"
     case "$PUT" in replaced) nrep=$((nrep+1)) ;; added) nadd=$((nadd+1)) ;; failed) nbad=$((nbad+1)); echo "shipfloor: could not replace templates/${f#./}" >&2 ;; esac
@@ -119,10 +119,17 @@ cmd_doctor() {
   local bad=0 t src agents=() line warned=0
   for t in git gh claude; do command -v "$t" >/dev/null && echo "ok   $t" || { echo "FAIL $t not found"; bad=1; }; done
   if shipfloor_python -c 'import yaml' 2>/dev/null; then echo "ok   python + PyYAML"; else echo "FAIL python 3 with PyYAML (pip install pyyaml)"; bad=1; fi
+  local pyv
+  pyv="$(shipfloor_python -c 'import sys; print("%d.%d.%d" % sys.version_info[:3], int(sys.version_info >= (3, 11)))' 2>/dev/null | tr -d '\r')"
+  case "$pyv" in
+    *" 1") echo "ok   python ${pyv% *} (3.11 or later)" ;;
+    *" 0") echo "FAIL python ${pyv% *} is too old: Shipfloor needs Python 3.11 or later (set FACTORY_PYTHON to one)"; bad=1 ;;
+    *) echo "FAIL python 3.11 or later not found (set FACTORY_PYTHON to one)"; bad=1 ;;
+  esac
   gh auth status >/dev/null 2>&1 && echo "ok   gh authenticated" || { echo "FAIL gh auth login"; bad=1; }
   src="$(source_dir)"
   if [ ! -d "$INSTALLED" ]; then echo "FAIL not installed (shipfloor install)"; bad=1
-  elif diff -rq -x test -x .source -x .origin "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
+  elif diff -rq -x test -x .source -x .origin -x __pycache__ "$src/scripts" "$INSTALLED" -x templates >/dev/null 2>&1 \
        && diff -rq "$src/templates" "$INSTALLED/templates" >/dev/null 2>&1; then echo "ok   installed copy matches $src"
   else echo "WARN installed copy differs from $src (shipfloor install)"; fi
   local dst dkind
