@@ -972,7 +972,7 @@ def cmd_accept(args):
     if not qa:
         die('no QA commit ("acceptance tests for #%s") on %s' % (n, _git("-C", wt, "rev-parse", "--abbrev-ref", "HEAD")[1]))
     accepted = os.path.join(home, "accepted.tsv")
-    took = False
+    todo = []
     # every QA commit's files, each with the newest QA commit that wrote it: acceptance-intact guards them all, so a
     # file only an earlier QA round wrote (and a merge from main later deleted or rewrote) must be acceptable too
     qas = _git("-C", wt, "log", "--format=%H", "-E", "--grep", "acceptance tests for #%s([^0-9]|$)" % n, "HEAD")[1].split() or [qa]
@@ -996,15 +996,46 @@ def cmd_accept(args):
             continue  # already accepted as it stands
         if _git("-C", wt, "status", "--porcelain", "--", f)[1]:
             die("%s has uncommitted changes in %s" % (f, wt))
-        when = datetime.now().astimezone().isoformat(timespec="seconds")
-        clean = reason.replace("\t", " ").replace("\r", " ").replace("\n", " ")
+        todo.append((f, key, blob, qa))
+    # all or nothing: every file was checked before the first line is written
+    when = datetime.now().astimezone().isoformat(timespec="seconds")
+    clean = reason.replace("\t", " ").replace("\r", " ").replace("\n", " ")
+    for f, key, blob, _qa in todo:
         with open(accepted, "a", encoding="utf-8", errors="surrogateescape", newline="\n") as out:
             out.write("%s\t%s\t#%s\t%s\t%s\n" % (f, key, n, when, clean))
         _out("accepted the deletion of %s" % f if blob == "deleted" else "accepted %s at %s" % (f, blob[:12]))
-        took = True
-    if not took:
+    if not todo:
         _out("nothing to accept: acceptance-intact already passes for card %s" % n)
+        return 0
+    lines = ["**shipfloor accept** — card #%s" % n, ""]
+    lines += ["- `%s` → `%s` (QA `%s`)" % (f, key, q[:12]) for f, key, _blob, q in todo]
+    lines += ["", "Reason: %s" % clean, "Date: %s" % when, ""]
+    problem = _post_accept_comment(n, "\n".join(lines))
+    if problem:
+        _err("accepted locally; the copy on issue #%s was not posted: %s" % (n, problem))
     return 0
+
+
+def _post_accept_comment(n, body):
+    """Posts the accept record on issue <n> through the REST API (not GraphQL); the reason it failed, or ''."""
+    repo = _cfg_value("get", "project.repo")[1]
+    if not repo:
+        return "project.repo is not set"
+    fd, path = tempfile.mkstemp(suffix=".md")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        try:
+            rc, out = _run(proc.gh_argv("api", "-X", "POST", "repos/%s/issues/%s/comments" % (repo, n), "-F", "body=@" + path),
+                           out=DEVNULL)
+        except OSError as e:
+            return str(e)
+        return "" if rc == 0 else "gh exited %s" % rc
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
 
 
 def _with_weight(lines, line):
