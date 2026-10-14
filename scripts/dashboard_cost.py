@@ -1,6 +1,5 @@
 """Cost of the factory's runs, read from the Claude Code transcripts (one .jsonl per session)."""
-import json, os, re, sys
-from collections import deque
+import json, os, sys
 from datetime import datetime
 from pathlib import Path
 
@@ -9,97 +8,14 @@ sys.path.insert(0, str(HERE))  # `python -I` leaves the script's folder out of t
 sys.dont_write_bytecode = True  # importing inbox_hook / shipfloor_config must not leave a __pycache__ in the installed factory
 
 import yaml
-from inbox_hook import INTRO
+import runtimes
+from runtimes import TOKEN_KINDS, claude_code
 
-LEGACY_STAGES = {"refinar": "refine", "desenvolver": "develop", "validar": "validate", "deployar": "deploy"}  # legacy mylos
-COMMAND = re.compile(r"<command-name>/(?:sf|aghanim|mylos):([a-z]+)</command-name>\s*<command-args>(\d+)</command-args>")  # legacy aghanim, legacy mylos
-TOKEN_KINDS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
-
-
-def parse_ts(s):
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
-
-
-def text_of(content):
-    if isinstance(content, str):
-        return content
-    return "".join(p.get("text", "") for p in content or [] if isinstance(p, dict))
-
-
-def doing(block):
-    """One line for what an assistant block does: its own words, or the tool it calls and on what."""
-    if block.get("type") == "text":
-        line = next((x.strip() for x in block.get("text", "").splitlines() if x.strip()), "")
-        return {"kind": "says", "text": line[:200]} if line else None
-    if block.get("type") == "tool_use":
-        i = block.get("input") or {}
-        what = i.get("description") or i.get("file_path") or i.get("pattern") or i.get("command") or i.get("prompt") or ""
-        return {"kind": block.get("name") or "tool", "text": " ".join(str(what).split())[:160]}
-    return None
-
-
-def parse_transcript(path):
-    """The card a session ran for (its first user message is the dispatcher's /sf:<stage> <n>),
-    its tokens per model and the last few things it did."""
-    stage = issue = start = end = None
-    first_user, usage, activity = True, {}, deque(maxlen=4)
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            try:
-                o = json.loads(line)
-            except ValueError:
-                continue  # a run still writing its last line
-            start, end = start or o.get("timestamp"), o.get("timestamp") or end
-            msg = o.get("message") or {}
-            if o.get("type") == "user" and first_user:
-                first_user = False
-                m = COMMAND.search(text_of(msg.get("content")))
-                if m:
-                    stage, issue = LEGACY_STAGES.get(m.group(1), m.group(1)), int(m.group(2))
-            elif o.get("type") == "assistant" and msg.get("usage"):
-                # Claude Code logs one API message once per content block, repeating its usage
-                usage[msg.get("id") or len(usage)] = (msg.get("model"), msg["usage"])
-            if o.get("type") == "assistant" and isinstance(msg.get("content"), list):
-                for block in msg["content"]:
-                    did = isinstance(block, dict) and doing(block)
-                    if did:
-                        activity.append(dict(did, ts=o.get("timestamp")))
-    tokens = {}
-    for model, u in usage.values():
-        cw = u.get("cache_creation") or {}
-        kinds = {"input": u.get("input_tokens"), "output": u.get("output_tokens"),
-                 "cache_read": u.get("cache_read_input_tokens"),
-                 "cache_write_5m": cw.get("ephemeral_5m_input_tokens") if cw else u.get("cache_creation_input_tokens"),
-                 "cache_write_1h": cw.get("ephemeral_1h_input_tokens")}
-        if not any(kinds.values()):
-            continue
-        t = tokens.setdefault(model, dict.fromkeys(TOKEN_KINDS, 0))
-        for k, v in kinds.items():
-            t[k] += v or 0
-    return {"stage": stage, "issue": issue, "start": start, "end": end, "tokens": tokens, "activity": list(activity)}
-
-
-def events(path):
-    """What a session said and did, in order, and the owner's messages it was handed (inbox_hook.py)."""
-    out = []
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            try:
-                o = json.loads(line)
-            except ValueError:
-                continue
-            ts, content, att = o.get("timestamp"), (o.get("message") or {}).get("content"), o.get("attachment") or {}
-            if o.get("type") == "assistant" and isinstance(content, list):
-                for block in content:
-                    did = isinstance(block, dict) and doing(block)
-                    if did and did["kind"] == "says":
-                        did["text"] = block["text"].strip()[:4000]
-                    if did:
-                        out.append(dict(did, ts=ts))
-            elif att.get("type") == "hook_additional_context":
-                out += [{"kind": "owner", "text": c[len(INTRO):].strip(), "ts": ts}
-                        for c in att.get("content") or [] if isinstance(c, str) and c.startswith(INTRO)]
-    return out
+# The transcript readers are the runtimes' (scripts/runtimes/); these names are what the dashboard has always imported.
+LEGACY_STAGES = claude_code.LEGACY_STAGES  # legacy mylos stage names, still read from old transcripts (legacy aghanim too)
+parse_ts = claude_code.parse_ts
+parse_transcript = claude_code.parse
+events = claude_code.events
 
 
 def cost(tokens, prices):
@@ -175,36 +91,45 @@ def baselines(project_home):
 
 
 class Transcripts:
-    """Parsed transcripts kept in <home>/cost-cache.json, keyed by path, size and mtime: a cycle parses what changed."""
-    def __init__(self, home):
+    """Parsed transcripts kept in <home>/cost-cache.json ({"version": 2, "entries": {"<runtime>:<path>": [stamp..., parsed]}}),
+    keyed by runtime and path, with the runtime's stamp (size, mtime): a cycle parses what changed. A file of any
+    other version (the one before the runtime contract has none) is not believed: everything is parsed again."""
+    VERSION = 2
+
+    def __init__(self, home, runtime=None):
         self.file, self.dirty = Path(home) / "cost-cache.json", False
+        self.runtime = runtime or runtimes.NAMES[0]
         try:
-            self.cache = json.loads(self.file.read_text(encoding="utf-8"))
+            raw = json.loads(self.file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            self.cache = {}
-        if not isinstance(self.cache, dict):
-            self.cache = {}
+            raw = None
+        ok = isinstance(raw, dict) and raw.get("version") == self.VERSION and isinstance(raw.get("entries"), dict)
+        self.cache = raw["entries"] if ok else {}
+        self.dirty = raw is not None and not ok  # an old file is replaced
         self.seen = set()
 
-    def get(self, path):
-        st = path.stat()
-        key, hit = f"{path}", self.cache.get(f"{path}")
+    def get(self, path, parse=None):
+        """The parsed transcript at path; parse (a runtime's reader, as runtimes.sessions hands it) names the runtime."""
+        name = next((n for n in runtimes.NAMES if runtimes.get(n).parse is parse), self.runtime)
+        rt = runtimes.get(name)
+        key = f"{name}:{path}"
+        stamp, hit = rt.stamp(path), self.cache.get(key)
         self.seen.add(key)
-        if not (isinstance(hit, list) and hit[:2] == [st.st_size, st.st_mtime_ns]):
-            p = parse_transcript(path)
-            hit = self.cache[key] = [st.st_size, st.st_mtime_ns, {k: p[k] for k in ("stage", "issue", "start", "tokens")}]
+        if not (isinstance(hit, list) and len(hit) == len(stamp) + 1 and hit[:-1] == stamp):
+            p = rt.parse(path)
+            hit = self.cache[key] = stamp + [{k: p[k] for k in ("stage", "issue", "start", "tokens")}]
             self.dirty = True
-        return hit[2]
+        return hit[-1]
 
     def save(self):
-        gone = [k for k in self.cache if k not in self.seen and not os.path.exists(k)]
+        gone = [k for k in self.cache if k not in self.seen and not os.path.exists(k.split(":", 1)[-1])]
         for k in gone:
             del self.cache[k]
         if not (self.dirty or gone):
             return
         tmp = self.file.with_name(f"{self.file.name}.{os.getpid()}")
         try:
-            tmp.write_text(json.dumps(self.cache), encoding="utf-8")
+            tmp.write_text(json.dumps({"version": self.VERSION, "entries": self.cache}), encoding="utf-8")
             os.replace(tmp, self.file)
         except OSError:
             pass  # the next cycle parses again
@@ -212,19 +137,7 @@ class Transcripts:
 
 def project_sessions(claude_dir, slug, read):
     """The sessions the dispatcher ran for a project (read: path -> parsed transcript), oldest first."""
-    out = []
-    for d in (Path(claude_dir) / "projects").glob(f"*-projects-{slug}-control"):
-        for f in d.glob("*.jsonl"):
-            try:  # Claude Code may delete a transcript under us, or a line may carry a bad time
-                s = read(f)
-                if s["start"]:
-                    parse_ts(s["start"])
-                if s["stage"] and s["start"]:
-                    subs = [read(a) for a in sorted((d / f.stem / "subagents").glob("*.jsonl"))]
-                    out.append(dict(s, id=f.stem, subagents=subs, path=f))
-            except (OSError, ValueError):
-                continue
-    return sorted(out, key=lambda s: s["start"])
+    return runtimes.sessions(slug, read, {"claude-code": claude_dir})
 
 
 def read_costs(home):

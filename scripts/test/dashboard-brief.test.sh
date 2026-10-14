@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The decision brief on today's screen (#179). A Spec Review or Staged card with a brief (<reviews>/<n>.brief.json,
 # made by #178) shows it in the work area, beside Your decision (#182): verdict, what you approve, what needs your eyes,
 # what changed since the request, what the gates proved, the folded rest; each block with its origin. The server reads it

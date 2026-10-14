@@ -245,6 +245,24 @@ class TheCycle(CycleCase):
         self.assertIn("shipfloor: limite de uso do Claude atingido há pouco; aguardando", self.out)
         self.assertEqual(self.ran(), [])
 
+    def test_AC4_usage_limit_names_codex(self):
+        "AC-4 a recent Codex usage limit pauses the cycle and the line names Codex (Codex in pt-BR too); a Claude one still says Claude"
+        self.register()
+        log = os.path.join(self.shome, "projects", "blog", "logs", "x-5-develop.log")
+        start = "== start /sf:develop 5 2026-10-14T10:00:00-03:00 pid=1 model=gpt-6-sol weight=standard runtime=%s\n"
+        end = "== end /sf:develop 5 exit=1 2026-10-14T10:20:00-03:00 outcome=usage_limit\n"
+        self.write(log, start % "codex" + "some other words\n" + end)
+        self.assertEqual(self.run_cycle(), 0)
+        self.assertRegex(self.out, r"%s shipfloor: Codex usage limit hit recently; waiting\n" % ISO)
+        self.assertEqual(self.ran(), [])
+        self.write(os.path.join(self.shome, "config.yml"), "language: pt-BR\n")
+        self.run_cycle()
+        self.assertIn("shipfloor: limite de uso do Codex atingido há pouco; aguardando", self.out)
+        self.write(log, start % "claude-code" + "some other words\n" + end)
+        self.run_cycle()
+        self.assertIn("shipfloor: limite de uso do Claude atingido há pouco; aguardando", self.out)
+        self.assertNotIn("Codex", self.out)
+
     def test_github_limit(self):
         "a fresh GitHub-limit mark holds every project: exit 0 and says so"
         self.register()
@@ -331,3 +349,60 @@ class TheCycle(CycleCase):
         c.take()
         self.assertEqual((c.overlap, open(pid).read()), (False, "%d\n" % os.getpid()), "none there: taken")
         self.assertEqual(wrong, [])
+
+
+class CodexPipeline(ds.CodexCase):
+    """`runtime: codex` over a fake `codex`: the dispatcher runs each stage on it."""
+
+    def test_AC1_a_card_goes_through_the_stages_on_codex(self):
+        "AC-1 runtime: codex with a fake codex: refine, develop and validate each run on it, with the sandbox, the generated prompt and the Codex trailer; claude is never started"
+        self.board(queues={"Ready for Refinement": 70, "Ready for Dev": 54, "Validation": 60})
+        self.assertEqual(self.cycle(), 0, self.err)
+        self.assertEqual(self.claude_calls(), [], "no fallback to Claude Code")
+        calls = {c["stdin"].split("Card: #")[-1].strip(): c for c in self.codex_calls()}
+        self.assertEqual(sorted(calls), ["54", "60", "70"])
+        for n, stage in (("70", "refine"), ("54", "develop"), ("60", "validate")):
+            call = calls[n]
+            self.assertEqual(call["argv"][0], "exec")
+            self.assertEqual(self.flag(call, "-s"), "workspace-write")
+            self.assertEqual(os.path.realpath(self.flag(call, "-C")), os.path.realpath(self.home + "/control"))
+            self.assertEqual(os.path.realpath(call["cwd"]), os.path.realpath(self.home + "/control"))
+            for flag in ("--json", "--skip-git-repo-check"):
+                self.assertIn(flag, call["argv"])
+            self.assertEqual(call["argv"][-1], "-", "the prompt comes on stdin")
+            self.assertTrue(self.flag(call, "-o").endswith(".last"), "the final message goes beside the log")
+            self.assertIn("PROMPT " + stage, call["stdin"], "the prompt is the stage's generated one")
+            self.assertEqual(call["env"]["CODEX_HOME"], self.codex_home, "the factory's CODEX_HOME, never the owner's")
+            self.assertEqual(call["env"]["SHIPFLOOR_TRAILER"], "Co-Authored-By: Codex <noreply@openai.com>")
+            self.assertEqual((call["env"]["SHIPFLOOR_FACTORY"], call["env"]["SHIPFLOOR_RUN_LOCK"]),
+                             ("1", "%s/locks/%s-%s.lock" % (self.home, stage, n)))
+            log = self.log(stage, n).splitlines()
+            self.assertRegex(log[0], r"^== start /sf:%s %s %s pid=\d+ .*runtime=codex$" % (stage, n, ISO))
+            self.assertRegex(log[-1], r"^== end /sf:%s %s exit=0 %s outcome=ok$" % (stage, n, ISO))
+
+
+class CodexUsageLimit(ds.CodexCase):
+    def test_AC4_the_limit_text_is_the_outcome_and_the_next_cycle_waits(self):
+        "AC-4 a Codex run that prints the usage limit ends on outcome=usage_limit, and the next cycle starts nothing and says Codex"
+        self.board(queues={"Ready for Dev": 54})
+        self.set_fake(codex={"say": "You’ve hit your usage limit. Upgrade to Plus to continue.", "exit": 1})
+        self.assertEqual(self.cycle(), 0, self.err)
+        self.assertRegex(self.log("develop", 54).splitlines()[-1], r"^== end /sf:develop 54 exit=1 %s outcome=usage_limit$" % ISO)
+        self.board(queues={"Ready for Dev": 55})
+        self.launches = []
+        self.cycle(runs=False)
+        self.assertEqual(self.launches, [], "new runs wait")
+        self.assertIn("Codex usage limit hit recently; waiting", self.out)
+
+    def test_AC4_outcome_of_the_adapter(self):
+        "AC-4 the adapter's outcome: usage_limit for the limit's wording (curly, escaped or plain apostrophe, credits, spend cap, quota, Plus, 429), ok on exit 0, fail otherwise"
+        import runtimes
+        outcome = runtimes.get("codex").outcome
+        for text in ("You’ve hit your usage limit. Try again at 6pm.", "{\"message\":\"You\\u2019ve hit your usage limit\"}",
+                     "You've hit your usage limit", "You are out of credits", "You hit your spend cap",
+                     "Quota exceeded for this account", "Please upgrade to Plus to keep going",
+                     "exceeded retry limit, last status: 429 Too Many Requests"):
+            for rc in (0, 1):
+                self.assertEqual(outcome(rc, "work\n" + text + "\nmore\n"), "usage_limit", (rc, text))
+        self.assertEqual(outcome(1, ("x\n" + "You’ve hit your usage limit").encode("utf-8")), "usage_limit", "a block as bytes")
+        self.assertEqual((outcome(0, "all fine\n"), outcome(2, "boom\n")), ("ok", "fail"))

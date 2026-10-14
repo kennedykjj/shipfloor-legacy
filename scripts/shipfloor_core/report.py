@@ -101,6 +101,7 @@ def _run(issue, slug, pipeline, json, md):
         with open(src, "rb") as f:
             fs.write_atomic(os.path.join(d, "%s-%s.%s" % (pipeline, stamp, ext)), f.read())
     _git("-C", wt, "add", "reports")
-    _git("-C", wt, "commit", "-qm", "chore(factory): report #%s %s %s" % (issue, pipeline, stamp), "-m", TRAILER)
+    _git("-C", wt, "commit", "-qm", "chore(factory): report #%s %s %s" % (issue, pipeline, stamp), "-m",
+         os.environ.get("SHIPFLOOR_TRAILER") or TRAILER)
     _git("-C", wt, "push", "-q", "origin", br)
     return 0

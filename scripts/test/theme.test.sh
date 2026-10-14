@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: unit
 # The dashboard's themes, computed from dashboard.html's colors (scripts/test/py/dashboard_theme.py): every theme sets the
 # base tokens, keeps its text at 4.5:1 and tells the pool bar's stage hues apart (DESIGN.md names this file).
 # The v4 visual system (#180) is pinned beside it (scripts/test/py/dashboard_v4.py): the Floor v4 values, the Settings
