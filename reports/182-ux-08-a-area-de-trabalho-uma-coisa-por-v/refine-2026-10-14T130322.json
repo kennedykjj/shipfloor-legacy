@@ -1,0 +1,3 @@
+{"issue": 182, "slug": "ux-08-a-area-de-trabalho-uma-coisa-por-v", "pipeline": "refine", "started_at": "2026-10-14T13:00:40-03:00", "finished_at": "2026-10-14T13:03:13-03:00", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 17459, "duration_s": 39}, {"role": "ux-designer", "tokens": 45282, "duration_s": 67}],
+ "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": null}
