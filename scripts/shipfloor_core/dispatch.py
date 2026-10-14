@@ -40,7 +40,7 @@ PS_CLEANUP = r'''
     $p = [regex]::Escape($env:SHIPFLOOR_WT) -replace "/", "[\\/]"
     Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $p -and $_.ProcessId -ne $PID } |
       ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'''
-USAGE_LIMIT = b"hit your session limit"
+USAGE_LIMIT = telemetry.USAGE_LIMIT
 GH_LIMIT = re.compile(r"API rate limit|secondary rate limit", re.I)
 
 

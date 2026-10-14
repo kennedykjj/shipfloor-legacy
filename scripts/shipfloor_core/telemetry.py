@@ -18,6 +18,10 @@ import time
 PIPE = subprocess.PIPE
 BASH_KINDS = (("gate", re.compile(r"\bgate\.sh\b")), ("board", re.compile(r"\bboard\.sh\b")),
               ("gh", re.compile(r"(^|[\s;&|(`$])gh\s")))
+# The Claude usage limit, as the run log's readers look for it (dispatch.usage_limited, cycle, the dashboard). In
+# stream-json it may come in an event whose text the log does not get (an assistant turn before the last, a system
+# event): seen anywhere in the stream, it is written to the log once, so those readers keep pausing the factory.
+USAGE_LIMIT = b"hit your session limit"
 TOKENS = (("input", "input_tokens"), ("output", "output_tokens"), ("cache_read", "cache_read_input_tokens"),
           ("cache_creation", "cache_creation_input_tokens"))
 
@@ -52,6 +56,7 @@ class Run:
         self.pending = {}  # tool_use id -> (received at, tool name, bash kind or None)
         self.tools, self.bash = {}, {}
         self.wrote_text = False
+        self.limit_logged = False
 
     def feed(self, raw, at=None):
         """One stdout line: the bytes for the run log now (b"" for none)."""
@@ -72,6 +77,7 @@ class Run:
             self._account(ev, at)
         except Exception:  # an event of a shape not seen before is counted, never fatal
             self.parse_errors += 1
+        out = b""
         if ev.get("type") == "result":
             self.result = ev
             text = ev.get("result")
@@ -79,8 +85,13 @@ class Run:
                 text = self.last_text
             if text:
                 self.wrote_text = True
-                return (text.rstrip("\n") + "\n").encode("utf-8", "surrogateescape")
-        return b""
+                out = (text.rstrip("\n") + "\n").encode("utf-8", "surrogateescape")
+        if USAGE_LIMIT in out:
+            self.limit_logged = True
+        elif USAGE_LIMIT in stripped and not self.limit_logged:
+            self.limit_logged = True
+            out += b"claude: " + USAGE_LIMIT + b" (from the agent's stream)\n"
+        return out
 
     def finish(self):
         """The bytes for the log once the stream ended: the last assistant text when no result carried any."""

@@ -464,6 +464,15 @@ class Telemetry(Base):
         log, _, _ = self.stream(dict(RESULT, is_error=True, result="You've hit your session limit · resets 3pm"))
         self.assertIn("You've hit your session limit · resets 3pm", log)
 
+    def test_usage_limit_from_any_event_reaches_the_log(self):
+        "the usage limit in an event the log does not get (an earlier turn, a system event) is written to it, once"
+        said = {"type": "assistant", "message": {"content": [{"type": "text", "text": "You've hit your session limit"}]}}
+        log, _, _ = self.stream(said, said, RESULT)
+        self.assertEqual(sum("hit your session limit" in l for l in log), 1)
+        self.assertIn("All done: #54 is in Validation.", log)
+        log, _, _ = self.stream({"type": "system", "subtype": "error", "error": "hit your session limit"})
+        self.assertEqual(sum("hit your session limit" in l for l in log), 1)
+
     def test_plain_text_has_no_telemetry(self):
         "an agent that prints plain text: the log as before, and no events or runs file"
         self.board(queues={"Ready for Dev": 54})
