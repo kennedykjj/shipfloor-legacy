@@ -42,6 +42,11 @@ health record; assert_contains "$(last 'd["idle"], d["projects"]["shop"]["blocke
 assert_contains "$(last 'd["projects"]["shop"]["blocked_cards"]')" "[7]"
 setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"; touch "$H/PAUSE"
 health record; assert_contains "$(last 'd["idle"], d["paused"]')" "[] True"
+# a fresh GitHub-limit mark (#190) stops the factory too: recorded, and no idle slot is reported
+setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"; touch "$H/github-limited"
+health record; assert_contains "$(last 'd["idle"], d["github_limited"]')" "[] True"
+touch -d '-11 minutes' "$H/github-limited"
+health record; assert_contains "$(last 'd["idle"], d["github_limited"]')" "['shop/develop'] False"
 
 # a card left in a work column with no run is waiting to be resumed, whatever the WIP
 setup; printf '30\tCoding\tI30\n' > "$P/board.tsv"
