@@ -1,0 +1,8 @@
+{"issue": 158, "slug": "tests-that-pin-behavior-gate-and-stack", "pipeline": "develop", "started_at": "2026-10-14T10:55:00Z", "finished_at": "2026-10-14T11:20:00Z", "outcome": "ok",
+ "agents": [{"role": "qa-engineer", "tokens": 31117, "duration_s": 55}],
+ "rounds": {"4": 1},
+ "gates_failed": ["build (stack-pin-slots.test.sh: AC-5 slot_release run-ended kept the heartbeat, a test race)"],
+ "flaky": [],
+ "gates_reused": [],
+ "amendments": [{"file": "scripts/test/stack-pin-slots.test.sh", "reason": "the planted heartbeat could lose a TERM in bash's fork-to-exec window; it now waits for a post-exec marker, gone() is bounded at 10 s, and reaped pids are no longer re-killed"}],
+ "manual_edit": false}
