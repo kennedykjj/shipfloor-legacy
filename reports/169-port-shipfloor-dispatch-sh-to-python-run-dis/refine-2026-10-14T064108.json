@@ -1,0 +1,1 @@
+{"issue":169,"slug":"port-shipfloor-dispatch-sh-to-python-run-dis","pipeline":"refine","started_at":"2026-10-14T10:00:00Z","finished_at":"2026-10-14T10:20:00Z","outcome":"ok","agents":[{"role":"product-owner","tokens":14854,"duration_s":21}],"rounds":{"po":1,"techlead":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":null}
