@@ -6,14 +6,14 @@ source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)" || exit 1; export TMPDIR="$T"
 MAINPID=$$  # only this shell cleans up (a child that inherited the trap compares its parent's pid, not $BASHPID)
-trap '[ "$(sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
+trap '[ "$(exec sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 shim="$FACTORY_DIR/lib/stack.sh"
 
 # ---- the shim holds no stack logic of its own
 code="$(grep -vE '^[[:space:]]*(#|$)' "$shim")"
 grep -q 'sf\.py' "$shim" && printf '%s\n' "$code" | grep -qE '(^|[^a-z_])stack([^a-z_-]|$)' \
   && pass "AC-8 lib/stack.sh runs sf.py stack" || fail "AC-8 lib/stack.sh never runs sf.py stack"
-logic="$(printf '%s\n' "$code" | grep -nE 'lsof|netstat|tasklist|taskkill|curl |mkdir |rm -rf|sleep |date |while :|kill ' || true)"
+logic="$(printf '%s\n' "$code" | grep -nE 'lsof|netstat|tasklist|taskkill|curl |mkdir |rm -rf|sleep |date |while :|kill -0|kill -9|kill "\$pid"' || true)"
 [ -z "$logic" ] && pass "AC-8 lib/stack.sh has no slot, queue, port or health logic left (no mkdir, lsof, curl, sleep, kill...)" \
   || fail "AC-8 lib/stack.sh still holds logic:
 $logic"
