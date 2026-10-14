@@ -9,7 +9,7 @@ Each project runs in its own process (`sf.py cycle-project`), as it ran in its o
 one never stops the others.
 """
 import datetime
-import fnmatch
+import glob
 import os
 import re
 import shutil
@@ -111,29 +111,25 @@ def _registry(home):
 
 
 def usage_limited(home):
-    """The Claude usage limit is per account: a recent hit in any project pauses all. A log under projects/*/logs/
-    changed in the last 30 minutes whose last `== start` block says so."""
-    root = os.path.join(home, "projects")
-    for d, dirs, files in os.walk(root):
-        for name in files:
-            f = os.path.join(d, name)
-            if not fnmatch.fnmatchcase(f.replace("\\", "/"), "*/logs/*.log"):
-                continue
-            a = _age(f)
-            if a is None or a >= 30 * 60:
-                continue
-            try:
-                with open(f, "rb") as h:
-                    lines = _t(h.read()).split("\n")
-            except OSError:
-                continue
-            buf = []
-            for l in lines:
-                if l.startswith("== start"):
-                    buf = []
-                buf.append(l)
-            if "hit your session limit" in "\n".join(buf):
-                return True
+    """The Claude usage limit is per account: a recent hit in any project pauses all. A run log, projects/<p>/logs/*.log,
+    changed in the last 30 minutes whose last `== start` block says so. Only those logs: each run's TMPDIR lives under
+    projects/<p>/tmp/<n>/ (#168), and test suites there write fake factory logs that say so too."""
+    for f in sorted(glob.glob(os.path.join(glob.escape(home), "projects", "*", "logs", "*.log"))):
+        a = _age(f)
+        if a is None or a >= 30 * 60:
+            continue
+        try:
+            with open(f, "rb") as h:
+                lines = _t(h.read()).split("\n")
+        except OSError:
+            continue
+        buf = []
+        for l in lines:
+            if l.startswith("== start"):
+                buf = []
+            buf.append(l)
+        if "hit your session limit" in "\n".join(buf):
+            return True
     return False
 
 
@@ -252,6 +248,8 @@ def _cycle(home, claim):
     if claim.overlap or os.path.exists(os.path.join(home, "PAUSE")):
         return 0
     lang = _machine_lang()  # the dispatcher's own log lines
+    for name in project.sweep_home_tmp(home):
+        _say(lang, "%s shipfloor: removed tmp/%s" % (_now(), name))
     if usage_limited(home):
         _say(lang, "%s shipfloor: Claude usage limit hit recently; waiting" % _now())
         return 0

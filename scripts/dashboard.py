@@ -14,6 +14,7 @@ sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
 from shipfloor_core.defaults import DEPLOY_DEFAULTS
 import shipfloor_health
+from shipfloor_core import deps
 import dashboard_cost
 from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, per_card, rounded
 import yaml
@@ -35,6 +36,12 @@ BLOCK_LINE = re.compile(r"(?:Factory )?\b(refine|develop|validate|deploy),? step
 ACCEPTANCE_DIFF = """qa="$(bash "$1" -C "$2" qa-commit "$3" 2>/dev/null)"; [ -n "$qa" ] || exit 0
 mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
 [ "${#files[@]}" -gt 0 ] && git -C "$2" -c core.quotePath=false diff --no-color -U1 "$qa" HEAD -- "${files[@]}"
+"""
+# The acceptance test files of the newest QA commit as they changed against the QA commit before it (what qa-amend counts).
+AMEND_DIFF = """qa="$(bash "$1" -C "$2" qa-commit "$3" 2>/dev/null)"; [ -n "$qa" ] || exit 0
+prev="$(git -C "$2" log --format=%H -1 -E --grep "acceptance tests for #$3([^0-9]|\\$)" "$qa^" 2>/dev/null)"; [ -n "$prev" ] || exit 0
+mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
+[ "${#files[@]}" -gt 0 ] && git -C "$2" -c core.quotePath=false diff --no-color -U1 "$prev" "$qa" -- "${files[@]}"
 """
 COST_BLOCK = "Cost limit: blocked."  # how the dispatcher opens the note of a block by cost
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
@@ -85,6 +92,12 @@ addEventListener("load",function(){
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
+# The labels a returned card's review page shows (#177), with their English text: the embedded page gets them in the
+# machine's language with the theme (labels_block); the standalone page carries the English ones itself.
+RV_LABELS = (shipfloor_config.Msg("rv.new", "New"), shipfloor_config.Msg("rv.changed", "Changed"),
+             shipfloor_config.Msg("rv.removed", "Removed"), shipfloor_config.Msg("rv.before", "Before"),
+             shipfloor_config.Msg("rv.request", "Your request"),
+             shipfloor_config.Msg("rv.since", "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"))
 # The moves the owner makes from the dashboard, M1 to M7 of #125: from -> [(to, a note is required)]. Nothing else moves
 # a card from here. In Spec Review and Staged the move without a note is Approve, the one with a note Request changes.
 OWNER_MOVES = {"Inbox": [("Ready for Refinement", False)],
@@ -110,7 +123,12 @@ LOCKED = {"run": "a run is in progress", "infra": "blocked by infrastructure, th
 def refused(errs):
     """A refusal: its reasons in English (error), and each one as the page translates it (errors): a shipfloor_config.Msg
     gives its key and values, any other reason only its text."""
-    return {"error": "; ".join(errs), "errors": [e.as_json() if isinstance(e, shipfloor_config.Msg) else {"text": str(e)} for e in errs]}
+    def one(e):
+        if isinstance(e, shipfloor_config.Msg):
+            return e.as_json()
+        field = re.match(r"limits\.(memory_max|cpu_weight|cpu_quota)\b", str(e))  # the machine limits name their field
+        return {"key": field.group(0), "text": str(e)} if field else {"text": str(e)}
+    return {"error": "; ".join(errs), "errors": [one(e) for e in errs]}
 
 
 def catalogs():
@@ -233,6 +251,68 @@ def scheduler():
             str(Path(source) / "installer" / "install-dispatcher.ps1"), "-EveryMin"], None
 
 
+NO_LIMITS = "Resource limits are applied on Linux with systemd only. They are saved but not applied here."
+
+
+def installer_script():
+    try:  # the installed copy records the checkout it came from; a checkout is its own source
+        source = (HERE / ".source").read_text(encoding="utf-8").strip() or str(HERE.parent)
+    except OSError:
+        source = str(HERE.parent)
+    return Path(source) / "installer" / "install-dispatcher.sh"
+
+
+def limits_applier():
+    """The command that installs the dispatcher with the machine's limits (the flags go last), or None where there is
+    none. SHIPFLOOR_LIMITS_APPLIER (split like a command line) overrides, "none" says there is none; else on Linux
+    install-dispatcher.sh; elsewhere the limits are saved and not applied."""
+    given = os.environ.get("SHIPFLOOR_LIMITS_APPLIER")
+    if given is not None:
+        try:
+            return None if given.strip() == "none" else shlex.split(given) or None
+        except ValueError:
+            return None
+    return [bash(), str(installer_script())] if sys.platform.startswith("linux") else None
+
+
+def limits_in_effect():
+    """{memory_max, cpu_weight, cpu_quota} the installed systemd unit carries (None for none), or None when there is no
+    such unit or this system has no limits to read."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        r = subprocess.run([bash(), str(installer_script()), "--status"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
+    except (OSError, subprocess.TimeoutExpired, SystemExit):
+        return None
+    line = next((l.strip() for l in r.stdout.splitlines() if l.startswith("limits:")), "")
+    if line == "limits: none":
+        return dict.fromkeys(shipfloor_config.LIMIT_KEYS)
+    pairs = dict(w.split("=", 1) for w in line[len("limits:"):].split() if "=" in w)
+    if not pairs:
+        return None
+    return {k: None if pairs.get(k, "none") == "none" else pairs[k] for k in shipfloor_config.LIMIT_KEYS}
+
+
+def silent_banner(home):
+    """The overview's "silent": how long the dispatcher has been quiet and the platform's commands to check and
+    reinstall its scheduled job; None while the newest health line is within 3x the pace."""
+    s = shipfloor_health.silence(home)
+    if not s:
+        return None
+    try:  # as scheduler(): the installed copy records the checkout it came from
+        source = (HERE / ".source").read_text(encoding="utf-8").strip() or str(HERE.parent)
+    except OSError:
+        source = str(HERE.parent)
+    installer = Path(source) / "installer"
+    if os.name == "nt":
+        check = "Get-ScheduledTask -TaskName ShipfloorDispatcher"
+        reinstall = f"powershell -File {installer / 'install-dispatcher.ps1'}"
+    else:
+        check = f"bash {installer / 'install-dispatcher.sh'} --status"
+        reinstall = f"bash {installer / 'install-dispatcher.sh'}"
+    return {"min": round(s["min"]), "every": s["every"], "check": check, "reinstall": reinstall}
+
+
 def gh(*args, input=None):  # through bash, so FACTORY_GH can be a script on Windows too
     # Never --jq: started from Python on Windows, gh crashes on it (0xC0000005). Read JSON with gh_json.
     return subprocess.run([bash(), "-c", 'exec "${FACTORY_GH:-gh}" "$@"', "gh", *args],
@@ -287,6 +367,15 @@ class Factory:
             pass
         j = json.dumps({"rev": rev, "marks": marks}).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
         return f"<script>window.__shipfloorMarks={j}</script>"
+
+    def labels_block(self):
+        """The <script> that hands the embedded page the labels of a returned card (RV_LABELS) in the machine's language,
+        English where its catalog lacks one: the page is sandboxed and cannot read the dashboard's catalogs itself."""
+        lang = self.lang()
+        messages = {m.key: lang["messages"].get(m.key) or lang["en"].get(m.key) or str(m) for m in RV_LABELS}
+        j = json.dumps({"language": lang["language"], "messages": messages}, ensure_ascii=False)
+        j = j.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+        return f"<script>window.__shipfloorLabels={j}</script>"
 
     def save_marks(self, p, n, body):
         """Keeps the Keep/Change marks of a review page (reviews/<n>.marks.json). Nothing is stored on a refusal."""
@@ -589,6 +678,10 @@ class Factory:
         why, _, tried = text.partition("Tried:")
         intact = re.search(r"acceptance-intact\W{0,4}(?:gate\W+)?fail|fail\w*[^.\n]{0,60}acceptance-intact", reason, re.I)
         gate = "acceptance-intact" if intact or any("acceptance-intact" in str(r["failed_gates"]) for r in blocked[-1:]) else ""
+        if "qa-amend" in reason and "the owner decides now" in reason:  # the extra amendment is the owner's call (#204)
+            return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
+                    "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": "qa-amend",
+                    "diff": self.acceptance_diff(p, n, AMEND_DIFF, "amend"), "approved": self.amend_ok(p, n)}
         return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
                 "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": gate,
                 "diff": self.acceptance_diff(p, n) if gate else ""}
@@ -601,19 +694,39 @@ class Factory:
         return {"block_line": "" if mark else self.block_line(p, n),
                 "block_cost": {k: mark[k] for k in ("total", "limit", "baseline")} if mark else None}
 
-    def acceptance_diff(self, p, n):
-        at, diff = self._diffs.get((p, n), (0, ""))
+    def amend_ok(self, p, n):
+        """Whether the issue already carries qa-amend-ok (added by hand): then the note keeps Unblock & retry."""
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
+        issue, _ = gh_json("api", f"repos/{repo}/issues/{n}")
+        return any(isinstance(l, dict) and l.get("name") == "qa-amend-ok" for l in (issue or {}).get("labels") or [])
+
+    def approve_amend(self, p, n):
+        """The owner allows one more amendment of the card's acceptance tests: the label qa-amend-ok, then the block comes off.
+        A label that cannot be written leaves the card blocked."""
+        locked, err = self.lock(p, n)
+        if err:
+            return 502, {"error": err}
+        if locked != "blocked":
+            return 409, {"error": LOCKED[locked] if locked else "it is not blocked now", "locked": locked}
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
+        r = gh("api", f"repos/{repo}/issues/{n}/labels", "-f", "labels[]=qa-amend-ok")
+        if r.returncode != 0:
+            return 502, {"error": r.stderr.strip() or "gh could not add the label"}
+        return self.unblock(p, n)
+
+    def acceptance_diff(self, p, n, script=ACCEPTANCE_DIFF, kind=""):
+        at, diff = self._diffs.get((p, n, kind) if kind else (p, n), (0, ""))
         if time.time() - at > 60:
             wt = next((c[2] for c in (l.split("\t") for l in (self.home / "registry.tsv").read_text(encoding="utf-8").splitlines())
                        if c[0] == p and len(c) > 2), "")
             env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
             try:
-                r = subprocess.run([bash(), "-c", ACCEPTANCE_DIFF, "diff", (HERE / "gate.sh").as_posix(), f"{wt}/{n}", str(n)],
+                r = subprocess.run([bash(), "-c", script, "diff", (HERE / "gate.sh").as_posix(), f"{wt}/{n}", str(n)],
                                    env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
                 diff = r.stdout[:8000] if r.returncode == 0 else ""
             except (OSError, subprocess.TimeoutExpired):
                 diff = ""
-            self._diffs[(p, n)] = (time.time(), diff)
+            self._diffs[(p, n, kind) if kind else (p, n)] = (time.time(), diff)
         return diff
 
     def pull(self, p, number):
@@ -663,6 +776,23 @@ class Factory:
                         "notes": "\n".join(r["notes"]) if isinstance(r.get("notes"), list) else r.get("notes") or ""})
         return out
 
+    def brief(self, p, n):
+        """The decision brief of a card (reviews/<n>.brief.json, made by #178): the parsed object, or None when the file
+        is missing, unreadable, unparseable or not an object. Never raises."""
+        try:
+            b = json.loads((self.pdir(p) / "reviews" / f"{n}.brief.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return b if isinstance(b, dict) else None
+
+    def brief_row(self, p, n, col):
+        """The one-word verdict and the number of flags for the list row; only for the cards waiting on the owner."""
+        b = self.brief(p, n) if col in AWAITING else None
+        if not b:
+            return {"verdict": None, "flags": 0}
+        v, f = b.get("verdict"), b.get("flags")
+        return {"verdict": v if v in ("routine", "look") else None, "flags": len(f) if isinstance(f, list) else 0}
+
     def card(self, p, n):
         prices, runs = self.prices(), self.runs(p, issue=n)
         sessions, found = [], self.sessions(p, n)
@@ -686,7 +816,7 @@ class Factory:
                 "repo": shipfloor_config.dotted(self.config(p), "project.repo"),
                 "total": rounded(total), "baseline": dashboard_cost.baselines(self.pdir(p)).get(n, 0.0), "sessions": sessions, "runs": runs,
                 "reports": reports, "review": (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
-                "blocked": self.blocked(p).get(n),
+                "blocked": self.blocked(p).get(n), "brief": self.brief(p, n),
                 "block_reason": self.block_reason(p, n) if self.blocked(p).get(n) else ""}
 
     def card_spec(self, p, n):
@@ -799,7 +929,10 @@ class Factory:
         if cycle:
             cycle.setdefault("next_at", None)
         command, why = scheduler()
-        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "language": m.get("language") or "en", "costs": self.costs()},
+        saved = shipfloor_config.machine_limits(read_yaml(self.home / "config.yml").get("limits"))
+        limits = {**{k: None if v == "none" else v for k, v in saved.items()}, "in_effect": limits_in_effect(),
+                  "supported": limits_applier() is not None, "why": None if limits_applier() else NO_LIMITS}
+        return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "language": m.get("language") or "en", "costs": self.costs(), "limits": limits},
                 "languages": catalogs(), "paused": (self.home / "PAUSE").exists(),
                 "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
                 "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours(), "unpriced": unpriced}
@@ -870,6 +1003,22 @@ class Factory:
                 new["costs"] = costs
             else:
                 new.pop("costs", None)
+        if "limits" in changes:  # {memory_max, cpu_weight, cpu_quota}; null or empty clears one, and no limit is left out of the file
+            if not isinstance(changes["limits"], dict):
+                return 400, refused(["limits must be a mapping of memory_max, cpu_weight, cpu_quota"])
+            lim = dict(new["limits"]) if isinstance(new.get("limits"), dict) else {}
+            for k, v in changes["limits"].items():
+                if isinstance(v, str):
+                    v = v.strip()
+                    v = int(v) if k == "cpu_weight" and v.isascii() and v.isdigit() else v
+                if v is None or v == "" or (isinstance(v, str) and v.lower() == "none"):
+                    lim.pop(k, None)
+                else:
+                    lim[k] = v
+            if lim:
+                new["limits"] = lim
+            else:
+                new.pop("limits", None)
         if "notify" in changes:
             had, ch = new.get("notify") or {}, changes["notify"]
             if isinstance(had, dict) and isinstance(ch, dict):  # key by key; events and channels too
@@ -924,6 +1073,20 @@ class Factory:
                 return 409, {"error": "the scheduler did not answer in 60 seconds"}
             except OSError as e:
                 return 409, {"error": f"the scheduler could not start: {e}"}
+        want = shipfloor_config.machine_limits(new.get("limits"))
+        if want != shipfloor_config.machine_limits(old.get("limits")):  # told first, as the pace: if it refuses, nothing is saved
+            command = limits_applier()
+            if command:
+                flags = [a for k in shipfloor_config.LIMIT_KEYS for a in ("--" + k.replace("_", "-"), want[k])]
+                try:
+                    r = subprocess.run([*command, *flags], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+                    lines = [l.strip() for l in (r.stdout + "\n" + r.stderr).splitlines() if l.strip()]
+                    if r.returncode != 0:
+                        return 409, {"error": (lines or [f"the installer exited {r.returncode}"])[-1]}
+                except subprocess.TimeoutExpired:
+                    return 409, {"error": "the installer did not answer in 60 seconds"}
+                except OSError as e:
+                    return 409, {"error": f"the installer could not start: {e}"}
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write("# shipfloor machine config: runs at once on this machine (pool) and per stage\n")
             yaml.safe_dump(new, f, sort_keys=False)
@@ -1041,6 +1204,21 @@ class Factory:
                     return True
         return False
 
+    @staticmethod
+    def card_deps(record, columns, n):
+        """A card's dependencies from the dispatcher's record (deps.json), each in its board column, "closed", or "open"
+        when open but off the board; deps_unread when the dispatcher could not read them. The dashboard asks GitHub nothing."""
+        entry = record.get(str(n))
+        if not isinstance(entry, dict):
+            return {"deps": [], "deps_unread": False}
+        out = []
+        for d in entry.get("deps") or []:
+            if not isinstance(d, dict) or not isinstance(d.get("n"), int):
+                continue
+            state = "closed" if d.get("state") == "closed" else columns.get(d["n"]) or "open"
+            out.append({"n": d["n"], "title": str(d.get("title") or ""), "state": state})
+        return {"deps": out, "deps_unread": entry.get("read") is False}
+
     def overview(self):
         size, slots = self.pool()
         prices, today, limits = self.prices(), datetime.now().date().isoformat(), self.costs()
@@ -1059,7 +1237,7 @@ class Factory:
                 r["activity"] = doing.get((r["issue"], r["stage"]), [])
             running = {r["issue"]: r["stage"] for r in runs if not r["orphan"]}
             columns, age = self.board(p)
-            titles, blocked = self.titles(p, columns), self.blocked(p)
+            titles, blocked, record = self.titles(p, columns), self.blocked(p), deps.load(str(self.pdir(p)))
             opened, place, line = self._opened.get(p, {}), {}, {}
             for n, col in columns.items():  # columns come in board order: a card's place in line is its rank there
                 if col in LINED:
@@ -1083,7 +1261,9 @@ class Factory:
                                         "review": col in AWAITING and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                                         "lock": "run" if n in running else {"infra": "infra", "owner": "blocked"}.get(blocked.get(n)),
                                         "opened": opened.get(n), "position": place.get(n),
-                                        "blocked": blocked.get(n), **self.block_brief(p, n, blocked.get(n))}
+                                        "blocked": blocked.get(n), **self.brief_row(p, n, col),
+                                        **self.block_brief(p, n, blocked.get(n)),
+                                        **self.card_deps(record, columns, n)}
                                        for n, col in columns.items()]})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
@@ -1092,7 +1272,7 @@ class Factory:
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
-                "alerts": shipfloor_health.alerts(self.home),
+                "alerts": shipfloor_health.alerts(self.home, skip_silence=True), "silent": silent_banner(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "moves": {f: [{"to": to, "note": note} for to, note in m] for f, m in OWNER_MOVES.items()}, "ordered": list(ORDERED),
                 "take_back": {f: list(m) for f, m in BLOCKED_MOVES.items()},
@@ -1640,7 +1820,7 @@ class Handler(BaseHTTPRequestHandler):
                 if page.is_file():
                     html = page.read_bytes()
                     if q.get("embed") == ["1"]:
-                        html = html.replace(b"</head>", f.marks_block(parts[1], int(parts[2])).encode() + EMBED_CSS.encode() + b"</head>", 1)
+                        html = html.replace(b"</head>", f.marks_block(parts[1], int(parts[2])).encode() + f.labels_block().encode() + EMBED_CSS.encode() + b"</head>", 1)
                     # agents write these pages: sandboxed, they get an opaque origin and cannot call the API
                     return self.send(200, html, "text/html; charset=utf-8",
                                      [("Content-Security-Policy", "sandbox allow-scripts")])
@@ -1679,7 +1859,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "take-back", "unblock", "message", "accept", "send-back", "weight")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "take-back", "unblock", "message", "accept", "send-back", "weight", "approve-amend")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -1693,6 +1873,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(*fn(parts[2], int(parts[3]), str(body.get("text", ""))))
             if parts[4] == "unblock":
                 return self.send(*self.factory.unblock(parts[2], int(parts[3])))
+            if parts[4] == "approve-amend":
+                return self.send(*self.factory.approve_amend(parts[2], int(parts[3])))
             if parts[4] == "weight":
                 return self.send(*self.factory.set_weight(parts[2], int(parts[3]), body.get("weight")))
             if parts[4] == "move":

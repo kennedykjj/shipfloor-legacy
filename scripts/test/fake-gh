@@ -4,6 +4,15 @@ d="$FAKE_GH_DIR"
 [ -e "$d/fail" ] && { echo "gh: network error" >&2; exit 1; }
 args="$*"
 echo "$args" >> "$d/calls"
+# Failure injection (#173): FAKE_GH_FAIL_AT=<n> fails the n-th call (counted in $d/fail-count);
+# FAKE_GH_FAIL_CMD=<ERE> fails every call whose argv line matches. Both unset: no effect.
+if [ -n "${FAKE_GH_FAIL_AT:-}" ]; then
+  fc="$(cat "$d/fail-count" 2>/dev/null || true)"; fc=$(( ${fc:-0} + 1 )); echo "$fc" > "$d/fail-count"
+  [ "$fc" = "$FAKE_GH_FAIL_AT" ] && { echo "gh: injected failure" >&2; exit 1; }
+fi
+if [ -n "${FAKE_GH_FAIL_CMD:-}" ] && printf '%s\n' "$args" | grep -Eq -- "$FAKE_GH_FAIL_CMD"; then
+  echo "gh: injected failure" >&2; exit 1
+fi
 # FAKE_GH_NO_JQ: the dashboard's calls must not use --jq (gh crashes on it when Python starts it on
 # Windows); they get JSON instead. board.sh's own graphql read keeps --jq.
 # The dashboard's title read (GraphQL, by number): titles come from $d/titles.tsv ("number<TAB>title",
@@ -31,6 +40,15 @@ case "$args" in *updateProjectV2ItemPosition*)
     && mv "$d/items.tsv.new" "$d/items.tsv"
   echo '{"data":{"updateProjectV2ItemPosition":{"clientMutationId":null}}}'; exit 0 ;;
 esac
+# The dispatcher's dependency read (#202): the issues a card is "Blocked by", a JSON array from $d/blocked-by-<n>
+# (default []). $d/fail-deps makes it fail. Every call is logged in $d/dep-calls.
+deps_read() {
+  n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/dependencies.*#\1#')"
+  echo "$args" >> "$d/dep-calls"
+  [ -e "$d/fail-deps" ] && { echo "gh: HTTP 502" >&2; exit 1; }
+  if [ -f "$d/blocked-by-$n" ]; then cat "$d/blocked-by-$n"; else echo '[]'; fi
+  exit 0
+}
 if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
   case "$args" in *--jq*) echo "fake-gh: --jq not allowed here: $args" >&2; exit 99 ;; esac
   case "$args" in
@@ -43,9 +61,12 @@ if [ -n "${FAKE_GH_NO_JQ:-}" ] && [[ "$args" != "api graphql"* ]]; then
     "api repos/acme/shop/issues?labels="*)  # $d/label-<label> (":" as "-") holds the issues with that label; default #7
       l="${args#*labels=}"; l="${l%%&*}"; [ -f "$d/label-${l//:/-}" ] && { cat "$d/label-${l//:/-}"; exit 0; }; echo '[{"number":7}]'; exit 0 ;;
     "api user") echo '{"login":"factory"}'; exit 0 ;;
+    "api repos/acme/shop/issues/"*"/events"*)  # $d/events-<n>, a JSON array (default [])
+      n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/.*#\1#')"; [ -f "$d/events-$n" ] && { cat "$d/events-$n"; exit 0; }; echo '[]'; exit 0 ;;
     "api repos/acme/shop/issues/"*"/comments"*)  # $d/comments-<n> for one card, else $d/issue-comments for all
       n="$(echo "$args" | sed -E 's#.*issues/([0-9]+)/.*#\1#')"; [ -f "$d/comments-$n" ] && { cat "$d/comments-$n"; exit 0; }
       [ -f "$d/issue-comments" ] && { cat "$d/issue-comments"; exit 0; }; echo '[{"body":"Spec ready"},{"body":"**Validate blocked (infrastructure)**: stack down"}]'; exit 0 ;;
+    "api repos/acme/shop/issues/"*"/dependencies/blocked_by"*) deps_read ;;
     "api repos/acme/shop/issues/"*)  # one issue: its labels from $d/labels-<n>, one name a line
       [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
       n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; printf '{"number":%s,"labels":[' "$n"; sep=""
@@ -69,6 +90,7 @@ case "$args" in
   "api repos/acme/shop/issues?labels=blocked:infra"*)
     cat "$d/infra" 2>/dev/null ;;
   "api -X "*) ;;
+  "api repos/acme/shop/issues/"*"/dependencies/blocked_by"*) deps_read ;;
   "api repos/acme/shop/issues/"*)
     [ -e "$d/fail-issue-view" ] && { echo "gh: HTTP 502" >&2; exit 1; }
     n="$(echo "$args" | sed -E 's#.*issues/([0-9]+).*#\1#')"; if [ -f "$d/labels-$n" ]; then cat "$d/labels-$n"; fi ;;
