@@ -11,7 +11,7 @@ Conventions used below:
 
 ## gate.sh
 
-The deterministic gates. Run as `gate.sh [-C <worktree>] <gate> ...`; `-C` enters the worktree first (pipelines never `cd`); a worktree that cannot be entered is `gate: cannot enter '<dir>'` and exit 2.
+The deterministic gates. A wrapper: the gates are Python (`shipfloor_core/gate`, started through `lib/py.sh` and `sf.py gate`), and `build`, `red`, `green` and `stack` are handed to `lib/gate-run.sh`. Run as `gate.sh [-C <worktree>] <gate> ...`; `-C` enters the worktree first (pipelines never `cd`); a worktree that cannot be entered is `gate: cannot enter '<dir>'` and exit 2.
 
 **Interface:** the gate is the first word after the options. Each subcommand, with its arguments after it:
 - `test-plan` `<spec>`: every AC of the spec has a test its layer's runner can run.
@@ -214,6 +214,20 @@ Sourced by a wrapper (`templates/py-wrapper.sh`), never run on its own; it ends 
 - It picks the Python 3 command: `FACTORY_PYTHON` if set, else `SHIPFLOOR_PY` if already set, else `python3`, else `python`; it exports the choice as `SHIPFLOOR_PY`.
 - It then runs `exec <python> -I $HERE/sf.py "$@"`: always isolated mode, so a planted module in the current directory is never imported. Under Git Bash the path of `sf.py` is converted with `cygpath -m` first.
 - When no Python is found it prints `shipfloor: python 3 not found (set FACTORY_PYTHON)` on stderr and exits 127.
+
+## lib/gate-run.sh
+
+The Bash code of the gates that run a layer's commands: `build`, `red`, `green` and `stack` (moved out of `gate.sh` unchanged while they wait to be ported). Run, never sourced: `gate.sh` hands it its arguments as they came, `-C` included, and returns its exit code.
+
+**Interface:** the same words, arguments, exit codes, verdict line and `last-gate` as `gate.sh` gives them (see `## gate.sh`); `stack` has no verdict. Any other word is `gate-run: not a gate of this file` and exit 2.
+
+**Behavior worth keeping:** the key of a recorded pass hashes `scripts/gate.sh` (the wrapper callers run), not this file.
+
+## lib/gate-legacy.sh
+
+Temporary: the pre-port Bash `gate.sh`, which runs the static gates that `shipfloor_core/gate` has not taken over yet. `shipfloor_core.gate.main` runs it with the arguments after `-C`; it is deleted when the last static gate is ported.
+
+**Interface:** the same as `gate.sh`; it is never run by a caller. Its words are `test-plan`, `weight`, `scope`, `qa-commit`, `qa-amend`, `acceptance-intact`, `forbidden`, `migration`, `build`, `red`, `green` and `stack` with `up`, `down` and `status`.
 
 ## shipfloor
 

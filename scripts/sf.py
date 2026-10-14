@@ -20,7 +20,12 @@ def cmd_version(args):
     return 0
 
 
-COMMANDS = {"version": cmd_version}
+def cmd_gate(args):
+    from shipfloor_core import gate
+    return gate.main(args)
+
+
+COMMANDS = {"version": cmd_version, "gate": cmd_gate}
 
 
 def main(argv):
