@@ -1,0 +1,3 @@
+{"issue": 158, "slug": "tests-that-pin-behavior-gate-and-stack", "pipeline": "develop", "started_at": "2026-10-14T08:55:00Z", "finished_at": "2026-10-14T10:04:00Z", "outcome": "ok",
+ "agents": [{"role": "qa-engineer", "tokens": 190155, "duration_s": 870}],
+ "rounds": {"3": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": false}
