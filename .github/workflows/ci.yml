@@ -25,3 +25,43 @@ jobs:
         env:
           TEST_JOBS: 4   # the default is half the CPUs, and the tests mostly wait on git and subprocesses
         run: bash scripts/test/run.sh
+
+  # macOS and Windows (#154): reported, not gating. The deploy reads any red check as a failed CI, so a failing
+  # suite here leaves the job green with a warning; only the Linux `test` job gates a merge (deploy.required_checks).
+  # The owner decides after a week whether these join required_checks (#154, AC-6).
+  platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash   # Git Bash on Windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Bash 4.4+ (macOS ships 3.2)
+        if: runner.os == 'macOS'
+        run: brew install --quiet bash && echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+      - name: PyYAML
+        run: python -m pip install --quiet pyyaml
+      - name: Versions
+        run: |
+          bash --version | head -1
+          python --version
+          python -c 'import yaml; print("PyYAML", yaml.__version__)'
+      - name: Test suite
+        id: suite
+        continue-on-error: true
+        env:
+          TEST_JOBS: 4
+        run: bash scripts/test/run.sh
+      - name: Outcome
+        if: steps.suite.outcome == 'failure'
+        run: |
+          echo "::warning title=Suite failed on ${{ matrix.os }}::the suite failed on ${{ matrix.os }}; it does not gate the merge yet (#154)"
+          echo "### The suite failed on ${{ matrix.os }} (not gating yet, #154)" >> "$GITHUB_STEP_SUMMARY"
