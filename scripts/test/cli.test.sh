@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: unit
 # The shipfloor CLI and the project helpers, in process: cli.py (install, add, remove, list, pause, resume, pool, clean,
 # accept, setup-board, metrics, usage, doctor), init.py (shipfloor init), project.py (resolve, snapshot, the tmp helpers,
 # card specs and weights, sf.py project and sf.py config) and text.py's say. The modules: py/cli_registry.py,

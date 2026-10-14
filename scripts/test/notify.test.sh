@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # Notifications when the factory needs the owner (shipfloor_notify.py, notify.pt-BR.json, the dashboard's machine.notify
 # checked by shipfloor_config.py). The behavior is in process: py/notify_cycle.py (waits, reminders, the factory
 # stuck, production, quiet hours and the digest) and py/notify_channels.py (what the push carries, failing channels,

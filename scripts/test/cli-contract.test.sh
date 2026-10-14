@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The shipfloor CLI and project shims through real processes (the behavior is py/cli_*.py's, in process): the wrapper
 # scripts/shipfloor and sf.py cli (usage on stderr, exit 2; a first install from a plain copy), the dashboard's first
 # line, lib/project.sh (shipfloor_resolve's eval of a path that holds quotes and $( ), no Python when FACTORY_CONFIG is

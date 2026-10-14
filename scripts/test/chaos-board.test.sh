@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: end-to-end
 # #173 (RES-01) fault injection on the board's gh calls.
 #   AC-1  FAKE_GH_FAIL_AT=<n> / FAKE_GH_FAIL_CMD=<ERE> make the fake gh fail the n-th call / every matching call, and
 #         nothing else (both fakes: fake-gh for board.sh and the dispatcher, fake-gh-deploy for deploy.sh)

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: end-to-end
 # shipfloor demo (card #175): a fake card crosses the factory with no real repo, no network and no LLM.
 # Isolation: HOME and SHIPFLOOR_HOME are temp dirs holding a sentinel tree that is hashed before and after; gh and claude
 # on PATH fail and log; TMPDIR is private, so "the temporary home" is whatever the demo leaves in it.

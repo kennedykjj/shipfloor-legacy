@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # installer/install-dispatcher.sh registers the dispatcher on Linux (systemd user timer, else crontab) and
 # macOS (launchd user agent), removes it with --uninstall and reports it with --status.
 # Nothing here touches the machine's timers: a temp HOME and SHIPFLOOR_HOME, and stand-ins for systemctl,
