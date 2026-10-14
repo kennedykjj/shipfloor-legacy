@@ -1,0 +1,1 @@
+{"issue": 152, "slug": "37-37-runtimes-4-4-runtime-opencode", "pipeline": "refine", "started_at": "2026-10-14T17:50:00-03:00", "finished_at": "2026-10-14T17:55:30-03:00", "outcome": "ok", "agents": [{"role": "product-owner", "tokens": 33888, "duration_s": 51}], "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": null}
