@@ -73,6 +73,22 @@ To get the push, pick a topic that is long and random: anyone who knows the topi
 hours: ["08:00-23:00"]
 ```
 
+## Runtime
+
+`runtime` names the agent runtime that runs a stage's session. It goes in `~/.shipfloor/config.yml` or in a project's `.shipfloor/factory.yml`, as a string for every stage or as a map with only `default` and `stages` (`refine`, `develop`, `validate`, `deploy`):
+
+```yaml
+runtime: claude-code            # every stage
+```
+
+```yaml
+runtime:
+  default: claude-code
+  stages: {validate: claude-code}   # a stage here wins over default
+```
+
+`factory.yml` wins over `config.yml` key by key: `default` and each stage are resolved on their own. Unset means `claude-code`, which is the only runtime today. A value that is not a known runtime, or a map with any other key, makes the config invalid and the dispatch exits 2. The dispatcher's log lines carry `runtime=` and `outcome=` for each run.
+
 ## Language
 
 The factory speaks English unless told otherwise. Two keys change that, each a code of the twelve languages the dashboard ships in: `en` (default), `zh-CN`, `zh-TW`, `es`, `ja`, `de`, `fr`, `pt-BR`, `ru`, `ko`, `it` and `tr`.
