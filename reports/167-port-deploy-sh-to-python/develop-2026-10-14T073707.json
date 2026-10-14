@@ -1,0 +1,1 @@
+{"issue": 167, "slug": "port-deploy-sh-to-python", "pipeline": "develop", "started_at": "2026-10-14T00:00:00Z", "finished_at": "2026-10-14T00:00:00Z", "outcome": "blocked", "agents": [], "rounds": {}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": null}
