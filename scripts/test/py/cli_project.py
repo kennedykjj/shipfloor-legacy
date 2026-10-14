@@ -230,6 +230,32 @@ class Commands(State):
         self.assertEqual(rc, 2)
         self.assertTrue(err.startswith("usage: sf.py project resolve|use|cfg|"), err)
 
+    def test_closed_reader(self):
+        "sf.run: a reader that went away ends the command with 141, quietly, its stdout sent to devnull; else main's code"
+        import sf
+        fd = os.open(self.path("out.txt"), os.O_WRONLY | os.O_CREAT)
+        self.addCleanup(os.close, fd)
+
+        class Out:
+            def fileno(self):
+                return fd
+
+            def flush(self):
+                pass
+
+        def gone(argv):
+            raise BrokenPipeError
+
+        saved = (sf.main, sf.sys.stdout)
+        self.addCleanup(lambda: (setattr(sf, "main", saved[0]), setattr(sf.sys, "stdout", saved[1])))
+        sf.sys.stdout = Out()
+        sf.main = gone
+        gone_rc = sf.run(["board"])
+        sf.main = lambda argv: 3
+        main_rc = sf.run(["board"])
+        sf.main, sf.sys.stdout = saved
+        self.assertEqual((gone_rc, main_rc), (141, 3))
+
 
 class Say(CliCase):
     def test_say(self):
