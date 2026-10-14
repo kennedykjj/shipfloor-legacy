@@ -35,7 +35,13 @@ def cmd_review_page(args):
     return review_page.main(args)
 
 
-COMMANDS = {"version": cmd_version, "report": cmd_report, "metrics": cmd_metrics, "review-page": cmd_review_page}
+def cmd_deploy(args):
+    from shipfloor_core import deploy
+    return deploy.main(args)
+
+
+COMMANDS = {"version": cmd_version, "report": cmd_report, "metrics": cmd_metrics, "review-page": cmd_review_page,
+            "deploy": cmd_deploy}
 
 
 def main(argv):

@@ -73,15 +73,15 @@ def resolve(directory="."):
     raise ProjectError("shipfloor: %s is not in a registered project (shipfloor add <repo>)" % os.getcwd())
 
 
-def cfg(*query):
-    """Ask shipfloor_config.py about the resolved project; a CompletedProcess (bytes)."""
+def cfg(*query, input=None):
+    """Ask shipfloor_config.py about the resolved project (input: bytes on its stdin); a CompletedProcess (bytes)."""
     config = os.environ.get("FACTORY_CONFIG", "")
     home = os.environ.get("FACTORY_HOME", "")
     wt = os.environ.get("FACTORY_WT_ROOT", "")
     argv = [sys.executable, "-I", _CONFIG_PY, "--config", proc.native_path(config),
             "--home", proc.native_path(home) if home else "",
             "--worktrees", proc.native_path(wt) if wt else "", *query]
-    return subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return subprocess.run(argv, input=input, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
 def machine(*args):

@@ -18,12 +18,22 @@ def say(lang, text):
     return r.stdout.decode("utf-8")
 
 
-def ere_match(pattern, text, ignore_case=False):
-    """True when `grep -E` (-Ei) finds the pattern in the text; an invalid pattern raises (grep exit 2)."""
-    r = subprocess.run(["grep", "-Ei" if ignore_case else "-E", "--", pattern],
-                       input=text.encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if r.returncode == 0:
-        return True
-    if r.returncode == 1:
-        return False
+def _grep(pattern, text, ignore_case, invert):
+    flags = "-E" + ("i" if ignore_case else "") + ("v" if invert else "")
+    r = subprocess.run(["grep", flags, "--", pattern], input=text.encode("utf-8", "surrogateescape"),
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if r.returncode in (0, 1):
+        return r
     raise ValueError("invalid pattern %r: %s" % (pattern, r.stderr.decode("utf-8", "replace").strip()))
+
+
+def ere_match(pattern, text, ignore_case=False, invert=False):
+    """True when `grep -E` (-Ei; -Ev with invert: a line that does not match) finds the pattern in the text; an
+    invalid pattern raises (grep exit 2)."""
+    return _grep(pattern, text, ignore_case, invert).returncode == 0
+
+
+def ere_lines(pattern, text, ignore_case=False):
+    """What `grep -E` prints: the lines of the text where the pattern matches, each with its newline ("" for none);
+    an invalid pattern raises (grep exit 2)."""
+    return _grep(pattern, text, ignore_case, False).stdout.decode("utf-8", "surrogateescape")
