@@ -1,0 +1,13 @@
+{"issue": 157, "slug": "fix-before-migrating-dispatcher-board-and", "pipeline": "develop",
+ "started_at": "2026-10-14T05:48:20-03:00", "finished_at": "2026-10-14T06:18:09-03:00", "outcome": "infra",
+ "agents": [
+  {"role": "qa-engineer", "tokens": 112719, "duration_s": 435},
+  {"role": "engineer (T1 factory)", "tokens": 27864, "duration_s": 247},
+  {"role": "engineer (T2 factory)", "tokens": 43803, "duration_s": 208},
+  {"role": "qa-engineer (amend)", "tokens": 15753, "duration_s": 24},
+  {"role": "engineer (T3 factory)", "tokens": 31142, "duration_s": 149}
+ ],
+ "rounds": {"plan": 1, "acceptance": 1, "T1": 1, "T2": 1, "T3": 1, "qa-amend": 1},
+ "gates_failed": [],
+ "amendments": [{"file": "scripts/test/dispatch-pool.test.sh", "reason": "both AC-3 cases used stages above the pool, which shipfloor_config.py rejects; rewritten with valid configs (pool 2 and pool 3) pinning one pool unit per deploy"}],
+ "flaky": [], "gates_reused": [], "manual_edit": false}
