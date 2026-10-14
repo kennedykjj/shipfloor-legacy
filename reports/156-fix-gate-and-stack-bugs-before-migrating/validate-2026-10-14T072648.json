@@ -1,0 +1,1 @@
+{"outcome": "staged", "pr": 193, "head": "48e2227170f025dfc98106b682654412fd1d4267", "rounds": 0, "failed_gates": [], "flaky": [], "gates_reused": ["green factory scripts/test/gate-stack-lang.test.sh", "green factory scripts/test/gate-stack-verdict.test.sh", "green factory scripts/test/stack-signal.test.sh"], "amendments": [], "agents": []}
