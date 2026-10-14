@@ -5,4 +5,6 @@
 source "$(dirname "$0")/lib.sh"
 py_suite dashboard_views
 py_suite dashboard_settings
+# The belt (#181, AC-1..AC-7): the page's script in node on a fake DOM (BeltRender, BeltMotion) fed this server's overview.
+py_suite dashboard_belt
 finish

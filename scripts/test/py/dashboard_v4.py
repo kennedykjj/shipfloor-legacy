@@ -295,7 +295,72 @@ def caption_doc_problems(d):
     return bad
 
 
+def belt_doc_problems(d):
+    """#181 AC-8: The Belt replaces the Lifecycle Band and the Line Peek, and is recorded as the third continuous motion, allowed
+    because it carries state and stops under reduced motion"""
+    bad = []
+    design = d.design
+    heads = re.findall(r"^#{2,3}[ \t]*(.+?)[ \t]*$", design, flags=re.M)
+    if "Lifecycle Band" in heads:
+        bad.append("DESIGN.md still has a Lifecycle Band heading")
+    if "Line Peek" in heads:
+        bad.append("DESIGN.md still has a Line Peek heading")
+    if "The Belt" not in heads:
+        bad.append("no heading 'The Belt'; headings: %s" % heads[:30])
+    m = re.search(r"[^\n]*(?:lifecycle band|line peek)[^\n]*", design, flags=re.I)
+    if m:
+        bad.append("DESIGN.md still says: %s" % m.group(0)[:100])
+    return bad
+
+
+def belt_section_problems(d):
+    """#181 AC-8: The Belt describes the tokens, the rail and the status sentence, and says it stops under reduced motion"""
+    bad = []
+    belt = d.section("The Belt", 2) or d.section("The Belt", 3)
+    if not all(re.search(w, belt, flags=re.I) for w in ("token", "rail", "status")):
+        bad.append("The Belt section does not describe the tokens, the rail and the status sentence: %s" % belt[:120].replace("\n", " "))
+    if not re.search(r"reduced motion|prefers-reduced-motion", belt, flags=re.I):
+        bad.append("The Belt never mentions reduced motion")
+    return bad
+
+
+def third_motion_problems(d):
+    """#181 AC-8: the belt is the third continuous motion, allowed because it carries state and stops under reduced motion"""
+    bad = []
+    design = d.design
+    third = [s for s in re.split(r"(?<=[.!?])\s+|\n", design) if re.search(r"third continuous motion", s, flags=re.I)]
+    if not any(re.search(r"\bbelt\b", s, flags=re.I) for s in third):
+        bad.append("no sentence calls the belt the third continuous motion")
+    if not (any(re.search(r"\bstate\b", s) and re.search(r"reduced", s) for s in third)
+            or (bool(third) and re.search(r"carr(?:ies|y)[^.]*state", design)
+                and re.search(r"stopped under reduced motion|stops under reduced motion", design))):
+        bad.append("the third-motion sentence names neither its state nor reduced motion")
+    if re.search(r"two continuous motions", design, flags=re.I):
+        bad.append("DESIGN.md still says two continuous motions")
+    if re.search(r"third continuous animation", design, flags=re.I):
+        bad.append("a Don't still forbids 'a third continuous animation'")
+    if not any(re.search(r"\bdial\b", l) and re.search(r"pulse", l) and re.search(r"\bbelt\b", l) and re.search(r"continuous", l)
+               for l in design.splitlines()):
+        bad.append("no line names the dial, the dot's pulse and the belt as the continuous motion")
+    return bad
+
+
 class V4(support.Case):
+    def assert_no_problems(self, problems):
+        self.assertEqual(problems, [])
+
+    def test_belt_replaces_band_and_peek(self):
+        "AC-8 (#181): DESIGN.md has a section The Belt in place of the Lifecycle Band and the Line Peek"
+        self.assert_no_problems(belt_doc_problems(doc()))
+
+    def test_belt_section(self):
+        "AC-8 (#181): The Belt describes the tokens, the rail and the status sentence, and stops under reduced motion"
+        self.assert_no_problems(belt_section_problems(doc()))
+
+    def test_belt_third_motion(self):
+        "AC-8 (#181): the belt is the third continuous motion, allowed because it carries state and stops under reduced motion"
+        self.assert_no_problems(third_motion_problems(doc()))
+
     def test_theme_groups(self):
         "AC-2 (#180): Settings offers Auto, Graphite, Paper and High contrast first, keeps the other eleven, Auto follows the system"
         self.assertEqual(theme_group_problems(page()), [])
