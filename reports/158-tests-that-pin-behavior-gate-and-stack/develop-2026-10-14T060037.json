@@ -1,0 +1,15 @@
+{
+  "issue": 158,
+  "slug": "tests-that-pin-behavior-gate-and-stack",
+  "pipeline": "develop",
+  "outcome": "infra",
+  "step": 1,
+  "agents": [],
+  "tokens": 0,
+  "rounds": 0,
+  "failed_gates": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [],
+  "note": "GitHub API rate limit exceeded (gh: API rate limit already exceeded); could not read the issue or the board, move the card, or label it. Nothing was changed."
+}
