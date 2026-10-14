@@ -33,7 +33,7 @@ The owner reviews only `## Open questions`; everything else is decided here.
 
 ## 1. Pick the card
 - Issue given → use it. Else `n` = what `board.sh first "Ready for Refinement"` prints; empty → stop: "Nothing in Ready for Refinement."
-- `board.sh count "Spec Review"` ≥ the refinement WIP limit (`shipfloor-config.sh get limits.refine.wip`) → stop: "Spec Review is full."
+- Only when the refinement WIP limit (`shipfloor-config.sh get limits.refine.wip`) is above 0 (0 means no limit: skip this check): `board.sh count "Spec Review"` ≥ that limit → stop: "Spec Review is full."
 - `board.sh move <n> "Technical Refinement"`.
 
 ## 2. Worktree

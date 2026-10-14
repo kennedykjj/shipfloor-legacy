@@ -25,7 +25,7 @@ Owner of a file: `shipfloor-config.sh layer-of <repo-relative path>` (e.g. `web/
 
 ## 1. Pick the card
 - Issue given → use it. Else `n` = what `board.sh first "Ready for Dev"` prints; empty → stop.
-- Only for a card coming from Ready for Dev: `board.sh count Coding Validation` ≥ `shipfloor-config.sh get limits.develop.wip` → stop: "Coding + Validation is full." A card already in Coding is being resumed: skip this check.
+- Only for a card coming from Ready for Dev, and only when `shipfloor-config.sh get limits.develop.wip` is above 0 (0 means no limit: skip this check): `board.sh count Coding Validation` ≥ that limit → stop: "Coding + Validation is full." A card already in Coding is being resumed: skip this check.
 - `board.sh move <n> Coding`.
 - Worktree `<worktrees>/<n>` on `feat/<n>-<slug>` (reuse it; else create it from `origin/feat/<n>-<slug>` when that exists, else from `origin/<main>`). `base` = what `git -C <wt> rev-parse HEAD` prints. Spec = the `<specs>*-<slug>-design.md` on the branch.
 - `gate.sh -C <worktree> test-plan <spec>` before any plan or agent. Fails → the failure rule at once (no rounds): comment the gate output and that the owner must add the missing layer to the factory config, fix the spec's test plan (back to Ready for Refinement) or implement by hand. A resumed card whose gate still fails blocks here again, at no cost.

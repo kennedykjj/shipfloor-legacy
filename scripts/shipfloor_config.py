@@ -605,6 +605,7 @@ STAGES = ("refine", "develop", "validate", "deploy")
 MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
                     "stacks": 3, "ports": {"base": 20000, "span": 20},
                     "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3},
+                    "disk": {"min_free_gb": 2, "min_free_inodes_pct": 10},
                     "notify": {"events": {"waiting": True, "blocked": True, "reminder": True, "stuck": True, "done": False},
                                "channels": {"toast": True, "ntfy": False}, "ntfy_topic": "", "reminder_min": 60, "quiet": ""}}
 DISPATCHER_EVERY = (1, 3, 5, 10)  # minutes between dispatcher cycles; the installer's trigger reads it
@@ -737,6 +738,26 @@ def model_problem_line(p):
     return Msg("err.model.unknown", f"{p['key']}: \"{p['value']}\" is not a model the factory knows ({', '.join(MODELS)})", key=p["key"], value=p["value"], models=", ".join(MODELS))
 
 
+DISK_KEYS = ("min_free_gb", "min_free_inodes_pct")
+
+
+def disk_problems(disk):
+    """The machine's disk floor, under which the dispatcher starts no run: min_free_gb (a number >= 0) of free space on
+    the run's TMPDIR and on the worktrees' filesystem, min_free_inodes_pct (0..100) of free inodes where the OS
+    counts them. 0 turns a check off."""
+    if disk is None:
+        return []
+    if not isinstance(disk, dict):
+        return ["disk must be a mapping of min_free_gb, min_free_inodes_pct"]
+    errs = [f"disk.{k}: unknown key (use {', '.join(DISK_KEYS)})" for k in disk if k not in DISK_KEYS]
+    for k, top in (("min_free_gb", None), ("min_free_inodes_pct", 100)):
+        v = disk.get(k)
+        if k in disk and (isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0
+                          or (top is not None and v > top)):
+            errs.append(f"disk.{k} must be a number from 0" + (f" to {top}" if top else ""))
+    return errs
+
+
 COST_KEYS = ("card_warn", "card_block", "day_stop")
 
 
@@ -822,6 +843,7 @@ def machine_problems(raw):
         errs.append(lang_problem())
     errs += runtime_problems(raw["runtime"]) if "runtime" in raw else []
     errs += cost_problems(raw.get("costs"))
+    errs += disk_problems(raw.get("disk"))
     errs += limits_problems(raw.get("limits"))
     errs += notify_problems(raw["notify"]) if "notify" in raw else []
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
