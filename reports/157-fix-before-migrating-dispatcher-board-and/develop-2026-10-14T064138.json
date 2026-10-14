@@ -1,0 +1,15 @@
+{
+  "issue": 157,
+  "slug": "fix-before-migrating-dispatcher-board-and",
+  "pipeline": "develop",
+  "outcome": "validation",
+  "step": 6,
+  "agents": [],
+  "tokens": 0,
+  "rounds": 0,
+  "failed_gates": [],
+  "flaky": [],
+  "gates_reused": [],
+  "amendments": [],
+  "note": "Resumed card: plan, acceptance tests (qa 7093228) and tasks T1-T3 were already committed by an earlier run. This run restored three scripts/lib/*.sh files whose mode had dropped to 100644 in the working tree (uncommitted; git has 100755), then re-ran acceptance-intact, migration, build (105 files, 3317 ok, 0 FAIL), green for all 10 acceptance test files, forbidden and migration on the merge base; all passed. Item 3: option A (a deploy counts as one pool unit) applied, because the card was approved into Ready for Dev with the recommendation."
+}
