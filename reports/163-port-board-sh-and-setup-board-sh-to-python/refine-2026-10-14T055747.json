@@ -1,0 +1,1 @@
+{"issue":163,"slug":"port-board-sh-and-setup-board-sh-to-python","pipeline":"refine","started_at":"2026-10-14T00:00:00Z","finished_at":"2026-10-14T00:10:00Z","outcome":"ok","agents":[{"role":"product-owner","tokens":14430,"duration_s":20}],"rounds":{"po":1,"techlead":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":false}
