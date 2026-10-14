@@ -26,7 +26,8 @@ STATE = {}  # the base repo of this process: dir, staged
 
 def git(*args, cwd=None, check=True):
     """git with the test's identity; its stdout without the trailing newline."""
-    r = subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "-c", "core.autocrlf=false", *args],
+    r = subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "-c", "core.autocrlf=false",
+                        "-c", "maintenance.auto=false", "-c", "gc.auto=0", *args],
                        cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if check and r.returncode != 0:
         raise AssertionError("git %s: %s" % (" ".join(args), r.stderr))
