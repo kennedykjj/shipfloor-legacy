@@ -17,4 +17,4 @@ It reads only `SHIPFLOOR_STACK` (default `shipfloor-demo`), `SHIPFLOOR_PORT_WEB`
 
 ## Development
 
-`bash scripts/test/run.sh` runs the suite; `bash scripts/test/run.sh --changed` runs only the tests tied to what changed against `origin/main` (use it while editing, and the whole suite before a push). Designs in `docs/superpowers/specs/`.
+`bash scripts/test/run.sh` runs the suite; `bash scripts/test/run.sh --changed` runs only the tests tied to what changed against `origin/main` (use it while editing, and the whole suite before a push). Designs in `docs/superpowers/specs/`. The logic lives in `scripts/shipfloor_core/`; the `.sh` files are wrappers, and `scripts/test/hygiene.test.sh` fails when a line of logic lands in one. `docs/contracts.md` names the module behind each script.

@@ -103,7 +103,7 @@ Owner steps after merge (protected path, never edited by the factory): in `.ship
 _What the pipeline decided on its own; one line each, with the reason._
 - Weight heavy: 13 acceptance criteria.
 - Linux only: the owner closed #154 as not planned, so AC-13 reads "green on Linux" in place of "Linux, macOS and Windows".
-- `lib/portable.sh` moves to `scripts/test/fixtures/portable.sh`, because no production code uses it and `scripts/lib/` must hold no logic. This forces edits that change only the path in `stack-py-lease.test.sh`, `stack-py-up.test.sh`, `stack-py-heartbeat.test.sh` and `fixtures/deploy-bash.sh`.
+- `lib/portable.sh` moves to `scripts/test/fixtures/portable.sh`, because no production code uses it and `scripts/lib/` must hold no logic. This forces edits that change only the path in `stack-py-lease.test.sh`, `stack-py-up.test.sh`, `stack-py-heartbeat.test.sh` and `fixtures/deploy-bash.sh`. `gate-py-delegate.test.sh` (#165) fails any edit to the existing gate, stack and py suites since `origin/main`, so its exclusion list gains those two suites and itself. This follows the precedent it already sets for #166's files.
 - `lib/py.sh` is the wrapper's own body (`templates/py-wrapper.sh`), so it is pinned plumbing, not a fast path.
 - `shipfloor_py` stays in `lib/project.sh` as pinned plumbing: sourced code cannot `exec` `lib/py.sh`, and its order (`SHIPFLOOR_PY` before `FACTORY_PYTHON`) is the contract the tests and the fixtures rely on.
 - `lib/stack.sh` keeps its marshalling and its INT/TERM forwarding (from #166), pinned by hash. These move bytes and signals and make no decision, and rewriting them would put the stack parity tests at risk for no behavior gain.

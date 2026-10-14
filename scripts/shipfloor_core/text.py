@@ -5,25 +5,46 @@ import subprocess
 _LANG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lang")
 
 
-def say(lang, text):
-    """Text written in English, in `lang` (lang/<lang>.sed); unchanged with no catalog or for en."""
+def _catalog(lang):
+    """lang/<lang>.sed, or None for en, a name that is not a plain code, or a language with no catalog."""
     code = lang or "en"
     cat = os.path.join(_LANG, code + ".sed")
     if code == "en" or "/" in code or "\\" in code or not os.path.isfile(cat):
+        return None
+    return cat
+
+
+def say_bytes(lang, data):
+    """`sed -E -f lang/<lang>.sed` on bytes: (exit code, stdout, stderr); the bytes unchanged with no catalog or for en."""
+    cat = _catalog(lang)
+    if cat is None:
+        return 0, data, b""
+    r = subprocess.run(["sed", "-E", "-f", cat], input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return r.returncode, r.stdout, r.stderr
+
+
+def say(lang, text):
+    """Text written in English, in `lang` (lang/<lang>.sed); unchanged with no catalog or for en."""
+    cat = _catalog(lang)
+    if cat is None:
         return text
-    r = subprocess.run(["sed", "-E", "-f", cat], input=text.encode("utf-8"),
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if r.returncode != 0:
-        raise RuntimeError("sed failed on %s: %s" % (cat, r.stderr.decode("utf-8", "replace").strip()))
-    return r.stdout.decode("utf-8")
+    rc, out, err = say_bytes(lang, text.encode("utf-8"))
+    if rc != 0:
+        raise RuntimeError("sed failed on %s: %s" % (cat, err.decode("utf-8", "replace").strip()))
+    return out.decode("utf-8")
+
+
+def grep(flags, pattern, data, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+    """`grep <flags> -- <pattern>` on data (bytes): the CompletedProcess. The one place the package starts grep, so
+    every pattern from a project's config is matched with the same engine and its POSIX ERE semantics."""
+    return subprocess.run(["grep", flags, "--", pattern], input=data, stdout=stdout, stderr=stderr)
 
 
 def grep_lines(pattern, lines, invert=False):
     """`printf '%s\\n' lines | grep -E[v] -- pattern`: (the lines kept, grep's stderr bytes). Exit 1 keeps none; an
     invalid pattern (exit 2) keeps none and its message is in the stderr, as the Bash callers' `|| true` left it."""
     data = ("\n".join(lines) + "\n").encode("utf-8", "surrogateescape") if lines else b""
-    r = subprocess.run(["grep", "-Ev" if invert else "-E", "--", pattern], input=data,
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    r = grep("-Ev" if invert else "-E", pattern, data)
     if r.returncode not in (0, 1):
         return [], r.stderr
     kept = r.stdout.decode("utf-8", "surrogateescape").split("\n")
@@ -34,8 +55,7 @@ def grep_lines(pattern, lines, invert=False):
 
 def _grep(pattern, text, ignore_case, invert):
     flags = "-E" + ("i" if ignore_case else "") + ("v" if invert else "")
-    r = subprocess.run(["grep", flags, "--", pattern], input=text.encode("utf-8", "surrogateescape"),
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    r = grep(flags, pattern, text.encode("utf-8", "surrogateescape"))
     if r.returncode in (0, 1):
         return r
     raise ValueError("invalid pattern %r: %s" % (pattern, r.stderr.decode("utf-8", "replace").strip()))

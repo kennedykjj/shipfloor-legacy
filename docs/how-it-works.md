@@ -13,6 +13,8 @@ The board (a GitHub Project v2) has fixed columns. The owner moves cards between
 | `/sf:validate` | Validation | Staged | gates, review (code, UX, security), PR with green CI |
 | `/sf:deploy` | Ready for Prod | Done | up to date with `main` (resolving conflicts, fixing what breaks), merge tested on the current `main`, waits for CI and deploy; on failure opens a revert PR |
 
+The scripts under `scripts/` keep the names and arguments the skills, the agents, the allow rules and the schedulers call, but each is a thin Bash wrapper: it runs `sf.py <command>`, and the logic is the Python package `scripts/shipfloor_core/` (stdlib + PyYAML). The facts more than one script needs (the commit trailer, the deploy defaults, the stage and column table) are written once, in `shipfloor_core/defaults.py`.
+
 What each script promises its callers (verdict and log lines, GitHub markers, files, environment variables, the `claude -p` launch) is written down in [the scripts' contract](contracts.md).
 
 The gates (`scripts/gate.sh`) do not depend on the model: file scope per role, forbidden paths, untouched acceptance tests, immutable, unique and ordered migrations, build per layer, red by assertion (not by a compile error) and green with at least one test run. `build` and `green` reuse a pass the factory recorded for the same clean commit and inputs, say so in their output, and run again when anything differs.

@@ -4,7 +4,7 @@ What the machine needs, how a repository joins the factory, and the dispatcher o
 
 ## Requirements
 
-`git`, an authenticated `gh`, `claude`, Python 3.11+ with PyYAML (`pip install pyyaml`), and Git Bash on Windows.
+Python 3.11+ with PyYAML (`pip install pyyaml`), Git, an authenticated gh, Claude Code (`claude`), and Git Bash on Windows for the wrappers and the scheduler. Any bash runs the wrappers: there is no minimum version.
 
 ## Install
 
