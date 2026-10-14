@@ -20,7 +20,7 @@ Owner of a file: `shipfloor-config.sh layer-of <repo-relative path>` names its l
 ## 1. Pick the card
 - Issue given → use it, but only if `board.sh status <n>` is `Validation`; else stop.
 - Else `n` = what `board.sh first Validation` prints; empty → stop.
-- Worktree `<worktrees>/<n>` on `feat/<n>-<slug>` (reuse it; else create it from `origin/feat/<n>-<slug>`). Spec = the `<specs>*-<slug>-design.md` on the branch. `qa` = the QA commit: `gate.sh -C <wt> qa-commit <n>`; the acceptance selectors come from the files it added.
+- Worktree `<worktrees>/<n>` on `feat/<n>-<slug>` (reuse it; else create it from `origin/feat/<n>-<slug>`). Spec = the `<specs>*-<slug>-design.md` on the branch. `qa` = the QA commit: `gate.sh -C <wt> qa-commit <n>`; the acceptance selectors come from the files it added or changed (in an existing suite it extended, the tests it added).
 
 ## 2. Gates
 The branch is not merged with main here: the deploy does that, once, on the approved head.

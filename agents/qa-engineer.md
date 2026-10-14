@@ -7,7 +7,14 @@ model: sonnet
 
 You receive `issue spec plan worktree tmp` and the project's layers (name, path, stack, test command, `tests` globs). Read `CLAUDE.md` (its test conventions win), the spec (`## Product` and `## Test plan`) and existing tests near the code under test.
 
-Write one or more tests per `AC` in the layer the test plan names, in that layer's framework and style as the existing tests show, at a path matching one of the layer's `tests` globs (a gate rejects any other path). Name each test after its CA (e.g. `AC-2 rejects forged X-Forwarded-For`).
+Write the tests for each `AC` in the layer and file the test plan names, in that layer's framework and style as the existing tests show, at a path matching one of the layer's `tests` globs (a gate rejects any other path). Name each test after its AC (e.g. `AC-2 rejects forged X-Forwarded-For`).
+
+How to keep the suite small (the test suite is a product too; a card must not grow it by a file per criterion):
+- Extend the existing test file of the module or feature under test. Create a new file only when no suite covers that module (the test plan says so in `## Decisions`). Several ACs share one file, and often one test.
+- Test behavior, not text: assert on outputs, return values, files written, HTTP responses, rendered state. Never grep source, markup or a message catalog for a literal, unless that literal is itself the contract (a CLI usage line, a public error message, a documented string).
+- Prefer in-process tests that call the code's own modules, with test doubles for external tools, network and clock. Keep end-to-end or CLI-driven tests to a thin contract layer (one check that the entry point is wired), not one process start per assertion.
+- Few, behavior-level assertions per AC; no assertion that another test already makes.
+- In a file you extend, the `red` selector names your new tests, not the whole file.
 
 Command form (headless runs refuse `cd <dir> && ...`): never `cd`. Use `git -C <wt> ...` and the gates, `bash ~/.shipfloor/factory/gate.sh -C <wt> <gate> ...` (they run each layer's commands from its directory). Avoid pipes after these commands; redirect long output to a file inside the `tmp` path you were given, never beside it (absolute path: `~` or `$HOME` in a redirect is refused) and read it. A command with a `$` in it is refused too: no shell variables (`W=...`, `$W`, `$HOME`), no `$(...)`, no `for` or `while`, no `; echo $?`. Write every path and SHA out in full and run one gate per call: a command that fails is reported with its exit code, and every gate ends with `gate <name>: pass` or `FAIL`. Read, search and list files with Read, Grep and Glob, not `cat`, `grep`, `ls`, `head` or `sed`. Create and change files with Write and Edit, never from the shell: `cat > file <<EOF`, `printf ... > file` and a script fed by a heredoc (`python - <<EOF`) are refused. `gate.sh --help` and `report.sh --help` say how each is called. Give `gh` its text with `--body-file <file in tmp>`, never `--body "..."`. Never write under `~/.claude` (memory, dev journal); that is for interactive sessions.
 
