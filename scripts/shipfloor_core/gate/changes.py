@@ -54,16 +54,17 @@ def changed_files(ctx, base):
     return [_text(n) for n in _sort_u(names)]
 
 
-def _cfg(query):
-    """shipfloor_config.py asked as lib/project.sh does: through SHIPFLOOR_PY when a caller handed one down."""
+def _cfg(query, input=None):
+    """shipfloor_config.py asked as lib/project.sh does: through SHIPFLOOR_PY when a caller handed one down
+    (input: bytes on its stdin)."""
     py = os.environ.get("SHIPFLOOR_PY")
     if not py:
-        return project.cfg(*query)
+        return project.cfg(*query, input=input)
     home = os.environ.get("FACTORY_HOME", "")
     wt = os.environ.get("FACTORY_WT_ROOT", "")
     argv = [py, "-I", proc.native_path(project._CONFIG_PY), "--config", proc.native_path(os.environ.get("FACTORY_CONFIG", "")),
             "--home", proc.native_path(home) if home else "", "--worktrees", proc.native_path(wt) if wt else "", *query]
-    return subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return subprocess.run(argv, input=input, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
 def config_query(ctx, *query):

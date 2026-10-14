@@ -223,12 +223,6 @@ The Bash code of the gates that run a layer's commands: `build`, `red`, `green` 
 
 **Behavior worth keeping:** the key of a recorded pass hashes `scripts/gate.sh` (the wrapper callers run), not this file.
 
-## lib/gate-legacy.sh
-
-Temporary: the pre-port Bash `gate.sh`, which runs the static gates that `shipfloor_core/gate` has not taken over yet. `shipfloor_core.gate.main` runs it with the arguments after `-C`; it is deleted when the last static gate is ported.
-
-**Interface:** the same as `gate.sh`; it is never run by a caller. Its words are `test-plan`, `weight`, `scope`, `qa-commit`, `qa-amend`, `acceptance-intact`, `forbidden`, `migration`, `build`, `red`, `green` and `stack` with `up`, `down` and `status`.
-
 ## shipfloor
 
 The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). Run with no argument or an unknown one it prints the header lines 2 to 10 of its own source on stderr and exits 2; the `dashboard` line (line 11) is not among them. Errors are `shipfloor: <message>` on stderr; `die` exits 1 unless it says otherwise.

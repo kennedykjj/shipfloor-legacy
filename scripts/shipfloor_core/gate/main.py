@@ -2,7 +2,6 @@
 import importlib
 import os
 import re
-import subprocess
 import sys
 
 from .. import project, text
@@ -36,11 +35,9 @@ GATES = {
     "acceptance-own": ("acceptance", "acceptance_own"),
     "qa-commit": ("acceptance", "qa_commit"),
     "qa-amend": ("acceptance", "qa_amend"),
+    "migration": ("migration", "migration"),
+    "fast": ("migration", "fast"),
 }
-
-# The static gates the Python port has not taken over yet: lib/gate-legacy.sh runs them as the Bash gate did.
-# Each task that ports a gate adds it to GATES and drops it here; the last one deletes the legacy file.
-LEGACY = ("migration", "fast")
 
 NO_VERDICT = ("acceptance-own", "stack")  # their stdout/exit is read by a caller: no verdict line
 
@@ -109,12 +106,6 @@ def _verdict(cmd, code):
             pass
 
 
-def _legacy(args):
-    here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    sys.stdout.flush()
-    return subprocess.run(["bash", os.path.join(here, "lib", "gate-legacy.sh"), *args]).returncode
-
-
 def _run(ctx, cmd, args):
     if cmd not in GATES:
         ctx.err(USAGE.rstrip("\n"))
@@ -158,8 +149,6 @@ def main(argv):
     except project.ProjectError as e:
         _stderr(str(e))
         return 2
-    if cmd in LEGACY and cmd not in GATES:
-        return _legacy(args)
     ctx = Context()
     code = _run(ctx, cmd, args[1:])
     sys.stderr.flush()
