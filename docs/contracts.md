@@ -93,7 +93,7 @@ The deterministic deploy of one card: `deploy.sh <n> [--refresh | --continue]`. 
 
 ## dispatch.sh
 
-One dispatcher cycle for one project: starts pipelines for cards waiting in the owner's queues. Run by `shipfloor-dispatch.sh` once per registered project with `FACTORY_CONTROL_REFRESH=0`.
+One dispatcher cycle for one project: starts pipelines for cards waiting in the owner's queues. Run by `shipfloor-dispatch.sh` once per registered project with `FACTORY_CONTROL_REFRESH=0`. A wrapper of `sf.py dispatch`: the logic is `shipfloor_core/dispatch.py`. Each run is watched over by its own detached process (`sf.py dispatch --supervise`, a new session on POSIX, a detached process group on Windows, HUP ignored), which the cycle never waits on or kills.
 
 **Interface:** none: it takes no arguments and has no subcommands. It exits 0 with nothing to do when `PAUSE` exists in the project's home; 2 for an invalid config, unreadable limits, pool or stage models; 1 when the board read fails; otherwise the number of failing steps (0 or 1).
 
@@ -106,7 +106,7 @@ One dispatcher cycle for one project: starts pipelines for cards waiting in the 
 - `== end /sf:<stage> <n> exit=<rc> <ISO>`
 - `== step-up /sf:develop <n> <from> -> <to>: gate <gate> failed <ISO>`
 
-`<ISO>` is `date -Is`. The pid is the subshell that owns the lock. For the `deploy` stage `exit=` is the exit code of `deploy.sh` after its handover rounds (up to three agent rounds on exit 3).
+`<ISO>` is `date -Is`. The pid is the run's supervisor process, the one that owns the lock. For the `deploy` stage `exit=` is the exit code of `deploy.sh` after its handover rounds (up to three agent rounds on exit 3).
 
 **Locks:** `locks/<stage>-<n>.lock/` per card and stage, holding `info` (`<pid> <epoch> <n>`), written by `launch`; `step` (`<k><TAB><epoch>`, from `shipfloor-config.sh step`); `last-gate`; `inbox` and `inbox.<agent>`. A lock older than `FACTORY_LOCK_TTL` (default 10800 s) whose pid is gone is removed. `locks/refresh-<n>.lock/` is a `deploy.sh --refresh` and does not count as a run.
 
@@ -182,7 +182,7 @@ Sourced, never run; shared by the scripts. **Interface:** no subcommands; the fu
 
 ## lib/stack.sh
 
-Sourced after `lib/project.sh`, with a resolved project; the one place stack-slot state is computed (`gate.sh`, `dispatch.sh`, `shipfloor` and the dashboard ask here). A shim: the logic is `shipfloor_core/stack.py`, and each function runs `sf.py stack <command>`.
+Sourced after `lib/project.sh`, with a resolved project; the one place stack-slot state is computed (`gate.sh`, `shipfloor` and the dashboard ask here; `shipfloor_core/dispatch.py` calls `stack.py` directly). A shim: the logic is `shipfloor_core/stack.py`, and each function runs `sf.py stack <command>`.
 
 **Interface:** no subcommands of its own; `gate.sh stack up <owner>`, `down <owner>` and `status` are its command line. The functions are `stack_settings`, `slot_state`, `fill_ports`, `slot_env`, `free_range`, `slot_down`, `slot_release`, `slot_reclaim`, `solo_busy`, `queue_ticket`, `stack_lease`, `stack_up`, `stack_down`, `stack_release_run`, `stack_status`. `stack_settings` sets `STACKS BASE SPAN WAIT STALE HOLD NAME UP DOWN PORTS URL HEALTH REJECT TIMEOUT SOLO` in the caller's shell, and the functions after it hand those values to `sf.py stack` (in `SHIPFLOOR_STACK_SETTINGS`, with the shell's `$$` in `SHIPFLOOR_STACK_PID` for the ticket); `stack_up`, `stack_down` and `stack_status` read the configs anew. `stack_lease` and `stack_up` wait in the background, so an INT or TERM to the calling shell is handled at once: `sf.py` removes its ticket, downs and gives back a slot it took, and the function exits 3.
 
@@ -195,7 +195,7 @@ Sourced after `lib/project.sh`, with a resolved project; the one place stack-slo
 
 ## lib/portable.sh
 
-Sourced, never run; defines functions only, for the tools that differ between GNU (Linux) and BSD (macOS) userlands. `dispatch.sh` gets it through `lib/stack.sh` (`shipfloor_core/deploy.py` has its own `run_bounded`).
+Sourced, never run; defines functions only, for the tools that differ between GNU (Linux) and BSD (macOS) userlands. `gate.sh` gets it through `lib/stack.sh` (`shipfloor_core/deploy.py` has its own `run_bounded`).
 
 **Interface:** no subcommands; the functions are `mtime`, `run_bounded` and the internal `_kill_tree`.
 
@@ -309,7 +309,7 @@ Readers that parse what the scripts write, which a port must not break:
 
 **Set by `lib/project.sh` (`shipfloor_use`) and relied on by every script:** `SHIPFLOOR_HOME`, `FACTORY_PROJECT`, `FACTORY_REPO`, `FACTORY_MAIN`, `FACTORY_HOME`, `FACTORY_WT_ROOT`, `FACTORY_CONFIG`. `SHIPFLOOR_PY`, from `FACTORY_PYTHON`, is found once and handed to the scripts a script starts.
 
-**Passed to every run by `dispatch.sh`:** `SHIPFLOOR_FACTORY=1`, `SHIPFLOOR_RUN_LOCK=<lock dir>` (how the run's scripts find their lock: `gate.sh` writes `last-gate`, `shipfloor-config.sh step` writes `step`, the hook reads `inbox`, `lib/stack.sh` records it in a lease), `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, `FACTORY_LANGUAGE=<project language>` (read once at launch: the run keeps it even if the owner changes it meanwhile; scripts prefer it over the config), `SHIPFLOOR_INFRA_RETRY=1` when `infra/<n>` exists. `FACTORY_BOARD_SNAPSHOT` is **removed** from the run's environment (`env -u`): an agent reads the live board. The stack slot's variables (`SHIPFLOOR_SLOT`, `SHIPFLOOR_STACK`, `SHIPFLOOR_STACK_URL`, `SHIPFLOOR_PORT_<NAME>`) are exported to a gate's runner, to `stack.up` and `stack.down`.
+**Passed to every run by `dispatch.sh`:** `SHIPFLOOR_FACTORY=1`, `SHIPFLOOR_RUN_LOCK=<lock dir>` (how the run's scripts find their lock: `gate.sh` writes `last-gate`, `shipfloor-config.sh step` writes `step`, the hook reads `inbox`, `lib/stack.sh` records it in a lease), `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, `FACTORY_LANGUAGE=<project language>` (read once at launch: the run keeps it even if the owner changes it meanwhile; scripts prefer it over the config), `SHIPFLOOR_INFRA_RETRY=1` when `infra/<n>` exists, `TMPDIR=<home>/tmp/<n>/tmp` (the run's own temp folder, made with `tmp/<n>/` and removed with it: what the run's tools leave behind never fills the machine's `/tmp`). `FACTORY_BOARD_SNAPSHOT` is **removed** from the run's environment (`env -u`): an agent reads the live board. The stack slot's variables (`SHIPFLOOR_SLOT`, `SHIPFLOOR_STACK`, `SHIPFLOOR_STACK_URL`, `SHIPFLOOR_PORT_<NAME>`) are exported to a gate's runner, to `stack.up` and `stack.down`.
 
 **Read as tunables:**
 
