@@ -25,7 +25,12 @@ def cmd_board(args):
     return board.main(args)
 
 
-COMMANDS = {"version": cmd_version, "board": cmd_board}
+def cmd_setup_board(args):
+    from shipfloor_core import setup
+    return setup.main(args)
+
+
+COMMANDS = {"version": cmd_version, "board": cmd_board, "setup-board": cmd_setup_board}
 
 
 def main(argv):
