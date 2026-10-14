@@ -5,6 +5,11 @@ Exit codes: 0 ok, 1 negative answer (invalid config on validate, missing key, no
 """
 import json, math, os, re, sys, time, warnings
 
+sys.dont_write_bytecode = True  # the installed factory carries no __pycache__
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # `python -I` leaves the script's folder out of the path
+import runtimes
+from runtimes import claude_code
+
 warnings.simplefilter("ignore")  # ERE classes like [[:space:]] make Python's re warn
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 sys.stderr.reconfigure(encoding="utf-8", newline="\n")
@@ -54,7 +59,8 @@ DEFAULTS = {
 }
 LAYER_DEFAULTS = {"stack": "", "build": "", "install": "", "assertions": "", "setup_errors": "", "test_config": [],
                   "needs_stack": False, "tests_only": False, "migrations": {}, "retry": 0}
-BUILTIN_FORBIDDEN = r"^(\.github/|\.githooks/|\.claude/|\.shipfloor/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"
+BUILTIN_FORBIDDEN = (r"^(\.github/|\.githooks/|\.claude/|\.shipfloor/)|^(CLAUDE\.md|\.gitattributes|\.mcp\.json)$|(^|/)\.env"
+                     r"|^(\.codex/|\.opencode/|\.agents/)|^(AGENTS\.md|AGENTS\.override\.md|opencode\.jsonc?)$")
 ERE_SPECIAL = set(".^$+(){}[]|\\")
 
 
@@ -114,11 +120,125 @@ def mapping(cfg, key):
     return cfg.get(key) if isinstance(cfg.get(key), dict) else {}
 
 
+def runtime_problems(raw, where="runtime"):
+    """Why the `runtime` of a machine or project config is unusable: a runtime name, or a mapping with only `default`
+    (a name) and `stages` ({refine|develop|validate|deploy: name}). The known runtimes are in every line."""
+    if raw is None:
+        return []
+    known = ", ".join(runtimes.NAMES)
+    errs = []
+
+    def check(name, at):
+        if not isinstance(name, str) or name not in runtimes.NAMES:
+            errs.append(f"{at}: {name!r} is not a runtime the factory knows (known runtimes: {known})")
+
+    if isinstance(raw, str):
+        check(raw, where)
+    elif not isinstance(raw, dict):
+        errs.append(f"{where} must be a runtime name or a mapping of default and stages (known runtimes: {known})")
+    else:
+        for k, v in raw.items():
+            if k == "default":
+                check(v, f"{where}.default")
+            elif k == "stages" and isinstance(v, dict):
+                for stage, name in v.items():
+                    if stage not in STAGES:
+                        errs.append(f"{where}.stages.{stage}: unknown stage (use {', '.join(STAGES)}; known runtimes: {known})")
+                    else:
+                        check(name, f"{where}.stages.{stage}")
+            elif k == "stages":
+                errs.append(f"{where}.stages must be a mapping of stage: runtime (known runtimes: {known})")
+            elif k == "models":
+                errs += [f"{e} (known runtimes: {known})" for e in runtime_models_problems(v, f"{where}.models")]
+            elif k == "ladder":
+                if not is_str_list(v):
+                    errs.append(f"{where}.ladder must be a list of model names, lowest first (known runtimes: {known})")
+            else:
+                errs.append(f"{where}.{k}: unknown setting (use default, stages, models, ladder; known runtimes: {known})")
+    return errs
+
+
+def runtime_models_problems(raw, where):
+    """`runtime.models`: {stages: {<stage>: model | {light|standard|heavy: model}}, agents: {<name>: model}}. A model is
+    any non-empty name (the runtime's own CLI takes it); refine runs before the card has a weight, so it has one."""
+    if not isinstance(raw, dict):
+        return [f"{where} must be a mapping of stages and agents"]
+
+    def model(v, at):
+        return [] if isinstance(v, str) and v.strip() else [f"{at} must be a model name (not empty)"]
+
+    errs = []
+    for group, entries in raw.items():
+        if group not in ("stages", "agents"):
+            errs.append(f"{where}.{group}: unknown setting (use stages, agents)")
+        elif not isinstance(entries, dict):
+            errs.append(f"{where}.{group} must be a mapping")
+        elif group == "agents":
+            for name, v in entries.items():
+                errs += model(v, f"{where}.agents.{name}")
+        else:
+            for stage, v in entries.items():
+                at = f"{where}.stages.{stage}"
+                if stage not in STAGES:
+                    errs.append(f"{at}: unknown stage (use {', '.join(STAGES)})")
+                elif isinstance(v, dict) and stage != "refine":
+                    for weight, m in v.items():
+                        if weight not in WEIGHTS:
+                            errs.append(f"{at}.{weight}: not a weight ({', '.join(WEIGHTS)})")
+                        else:
+                            errs += model(m, f"{at}.{weight}")
+                else:
+                    errs += model(v, at)
+    return errs
+
+
+def runtime_setting(machine_raw, project_raw, key):
+    """What `runtime.<key>` (models, ladder) says: the project's over the machine's. models merge group by group and
+    name by name; a ladder is replaced as a whole."""
+    out = None
+    for raw in (machine_raw, project_raw):
+        value = raw.get("runtime").get(key) if isinstance(raw, dict) and isinstance(raw.get("runtime"), dict) else None
+        if value is None:
+            continue
+        if key == "models" and isinstance(out, dict):
+            out = {g: {**(out.get(g) or {}), **(value.get(g) or {})} for g in {*out, *value}}
+        else:
+            out = value
+    return out
+
+
+def runtime_stage_models(machine_raw, project_raw=None):
+    """Stage -> weight -> model of the stages that do not run on claude-code, from `runtime.models.stages`; '' = the
+    runtime's own default (no model flag). Call it on valid values."""
+    configured = (runtime_setting(machine_raw, project_raw, "models") or {}).get("stages") or {}
+    out = {}
+    for stage, rt in zip(STAGES, runtime_of(machine_raw, project_raw)):
+        if rt == "claude-code":
+            continue
+        m = configured.get(stage)
+        out[stage] = {w: (m.get(w, "") if isinstance(m, dict) else m or "") for w in WEIGHTS}
+    return out
+
+
+def runtime_of(machine_raw, project_raw=None):
+    """The runtime of refine, develop, validate, deploy: the project's `runtime` over the machine's, key by key (a
+    name is the default), a stage's own name over the default over the first runtime. Call it on valid values."""
+    default, stages = None, {}
+    for raw in (machine_raw, project_raw):
+        value = raw.get("runtime") if isinstance(raw, dict) else None
+        if isinstance(value, str):
+            default = value
+        elif isinstance(value, dict):
+            default = value.get("default") or default
+            stages.update(value.get("stages") or {})
+    return [stages.get(s) or default or runtimes.NAMES[0] for s in STAGES]
+
+
 def problems(cfg):
     """Every reason the config is unusable, as human-readable lines."""
     if not isinstance(cfg, dict):
         return ["the file is not a YAML mapping"]
-    errs = []
+    errs = runtime_problems(cfg["runtime"]) if "runtime" in cfg else []
     for key in ("project", "board", "paths", "limits", "stack", "deploy"):
         if key in cfg and not isinstance(cfg[key], dict):
             errs.append(f"{key} must be a mapping")
@@ -485,16 +605,22 @@ STAGES = ("refine", "develop", "validate", "deploy")
 MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
                     "stacks": 3, "ports": {"base": 20000, "span": 20},
                     "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3},
+                    "disk": {"min_free_gb": 2, "min_free_inodes_pct": 10},
                     "notify": {"events": {"waiting": True, "blocked": True, "reminder": True, "stuck": True, "done": False},
                                "channels": {"toast": True, "ntfy": False}, "ntfy_topic": "", "reminder_min": 60, "quiet": ""}}
-DISPATCHER_EVERY = (1, 3, 5, 10)  # minutes between dispatcher cycles; the installer's trigger reads it
+DISPATCHER_EVERY = (0.5, 1, 3, 5, 10)  # minutes between dispatcher cycles (0.5: 30 seconds); the installer's trigger reads it
+
+
+def every_ok(every):
+    """A pace the config may set: the integers 1, 3, 5, 10 or the float 0.5 (True == 1 and 3.0 are not)."""
+    return (type(every) is int and every in DISPATCHER_EVERY) or (type(every) is float and every == 0.5)
 
 
 def dispatcher_every(raw):
     """The pace a raw machine config sets (minutes between cycles), or the default when it sets none or a bad one."""
     disp = raw.get("dispatcher") if isinstance(raw, dict) else None
     every = disp.get("every_min") if isinstance(disp, dict) else None
-    return every if type(every) is int and every in DISPATCHER_EVERY else MACHINE_DEFAULTS["dispatcher"]["every_min"]
+    return every if every_ok(every) else MACHINE_DEFAULTS["dispatcher"]["every_min"]
 
 
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
@@ -525,13 +651,13 @@ def notify_problems(raw):
         errs.append(Msg("err.quiet", "Quiet hours need both times, and they cannot be the same."))
     if not isinstance(topic, str) or (topic and not NTFY_TOPIC.fullmatch(topic)):
         errs.append(Msg("err.topic", "The topic takes letters, digits, - and _, up to 64."))
-    elif not topic and (raw.get("channels") or {}).get("ntfy") is True:
+    elif not topic and isinstance(raw.get("channels"), dict) and raw["channels"].get("ntfy") is True:
         errs.append(Msg("err.ntfy_topic", "The phone push needs a topic."))
     return errs
 
 
-MODELS = ("opus", "sonnet", "haiku", "fable")  # what `claude --model` and the Agent tool's model take
-MODEL_LADDER = ("haiku", "sonnet", "opus")  # a run that fails a gate steps one up; fable is not on it: the factory cannot rank it
+MODELS = claude_code.MODELS  # what `claude --model` and the Agent tool's model take
+MODEL_LADDER = claude_code.LADDER  # a run that fails a gate steps one up; fable is not on it: the factory cannot rank it
 WEIGHTS = ("light", "standard", "heavy")  # the card's weight, written by Refine in the spec header; none = standard
 # A stage's model per weight. Refine runs before the card has a weight, so it has one model.
 STAGE_MODELS = {"refine": "sonnet", "develop": {"light": "sonnet", "standard": "sonnet", "heavy": "opus"},
@@ -539,10 +665,10 @@ STAGE_MODELS = {"refine": "sonnet", "develop": {"light": "sonnet", "standard": "
 PLUGIN_AGENTS = {"product-owner": "opus", "ux-designer": "opus", "qa-engineer": "sonnet", "engineer": "sonnet", "cybersec": "opus"}
 
 
-def model_up(model):
-    """The next model up the ladder; None for the top one or a model outside it."""
-    i = MODEL_LADDER.index(model) if model in MODEL_LADDER else len(MODEL_LADDER)
-    return MODEL_LADDER[i + 1] if i + 1 < len(MODEL_LADDER) else None
+def model_up(model, ladder=MODEL_LADDER):
+    """The next model up the ladder (claude-code's by default); None for the top one or a model outside it."""
+    i = ladder.index(model) if model in ladder else len(ladder)
+    return ladder[i + 1] if i + 1 < len(ladder) else None
 
 
 def model_problems(raw, project_agents=()):
@@ -617,6 +743,26 @@ def model_problem_line(p):
     return Msg("err.model.unknown", f"{p['key']}: \"{p['value']}\" is not a model the factory knows ({', '.join(MODELS)})", key=p["key"], value=p["value"], models=", ".join(MODELS))
 
 
+DISK_KEYS = ("min_free_gb", "min_free_inodes_pct")
+
+
+def disk_problems(disk):
+    """The machine's disk floor, under which the dispatcher starts no run: min_free_gb (a number >= 0) of free space on
+    the run's TMPDIR and on the worktrees' filesystem, min_free_inodes_pct (0..100) of free inodes where the OS
+    counts them. 0 turns a check off."""
+    if disk is None:
+        return []
+    if not isinstance(disk, dict):
+        return ["disk must be a mapping of min_free_gb, min_free_inodes_pct"]
+    errs = [f"disk.{k}: unknown key (use {', '.join(DISK_KEYS)})" for k in disk if k not in DISK_KEYS]
+    for k, top in (("min_free_gb", None), ("min_free_inodes_pct", 100)):
+        v = disk.get(k)
+        if k in disk and (isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0
+                          or (top is not None and v > top)):
+            errs.append(f"disk.{k} must be a number from 0" + (f" to {top}" if top else ""))
+    return errs
+
+
 COST_KEYS = ("card_warn", "card_block", "day_stop")
 
 
@@ -636,13 +782,74 @@ def cost_problems(costs):
     return errs
 
 
+LIMIT_KEYS = ("memory_max", "cpu_weight", "cpu_quota")
+MEMORY_RE = re.compile(r"([1-9][0-9]*)([KMGT])")
+QUOTA_RE = re.compile(r"([1-9][0-9]*)%")
+MEMORY_K = {"K": 1, "M": 1024, "G": 1024 ** 2, "T": 1024 ** 3}
+
+
+def is_none(v):
+    return v is None or (isinstance(v, str) and v.strip().lower() == "none")
+
+
+def limits_problems(raw):
+    """The machine's `limits` (memory_max, cpu_weight, cpu_quota), each a value or none; every line starts with
+    the field it is about: limits.<field>. Missing or None is no limit."""
+    if raw is None:
+        return []
+    if not isinstance(raw, dict):
+        return ["limits must be a mapping of memory_max, cpu_weight, cpu_quota"]
+    errs = [f"limits.{k}: unknown limit (use {', '.join(LIMIT_KEYS)})" for k in raw if k not in LIMIT_KEYS]
+    v = raw.get("memory_max")
+    if not is_none(v) and not (isinstance(v, str) and MEMORY_RE.fullmatch(v.strip())):
+        errs.append("limits.memory_max must be a whole number with K, M, G or T (like 8G), or none")
+    v = raw.get("cpu_weight")
+    if not is_none(v):
+        w = v.strip() if isinstance(v, str) else v
+        w = int(w) if isinstance(w, str) and w.isascii() and w.isdigit() else w
+        if type(w) is not int or not 1 <= w <= 10000:
+            errs.append("limits.cpu_weight must be a whole number from 1 to 10000, or none")
+    v = raw.get("cpu_quota")
+    if not is_none(v):
+        cpus = os.cpu_count() or 1
+        m = QUOTA_RE.fullmatch(v.strip()) if isinstance(v, str) else None
+        if not m:
+            errs.append("limits.cpu_quota must be a percentage like 200%, or none")
+        elif int(m.group(1)) > cpus * 100:
+            errs.append(f"limits.cpu_quota must be from 1% to {cpus * 100}% ({cpus} CPUs), or none")
+    return errs
+
+
+def machine_limits(raw):
+    """{memory_max, cpu_weight, cpu_quota} as strings, "none" where there is no limit. Call it on a valid `limits`."""
+    raw = raw if isinstance(raw, dict) else {}
+    return {k: "none" if is_none(raw.get(k)) else str(raw[k]).strip() for k in LIMIT_KEYS}
+
+
+def limits_directives(limits):
+    """The systemd [Service] lines for the limits: MemoryMax=, MemoryHigh= (90% of it), CPUWeight=, CPUQuota=."""
+    lim = machine_limits(limits)
+    out = []
+    if lim["memory_max"] != "none":
+        m = MEMORY_RE.fullmatch(lim["memory_max"])
+        out += [f"MemoryMax={lim['memory_max']}", f"MemoryHigh={int(m.group(1)) * MEMORY_K[m.group(2)] * 9 // 10}K"]
+    if lim["cpu_weight"] != "none":
+        out.append(f"CPUWeight={lim['cpu_weight']}")
+    if lim["cpu_quota"] != "none":
+        out.append(f"CPUQuota={lim['cpu_quota']}")
+    return out
+
+
 def machine_problems(raw):
     if not isinstance(raw, dict):
         return ["the file is not a YAML mapping"]
     errs = []
     if raw.get("language", "en") not in LANGS:
         errs.append(lang_problem())
+    errs += runtime_problems(raw["runtime"]) if "runtime" in raw else []
     errs += cost_problems(raw.get("costs"))
+    errs += disk_problems(raw.get("disk"))
+    errs += limits_problems(raw.get("limits"))
     errs += notify_problems(raw["notify"]) if "notify" in raw else []
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
     if not isinstance(pool, int) or isinstance(pool, bool) or pool < 1:
@@ -680,8 +887,8 @@ def machine_problems(raw):
         errs.append("dispatcher must be a mapping {every_min}")
     else:
         every = disp.get("every_min", MACHINE_DEFAULTS["dispatcher"]["every_min"])
-        if type(every) is not int or every not in DISPATCHER_EVERY:  # True == 1: the type is checked too
-            errs.append(Msg("err.every_min", "dispatcher.every_min must be 1, 3, 5 or 10"))
+        if not every_ok(every):  # True == 1: the type is checked too
+            errs.append(Msg("err.every_min", "dispatcher.every_min must be 0.5, 1, 3, 5 or 10"))
     return errs
 
 
@@ -783,11 +990,48 @@ def machine(rest):
         return 0
     if errs:
         raise Unusable(f"{path} is invalid: " + "; ".join(errs))
-    if cmd == "stage-models" and not args:  # each stage x light, standard, heavy
+    if cmd == "limits":  # the systemd directive lines; --memory-max, --cpu-weight, --cpu-quota override the file
+        over, rest_args = {}, list(args)
+        while rest_args:
+            flag = rest_args.pop(0)
+            if flag not in ("--memory-max", "--cpu-weight", "--cpu-quota") or not rest_args:
+                raise Unusable("usage: machine limits [--memory-max V] [--cpu-weight V] [--cpu-quota V]")
+            over[flag[2:].replace("-", "_")] = rest_args.pop(0)
+        file_limits = raw.get("limits") if isinstance(raw.get("limits"), dict) else {}
+        limits = {**file_limits, **over}
+        bad = limits_problems(limits)
+        if bad:
+            raise Unusable("; ".join(bad))
+        for line in limits_directives(limits):
+            print(line)
+        return 0
+    def project_of(args):  # the project's factory.yml, when it is given and its runtime is valid
+        project = load(args[0]) if args and args[0] else None
+        bad = runtime_problems(project["runtime"]) if isinstance(project, dict) and "runtime" in project else []
+        if bad:
+            raise Unusable(f"{args[0]} is invalid: " + "; ".join(bad))
+        return project
+    if cmd == "stage-models" and len(args) <= 1:  # each stage x light, standard, heavy; the project's factory.yml over this file
+        project = project_of(args)
         stages = models_of(raw)["stages"]
-        sys.stdout.write("".join(f"{stage_model(stages, s, w) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
-    if cmd == "model-up" and len(args) == 1:
-        up = model_up(args[0])
+        other = runtime_stage_models(raw, project)  # a stage off claude-code: runtime.models, never models.stages
+        sys.stdout.write("".join(
+            f"{(other[s][w] if s in other else stage_model(stages, s, w)) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
+    if cmd == "runtimes" and len(args) <= 1:  # the runtime of each stage, NUL-terminated; the project's factory.yml over this file
+        sys.stdout.write("".join(f"{r}\0" for r in runtime_of(raw, project_of(args)))); return 0
+    if cmd == "models-stages-check" and len(args) <= 1:  # models.stages.<stage> that a stage on another runtime ignores
+        project = project_of(args)
+        stages = raw.get("models", {}).get("stages") if isinstance(raw.get("models"), dict) else None
+        for stage, rt in zip(STAGES, runtime_of(raw, project)):
+            if rt != "claude-code" and isinstance(stages, dict) and stage in stages:
+                print(f"models.stages.{stage} is ignored: {stage} runs on {rt}, which takes runtime.models.stages.{stage}")
+        return 0
+    if cmd == "model-up" and 1 <= len(args) <= 3:  # model-up <model> [<runtime> [<project factory.yml>]]
+        if len(args) == 1 or args[1] == "claude-code":
+            up = model_up(args[0])
+        else:  # another runtime climbs runtime.ladder; none = no step-up
+            ladder = runtime_setting(raw, project_of(args[2:]), "ladder")
+            up = model_up(args[0], tuple(ladder) if is_str_list(ladder) else ())
         if up:
             print(up)
         return 0
@@ -805,7 +1049,7 @@ def machine(rest):
             print(f"  {k}: {data['stages'][k]}")
         print(f"stacks: {data['stacks']}")
         return 0
-    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | models-check [<agent>...]")
+    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | models-check [<agent>...] | limits [--memory-max V] [--cpu-weight V] [--cpu-quota V]")
 
 
 def main(argv):

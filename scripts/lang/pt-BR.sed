@@ -16,6 +16,8 @@ s~the acceptance tests of (#[0-9]+) were already amended ([0-9]+) times; the own
 s~the amendment touches files that are not tests:~a correção toca em arquivos que não são testes:~
 s~the amendment switches a test off:~a correção desliga um teste:~
 s~the amendment removes ([0-9]+) assertion lines and adds ([0-9]+); an amended test may check differently, not less~a correção remove \1 linhas de asserção e adiciona \2; um teste corrigido pode verificar de outro jeito, não menos~
+s~\. To allow one more amendment, add the label qa-amend-ok to the issue, or press "Approve this amendment" on the card in the dashboard\.~. Para permitir mais uma correção, adicione o label qa-amend-ok à issue ou aperte "Aprovar esta alteração" no card do dashboard.~
+s~; one amendment over the limit approved by the owner \(qa-amend-ok\)~; uma correção além do limite aprovada pelo owner (qa-amend-ok)~
 s~(qa-amend: )ok, ([0-9]+) assertion lines replaced by ([0-9]+)~\1ok, \2 linhas de asserção trocadas por \3~
 s~the last commit is not the QA commit: ~o último commit não é o commit do QA: ~
 s~(build|green): reused the pass on ([0-9a-f]+) recorded (.*); nothing ran~\1: reaproveitou o pass do commit \2 registrado em \3; nada rodou~
@@ -145,7 +147,7 @@ s~small fix \(([0-9]+) files, ([0-9]+) lines\): it ships with the approved head~
 s~: up to date with main~: em dia com a main~
 
 # dispatcher
-s~Claude usage limit hit recently; waiting~limite de uso do Claude atingido há pouco; aguardando~
+s~([A-Za-z]+) usage limit hit recently; waiting~limite de uso do \1 atingido há pouco; aguardando~
 s~outside working hours; runs start again at ([0-9:]+)~fora do horário de trabalho; as execuções voltam a começar às \1~
 s~removed a stale index\.lock \(older than ([0-9]+) min\): ~removido um index.lock velho (mais de \1 min): ~
 s~cannot bring the control checkout to ~não foi possível levar o control checkout até ~

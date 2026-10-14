@@ -1,14 +1,16 @@
 """Health history: one JSON line per dispatcher cycle in <home>/logs/health-<YYYY-MM>.jsonl (the board,
 runs against their limits, the machine), and the alerts read back from its last lines.
   record --home H --seconds N --exit N [--overlap]    alerts --home H"""
-import argparse, json, os, shutil, sys, time
+import argparse, json, os, re, shutil, sys, time
 from datetime import datetime
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import shipfloor_config
+from shipfloor_core import deps
 from shipfloor_core.defaults import STAGES  # stage: (queue column, columns it resumes, WIP columns), as the dispatcher runs them
+STOPPED = re.compile(r"^== end /sf:\w+ \d+ exit=\d+ \S+ stopped=(\S+)", re.M)  # a run whose agent did not do its stage
 CYCLES = 3  # an alert looks at this many cycles: one cycle with a free slot is the dispatcher's own timing
 
 
@@ -48,6 +50,38 @@ def mem_free_mb():
     return None  # shortcut: macOS has no /proc, read vm_stat when a factory runs there
 
 
+def cgroup_memory():
+    """{mem_mb, max_mb} of this process's cgroup (v2), None without a finite memory.max or off Linux."""
+    try:
+        root = os.environ.get("SHIPFLOOR_CGROUP_ROOT") or "/sys/fs/cgroup"
+        path = ""
+        for line in Path("/proc/self/cgroup").read_text().splitlines():
+            if line.startswith("0::"):
+                path = line[3:].strip()
+                break
+        d = Path(root) / path.strip("/")
+        top = (d / "memory.max").read_text().strip()
+        if top == "max":
+            return None
+        return {"mem_mb": int((d / "memory.current").read_text().strip()) // 2**20, "max_mb": int(top) // 2**20}
+    except (OSError, ValueError):
+        return None
+
+
+def stopped_today(pdir):
+    """Today's runs of a project that ended with `stopped=<why>` on their == end line, counted by why: agents that
+    stopped at their first steps (blocked, infra, owner-only) or ended without a report (no-report)."""
+    day, out = datetime.now().astimezone().date().isoformat(), {}
+    for log in sorted((pdir / "logs").glob(day + "-*.log")):
+        try:
+            found = STOPPED.findall(log.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+        for why in found:
+            out[why] = out.get(why, 0) + 1
+    return out
+
+
 def cost_stopped(home, projects):
     """True when today's estimate reached costs.day_stop: the dispatcher starts nothing, as it does paused."""
     try:
@@ -74,6 +108,9 @@ def snapshot(home, seconds, code, overlap):
     free_pool = pool - sum(used.values())
     over = [f"{st} {used[st]}/{slots[st]}" for st in slots if used[st] > slots[st]]
     over += [f"pool {sum(used.values())}/{pool}"] if free_pool < 0 else []
+    cgroup = cgroup_memory()
+    if cgroup and cgroup["max_mb"] and cgroup["mem_mb"] * 10 >= cgroup["max_mb"] * 9:
+        over.append(f"memory {cgroup['mem_mb']}/{cgroup['max_mb']} MB")
     idle, projects = [], {}
     for p, runs in live.items():
         columns, age = f.board(p)
@@ -81,8 +118,14 @@ def snapshot(home, seconds, code, overlap):
         limits = shipfloor_config.merged(f.config(p), shipfloor_config.DEFAULTS)["limits"]
         stopped = paused or limited or gh_limited or cost_stop or outside or (f.pdir(p) / "PAUSE").exists() or bool(f.skipped(p))
 
+        record = deps.load(str(f.pdir(p)))
+
+        def held(n):  # the dispatcher starts nothing for a card with an open dependency or one it could not read
+            r = record.get(str(n))
+            return isinstance(r, dict) and (not r.get("read", True) or bool(deps.open_numbers(r.get("deps"))))
+
         def waiting(col):
-            return sum(c == col and n not in blocked and n not in busy for n, c in columns.items())
+            return sum(c == col and n not in blocked and n not in busy and not held(n) for n, c in columns.items())
         stages = {}
         for st, (queue, resumes, wip_cols) in STAGES.items():
             running, cap, wip = sum(r["stage"] == st for r in runs), (1 if st == "deploy" else 0), limits[st]["wip"]  # cap: deploy is serial per project
@@ -99,7 +142,7 @@ def snapshot(home, seconds, code, overlap):
             counts[col] = counts.get(col, 0) + 1
         projects[p] = {"paused": (f.pdir(p) / "PAUSE").exists(), "skipped": bool(f.skipped(p)), "board_age_s": age,
                        "columns": counts, "blocked": sum(n in columns for n in blocked), "blocked_cards": sorted(n for n, kind in blocked.items() if kind == "owner" and n in columns),
-                       "stages": stages}
+                       "stages": stages, "stopped_runs": stopped_today(f.pdir(p))}
     stacks, queue = f.stacks()
     return {"ts": datetime.now().astimezone().isoformat(timespec="seconds"),
             "cycle": {"s": seconds, "exit": code, "overlap": overlap},
@@ -107,13 +150,41 @@ def snapshot(home, seconds, code, overlap):
             "outside_hours": outside,
             "machine": {"cpu": cpu_percent(), "mem_free_mb": mem_free_mb(),
                         "disk_free_gb": round(shutil.disk_usage(home).free / 2**30, 1)},
+            "cgroup": cgroup,
             "pool": {"size": pool, "used": sum(used.values())},
             "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots},
             "stacks": {"busy": sum(s["state"] != "free" for s in stacks), "total": len(stacks), "queue": queue},
             "projects": projects, "idle": idle, "over": over}
 
 
-def alerts(home):
+def silence(home):
+    """{"min", "every"} when the newest health line is older than 3x the dispatcher pace, else None."""
+    logs = sorted((Path(home) / "logs").glob("health-*.jsonl"))
+    if not logs:
+        return None
+    ts = None
+    try:
+        lines = logs[-1].read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        try:
+            ts = json.loads(line)["ts"]
+            break
+        except (ValueError, KeyError, TypeError):  # a line cut short by a cycle that died while writing it
+            continue
+    try:
+        late = (datetime.now().astimezone() - datetime.fromisoformat(ts)).total_seconds() / 60
+    except (ValueError, TypeError):
+        return None  # no health line yet, or an unreadable timestamp: nothing to be late
+    try:
+        every = shipfloor_config.dispatcher_every(shipfloor_config.yaml.safe_load((Path(home) / "config.yml").read_text(encoding="utf-8")))
+    except (OSError, ValueError, shipfloor_config.yaml.YAMLError):  # no config, or one the dispatcher itself refuses
+        every = shipfloor_config.dispatcher_every(None)
+    return {"min": late, "every": every} if late > max(3 * every, 3) else None  # 30 s: still 3 min, not 90 s
+
+
+def alerts(home, skip_silence=False):
     """What the last cycles say is wrong, as lines for the owner; [] when nothing is."""
     logs = sorted((Path(home) / "logs").glob("health-*.jsonl"))
     if not logs:
@@ -133,16 +204,9 @@ def alerts(home):
         out.append(f"{key}: more runs than the limit")
     if any(c["cycle"]["overlap"] for c in last):
         out.append("two dispatcher cycles ran at once")
-    try:
-        every = shipfloor_config.dispatcher_every(shipfloor_config.yaml.safe_load((Path(home) / "config.yml").read_text(encoding="utf-8")))
-    except (OSError, ValueError, shipfloor_config.yaml.YAMLError):  # no config, or one the dispatcher itself refuses
-        every = shipfloor_config.dispatcher_every(None)
-    try:
-        late = (datetime.now().astimezone() - datetime.fromisoformat(last[-1]["ts"])).total_seconds() / 60
-    except (IndexError, KeyError, ValueError, TypeError):
-        late = 0  # no health line yet: nothing to be late
-    if late > 1.5 * every:
-        out.append(f"no dispatcher cycle for {round(late)} min (it runs every {every})")
+    s = None if skip_silence else silence(home)
+    if s:
+        out.append(f"no dispatcher cycle for {round(s['min'])} min (it runs every {s['every']})")
     return out
 
 

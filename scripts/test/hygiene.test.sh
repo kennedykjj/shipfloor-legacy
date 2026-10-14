@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # Nothing the plugin ships names its first project, its owner or one machine's paths.
 source "$(dirname "$0")/lib.sh"
 root="$FACTORY_DIR/.."
@@ -20,8 +21,8 @@ stale="$(cd "$root" && grep -rIniE 'mylos|aghanim' skills agents scripts templat
 $stale"
 # AC-7: the old names stay only as the dashboard's old-log readers: a "legacy aghanim" / "legacy mylos" marker
 # is accepted in scripts/dashboard.py and scripts/dashboard_cost.py and nowhere else
-marked="$(cd "$root" && grep -rIniE 'legacy (aghanim|mylos)' skills agents scripts templates installer examples README.md docs/install.md .claude-plugin .gitattributes 2>/dev/null | grep -v '^scripts/test/' | grep -vE '^scripts/(dashboard|dashboard_cost)\.py:' || true)"
-[ -z "$marked" ] && pass "AC-7 legacy markers only in the dashboard's old-log readers" || fail "AC-7 legacy marker outside scripts/dashboard.py and scripts/dashboard_cost.py:
+marked="$(cd "$root" && grep -rIniE 'legacy (aghanim|mylos)' skills agents scripts templates installer examples README.md docs/install.md .claude-plugin .gitattributes 2>/dev/null | grep -v '^scripts/test/' | grep -vE '^scripts/((dashboard|dashboard_cost)\.py|runtimes/[^:]*\.py):' || true)"
+[ -z "$marked" ] && pass "AC-7 legacy markers only in the old-log readers" || fail "AC-7 legacy marker outside scripts/dashboard.py, scripts/dashboard_cost.py and scripts/runtimes/:
 $marked"
 for f in scripts/dashboard.py scripts/dashboard_cost.py; do
   grep -qE 'legacy (aghanim|mylos)' "$root/$f" && pass "AC-7 $f keeps its old-log reader" || fail "AC-7 $f lost its legacy marker"
@@ -73,19 +74,32 @@ assert_contains "$(cat "$BOARD_CALLS")" "snapshot"
 assert_contains "$(cat "$BOARD_CALLS")" "status"
 case "$(cat "$stub_board/dispatch.out" "$stub_board/deploy.out")" in *"Permission denied"*|*"cannot execute"*) fail "AC-1 the board was run directly: $(cat "$stub_board/dispatch.out" "$stub_board/deploy.out")" ;; *) pass "AC-1 no permission error from the board call" ;; esac
 
-# AC-8 (#164): report.sh, metrics.sh and review-page.sh hold no logic: they source lib/py.sh and run `sf.py <command>`
-for pair in report.sh:report metrics.sh:metrics review-page.sh:review-page; do
-  w="$root/scripts/${pair%%:*}"; cmd="${pair##*:}"
-  code="$(grep -vE '^[[:space:]]*(#|$)' "$w")"
-  [ "$(printf '%s\n' "$code" | wc -l)" -le 5 ] && pass "AC-8 ${pair%%:*} is a few lines" || fail "AC-8 ${pair%%:*} has logic:
-$code"
-  case "$code" in *'lib/py.sh'*) pass "AC-8 ${pair%%:*} sources lib/py.sh" ;; *) fail "AC-8 ${pair%%:*} does not source lib/py.sh" ;; esac
-  case "$code" in *"$cmd"*) pass "AC-8 ${pair%%:*} runs the $cmd command" ;; *) fail "AC-8 ${pair%%:*} never names $cmd" ;; esac
-  if printf '%s\n' "$code" | grep -qE '(^|[[:space:];])(if|case|for|while|until)[[:space:]]|git |python|shipfloor_resolve|lib/project\.sh'; then fail "AC-8 ${pair%%:*} has control flow, git or python in it:
-$code"; else pass "AC-8 ${pair%%:*} has no control flow, git or python"; fi
-done
 grep -q 'report.json schema' "$root/scripts/report.sh" && pass "AC-8 report.sh keeps the report.json schema header" || fail "AC-8 report.sh lost its schema header"
-[ ! -e "$root/scripts/review_page.py" ] && pass "AC-8 scripts/review_page.py is gone (absorbed in shipfloor_core)" || fail "AC-8 scripts/review_page.py still exists"
+
+# #189 AC-1 / AC-3: no skill or agent tells the agent to run the GraphQL-backed gh commands (file and line named on failure)
+gqlhits="$(cd "$root" && find skills -name '*.md' -type f | sort | xargs -r grep -nE 'gh +(issue|pr (view|checks|comment))' 2>/dev/null; grep -nE 'gh +(issue|pr (view|checks|comment))' agents/*.md 2>/dev/null || true)"
+[ -z "$gqlhits" ] && pass "#189 AC-1 no skill or agent names gh issue / gh pr view|checks|comment" || fail "#189 AC-1 GraphQL gh command in a skill or agent (use the REST form):
+$gqlhits"
+[ -z "$gqlhits" ] && pass "#189 AC-3 the scan finds no forbidden command (file:line reported otherwise)" || fail "#189 AC-3 forbidden command at file:line:
+$gqlhits"
+
+# #189 AC-2: the skills that did those operations spell out the REST form (or name the factory script)
+refine="$(cat "$root/skills/refine/SKILL.md")"; validate="$(cat "$root/skills/validate/SKILL.md")"
+needs() { # <label> <text> <needle>
+  case "$2" in *"$3"*) pass "#189 AC-2 $1 names $3" ;; *) fail "#189 AC-2 $1 lacks $3" ;; esac
+}
+needs "refine (comment)" "$refine" 'gh api repos/'
+needs "refine (comment)" "$refine" 'issues/<n>/comments'
+needs "refine (label)" "$refine" 'issues/<n>/labels'
+needs "refine (label)" "$refine" 'labels[]=blocked'
+needs "validate (PR read)" "$validate" 'gh api repos/'
+needs "validate (PR read)" "$validate" 'pulls/<pr>'
+needs "validate (PR read)" "$validate" '.mergeable'
+needs "validate (checks)" "$validate" 'commits/<sha>/check-runs'
+needs "validate (checks)" "$validate" '.head.sha'
+needs "validate (PR/issue comment)" "$validate" 'issues/<n>/comments'
+needs "validate (issue read)" "$validate" 'board.sh issue'
+
 # ---- #171 (PY-18): every script is a wrapper or a shim; the logic is the Python package
 # AC-1/AC-2: test/fixtures/wrapper-check.py reads scripts/*.sh, scripts/shipfloor and scripts/lib/*.sh of a root and
 # prints one "<file>: <why>" line per line of logic it finds (nothing when they are all wrappers and shims)
@@ -98,7 +112,6 @@ $found"
 else
   fail "AC-1/AC-2 no test/fixtures/wrapper-check.py"
 fi
-[ ! -e "$root/scripts/lib/portable.sh" ] && pass "AC-2 lib/portable.sh is gone from scripts/lib (Bash only the old fixtures use)" || fail "AC-2 scripts/lib/portable.sh still ships"
 
 # AC-3: one line of logic added to any wrapper, fast path or shim of a copy is caught, and the file is named
 wcopy() {  # wcopy: a copy of the files the check reads; prints its root
@@ -199,4 +212,15 @@ m = importlib.import_module(sys.argv[2]); from shipfloor_core import defaults
 sys.exit(0 if getattr(m, sys.argv[3]) is getattr(defaults, sys.argv[4]) else 1)' "$root/scripts" "$1" "$2" "$3" 2>/dev/null \
     && pass "AC-9 $1.$2 is shipfloor_core.defaults.$3" || fail "AC-9 $1.$2 is not taken from shipfloor_core.defaults"
 done
+# The suite's size is a budget: a card extends the module's existing suite instead of adding a file per criterion.
+# 167 files on main when this ceiling came in (182 with the factory PRs then open); diet pass 2 (#236-#239 and the
+# small modules) brought it to 46. The owner lowers the ceiling as files go, and never raises it to fit a new file.
+# Every file names its CI suite on its second line (run.sh SUITE=<name>): a file with none would run in no CI job.
+untagged="$(cd "$root/scripts/test" && for f in *.test.sh; do
+  case "$(sed -n 2p "$f")" in "# suite: unit"|"# suite: integration"|"# suite: end-to-end") ;; *) echo "$f" ;; esac
+done)"
+[ -z "$untagged" ] && pass "every test file names its suite (unit, integration or end-to-end)" || fail "no '# suite: unit|integration|end-to-end' second line in: $untagged"
+ceiling=52  # 46 after wave 2; #223, #227, #240, #245 and visual-v4 landed, #234 folded dashboard-settings into dashboard-views to fit
+count="$(cd "$root" && ls scripts/test/*.test.sh | wc -l | tr -d ' ')"
+[ "$count" -le "$ceiling" ] && pass "test files: $count, ceiling $ceiling" || fail "scripts/test has $count *.test.sh files, the ceiling is $ceiling: extend an existing suite of the module instead of adding a file"
 finish

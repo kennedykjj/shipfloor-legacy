@@ -1,66 +1,41 @@
 #!/usr/bin/env bash
-# The health history: one line per dispatcher cycle (board, runs against limits, machine) and the
-# alerts read back from the last cycles.
+# suite: integration
+# The health history (shipfloor_health.py): one line per dispatcher cycle and the alerts read back from the last ones.
+# The behavior is in process (py/health_record.py: the line, idle slots, limits, pauses, cost stop, working hours,
+# dependencies, missed cycles and silence(), the platform probes). Here, through real processes: shipfloor_health.py's command line
+# (record with the real stack status, alerts), shipfloor-dispatch.sh writing the line at the end of each cycle, with
+# the overlap marker, and `shipfloor doctor` repeating the alerts.
 source "$(dirname "$0")/lib.sh"
+py_suite health_record
 nat() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
 PY=python3; $PY -c '' 2>/dev/null || PY=python
 export SHIPFLOOR_BASH="$(nat "$(command -v bash)")" FACTORY_GH="$FACTORY_DIR/test/fake-gh" FAKE_GH_NO_JQ=1 FAKE_GH_DIR="$(mktemp -d)"
 health() { $PY -I "$(nat "$FACTORY_DIR/shipfloor_health.py")" "$1" --home "$(nat "$H")" "${@:2}"; }
 last() { tail -1 "$H"/logs/health-*.jsonl | $PY -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
-setup() {  # a home with one project: develop has 3 machine slots, refine 2
-  H="$(mktemp -d)"; P="$H/projects/shop"; mkdir -p "$P/logs" "$P/locks"
-  printf 'shop\t/x/shop\t/x/wt\tmain\n' > "$H/registry.tsv"
-  cp "$FACTORY_DIR/test/fixture/factory.yml" "$P/factory.yml"
-  printf 'pool: 6\nstages: {refine: 2, develop: 3}\n' > "$H/config.yml"
-}
-run() { mkdir -p "$P/locks/$1-$2.lock"; echo "$$ $(date +%s) $2" > "$P/locks/$1-$2.lock/info"
-        echo "== start /sf:$1 $2 $(date -Is) pid=1" > "$P/logs/$(date +%F)-$2-$1.log"; }
+H="$(mktemp -d)"; P="$H/projects/shop"; mkdir -p "$P/logs" "$P/locks"
+printf 'shop\t/x/shop\t/x/wt\tmain\n' > "$H/registry.tsv"
+cp "$FACTORY_DIR/test/fixture/factory.yml" "$P/factory.yml"
+printf 'pool: 6\nstages: {refine: 2, develop: 3}\n' > "$H/config.yml"
+printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"
 
-# a line holds the board, the runs against their limits and the machine
-setup; printf '26\tReady for Dev\tI26\n27\tReady for Dev\tI27\n30\tCoding\tI30\n33\tDone\tI33\n' > "$P/board.tsv"; run develop 30
-health record --seconds 12 --exit 1
-assert_contains "$(last 'd["cycle"]')" "{'s': 12, 'exit': 1, 'overlap': False}"
-assert_contains "$(last 'sorted(d["projects"]["shop"]["columns"].items())')" "[('Coding', 1), ('Done', 1), ('Ready for Dev', 2)]"
-assert_contains "$(last 'd["stages"]["develop"], d["pool"]')" "{'slots': 3, 'running': 1} {'size': 6, 'used': 1}"
-assert_contains "$(last 'd["projects"]["shop"]["stages"]["develop"]')" "{'queue': 2, 'orphans': 0, 'running': 1, 'cap': 0}"
-[ "$(last 'd["machine"]["disk_free_gb"] > 0')" = True ] && pass "machine: free disk" || fail "no free disk in the line"
-assert_contains "$(last 'd["idle"], d["over"]')" "['shop/develop'] []"
+# the command line: record appends a line to logs/health-<YYYY-MM>.jsonl, alerts prints one alert a line
+health record --seconds 12 --exit 1 --overlap; rc=$?
+[ "$rc" = 0 ] && [ -f "$H/logs/health-$(date +%Y-%m).jsonl" ] && pass "record: exit 0, the month's file" || fail "record: exit $rc, $(ls "$H/logs")"
+assert_contains "$(last 'd["cycle"], d["idle"]')" "{'s': 12, 'exit': 1, 'overlap': True} ['shop/develop']"
+assert_contains "$(last 'sorted(d["stacks"])')" "['busy', 'queue', 'total']"
+assert_contains "$(health alerts)" "two dispatcher cycles ran at once"
+assert_exit 2 health bogus
 
-# a free slot with cards waiting is an alert only once it lasts: one cycle is the dispatcher's own timing
-[ -z "$(health alerts)" ] && pass "one idle cycle is no alert" || fail "alerted on one cycle: $(health alerts)"
-health record; health record
-assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting for 3 cycles in a row"
-
-# nothing waits for a slot when the stage is full, the WIP is full, the card is blocked or the factory is paused
-setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"; run develop 30; run develop 31; run develop 32
-health record; assert_contains "$(last 'd["idle"]')" "[]"
-setup; printf '26\tReady for Dev\tI26\n1\tCoding\tI1\n2\tCoding\tI2\n3\tValidation\tI3\n4\tValidation\tI4\n' > "$P/board.tsv"
-run develop 1; run develop 2; run validate 3; run validate 4
-health record; assert_contains "$(last 'd["idle"]')" "[]"
-setup; printf '7\tReady for Dev\tI7\n' > "$P/board.tsv"  # the fake gh says card 7 is blocked
-health record; assert_contains "$(last 'd["idle"], d["projects"]["shop"]["blocked"]')" "[] 1"
-assert_contains "$(last 'd["projects"]["shop"]["blocked_cards"]')" "[7]"
-setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"; touch "$H/PAUSE"
-health record; assert_contains "$(last 'd["idle"], d["paused"]')" "[] True"
-# a fresh GitHub-limit mark (#190) stops the factory too: recorded, and no idle slot is reported
-setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"; touch "$H/github-limited"
-health record; assert_contains "$(last 'd["idle"], d["github_limited"]')" "[] True"
-touch -d '-11 minutes' "$H/github-limited"
-health record; assert_contains "$(last 'd["idle"], d["github_limited"]')" "['shop/develop'] False"
-
-# a card left in a work column with no run is waiting to be resumed, whatever the WIP
-setup; printf '30\tCoding\tI30\n' > "$P/board.tsv"
-health record; assert_contains "$(last 'd["idle"]')" "['shop/develop']"
-
-# more runs than a limit, of the machine or of the project, and two cycles at once are alerts at once
-setup; : > "$P/board.tsv"; run refine 40; run refine 41; run refine 42; run deploy 50; run deploy 51
-health record --overlap; out="$(health alerts)"
-assert_contains "$out" "refine 3/2: more runs than the limit"
-assert_contains "$out" "shop/deploy 2/1: more runs than the limit"
-assert_contains "$out" "two dispatcher cycles ran at once"
+# today's runs that ended with stopped=<why> are counted by why, per project (a run that did its stage is not)
+day="$(date +%Y-%m-%d)"
+printf '== start /sf:develop 26\n== end /sf:develop 26 exit=0 %sT10:00:00-03:00 stopped=no-report outcome=ok\n' "$day" > "$P/logs/$day-26-develop.log"
+printf '== end /sf:develop 27 exit=0 %sT10:05:00-03:00 stopped=no-report outcome=ok\n' "$day" > "$P/logs/$day-27-develop.log"
+printf '== end /sf:develop 28 exit=0 %sT10:09:00-03:00 outcome=ok\n' "$day" > "$P/logs/$day-28-develop.log"
+health record --seconds 1 --exit 0
+assert_contains "$(last 'd["projects"]["shop"]["stopped_runs"]')" "{'no-report': 2}"
 
 # the dispatcher writes the line at the end of every cycle, and a cycle that finds another one running says so
-setup; export SHIPFLOOR_HOME="$H"; : > "$P/board.tsv"; printf '#!/usr/bin/env bash\nexit 0\n' > "$H/fake-dispatch"
+export SHIPFLOOR_HOME="$H"; : > "$P/board.tsv"; printf '#!/usr/bin/env bash\nexit 0\n' > "$H/fake-dispatch"
 r="$(new_repo)"; mkdir -p "$r/.shipfloor"; cp "$FACTORY_DIR/test/fixture/factory.yml" "$r/.shipfloor/factory.yml"
 git -C "$r" add -A; git -C "$r" commit -qm config; git -C "$r" worktree add -q --detach "$P/control" main
 printf 'shop\t%s\t%s\tmain\n' "$r" "$H/wt" > "$H/registry.tsv"
@@ -74,68 +49,18 @@ assert_contains "$(last 'd["cycle"]["overlap"]')" "True"
 touch "$H/PAUSE"; rm "$H/dispatch.pid"; bash "$FACTORY_DIR/shipfloor-dispatch.sh"
 assert_contains "$(last 'd["paused"]')" "True"
 
-# costs.day_stop reached: the line says cost_stop and a free slot with cards waiting is no alert (nothing starts, as when paused);
-# without costs the line says false. Today's session cost US$ 100 (25M opus input tokens at noon, local time)
-CD="$(mktemp -d)"; mkdir -p "$CD/projects/C--x--shipfloor-projects-shop-control"
-TZO="$(date +%:z)"
-{ printf '{"type":"user","timestamp":"%sT12:00:00%s","message":{"role":"user","content":"<command-name>/sf:develop</command-name>\\n<command-args>26</command-args>"}}\n' "$(date +%F)" "$TZO"
-  printf '{"type":"assistant","timestamp":"%sT12:05:00%s","message":{"id":"c1","model":"claude-opus-5-5","usage":{"input_tokens":25000000,"output_tokens":0}}}\n' "$(date +%F)" "$TZO"; } > "$CD/projects/C--x--shipfloor-projects-shop-control/s.jsonl"
-export CLAUDE_CONFIG_DIR="$(nat "$CD")"
-setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"
-health record; health record; health record
-assert_contains "$(last 'd["cost_stop"]')" "False"
-assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting"
-printf 'pool: 6\nstages: {refine: 2, develop: 3}\ncosts:\n  day_stop: 80\n' > "$H/config.yml"
-health record; health record; health record
-assert_contains "$(last 'd["cost_stop"], d["idle"]')" "True []"
-[ -z "$(health alerts)" ] && pass "a day stopped by cost is no free-slot alert" || fail "alerted while the day is stopped: $(health alerts)"
-printf 'pool: 6\nstages: {refine: 2, develop: 3}\ncosts:\n  day_stop: 150\n' > "$H/config.yml"
-health record; assert_contains "$(last 'd["cost_stop"]')" "False"
-unset CLAUDE_CONFIG_DIR
-# outside the working hours nothing is expected to start: the line says so, records no idle key and raises no alert
-setup; printf 'hours: ["08:00-23:00"]\n' >> "$H/config.yml"; printf '26\tReady for Dev\tI26\n27\tReady for Dev\tI27\n' > "$P/board.tsv"
-export SHIPFLOOR_NOW=23:30
-health record
-[ "$(last 'd.get("outside_hours")')" = True ] && pass "AC-6 outside the hours the line says outside_hours" || fail "AC-6 the line has no outside_hours=true at 23:30: $(last 'd.get("outside_hours")')"
-assert_contains "$(last 'd["idle"]')" "[]"
-health record; health record
-[ -z "$(health alerts)" ] && pass "AC-6 no alert for a stretch outside the hours" || fail "AC-6 alerted outside the hours: $(health alerts)"
-export SHIPFLOOR_NOW=12:00
-health record
-[ "$(last 'd.get("outside_hours")')" = False ] && pass "AC-6 inside the hours outside_hours is false" || fail "AC-6 the line at 12:00 says outside_hours=$(last 'd.get("outside_hours")')"
-assert_contains "$(last 'd["idle"]')" "['shop/develop']"
-health record; health record
-assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting for 3 cycles in a row"
-export SHIPFLOOR_NOW=23:30
-setup; printf '26\tReady for Dev\tI26\n' > "$P/board.tsv"
-health record
-[ "$(last 'd.get("outside_hours")')" = False ] && pass "AC-6 without hours outside_hours is false" || fail "AC-6 without hours the line says outside_hours=$(last 'd.get("outside_hours")')"
-assert_contains "$(last 'd["idle"]')" "['shop/develop']"
-unset SHIPFLOOR_NOW
-# lines written before the field existed read as inside the hours: their idle keys still count
-setup; mkdir -p "$H/logs"
-for _ in 1 2 3; do printf '{"cycle": {"s": 1, "exit": 0, "overlap": false}, "idle": ["shop/develop"], "over": []}\n'; done > "$H/logs/health-2026-10.jsonl"
-assert_contains "$(health alerts)" "shop/develop: a free slot and cards waiting for 3 cycles in a row"
-
-# doctor repeats the alerts
+# doctor repeats the alerts (the second cycle above overlapped), with the project's control checkout
 out="$(bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
 assert_contains "$out" "WARN health: two dispatcher cycles ran at once"
+assert_contains "$out" "WARN shop: control checkout is behind origin/main"
 
-# a missed cycle: the newest line is older than 1.5 x the pace in config.yml (10 min here, so 15)
-cyc() {  # cyc <minutes ago>: a health line for a cycle that ended that long ago
-  mkdir -p "$H/logs"
-  $PY -I -c 'import json,sys; from datetime import datetime,timedelta; t=(datetime.now().astimezone()-timedelta(minutes=float(sys.argv[1]))).isoformat(timespec="seconds"); print(json.dumps({"ts":t,"cycle":{"s":5,"exit":0,"overlap":False},"paused":False,"idle":[],"over":[]}))' "$1" >> "$H/logs/health-$(date +%Y-%m).jsonl"
-}
-setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 30; cyc 20; cyc 10
-case "$(health alerts)" in *"no dispatcher cycle"*) fail "AC-7 alerted on cycles arriving on time every 10 minutes: $(health alerts)" ;; *) pass "AC-7 cycles every 10 minutes on time raise no missed-cycle alert" ;; esac
-setup; printf 'dispatcher: {every_min: 10}\n' >> "$H/config.yml"; cyc 45; cyc 35; cyc 25
-out="$(health alerts)"
-assert_contains "$out" "no dispatcher cycle for"
-assert_contains "$out" "(it runs every 10)"
-# the pace comes from config.yml: without the key it is 3, and 10 minutes without a cycle is late
-setup; cyc 20; cyc 15; cyc 10
-assert_contains "$(health alerts)" "(it runs every 3)"
-# no health line yet: nothing to be late
-setup; mkdir -p "$H/logs"
-case "$(health alerts)" in *"no dispatcher cycle"*) fail "AC-7 alerted with no health line yet" ;; *) pass "AC-7 no health line, no missed-cycle alert" ;; esac
+# #176: the doctor warns of a silent dispatcher past 3 x the pace (silence()), and says nothing at 2 x or with no line
+S="$(mktemp -d)"; mkdir -p "$S/logs"; printf 'dispatcher: {every_min: 10}\n' > "$S/config.yml"
+cyc() { $PY -I -c 'import json,sys; from datetime import datetime,timedelta; t=(datetime.now().astimezone()-timedelta(minutes=float(sys.argv[1]))).isoformat(timespec="seconds"); print(json.dumps({"ts":t,"cycle":{"s":5,"exit":0,"overlap":False},"paused":False,"idle":[],"over":[]}))' "$1" > "$S/logs/health-$(date +%Y-%m).jsonl"; }
+out="$(SHIPFLOOR_HOME="$S" bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
+case "$out" in *"no dispatcher cycle"*) fail "the doctor warned with no health line: $out" ;; *) pass "the doctor is quiet with no health line" ;; esac
+cyc 20; out="$(SHIPFLOOR_HOME="$S" bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
+case "$out" in *"no dispatcher cycle"*) fail "the doctor warned at 2 x the pace: $out" ;; *) pass "the doctor is quiet at 2 x the pace" ;; esac
+cyc 60; out="$(SHIPFLOOR_HOME="$S" bash "$FACTORY_DIR/shipfloor" doctor 2>&1)"
+assert_contains "$out" "WARN health: no dispatcher cycle for 60 min (it runs every 10)"
 finish

@@ -1,19 +1,22 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-12T00:00:00Z",
+  "generatedAt": "2026-10-14T00:00:00Z",
   "title": "Design System: Shipfloor Dashboard",
   "extensions": {
     "colorMeta": {
       "ground": { "role": "neutral", "displayName": "Ground", "canonical": "#0a0a0a" },
       "panel": { "role": "neutral", "displayName": "Panel", "canonical": "#14171b" },
       "panel-hi": { "role": "neutral", "displayName": "Raised Panel", "canonical": "#1c2026" },
+      "raise": { "role": "neutral", "displayName": "Raise", "canonical": "#242830" },
+      "accent-ink": { "role": "neutral", "displayName": "Ink on Accent", "canonical": "#0a0a0a" },
+      "paper": { "role": "neutral", "displayName": "Decision Paper", "canonical": "#181c21" },
       "edge": { "role": "neutral", "displayName": "Hairline", "canonical": "#2a2f39", "tonalRamp": ["#ffffff1c"] },
       "edge-hi": { "role": "neutral", "displayName": "Lit Edge", "canonical": "#3d444f" },
       "text": { "role": "neutral", "displayName": "Text", "canonical": "#f2f1ee" },
       "soft": { "role": "neutral", "displayName": "Soft Text", "canonical": "#d6d8da" },
       "muted": { "role": "neutral", "displayName": "Muted Text", "canonical": "#a3abb6" },
       "faint": { "role": "neutral", "displayName": "Faint Text", "canonical": "#8f98a3" },
-      "sand": { "role": "primary", "displayName": "Accent Sand", "canonical": "#c7b9a6" },
+      "sand": { "role": "primary", "displayName": "Accent", "canonical": "#c7b9a6" },
       "glow1a": { "role": "neutral", "displayName": "Glow One, Light", "canonical": "#3b4a5e" },
       "glow1b": { "role": "neutral", "displayName": "Glow One, Dark", "canonical": "#1c232d" },
       "glow2": { "role": "neutral", "displayName": "Glow Two", "canonical": "#2a2622" },
@@ -26,25 +29,24 @@
       "bad": { "role": "outcome", "displayName": "Outcome Red", "canonical": "#e58f80" }
     },
     "typographyMeta": {
-      "brand": { "displayName": "Brand / Number", "purpose": "The product name in the header and the card number, one size in Yours and in a tile; Barlow Condensed, uppercase." },
-      "section": { "displayName": "Section", "purpose": "The heading of the maximized line, of Yours and of a Settings section; Barlow Condensed, uppercase." },
-      "display": { "displayName": "Display", "purpose": "The heading of a panel; Barlow Condensed, uppercase." },
-      "heading": { "displayName": "Heading", "purpose": "Lifecycle column labels, the tooltip total and Settings group titles." },
-      "headline": { "displayName": "Headline", "purpose": "The drawer's card title." },
-      "title": { "displayName": "Title", "purpose": "A card title in a tile, a pass and the peek; clamped to two lines." },
-      "body": { "displayName": "Body", "purpose": "Descriptions, alerts and the inbox reader." },
-      "label": { "displayName": "Label", "purpose": "Buttons, table cells, meta lines and notices at 12.5px." },
-      "caption": { "displayName": "Caption", "purpose": "Uppercase tracked captions: the views, the header stats, the legend." },
-      "log": { "displayName": "Log", "purpose": "Pre-wrapped mono log pane." }
+      "display": { "displayName": "Display", "purpose": "The heading of a panel; IBM Plex Sans 600, 34px." },
+      "section": { "displayName": "Section", "purpose": "The heading of the maximized line, of Yours and of a Settings section, and the card number; 24px." },
+      "headline": { "displayName": "Headline", "purpose": "The drawer's card title, belt segment names, Settings group titles and the tooltip total; 17px." },
+      "lead": { "displayName": "Lead", "purpose": "Brief prose and longer descriptions; 16px, capped at 64ch." },
+      "base": { "displayName": "Base", "purpose": "The page's base text and a card title in a tile, a pass; 15px." },
+      "body": { "displayName": "Body", "purpose": "Descriptions, alerts, buttons, table cells and the inbox reader; 14px." },
+      "meta": { "displayName": "Meta", "purpose": "Meta lines, tab labels, notices, tags and gates; 13px." },
+      "caption": { "displayName": "Caption", "purpose": "Captions: the views, the header stats, the legend; 12px, 400, sentence case." },
+      "log": { "displayName": "Log", "purpose": "Pre-wrapped IBM Plex Mono log pane." }
     },
     "shadows": [
-      { "name": "raise", "value": "0 10px 30px rgba(0, 0, 0, .45)", "purpose": "The peek, a maximized panel and the select's list; each light theme sets a softer one." },
+      { "name": "raise", "value": "0 10px 30px rgba(0, 0, 0, .45)", "purpose": "A maximized panel and the select's list; each light theme sets a softer one." },
       { "name": "drawer-cast", "value": "-14px 0 32px -8px rgba(0, 0, 0, .45)", "purpose": "Open drawer over the page; none when closed." },
       { "name": "dial-ring", "value": "0 0 0 2px var(--panel), 0 0 0 3px var(--edge)", "purpose": "Ring around the cooldown dial." }
     ],
     "motion": [
       { "name": "cooldown-sweep", "value": "6s linear infinite on registered --sweep angle, 0deg to 360deg", "purpose": "Signature dial on running cards; static 90deg quarter under prefers-reduced-motion." },
-      { "name": "dot-pulse", "value": "2.6s cubic-bezier(.2, .7, .2, 1) infinite", "purpose": "A running dot on the lifecycle band; stopped under reduced motion." },
+      { "name": "dot-pulse", "value": "2.6s cubic-bezier(.2, .7, .2, 1) infinite", "purpose": "A running dot; stopped under reduced motion." },
       { "name": "shimmer", "value": "1.2s ease infinite", "purpose": "Drawer loading skeleton only." }
     ],
     "breakpoints": [
@@ -58,15 +60,15 @@
       "refersTo": "panel",
       "description": "The container of every region: a faint wash of the ink over the ground, a hairline and a 16px radius.",
       "html": "<section class=\"ds-panel\"><h1>Today</h1><p>12 runs</p></section>",
-      "css": ".ds-panel{padding:18px 20px 14px;border:1px solid color-mix(in srgb,var(--ov) 9%,transparent);border-radius:16px;background:color-mix(in srgb,var(--ov) 2%,transparent);color:var(--text);font:15px/1.45 var(--sans)}.ds-panel h1{margin:0;font:500 34px/1 var(--cond);letter-spacing:.02em;text-transform:uppercase}.ds-panel p{margin:8px 0 0;color:var(--muted)}"
+      "css": ".ds-panel{padding:16px 24px;border:1px solid color-mix(in srgb,var(--ov) 9%,transparent);border-radius:16px;background:color-mix(in srgb,var(--ov) 2%,transparent);color:var(--text);font:15px/1.45 var(--sans)}.ds-panel h1{margin:0;font:600 34px/1.1 var(--sans)}.ds-panel p{margin:8px 0 0;color:var(--muted);max-width:64ch}"
     },
     {
       "name": "Tile",
       "kind": "card",
       "refersTo": "tile",
-      "description": "A card in progress: number, cost in the accent, title, step bar.",
-      "html": "<div class=\"ds-tile\"><div class=\"ds-thead\"><span class=\"ds-tnum\">#42</span><span class=\"ds-tcost\">$1.84</span></div><p class=\"ds-ttitle\">Add retry to the dispatcher</p><ul class=\"ds-steps\"><li class=\"done\"></li><li class=\"done\"></li><li class=\"now\"></li><li></li></ul></div>",
-      "css": ".ds-tile{width:320px;border:1px solid color-mix(in srgb,var(--ov) 11%,transparent);border-radius:12px;background:var(--well);padding:12px 14px 10px;display:flex;flex-direction:column;gap:8px;color:var(--text);font:15px/1.45 var(--sans)}.ds-thead{display:flex;align-items:baseline;gap:10px}.ds-tnum{font:500 22px/1 var(--cond);text-transform:uppercase}.ds-tcost{margin-left:auto;font-size:13px;color:var(--sand)}.ds-ttitle{margin:0;font-size:14.5px;font-weight:500;line-height:1.3}.ds-steps{display:flex;gap:3px;list-style:none;margin:0;padding:0}.ds-steps li{flex:1;height:4px;border-radius:2px;background:color-mix(in srgb,var(--ov) 15%,transparent)}.ds-steps .done{background:var(--muted)}.ds-steps .now{background:var(--text)}"
+      "description": "A card in progress: number, cost in text with est, title, step bar.",
+      "html": "<div class=\"ds-tile\"><div class=\"ds-thead\"><span class=\"ds-tnum\">#42</span><span class=\"ds-tcost\">$1.84 est.</span></div><p class=\"ds-ttitle\">Add retry to the dispatcher</p><ul class=\"ds-steps\"><li class=\"done\"></li><li class=\"done\"></li><li class=\"now\"></li><li></li></ul></div>",
+      "css": ".ds-tile{width:320px;border:1px solid color-mix(in srgb,var(--ov) 11%,transparent);border-radius:12px;background:var(--well);padding:12px 16px;display:flex;flex-direction:column;gap:8px;color:var(--text);font:15px/1.45 var(--sans)}.ds-thead{display:flex;align-items:baseline;gap:8px}.ds-tnum{font:600 24px/1 var(--sans)}.ds-tcost{margin-left:auto;font-size:13px;color:var(--text)}.ds-ttitle{margin:0;font-size:15px;font-weight:500;line-height:1.3}.ds-steps{display:flex;gap:4px;list-style:none;margin:0;padding:0}.ds-steps li{flex:1;height:4px;border-radius:2px;background:color-mix(in srgb,var(--ov) 15%,transparent)}.ds-steps .done{background:var(--muted)}.ds-steps .now{background:var(--text)}"
     },
     {
       "name": "Running Dial",
@@ -80,9 +82,9 @@
       "name": "Approve Pill",
       "kind": "button",
       "refersTo": "button-approve",
-      "description": "The owner's action in a list: ink fill, ground text.",
+      "description": "The owner's action on what waits: accent fill, accent-ink text, fully rounded.",
       "html": "<button class=\"ds-pill\">Approve</button>",
-      "css": ".ds-pill{background:var(--text);color:var(--ground);padding:6px 16px;border:0;border-radius:40px;font:600 13.5px var(--sans);cursor:pointer}.ds-pill:focus-visible{outline:2px solid var(--sand);outline-offset:2px}"
+      "css": ".ds-pill{background:var(--sand);color:var(--accent-ink);padding:8px 16px;border:0;border-radius:999px;font:600 14px var(--sans);cursor:pointer}.ds-pill:hover{background:color-mix(in srgb,var(--sand) 88%,var(--ground))}.ds-pill:focus-visible{outline:2px solid var(--sand);outline-offset:2px}"
     },
     {
       "name": "Button",
@@ -90,15 +92,15 @@
       "refersTo": "button",
       "description": "Request changes, Retry, Open card.",
       "html": "<button class=\"ds-btn\">Request changes</button>",
-      "css": ".ds-btn{font:15px var(--sans);color:var(--text);border-radius:5px;padding:7px 12px;cursor:pointer;white-space:nowrap;border:1px solid var(--edge-hi);background:var(--panel-hi)}.ds-btn:hover{border-color:var(--text)}.ds-btn:focus-visible{outline:2px solid var(--sand);outline-offset:2px}"
+      "css": ".ds-btn{font:14px var(--sans);color:var(--text);border-radius:5px;padding:8px 12px;cursor:pointer;white-space:nowrap;border:1px solid var(--edge-hi);background:var(--panel-hi)}.ds-btn:hover{border-color:var(--text)}.ds-btn:focus-visible{outline:2px solid var(--sand);outline-offset:2px}"
     },
     {
       "name": "Header Stat",
       "kind": "custom",
       "refersTo": "panel",
-      "description": "A header stat: an uppercase caption and its bold value.",
+      "description": "A header stat: a caption in sentence case and its bold value.",
       "html": "<span class=\"ds-cap\">Runs today<b>12</b> · 1 failed</span>",
-      "css": ".ds-cap{font:500 12px/1.45 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}.ds-cap b{color:var(--text);font-weight:600;margin-left:7px;letter-spacing:.05em}"
+      "css": ".ds-cap{font:400 12px/1.4 var(--sans);color:var(--muted)}.ds-cap b{color:var(--text);font-weight:600;margin-left:8px}"
     },
     {
       "name": "Tag",
@@ -106,7 +108,7 @@
       "refersTo": "tag",
       "description": "A fact about a card; outcome tags take their color.",
       "html": "<span class=\"ds-tag\">stopped 2 times</span> <span class=\"ds-tag ds-bad\">gate: build</span>",
-      "css": ".ds-tag{font:12px var(--sans);border:1px solid var(--edge-hi);border-radius:4px;padding:1px 7px;color:var(--muted);white-space:nowrap}.ds-bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 50%,transparent)}"
+      "css": ".ds-tag{font:12px var(--sans);border:1px solid var(--edge-hi);border-radius:4px;padding:1px 8px;color:var(--muted);white-space:nowrap}.ds-bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 50%,transparent)}"
     },
     {
       "name": "Gate Chip",
@@ -114,7 +116,7 @@
       "refersTo": "gate",
       "description": "Pass or fail result of a gate, outcome color only.",
       "html": "<span class=\"ds-gate\">lint pass</span> <span class=\"ds-gate ds-fail\">tests fail</span>",
-      "css": ".ds-gate{font:12px var(--mono);padding:2px 7px;border-radius:4px;border:1px solid var(--edge);color:var(--ok)}.ds-fail{color:var(--bad);border-color:currentColor}"
+      "css": ".ds-gate{font:12px var(--mono);padding:2px 8px;border-radius:4px;border:1px solid var(--edge);color:var(--ok)}.ds-fail{color:var(--bad);border-color:currentColor}"
     },
     {
       "name": "Drawer Tabs",
@@ -122,36 +124,39 @@
       "refersTo": "drawer",
       "description": "Underlined text tabs with counts.",
       "html": "<nav class=\"ds-tabs\"><button aria-selected=\"true\">Sessions<span class=\"ds-b\">3</span></button><button aria-selected=\"false\">Log</button><button aria-selected=\"false\">Gates<span class=\"ds-b\">2</span></button><button aria-selected=\"false\">Review</button></nav>",
-      "css": ".ds-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--edge);background:var(--panel)}.ds-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 10px 8px;color:var(--muted);cursor:pointer;font:13px var(--sans)}.ds-tabs button[aria-selected=\"true\"]{color:var(--text);border-bottom-color:var(--text)}.ds-tabs button:focus-visible{outline:2px solid var(--sand);outline-offset:2px}.ds-b{margin-left:5px;font-size:12px;color:var(--faint)}"
+      "css": ".ds-tabs{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid var(--edge);background:var(--panel)}.ds-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;color:var(--muted);cursor:pointer;font:13px var(--sans)}.ds-tabs button[aria-selected=\"true\"]{color:var(--text);border-bottom-color:var(--text)}.ds-tabs button:focus-visible{outline:2px solid var(--sand);outline-offset:2px}.ds-b{margin-left:4px;font-size:12px;color:var(--faint)}"
     }
   ],
   "narrative": {
     "northStar": "The Floor Plan",
-    "overview": "The dashboard is the floor plan of a software factory, read by one owner doing quick checks: look at the lifecycle band to see where every card stands, answer what waits for you, glance at what is running and what it cost, close. It has three views: Factory, Feed and Settings. A card opens in a drawer; a dot on the lifecycle band opens a small peek first.\n\nThe surface is a dark page under a faint grain and two soft glows, with translucent panels and hairline borders. Barlow carries words and Barlow Condensed in uppercase carries headings; every number keeps tabular figures. The accent marks money and whatever waits for the owner, and the outcome trio marks results. Color is chosen by the owner: twelve themes change the same tokens and nothing else.",
+    "overview": "The dashboard is the floor plan of a software factory, read by one owner doing quick checks: look at the belt to see where every card stands, answer what waits for you, glance at what is running and what it cost, close. It has three views: Factory, Feed and Settings. A card opens in a drawer; a click on its token on the belt opens it.\n\nThe surface is a quiet page with translucent panels and hairline borders. IBM Plex Sans carries words and IBM Plex Mono carries logs; hierarchy comes from size and weight, never from case, and every number keeps tabular figures. The accent marks only what waits for the owner, and the outcome trio marks results. Color is chosen by the owner: fourteen themes change the same tokens and nothing else.",
     "keyCharacteristics": [
-      "One lifecycle band: every column a cell on a dotted track, every card a dot.",
+      "One belt: every column a segment, every card a token, a rail under it that moves only while the dispatcher is alive.",
       "Panels are translucent washes of the theme's ink over the ground, with a hairline border and a 16px radius.",
-      "Uppercase condensed headings and uppercase tracked captions; sentence case for prose.",
-      "Hairlines instead of shadows at rest; depth appears for the drawer, the peek and the maximized panel.",
-      "Two continuous motions only: the cooldown dial and the pulse of a running dot, both stopped under reduced motion."
+      "Sentence case everywhere; weight and size carry the hierarchy, and nothing is under 12px.",
+      "Hairlines instead of shadows at rest; depth appears for the drawer and the maximized panel.",
+      "Three continuous motions: the cooldown dial, the pulse of a running dot and the belt's rail. The belt is the third continuous motion, allowed because it carries state, and it stops under reduced motion."
     ],
     "rules": [
-      { "name": "The Accent Rule", "body": "The accent appears on money and on what waits for the owner or what the owner is doing. Outcomes use their own trio.", "section": "colors" },
-      { "name": "The Estimate Rule", "body": "Every cost is an estimate and says so: \"est.\" next to the figure, or \"Spent est.\" in the header; a missing price shows $ ? with an explanation, never a zero.", "section": "colors" },
+      { "name": "The Accent Rule", "body": "The accent appears only on what waits for the owner, and on the action that answers it. Outcomes use their own trio.", "section": "colors" },
+      { "name": "The Estimate Rule", "body": "Every cost is an estimate and says so, in text with est: \"est.\" next to the figure, or \"Spent est.\" in the header; a missing price shows $ ? with an explanation, never a zero.", "section": "colors" },
       { "name": "The Figures Rule", "body": "Any number keeps tabular figures. Prose stays proportional.", "section": "typography" },
+      { "name": "The Case Rule", "body": "No uppercase and no wide tracking.", "section": "typography" },
       { "name": "The Flat-At-Rest Rule", "body": "Panels and tiles carry no shadow until something opens over them.", "section": "elevation" }
     ],
     "dos": [
       "Do take every color from a token, and give every new token a value in every theme.",
-      "Do keep captions uppercase and tracked, headings condensed and uppercase, and prose in sentence case.",
-      "Do keep numbers in tabular figures and label every cost as an estimate.",
+      "Do keep type in sentence case, and let weight and size carry the hierarchy.",
+      "Do keep the accent for what waits for the owner, and the action that answers it.",
+      "Do keep numbers in tabular figures and label every cost as an estimate, in text.",
       "Do keep surfaces flat at rest and let only what opens cast a shadow.",
-      "Do keep the dial and the dot's pulse as the only continuous motion, and give any new motion a reduced-motion fallback.",
+      "Do keep the dial, the dot's pulse and the belt as the only continuous motion (the belt carries state), and give any new motion a reduced-motion fallback.",
       "Do keep factory stage and column names verbatim."
     ],
     "donts": [
+      "Don't set uppercase or wide-tracked type, or anything under 12px.",
       "Don't color-code columns or cards; position and name identify a stage.",
-      "Don't use the accent as decoration, or the outcome colors for anything but results.",
+      "Don't use the accent as decoration, for money or for titles, or the outcome colors for anything but results.",
       "Don't add emoji or icon fonts; text labels carry actions.",
       "Don't link a font or an asset from the network, or add a build step; the dashboard is one self-contained file.",
       "Don't add resting shadows or a third continuous animation."

@@ -51,7 +51,7 @@ Two more words exist that the usage text does not print: `fast` `<base> <spec> [
 - The selector reaches the layer's test command as `"$1"` of `bash -c`, never as shell code. `NO_COLOR=1` and `FORCE_COLOR=0` are exported for the runner. A layer with `needs_stack` runs on its own stack slot (`lib/stack.sh`, owner `gate-<pid>`); if the slot does not come up the gate exits 3.
 - `red` is never retried; `green` and `build` run once more for a layer with `retry: 1`.
 - A layer's `install` command runs once per content of the layer's directory (marker in the git dir), by the gate, not by an agent.
-- `qa-amend` allows at most `FACTORY_QA_AMEND_MAX` (default 2) amendments, refuses a commit touching files outside the QA scope, a switched-off test, or fewer assertion lines than before.
+- `qa-amend` allows at most `FACTORY_QA_AMEND_MAX` (default 2) amendments, refuses a commit touching files outside the QA scope, a switched-off test, or fewer assertion lines than before. Past the limit the owner can allow one more: the label `qa-amend-ok` on the issue, added by a login of the trusted set (`board.sh` trusted logins), or the dashboard's `approve-amend` action (`POST /api/card/<project>/<n>/approve-amend`, which adds the label and unblocks the card). The gate then removes the label and records the commit in `<FACTORY_HOME>/qa-amend-ok.tsv` (`#<n>`, commit, login, time), so a rerun on that commit passes without GitHub, and prints `approved by the owner (qa-amend-ok)`. Without approval it fails with exit 1 and the message names both ways; when GitHub cannot be read or the label cannot be removed, it exits 3 (infrastructure).
 - The language of the stderr comes from `FACTORY_LANGUAGE` (set at launch), else the machine's `overrides.yml`, else the project's `factory.yml`.
 
 ## board.sh
@@ -89,6 +89,7 @@ The deterministic deploy of one card: `deploy.sh <n> [--refresh | --continue]`. 
 - Approval is the newest `staged-head: <40 hex>` comment written by the factory's own GitHub user; `HEAD_SHA` of the PR must be that commit or a chain (at most 10) of recorded `deploy-merge`/`deploy-fix` commits on top of it, each merge's second parent an ancestor of `origin/<main>`.
 - A fork PR, zero or several open PRs for the card, a PR changed after staging, red gates or red CI before merge are `block`: exit 5.
 - Merge is `gh pr merge --squash --match-head-commit <sha>`. After merge it checks `deploy.ci_workflow` on `origin/<main>` (a failed run reruns its failed jobs once), then `deploy.environment`, then each `deploy.healthcheck` url (5 tries); any failure opens `revert/<n>` and a revert PR, comments with a closing `staged-head: <sha of the revert branch>`, reopens the issue, labels `blocked` and exits 6.
+- Waiting for the PR's checks: a head this run did not push (the approved head, or a merge of main recorded and pushed earlier, e.g. by `--refresh`) that is up to date with main and all green (every `deploy.required_checks` present) on the first poll is merged at once, with no further poll or sleep. A head this run pushed (main merged in, a renumbered migration, a small fix) must be seen green on two polls, against workflows that register late after a push. Polls are `FACTORY_POLL` s apart (default 10).
 - `deploy.local_ci`, when set, replaces waiting for GitHub's checks.
 - A fix of at most `deploy.fix_max_files` files and `fix_max_lines` lines that touches no acceptance test ships with the approved head; a larger one goes back to Staged with a new `staged-head:`.
 - At most two fix rounds (`<tmp>/fix.round`), after which the card goes back to Coding.
@@ -99,16 +100,23 @@ One dispatcher cycle for one project: starts pipelines for cards waiting in the 
 
 **Interface:** none: it takes no arguments and has no subcommands. It exits 0 with nothing to do when `PAUSE` exists in the project's home; 2 for an invalid config, unreadable limits, pool or stage models; 1 when the board read fails; otherwise the number of failing steps (0 or 1).
 
-**What it does, in order:** reads the board once into `board.tsv` (a temp file per process, then renamed) and exports `FACTORY_BOARD_SNAPSHOT=<home>/board.tsv`; stops when a log under the home's `logs/` was written in the last 30 min and holds `hit your session limit` after its last `== start`; removes `cost/<n>.json` and `stepup/<n>` markers of cards that left the board or Coding; applies the machine's `costs` limits through `dashboard_cost.py`; retries `blocked:infra` cards once; unless outside the working hours, runs the pipelines `refine`, `develop`, `validate` and `deploy` in that order; optionally refreshes Staged cards when `deploy.refresh_staged` is true; sweeps stale `tmp/` folders.
+**What it does, in order:** reads the board once into `board.tsv` (a temp file per process, then renamed) and exports `FACTORY_BOARD_SNAPSHOT=<home>/board.tsv`; stops when a log under the home's `logs/` was written in the last 30 min and holds `hit your session limit` after its last `== start`; removes `cost/<n>.json`, `stopped/<n>` and `stepup/<n>` markers of cards that left the board (or, for `stepup/`, Coding); applies the machine's `costs` limits through `dashboard_cost.py`; retries `blocked:infra` cards once; unless outside the working hours or under the machine's `disk` floor, runs the pipelines `refine`, `develop`, `validate` and `deploy` in that order; optionally refreshes Staged cards when `deploy.refresh_staged` is true; sweeps stale `tmp/` folders.
+
+**Dependencies:** for the pipelines `develop`, `validate` and `deploy` (never `refine`), before it labels a card or takes a slot, it makes one call per candidate per cycle, `gh api repos/<repo>/issues/<n>/dependencies/blocked_by?per_page=100` (`<repo>` is `project.repo`), through `shipfloor_core/deps.py`. If a dependency is open, or the call fails or does not answer a JSON array, the card is not started: no label, no slot, no failed cycle; the next cycle asks again. A closed dependency (merged or not planned) never blocks. The owner declares one with GitHub's native "Blocked by" relation; text in the issue body is not read. At the end of the cycle it writes `<home>/deps.json` (see the files table).
 
 **Log lines, on stdout** (the dispatcher's own, `dispatch: ...` or `<ISO> dispatch: ...`, translated by the machine's `language`): e.g. `dispatch: outside working hours; runs start again at <hh:mm>`, `dispatch: #<n> reached costs.card_block; blocked`, `<ISO> dispatch: #<n> failed gate <gate> on <from>; the next run is on <to>`. They are free text, read by people only.
 
 **The run's own log** is `logs/<YYYY-MM-DD>-<n>-<stage>.log` of the project's home, with these lines written by the dispatcher (the dashboard reads them with regular expressions in `dashboard.py`: `RUN_LINE` and `STEPUP_LINE`):
 - `== start /sf:<stage> <n> <ISO> pid=<pid>[ model=<m>] weight=<w>`
-- `== end /sf:<stage> <n> exit=<rc> <ISO>`
+- `== end /sf:<stage> <n> exit=<rc> <ISO>[ stopped=<why>] outcome=<ok|fail|usage_limit>` (`stopped=` when the agent ended without doing its stage: `blocked`, `infra`, `owner-only` or `no-report`; `exit` stays 0 then)
 - `== step-up /sf:develop <n> <from> -> <to>: gate <gate> failed <ISO>`
 
 `<ISO>` is `date -Is`. The pid is the run's supervisor process, the one that owns the lock. For the `deploy` stage `exit=` is the exit code of `deploy.sh` after its handover rounds (up to three agent rounds on exit 3).
+
+**Run telemetry** (`shipfloor_core/telemetry.py`): the agent runs with `--output-format stream-json --verbose` and the supervisor reads its stdout. Between `== start` and `== end` the log keeps the text a plain `claude -p` printed (the `result` event's text, else the last assistant text); a stdout line that is not JSON and everything on stderr go to it as they came. Beside it, only when the stream carried JSON:
+- `logs/<YYYY-MM-DD>-<n>-<stage>.events.jsonl`: every event as it arrived, one per line, `{"t": <epoch s, received>, "pid": <supervisor pid>, "event": {...}}`; several runs of a card on one day share the file, told apart by `pid`.
+- `logs/runs.jsonl`: one line per run when it ends: `stage`, `card`, `pid`, `model`, `weight`, `start`, `end` (ISO), `seconds`, `exit`; from the `result` event `result` (subtype), `is_error`, `session_id`, `duration_ms`, `duration_api_ms`, `num_turns`, `cost_usd`, `tokens` (`input`, `output`, `cache_read`, `cache_creation`); `stopped` (why the run did not do its stage, `""` when it did), `tools` (`{<tool>: {"n", "s"}}`, seconds from a `tool_use` to its `tool_result`, as received), `bash` (the same for Bash calls by kind: `gate` for `gate.sh`, `board` for `board.sh`, `gh`, `other`), `unfinished` (tool calls with no result), `events`, `parse_errors`. A run that ended with no `result` has those fields `null`.
+Telemetry never fails a run or holds its lock: a write that fails is dropped.
 
 **Locks:** `locks/<stage>-<n>.lock/` per card and stage, holding `info` (`<pid> <epoch> <n>`), written by `launch`; `step` (`<k><TAB><epoch>`, from `shipfloor-config.sh step`); `last-gate`; `inbox` and `inbox.<agent>`. A lock older than `FACTORY_LOCK_TTL` (default 10800 s) whose pid is gone is removed. `locks/refresh-<n>.lock/` is a `deploy.sh --refresh` and does not count as a run.
 
@@ -158,7 +166,25 @@ A wrapper of `sf.py report`: the logic is `shipfloor_core/report.py` (the commit
 
 ## review-page.sh
 
-**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html>`. No subcommands. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). `FACTORY_PROJECT` is passed through.
+**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html> [--request-file F]` and `review-page.sh --diff <old.md> <new.md>`. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). Beside the page it keeps `<issue>.published.md` (the spec as last built) and `<issue>.read.md` (the previous published spec, once the spec changes); with a `.read.md` the page marks each statement new, changed or untouched against it and quotes the request in `F`. `--diff` prints the JSON entries `{section, status, old, new}` and writes nothing. `FACTORY_PROJECT` is passed through.
+
+## brief.sh
+
+**Interface:** `brief.sh` `build` `<n> --column "Spec Review"|Staged --spec <spec> --head <sha> --notes <file> [--since <json>] [--out <file>]`. A wrapper of `sf.py brief`: the logic is `shipfloor_core/brief.py`. The refine skill runs it before moving a card to Spec Review, the validate skill before moving it to Staged.
+
+**Output:** writes `<reviews>/<n>.brief.json` (or `--out`), atomically; nothing on stdout. The dashboard reads it. Fields:
+- `card`: the issue number. `column`: `Spec Review` or `Staged`. `built`: the UTC time.
+- `verdict`: `routine` or `look`; `look` when `flags` or `since_request` is not empty. Computed by the script.
+- `flags`: a list of `{id, kind, title, detail, hunk, source, suggestion}`, computed by the script from the diff against `origin/<main>`, the spec, the develop `report.json` and the `infra/<n>` marker. The kinds are `migration`, `outside-architecture`, `qa-amended`, `open-question`, `security` and `infra-retry`; `suggestion` is the only text taken from the notes file.
+- `proven`: the gates (`build`, `green ...`) with a recorded pass for `--head`, from `gate-passes/`. Computed by the script.
+- `facts`: `{pr, files, added, removed, statements}` from `git diff --numstat` and `gh pr view`; `statements` is 0 for now. Computed by the script.
+- `since_request`: a list of `{old, new}` pairs. It is an input: the `--since` file (a JSON list) is copied in, and the field is an empty list when `--since` is absent or unreadable. A non-empty `since_request` makes the verdict `look`.
+- `what`: `{text, by}`; `text` is the notes file's `what` (at most 280 characters), `by` is `agent`.
+- `rest`: an empty list, reserved.
+
+**The notes file** (`--notes`, `<tmp>/brief-notes.json`, written by the agent) holds only `what` (a sentence) and `suggestions` (an object from a flag kind to one line, at most 120 characters). Anything else in it is ignored; an absent or unreadable file gives an empty `what` and no suggestions. The agent never writes `verdict`, `flags`, `proven` or `facts`: they come from the script.
+
+**Exit codes:** always 0. Any problem (bad usage, no spec, git failing, an unwritable output) is one `brief: skipped: <reason>` line on stderr and no file: a brief never blocks a card.
 
 ## setup-board.sh
 
@@ -231,6 +257,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). A 
 - `accept` `<slug> <n> <reason>`
 - `weight` `<slug> <n> <weight>`, the weight being `light`, `standard` or `heavy`
 - `dashboard` `[--port N] [--no-open] [--token T]`
+- `demo` `[--no-dashboard] [--keep]`
 
 **Per command:**
 - `install`: copies `scripts/` (not `test/`) and `templates/` into `~/.shipfloor/factory` by rename (so a running script keeps its inode), removes what the plugin no longer ships, writes `.source` (the plugin checkout) and, when it is a git clone, `.origin` (`<commit><TAB><branch|detached><TAB>verified|forced`). Refuses (exit 1, reasons on stderr, `install anyway: shipfloor install --force`) when the clone is not a clean, current `main`, unless `--force`. Prints `installed <src> → <dest>: <n> replaced, <n> added, <n> removed` and a `next:` line on stdout; with `--force` a `WARN installed copy is not a verified <main>: ...` line. Exit 0 when nothing failed.
@@ -242,6 +269,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). A 
 - `accept <slug> <n> <reason>`: owner only. For each file of card `<n>`'s QA commit that changed since, records a line `<file><TAB><blob or own:<hash>|deleted><TAB>#<n><TAB><ISO><TAB><reason>` in the project's `accepted.tsv` and prints `accepted <file> at <12 hex>` or `accepted the deletion of <file>`; `nothing to accept: acceptance-intact already passes for card <n>` when nothing differs. Exit 2 on a usage error, 1 on any other refusal.
 - `weight <slug> <n> <weight>`: owner only. Rewrites the one `**Weight:** <w>` line of the card's spec header, commits it on the card's branch as `docs(<scope>): weight <w> for #<n>` and pushes (reset on a failed push); prints `weight <w>`. Exit 3 when the card is no longer in Spec Review or a run is working on it; 2 on usage; 1 otherwise.
 - `dashboard`: runs `dashboard.py` with `--home`; its first stdout line is `shipfloor dashboard: <url>  (Ctrl+C stops it)`, which the dashboard skill reads and gives back as the one link; the URL carries the machine's token. When it cannot bind, it exits with `shipfloor dashboard: ports <a>-<b> are taken`.
+- `demo`: plays one fake card through refine, develop, validate and deploy on a temporary home (`SHIPFLOOR_HOME` and `HOME` of its processes point there, `FACTORY_GH` at the stand-in `scripts/demo/gh`): the board moves, `gate.sh` red, green and build, git and `report.sh` are real, what the agents write is recorded, and the screen says no LLM ran. Without `--no-dashboard` it serves the dashboard on the temporary home, prints its URL, opens the browser and waits for Enter or Ctrl+C; the temporary home is removed at the end unless `--keep`, which prints its path. Exit 0 when the card reached Done, 1 on an error, 130 on Ctrl+C, 2 on an unknown flag. The caller's `~/.shipfloor` is never read or written.
 
 ## GitHub markers
 
@@ -272,6 +300,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `PAUSE` (here and in `<home>`) | empty file | `shipfloor pause`, the dashboard | `shipfloor-dispatch.sh`, `dispatch.sh`, `run-dispatcher.sh`, `shipfloor_health.py`, `shipfloor_notify.py`, `dashboard.py` |
 | `dispatch.pid` | the cycle's pid | `shipfloor-dispatch.sh` | the same script, to detect an overlap |
 | `dispatcher.path` | a PATH prefix, first line | the installer | `run-dispatcher.sh` |
+| `dispatcher.wake` | the command that asks the scheduler for a cycle now, one argument a line (systemd, launchd; absent on cron and Windows) | the installer | `dispatch.py` (a run that ended, after its lock is gone) |
 | `factory/` | the installed copy of `scripts/` and `templates/`; `factory/.source` the plugin checkout path, `factory/.origin` `<commit><TAB><branch><TAB>verified|forced` | `shipfloor install` | `dispatch.sh` (`.source`), `shipfloor doctor`, `dashboard.py` |
 | `<home>/factory.yml` | the config snapshot of `origin/main` | `shipfloor-dispatch.sh`, `shipfloor add` | every script, through `FACTORY_CONFIG` |
 | `<home>/control/` | worktree of `origin/<main>`, where runs start | `shipfloor add`, the dispatcher | pipelines (cwd) |
@@ -283,23 +312,30 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `<home>/locks/<stage>-<n>.lock/` | directory: `info` (`<pid> <epoch> <n>`), `step` (`<k><TAB><epoch>`), `last-gate` (`<gate><TAB><pass|FAIL|INFRA>`), `inbox`, `inbox.<agent>` | `dispatch.sh`, `shipfloor-config.sh step`, `gate.sh`, the dashboard | `dispatch.sh`, `dashboard.py`, `inbox_hook.py`, `shipfloor weight` |
 | `<home>/locks/deploysh-<n>.lock/` | `info` (`<pid> <epoch>`) | `deploy.sh` | `deploy.sh` |
 | `<home>/locks/refresh-<n>.lock/` | `info` (`<pid> <epoch> <n>`) | `dispatch.sh` | `dispatch.sh` |
+| `<home>/stopped/<n>` | one line per run that stopped and holds: `<epoch><TAB><stage><TAB><owner-only\|no-report><TAB><column it started from>`; two in a row hold the card | `dispatch.py` (the run) | `dispatch.py` (the cycle) |
 | `<home>/stepup/<n>` | `<from model><TAB><to model><TAB><gate>` | `dispatch.sh` | `dispatch.sh`, `dashboard.py` |
 | `<home>/infra/<n>` | `<epoch>`; the retry's marker | `dispatch.sh` | `dispatch.sh` (the run gets `SHIPFLOOR_INFRA_RETRY=1`), `dashboard.py` |
 | `<home>/cost/<n>.json` | the baseline of a cost block | `dashboard_cost.py` | `dashboard_cost.py`, `dispatch.sh` (removes it when the card leaves the board) |
+| `<home>/deps.json` | `{"<n>": {"read": true\|false, "deps": [{"n", "title", "state": "open"\|"closed"}]}}`, per card the cycle examined; `read` false when GitHub did not answer. Written atomically (a temp file, then `os.replace`); entries of cards not examined this cycle are kept while the card is on the board and not Done | `dispatch.py` | `shipfloor_health.py` (a card with an open dependency or `read` false is not counted as waiting), `dashboard.py` (the "Depends on" block and the reason a card waits) |
 | `<home>/tmp/<n>/` | a run's scratch: `fix.round`, `fix.parent`, `fix.findings`, `resolve.parents`, `resolve.files`, `gates.txt`, `merge.txt`, `merge-pr.txt`, `local-ci.txt`, `report.json`, `report.md`, worktrees | the pipelines, `deploy.sh` | the same; removed with the run, and by the dispatcher's sweep |
 | `<home>/gate-passes/<sha1>` | `<ISO><TAB><head><TAB><gate><TAB><arguments>` | `gate.sh` | `gate.sh` |
 | `~/.shipfloor/locks/stack-<k>.lock/` | see `lib/stack.sh` | `lib/stack.sh` | `lib/stack.sh`, `shipfloor pool`, `dashboard.py` |
 | `~/.shipfloor/locks/stack-queue/` | tickets, see `lib/stack.sh` | `lib/stack.sh` | `lib/stack.sh` |
 | `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.log` | the run's output with the `== ` lines | `dispatch.sh` | `dashboard.py` (`RUN_LINE`, `STEPUP_LINE`), `dispatch.sh` and `shipfloor-dispatch.sh` (`hit your session limit` after the last `== start`) |
+| `<home>/logs/<YYYY-MM-DD>-<n>-<stage>.events.jsonl` | the agent's stream-json events, `{"t", "pid", "event"}` per line | `dispatch.sh` (`telemetry.py`) | people, analysis |
+| `<home>/logs/runs.jsonl` | one summary per agent run: duration, API time, turns, cost, tokens, seconds per tool | `dispatch.sh` (`telemetry.py`) | people, analysis |
+| `<home>/logs/board-<YYYY-MM>.jsonl` | `{"t": "<ISO local time with offset>", "cards": {"<n>": "<column>", …}}`, one line per change, the whole board each time | `dispatch.sh` (`board_history.record`) | `dashboard.py` (`GET /api/day/<project>`) |
 | `<home>/logs/<YYYY-MM-DD>-<n>-refresh.log` | the output of `deploy.sh --refresh` | `dispatch.sh` | people |
 | `~/.shipfloor/logs/dispatcher.log` | the scheduler's output | `run-dispatcher.sh` | people |
 | `~/.shipfloor/logs/stacks.log` | `<ISO> reclaimed slot <k> from <owner> <reason>` | `lib/stack.sh` | people |
 | `~/.shipfloor/logs/health-<YYYY-MM>.jsonl` | one JSON object per cycle | `shipfloor_health.py record` | `shipfloor doctor`, `shipfloor_notify.py`, `dashboard.py` |
+| `<reviews>/<n>.brief.json` | the card's brief: `verdict`, `flags`, `proven`, `facts`, `since_request`, `what`, `rest` (see `brief.sh`) | `brief.sh build`, from the refine and validate skills | `dashboard.py` |
 | `<home>/reports-wt/` | worktree of the `factory-reports` branch | `report.sh` | `metrics.sh`, `dashboard.py` |
 | `~/.shipfloor/cost-cache.json`, `notify.json` | caches | `dashboard_cost.py`, `shipfloor_notify.py` | the same |
 
 Readers that parse what the scripts write, which a port must not break:
 - `dashboard.py` reads the `== start`, `== end` and `== step-up` lines (and `hit your session limit`), `board.tsv`, `SKIPPED`, the locks' `info`, `step` and `inbox`, `stepup/`, `infra/`, `cost/`, `board-ids`, the health lines.
+- `dashboard.py` answers `GET /api/day/<project>` (the dashboard's replay, read on every call, nothing cached): `{"date": "<today, YYYY-MM-DD>", "now": "<ISO local time>", "board": [<today's lines of `board-<YYYY-MM>.jsonl`, each `{"t", "cards"}`>], "marks": [{"t", "kind": "ok"|"bad"|"decision", "n", "stage" (runs only), "what": "ended"|"blocked"|"approved-spec"|"approved-pr"|"requested-changes"}]}`, marks in time order; a mark is a finished run of today or a decision the owner took between two board lines.
 - `shipfloor_health.py` keeps its own copy of the stage table (queue column, resumed columns, WIP columns) that `dispatch.sh` encodes in its four `run_pipeline` calls: `refine` takes `Ready for Refinement`, resumes `Technical Refinement`, WIP `Spec Review`; `develop` takes `Ready for Dev`, resumes `Coding`, WIP `Coding` and `Validation`; `validate` takes `Validation`; `deploy` takes `Ready for Prod`. Change one, change the other.
 - `dashboard_cost.py` finds a run's Claude Code transcripts in `<claude dir>/projects/*-projects-<slug>-control` (the directory name Claude derives from the control checkout, which is the run's cwd) and the card from the first user message, which holds `<command-name>/sf:<stage></command-name>` and `<command-args><n></command-args>`: that is how the `/sf:<stage> <n>` the launch writes on stdin appears in a transcript.
 - The skills parse the first stdout line of `shipfloor dashboard`.
@@ -324,13 +360,15 @@ Readers that parse what the scripts write, which a port must not break:
 | `FACTORY_CLEANUP` | `dispatch.sh` | `0` skips killing a run's leftover processes (Windows) |
 | `SHIPFLOOR_MAX_PARALLEL` | `dispatch.sh` | overrides the machine `pool` |
 | `SHIPFLOOR_CYCLE_STALE_MIN`, `SHIPFLOOR_STALE_LOCK_MIN`, `SHIPFLOOR_LOCK_RETRY_S` | `shipfloor-dispatch.sh` | minutes before a `dispatch.pid` or an `index.lock` is stale (30, 10); seconds between lock retries (5) |
-| `FACTORY_POLL`, `FACTORY_POLLS` | `deploy.sh` | seconds between polls (default 30); with `FACTORY_POLL=0`, `FACTORY_POLLS` is the number of polls (default 60) |
+| `FACTORY_POLL`, `FACTORY_POLLS` | `deploy.sh` | seconds between polls (default 10); with `FACTORY_POLL=0`, `FACTORY_POLLS` is the number of polls (default 60) |
 | `SHIPFLOOR_NOW` | `shipfloor_config.py` | the clock (`HH:MM`) the working hours are judged by |
 | `SHIPFLOOR_MACHINE_CONFIG` | `shipfloor_config.py` | the machine config file's path (set by `shipfloor_machine`) |
 | `CLAUDE_CONFIG_DIR` | `dashboard.py`, `dashboard_cost.py`, `shipfloor_health.py` | Claude Code's directory (default `~/.claude`) |
 | `SHIPFLOOR_BASH`, `SHIPFLOOR_SCHEDULER` | `dashboard.py` | the bash it uses to run scripts; the scheduler it asks |
 | `SHIPFLOOR_NOTIFY_SEND` | `shipfloor_notify.py` | a script that sends a notification; it receives channel, title and body |
 | `SNAPSHOT` | `setup-board.sh` | where the board's item-status snapshot goes |
+| `FAKE_GH_FAIL_AT` | `fake-gh`, `fake-gh-deploy` (tests) | `<n>`: the n-th call to the fake (counted in its `fail-count` file) exits 1 with `gh: injected failure`; unset: no effect |
+| `FAKE_GH_FAIL_CMD` | `fake-gh`, `fake-gh-deploy` (tests) | an ERE: every call whose argument line matches it exits 1 with `gh: injected failure`; unset: no effect |
 
 **Test seams** (a test sets these to put a stand-in where the real thing would be): `FACTORY_GH` (the `gh` command: `board.sh`, `deploy.sh`, `dispatch.sh`), `FACTORY_CLAUDE` (`claude`, `dispatch.sh`), `FACTORY_BOARD` (the `board.sh` path: `dispatch.sh`, `deploy.sh`), `FACTORY_DEPLOY` (the `deploy.sh` path: `dispatch.sh`), `SHIPFLOOR_DISPATCH` (the `dispatch.sh` path: `shipfloor-dispatch.sh`), `FACTORY_CURL` (`curl`: `deploy.sh`), `FACTORY_POLL`, `SHIPFLOOR_NOW`, `FACTORY_PYTHON` (the python binary), `FACTORY_BOARD_SNAPSHOT` (a file standing in for the board), `FACTORY_CONTROL_REFRESH=0`, `SHIPFLOOR_HOME` and `FACTORY_CONFIG`. A script with a seam reads it with a default of the real thing; the seam is not a feature of production runs.
 
@@ -340,12 +378,22 @@ Readers that parse what the scripts write, which a port must not break:
 
 1. The lock `locks/<stage>-<n>.lock` is made with `mkdir`; if it exists, nothing starts. `tmp/<n>` is created.
 2. The prompt goes on **stdin**, never as an argument (Git Bash would turn `/develop 54` into a path): `printf '/sf:<stage> <n>'`.
-3. The command, with `env -u FACTORY_BOARD_SNAPSHOT <envs>` before it, is `claude -p --permission-mode acceptEdits --add-dir <worktrees> --add-dir <home>/tmp --add-dir <home>/reviews --setting-sources project,local --strict-mcp-config --plugin-dir <plugin checkout>` then, when the directories exist, `--allowedTools Read(//<scripts dir>/**) Read(//<home>/reports-wt/**)`, then `--disallowedTools PowerShell`, then `--append-system-prompt "This is an unattended factory run. ..."`, and last `--model <model>` when the machine config names one for the stage and the card's weight.
+3. The command, with `env -u FACTORY_BOARD_SNAPSHOT <envs>` before it, is `claude -p --permission-mode acceptEdits --add-dir <worktrees> --add-dir <home>/tmp --add-dir <home>/reviews --setting-sources project,local --strict-mcp-config --plugin-dir <plugin checkout>` then, when the directories exist, `--allowedTools Read(//<scripts dir>/**) Read(//<home>/reports-wt/**)`, then `--disallowedTools PowerShell`, then `--append-system-prompt "This is an unattended factory run. ..."`, then `--model <model>` when the machine config names one for the stage and the card's weight, and last `--output-format stream-json --verbose`, read by the supervisor (see Run telemetry above).
 4. cwd is the project's control checkout, `<home>/control`: a worktree of `origin/main`, never one an agent can edit. Output (stdout and stderr) is appended to the run's log.
 5. The model is that of the stage and the card's weight (`light`, `standard`, `heavy`; `standard` when the spec has no weight). A develop run after a failed gate takes the model one up, from `stepup/<n>`.
 6. After the run: `== end ...` is logged; for `develop` ending 0, a failed gate in `<lock>/last-gate` (`FAIL`, never `INFRA`) writes `stepup/<n>`, removes the label `blocked` and logs `== step-up ...`. The run's stack slots are released, `tmp/<n>` is removed and the lock goes (only when its `info` still names this process).
 
 The skills and agents parse nothing of this; the dashboard parses the `== ` lines and the transcripts.
+
+## The codex exec launch
+
+A stage whose runtime is `codex` (`scripts/runtimes/codex.py`) goes through the same steps as above, with these differences:
+
+- The command is `codex exec -s workspace-write -C <home>/control [-m <model>] --add-dir <worktrees> --add-dir <home>/tmp --add-dir <home>/reviews --skip-git-repo-check --json -o <log>.last -`, with `CODEX_HOME=<the factory's Codex home>` (`SHIPFLOOR_CODEX_HOME`, default `~/.shipfloor/runtimes/codex`) in the environment, plus `SHIPFLOOR_TRAILER=Co-Authored-By: Codex <noreply@openai.com>`. `FACTORY_CODEX` stands in for the `codex` binary in tests.
+- The prompt on **stdin** is `<CODEX_HOME>/sf/<stage>.md` followed by `Card: #<n>`. `shipfloor install` generates that file from `skills/<stage>/SKILL.md`: the frontmatter out, a preface (the headless rules, the owner's messages), `<!-- sf:stage=<stage> -->` first (how a rollout is tied to its stage), and the runtime blocks `<!-- rt:codex -->...<!-- /rt -->` of the sources resolved: the Codex ones kept, another runtime's dropped. The Claude Code plugin reads the same files as they are, where the blocks are HTML comments. The agents are generated as `agents/<name>.toml` (`name`, `description`, `developer_instructions`, and `model` from `runtime.models.agents`), `config.toml` (`approval_policy = "never"`, `workspace-write`, the hook switch) and `hooks.json` (the `PostToolUse` hook, `inbox_hook.py --codex`, which prints the same `additionalContext` as the Claude Code hook and tracks the lead and each subagent by `session_id`).
+- The log keeps the `--json` stream as it comes (it is not Claude's `stream-json`, so no `events` file beside it); when the run ends, the agent's final message (`<log>.last`) is appended to the log.
+- The outcome in `== end` is `usage_limit` when the run's log, apart from the stream's `item.*` events, matches `You've hit your usage limit`, `out of credits`, `hit your spend cap`, `Quota exceeded`, `upgrade to Plus` or `exceeded retry limit, last status: 429` (whatever the exit code); else `ok` on exit 0 and `fail` otherwise.
+- The dashboard reads cost, Sessions and Live from the rollouts under `<CODEX_HOME>/sessions/YYYY/MM/DD` whose `session_meta.cwd` is the project's control checkout (subagents by `parent_thread_id`; `.jsonl.zst` only when `zstd` or `zstandard` is there). The card comes from `Card: #<n>` and the stage from the marker. `input` is `input_tokens` less `cached_input_tokens`, `cache_read` is `cached_input_tokens`, `output` is `output_tokens`.
 
 ## Security invariants
 
@@ -359,6 +407,22 @@ The skills and agents parse nothing of this; the dashboard parses the `== ` line
 - A fork's PR is never deployed. `deploy.sh` merges with `--match-head-commit`.
 - A run reads, and never writes, the factory's scripts and the reports' worktree (`--allowedTools Read(...)`); it does not load the owner's own plugins, MCP servers or memory.
 - PII never goes to a log or a report.
+
+## Failure invariant
+
+After any failure (a `gh` call, a `git` step, a killed run, a full disk), the next cycle repairs the state or the card is labelled `blocked` or `blocked:infra` with a comment saying why. Nothing stays half-done and silent. The checkable form, after a cycle:
+
+- No `locks/*.lock` whose `info` pid is dead and which is older than `FACTORY_LOCK_TTL` survives.
+- No card in a WIP column (`Technical Refinement`, `Coding`, `Validation`) lacks both a live lock and a `blocked*` label.
+- No `*.tmp`, `.*.install-tmp` or `tmp/<n>` is left for a card with no run.
+- `dashboard.py`'s readers load `~/.shipfloor` without an exception.
+
+It is proven by the `scripts/test/chaos-*.test.sh` suites, which fail the n-th `gh` call (`FAKE_GH_FAIL_AT`) or a matching one (`FAKE_GH_FAIL_CMD`) and check the state afterwards with `scripts/test/py/chaos_invariant.py`.
+
+Two decisions that the suites pin:
+
+- A lock younger than the TTL stays live even when its pid is dead (by design: the run may be starting or ending). A live pid past the TTL cannot be told from a reused pid, so it keeps its lock (`dispatch-lock` pins this).
+- `deploy.sh`'s `block` labels the card only once its reason comment landed. If the comment fails, the card stays unlabelled and the next deploy retries, so a `blocked` label never comes without its reason.
 
 ## Known quirks kept on purpose
 

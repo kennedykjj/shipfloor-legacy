@@ -6,7 +6,7 @@ project:
   name: shipfloor
   repo: kennedykjj/shipfloor
 board: {owner: kennedykjj, number: 3}
-context: [PRODUCT.md, DESIGN.md, README.md]
+context: [PRODUCT.md, README.md]   # DESIGN.md (37 KB) is the ux-designer's, read by section; the other agents never needed it
 # acceptance-intact lets through an edit to an acceptance test that adds or removes none of these lines.
 acceptance_assertions: 'assert_|pass "|fail "'
 limits:
@@ -15,14 +15,15 @@ limits:
 layers:
   - name: factory
     path: ./
-    stack: Bash and Python 3 (stdlib + PyYAML); the dashboard is one HTML file, no build; tests print "ok" / "FAIL" lines
+    stack: Python 3.11+ (stdlib + PyYAML) package scripts/shipfloor_core behind thin Bash wrappers; the dashboard is one HTML file, no build; tests print "ok" / "FAIL" lines
     # The tests tied to what the card changed against main (a shared helper runs them all). The whole suite is CI's:
     # it runs on the PR and deploy.required_checks waits for it. Here it took 4 minutes a build; there, one.
     build: TEST_JOBS=4 bash scripts/test/run.sh --changed origin/main
     test: 's={selector}; bash scripts/test/run.sh "${s##*/}"'   # selector: a test file, with or without its path
     ran: '^ +ok '
     assertions: '^ +FAIL '
-    tests: ['scripts/test/*.test.sh']
+    # *.test.sh are the suites run.sh and the gates run; py/*.py are the in-process modules a suite drives (py_suite)
+    tests: ['scripts/test/*.test.sh', 'scripts/test/py/*.py']
 # no stack: nothing here needs a running app yet (a card with the ui label gets no screen check)
 # The deploy merges only with the CI job green on the PR's head, which already contains main. No run on main
 # after the merge: it would repeat that one, and a CI that cannot start (no Actions minutes) reverted good merges.

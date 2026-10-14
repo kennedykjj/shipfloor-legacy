@@ -6,7 +6,10 @@ for v in $(compgen -v FACTORY_; compgen -v SHIPFLOOR_; compgen -v AGHANIM_); do 
 export SHIPFLOOR_GATE_FRESH=1  # the tests call a gate twice on one commit with another fake runner: it must run (gate-reuse.test.sh unsets it)
 # The tests name their branch main. Git for Windows ships init.defaultBranch=main and Linux does not: there a bare
 # remote made by a test pointed at master, and a clone of it checked nothing out.
-export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0=main
+# No background maintenance: a commit can start `git maintenance run --auto` detached, and its .lock files appear
+# and vanish under a test that copies the repo (a template copied per test failed in CI on maintenance.lock).
+export GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0=main \
+  GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false GIT_CONFIG_KEY_2=gc.auto GIT_CONFIG_VALUE_2=0
 FACTORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FAILS=0
 export FACTORY_HOME="${FACTORY_HOME:-$(mktemp -d)}"  # never touch the real ~/.shipfloor
@@ -15,6 +18,12 @@ export FACTORY_CONFIG="${FACTORY_CONFIG:-$FACTORY_DIR/test/fixture/factory.yml}"
 # found once here: a config query runs in a subshell, where what shipfloor_python finds is lost
 export FACTORY_PYTHON="${FACTORY_PYTHON:-$(python3 -c '' >/dev/null 2>&1 && echo python3 || echo python)}"
 export SHIPFLOOR_HOME="${SHIPFLOOR_HOME:-$(mktemp -d)}"  # never touch the real ~/.shipfloor
+# A dispatcher cycle reads each candidate's "Blocked by" issues through gh (#202): a test of the dispatcher with no gh of
+# its own gets the fake one (it answers [] there), never the real gh and its network. Other tests keep their own gh.
+case "$(basename "$0")" in
+  dispatch*)
+    export FACTORY_GH="${FACTORY_GH:-$FACTORY_DIR/test/fake-gh}" FAKE_GH_DIR="${FAKE_GH_DIR:-$(mktemp -d)}" ;;
+esac
 
 # One template repo per test file; new_repo copies it (one process) instead of six git commands.
 REPO_TEMPLATE="$(mktemp -d)"
@@ -67,6 +76,13 @@ run_dispatch() {  # run_dispatch: dispatch.sh ($D), then wait until every run it
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; FAILS=$((FAILS+1)); }
 finish() { [ "$FAILS" -eq 0 ]; }
+py_suite() {  # py_suite <module> [pattern]: run scripts/test/py/<module>.py in process (unittest), counting its FAIL lines
+  local out rc
+  out="$("$FACTORY_PYTHON" -I -B "$FACTORY_DIR/test/py/run.py" "$@" 2>&1)"; rc=$?
+  printf '%s\n' "$out"
+  FAILS=$(( FAILS + $(printf '%s\n' "$out" | grep -c '^  FAIL ') ))
+  [ "$rc" = 0 ] || [ "$FAILS" -gt 0 ] || fail "$1: exited $rc without a FAIL line"
+}
 wait_for() {  # wait_for <what> <command...>: retry the command every 0.1 s until it succeeds; after TEST_WAIT_SECS (default 60) seconds, fail and return 1
   local what="$1" limit=$((SECONDS + ${TEST_WAIT_SECS:-60}))
   shift

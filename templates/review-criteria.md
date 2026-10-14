@@ -34,6 +34,9 @@ Project rules in `CLAUDE.md` also apply; a violation of a CLAUDE.md "never" rule
 ## Tests
 - 🟡 New branch without a test; test that only checks the happy return value and not the observable effect.
 - 🟡 Time-dependent test (sleeps, wall-clock now inside the flow).
+- 🟡 New test file where an existing suite of the same module or feature fits; a test file per acceptance criterion.
+- 🟡 Test that asserts on source text (grepping code, markup or a catalog for a literal) instead of behavior, unless the literal is the contract (CLI usage line, public message).
+- 🟡 Duplicated coverage: a test that repeats what another test already asserts; an end-to-end/CLI test where an in-process call of the module would check the same thing.
 - ⚪ Test that only exercises framework wiring.
 
 ## Frontend

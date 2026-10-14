@@ -7,9 +7,9 @@ exit: 0 done · 3 handed over to an agent (conflicts in <tmp>/resolve.files, or 
       4 sent back (to Coding, or to Staged with a fix the owner has to see) · 5 blocked · 6 failed after merge (reverted)
       2 usage, configuration, transient API error or busy card (safe to retry)
 
-The port of the Bash deploy.sh (#167), kept as scripts/test/fixtures/deploy-bash.sh: one method per Bash function,
-the same processes with the same argv (git, gh, curl, timeout, bash gate.sh, board.sh), the same streams (what Bash
-let through to stderr still goes there), the same messages. test/deploy-differential.test.sh holds the two together.
+The port of the Bash deploy.sh (#167): one method per Bash function, the same processes with the same argv (git, gh,
+curl, timeout, bash gate.sh, board.sh), the same streams (what Bash let through to stderr still goes there), the same
+messages. Tested in process by scripts/test/py/deploy_*.py, and through deploy.sh by scripts/test/deploy-cli.test.sh.
 """
 import os
 import re
@@ -168,7 +168,7 @@ def _env(name):
 
 
 def _bounded(secs, argv, cwd, out):
-    """run_bounded (the old lib/portable.sh, now test/fixtures/portable.sh): the command's exit code, or 124 when it was stopped at its limit.
+    """run_bounded (the old lib/portable.sh): the command's exit code, or 124 when it was stopped at its limit.
     GNU timeout when there is one; otherwise the command's whole process tree is killed at the limit."""
     if shutil.which("timeout"):
         return _run(["timeout", str(secs), *argv], out=out, err=STDOUT, cwd=cwd)[0]
@@ -255,8 +255,9 @@ class Deploy:
 
     def block(self, msg):  # before merging: label, explain, stop
         self.reset_worktree()
-        self.comment("Factory deploy stopped: " + msg)
-        if _run(self.gh("issue", "edit", self.n, "--repo", self.REPO, "--add-label", "blocked"), out=DEVNULL)[0] != 0:
+        if not self.comment("Factory deploy stopped: " + msg):  # never blocked without the reason
+            self.say("not labelling #%s blocked: the reason could not be posted" % self.n)
+        elif _run(self.gh("issue", "edit", self.n, "--repo", self.REPO, "--add-label", "blocked"), out=DEVNULL)[0] != 0:
             self.say("could not label #%s blocked" % self.n)
         self.say("blocked: " + msg)
         raise DeployExit(5)
@@ -317,7 +318,7 @@ class Deploy:
         self.FIX_FILES, self.FIX_LINES = V[11] or "3", V[12] or "40"  # a fix within both ships without a new approval
         self.GATE = os.path.join(SCRIPTS, "gate.sh")
         self.CURL = os.environ.get("FACTORY_CURL") or "curl"
-        self.POLL = _int(os.environ.get("FACTORY_POLL") or "30")
+        self.POLL = _int(os.environ.get("FACTORY_POLL") or "10")
         self.WT = "%s/%s" % (_env("FACTORY_WT_ROOT"), self.n)
         self.TMP = "%s/tmp/%s" % (_env("FACTORY_HOME"), self.n)
         try:
@@ -520,7 +521,7 @@ class Deploy:
         main_sha = _cap(self.g("rev-parse", "origin/" + self.MAIN))[1]
         with open(self.TMP + "/merge.txt", "wb") as f:
             rc = _run(self.g("merge", "--no-ff", "--no-edit", "-m", "Merge origin/%s into %s" % (self.MAIN, self.BRANCH),
-                             "-m", TRAILER, main_sha), out=f, err=STDOUT)[0]
+                             "-m", os.environ.get("SHIPFLOOR_TRAILER") or TRAILER, main_sha), out=f, err=STDOUT)[0]
         if rc == 0:
             return 1
         self.CONFLICTS = _cap(self.g("diff", "--name-only", "--diff-filter=U"))[1]
@@ -620,7 +621,7 @@ class Deploy:
                 moved = True
                 self.say("migration %s renumbered to %s: %s took its version" % (old, new, self.MAIN))
         if moved:
-            _run(self.g("commit", "-qm", "chore(migration): renumber above %s's newest" % self.MAIN, "-m", TRAILER))
+            _run(self.g("commit", "-qm", "chore(migration): renumber above %s's newest" % self.MAIN, "-m", os.environ.get("SHIPFLOOR_TRAILER") or TRAILER))
 
     def qa_commit(self):
         return _cap(["bash", self.GATE, "-C", self.WT, "qa-commit", self.n], err=DEVNULL)[1]
@@ -727,8 +728,14 @@ class Deploy:
         self.say("local CI failed on %s (exit %d)" % (sha, rc))
         return 1
 
-    def wait_checks(self, sha):  # 0 green, 1 red (CI_STATES), 2 timed out
+    def wait_checks(self, sha, pushed):  # 0 green, 1 red (CI_STATES), 2 timed out
+        # pushed: this run pushed sha just now (main merged in, a renumbered migration, a fix). Right after a push
+        # GitHub lists only the workflows registered so far, and a late one (or one chained on another's end) can
+        # appear after the first ones went green: such a head has to be seen green on two polls. A head this run did
+        # not push (the approved head, or a merge of main pushed by an earlier run or by --refresh) has had its
+        # workflows registered long ago: all green on the first poll merges at once, with no poll more and no sleep.
         empty = settle = 0
+        need = 2 if pushed else 1
         states = ""
         for _ in range(self.polls(1800)):
             out = _cap(self.gh("pr", "view", self.PR, "--repo", self.REPO, "--json", "headRefOid,statusCheckRollup",
@@ -753,8 +760,8 @@ class Deploy:
                     for req in self.REQUIRED.split("\n"):
                         if req and (",%s=" % req) not in (",%s," % states):
                             missing += " " + req
-                    settle += 1  # late workflows register after the first ones finish: see green twice
-                    if not missing and settle >= 2:
+                    settle += 1
+                    if not missing and settle >= need:
                         return 0
             self.sleep(self.POLL)
         self.say("checks did not finish (last: %s)" % (states or "none"))
@@ -789,6 +796,7 @@ class Deploy:
                 self.check_resolution()
             merged = True
         sha = ""
+        pushed = False
         for attempt in (1, 2, 3):
             if self.mode != "--continue" or attempt > 1:
                 rc = self.merge_main()
@@ -815,10 +823,11 @@ class Deploy:
             sha = _cap(self.g("rev-parse", "HEAD"))[1]
             if sha != self.HEAD_SHA:
                 self.push_recorded(sha)
+                pushed = True
             if self.mode == "--refresh":
                 self.say("up to date with main")
                 raise DeployExit(0)
-            rc = self.local_ci(sha) if self.LOCAL_CI else self.wait_checks(sha)
+            rc = self.local_ci(sha) if self.LOCAL_CI else self.wait_checks(sha, pushed)
             if rc != 0:
                 if not merged:
                     self.block("CI failed on the PR (%s)" % sha)
@@ -963,7 +972,8 @@ class Deploy:
         if (_run(self.r("fetch", "-q", "origin"))[0] == 0
                 and _run(self.r("worktree", "add", "-q", "--detach", rw, "origin/" + self.MAIN))[0] == 0
                 and _run(rv + ["revert", "--no-commit", self.MERGED])[0] == 0
-                and _run(rv + ["commit", "-qm", "revert: #%s after a failed production deploy" % n, "-m", TRAILER])[0] == 0
+                and _run(rv + ["commit", "-qm", "revert: #%s after a failed production deploy" % n, "-m",
+                                  os.environ.get("SHIPFLOOR_TRAILER") or TRAILER])[0] == 0
                 and _run(rv + ["push", "-q", "origin", "HEAD:refs/heads/revert/%s" % n])[0] == 0):
             rhead = _cap(rv + ["rev-parse", "HEAD"])[1]
             rc, out = _run(self.gh("pr", "create", "--repo", self.REPO, "--base", self.MAIN, "--head", "revert/" + n,

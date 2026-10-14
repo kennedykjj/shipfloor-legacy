@@ -20,7 +20,7 @@ Shipfloor is a software factory: GitHub issues become shipped PRs through agents
 
 ## Positioning
 
-The gates are scripts, not the agents' word; the agents build and the gates hold. Cost is measured from the Claude Code transcripts of every run, not from what an agent reports.
+The gates are scripts, not the agents' word; the agents build and the gates hold. Cost is measured from each runtime's transcripts of every run, not from what an agent reports.
 
 ## Operating Context
 
@@ -29,8 +29,9 @@ The GitHub Project board is the source of truth for card columns; the dashboard 
 ## Capabilities and Constraints
 
 - Columns, in order: Inbox, Ready for Refinement, Technical Refinement, Spec Review, Ready for Dev, Coding, Validation, Staged, Ready for Prod, Done. Stages: refine, develop, validate, deploy.
-- Owner-only actions: approve and request changes on Spec Review and Staged cards; from the maximized Lifecycle, send an Inbox card to refinement, take a card out of Ready for Refinement, send a Ready for Dev card back to refinement with a note, take a card blocked for them back to Ready for Dev, Ready for Refinement or the Inbox, and set the order of Inbox, Ready for Refinement and Ready for Dev (the item's position in the GitHub Project, which the dispatcher follows).
+- Owner-only actions: approve and request changes on Spec Review and Staged cards; from the maximized Lifecycle, send an Inbox card to refinement, take a card out of Ready for Refinement, send a Ready for Dev card back to refinement with a note, take a card blocked for them back to Ready for Dev, Ready for Refinement or the Inbox, and set the order of Inbox, Ready for Refinement and Ready for Dev (the item's position in the GitHub Project, which the dispatcher follows), and approve one more amendment of a card's acceptance tests when QA has used its two.
 - Cost is an estimate from a price table (`~/.shipfloor/prices.yml`), always labeled as such.
+- The owner can set an optional CPU and memory ceiling for the factory in the dashboard's Settings; it is saved in `~/.shipfloor/config.yml` and applied by reinstalling the scheduler (Linux with systemd only).
 - The dashboard stays local (127.0.0.1, no remote access); the one thing that leaves the machine is the optional one-way phone push through ntfy, off until the owner sets a topic and carrying only the project and a card's number, title and state.
 
 ## Brand Commitments
