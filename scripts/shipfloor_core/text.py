@@ -37,3 +37,19 @@ def ere_lines(pattern, text, ignore_case=False):
     """What `grep -E` prints: the lines of the text where the pattern matches, each with its newline ("" for none);
     an invalid pattern raises (grep exit 2)."""
     return _grep(pattern, text, ignore_case, False).stdout.decode("utf-8", "surrogateescape")
+
+
+def read_tab(line, n):
+    """IFS=$'\\t' read -r v1 .. vn: tabs around the line dropped, runs of tabs split, the last name takes the rest."""
+    s = line.strip("\t")
+    out = []
+    for _ in range(n - 1):
+        i = s.find("\t")
+        if i < 0:
+            out.append(s)
+            s = ""
+        else:
+            out.append(s[:i])
+            s = s[i:].lstrip("\t")
+    out.append(s)
+    return out
