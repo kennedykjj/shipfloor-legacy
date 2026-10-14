@@ -74,7 +74,7 @@ check("AC-8 the README cites scripts/fonts/OFL.txt", "scripts/fonts/OFL.txt" in 
 p = os.path.join(root, "scripts/fonts/OFL.txt")
 ofl = open(p, encoding="utf-8", errors="replace").read() if os.path.isfile(p) else ""
 check("AC-8 scripts/fonts/OFL.txt exists", os.path.isfile(p), "scripts/fonts/OFL.txt is missing")
-check("AC-8 OFL.txt is the SIL Open Font License for IBM Plex", bool(ofl) and "SIL OPEN FONT LICENSE Version 1.1" in ofl.upper().replace("\n", " ") and "IBM" in ofl and len(ofl) > 3000, "OFL.txt does not hold the SIL OFL 1.1 text with the IBM copyright")
+check("AC-8 OFL.txt is the SIL Open Font License for IBM Plex", bool(ofl) and "SIL OPEN FONT LICENSE VERSION 1.1" in ofl.upper().replace("\n", " ") and "IBM" in ofl and len(ofl) > 3000, "OFL.txt does not hold the SIL OFL 1.1 text with the IBM copyright")
 print("\n".join(res))
 PY
 )"
