@@ -255,8 +255,9 @@ class Deploy:
 
     def block(self, msg):  # before merging: label, explain, stop
         self.reset_worktree()
-        self.comment("Factory deploy stopped: " + msg)
-        if _run(self.gh("issue", "edit", self.n, "--repo", self.REPO, "--add-label", "blocked"), out=DEVNULL)[0] != 0:
+        if not self.comment("Factory deploy stopped: " + msg):  # never blocked without the reason
+            self.say("not labelling #%s blocked: the reason could not be posted" % self.n)
+        elif _run(self.gh("issue", "edit", self.n, "--repo", self.REPO, "--add-label", "blocked"), out=DEVNULL)[0] != 0:
             self.say("could not label #%s blocked" % self.n)
         self.say("blocked: " + msg)
         raise DeployExit(5)
