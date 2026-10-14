@@ -105,6 +105,9 @@ class Board:
             if not quiet:
                 _msg("board: project %s/%s has no Status field" % (self.owner, self.num))
             return None
+        if re.search(r"\s", pid + fid):  # not ids (a stand-in gh that ignores --jq): never leave them for the dashboard to read
+            self._ids = (pid, fid)
+            return self._ids
         try:
             os.makedirs(os.path.dirname(cache), exist_ok=True)
             with open(cache, "w", encoding="utf-8", newline="\n") as f:
