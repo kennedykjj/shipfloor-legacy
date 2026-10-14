@@ -17,4 +17,14 @@ git commit -qam x; echo '# new' >> scripts/test/b.test.sh
 out="$(ran)"; assert_contains "$out" "== a.test.sh"; assert_contains "$out" "== b.test.sh"
 git checkout -q -- scripts/test/b.test.sh; echo '# changed' >> scripts/test/lib.sh
 assert_contains "$(ran)" "== 2 files"
+# the temp dirs a test makes go with the run, also when the run is killed
+printf '#!/usr/bin/env bash\nd="$(mktemp -d)"; touch "$d/f"; echo "$d" > "%s/made"; echo "  ok   c"\n' "$r" > scripts/test/c.test.sh
+bash scripts/test/run.sh c.test.sh >/dev/null 2>&1
+made="$(cat "$r/made")"; [ -n "$made" ] && [ ! -e "$made" ] && pass "a test's temp dir is gone after the run" || fail "left behind: $made"
+printf '#!/usr/bin/env bash\nd="$(mktemp -d)"; echo "$d" > "%s/made"; sleep 30\n' "$r" > scripts/test/c.test.sh
+bash scripts/test/run.sh c.test.sh >/dev/null 2>&1 & pid=$!
+for _ in $(seq 1 50); do [ -s "$r/made" ] && [ "$(cat "$r/made")" != "$made" ] && break; sleep 0.1; done
+kill -TERM "$pid"; wait "$pid" 2>/dev/null
+made="$(cat "$r/made")"; [ ! -e "$made" ] && pass "a killed run removes its temp dirs" || fail "a killed run left: $made"
+pkill -f "$r/made" 2>/dev/null; true
 finish
