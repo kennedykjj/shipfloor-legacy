@@ -283,4 +283,50 @@ assert_exit 2 bash "$M" nonsense
 [ "$(bash "$M" 2>&1 >/dev/null)" = "$want" ] && pass "AC-8 no command prints the same usage" || fail "AC-8 no command: usage differs"
 [ -z "$(bash "$M" nonsense 2>/dev/null)" ] && pass "AC-8 the usage goes to stderr only" || fail "AC-8 the usage reached stdout"
 case "$out" in *"dashboard [--port"*) fail "AC-8 the usage now lists dashboard (line 11 of the header)" ;; *) pass "AC-8 the usage stops before the dashboard line, as today" ;; esac
+
+# ---- #170 (PY-17): the CLI is shipfloor_core/cli.py behind a Bash wrapper; what it prints, writes and exits with stays
+# AC-1 help prints the same usage as an unknown command, on stderr only, exit 2
+assert_exit 2 bash "$M" help
+[ "$(bash "$M" help 2>&1 >/dev/null)" = "$want" ] && pass "#170 AC-1 help prints the usage" || fail "#170 AC-1 help prints: $(bash "$M" help 2>&1)"
+[ -z "$(bash "$M" help 2>/dev/null)" ] && pass "#170 AC-1 help writes nothing on stdout" || fail "#170 AC-1 help wrote on stdout"
+# the wrapper: the header stays, the code sources lib/py.sh and runs `sf.py cli`, never lib/project.sh
+code="$(grep -vE '^[[:space:]]*(#|$)' "$M")"
+[ "$(printf '%s\n' "$code" | wc -l)" -le 5 ] && pass "#170 scripts/shipfloor is a few lines" || fail "#170 scripts/shipfloor has logic:
+$code"
+case "$code" in *'lib/py.sh'*) pass "#170 scripts/shipfloor sources lib/py.sh" ;; *) fail "#170 scripts/shipfloor does not source lib/py.sh" ;; esac
+case "$code" in *'set -- cli "$@"'*) pass "#170 scripts/shipfloor runs the cli command" ;; *) fail "#170 scripts/shipfloor never runs \`sf.py cli\`" ;; esac
+case "$code" in *'lib/project.sh'*) fail "#170 scripts/shipfloor still sources lib/project.sh" ;; *) pass "#170 scripts/shipfloor does not source lib/project.sh" ;; esac
+[ "$(sed -n '2,10p' "$M" | sed 's/^# \{0,1\}//')" = "$want" ] && pass "#170 the wrapper keeps the header the usage comes from" || fail "#170 the wrapper's header lines 2-10 changed"
+# sf.py knows the cli command
+out="$("$FACTORY_PYTHON" -I "$FACTORY_DIR/sf.py" cli nonsense 2>&1)"; rc=$?
+[ "$rc" = 2 ] && [ "$out" = "$want" ] && pass "#170 sf.py cli prints the usage for an unknown command, exit 2" || fail "#170 sf.py cli nonsense: exit $rc: $out"
+
+# AC-7 the exact lines of add, list, remove and clean, the registry and the accepted.tsv records
+trtop="$(git -C "$tr" rev-parse --show-toplevel)"
+out="$(bash "$M" remove trunky 2>&1)"
+[ "$out" = "removed trunky (logs and reports stay in $SHIPFLOOR_HOME/projects/trunky)" ] && pass "#170 AC-7 remove prints one line" || fail "#170 AC-7 remove printed: $out"
+out="$(bash "$M" add "$tr" --main trunk 2>&1)"
+[ "$out" = "registered trunky ($trtop, worktrees in $SHIPFLOOR_HOME/projects/trunky/wt)" ] && pass "#170 AC-7 add prints one line" || fail "#170 AC-7 add printed: $out"
+[ "$(grep '^trunky	' "$SHIPFLOOR_HOME/registry.tsv")" = "trunky	$trtop	$SHIPFLOOR_HOME/projects/trunky/wt	trunk" ] && [ "$(wc -l < "$SHIPFLOOR_HOME/registry.tsv" | tr -d ' ')" = 2 ] \
+  && pass "#170 AC-7 registry.tsv: one line per project, slug repo worktrees main" || fail "#170 AC-7 registry.tsv: $(cat "$SHIPFLOOR_HOME/registry.tsv")"
+want_list="$(awk -F'\t' 'NF{print $1"\tactive\t"$2"\t"$3}' "$SHIPFLOOR_HOME/registry.tsv")"
+[ "$(bash "$M" list 2>&1)" = "$want_list" ] && pass "#170 AC-7 list: slug, state, repo, worktrees" || fail "#170 AC-7 list printed: $(bash "$M" list 2>&1)"
+bash "$M" pause trunky; bash "$M" pause
+[ "$(bash "$M" list 2>&1)" = "(all paused)
+${want_list/trunky	active/trunky	paused}" ] && pass "#170 AC-7 list with everything paused" || fail "#170 AC-7 list printed: $(bash "$M" list 2>&1)"
+bash "$M" resume; bash "$M" resume trunky
+mkdir -p "$H2/tmp/5/x"
+out="$(bash "$M" clean shop 2>&1)"; rc=$?
+[ "$rc:$out" = "0:removed tmp/5" ] && pass "#170 AC-7 clean prints each folder it removed" || fail "#170 AC-7 clean: exit $rc: $out"
+grep -qE "^api/src/test/NineTest\.kt	[^	]+	#9	[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}	main reworded the setup$" "$H2/accepted.tsv" \
+  && pass "#170 AC-7 accepted.tsv: file, key, #n, date -Is, reason" || fail "#170 AC-7 accepted.tsv: $(cat "$H2/accepted.tsv")"
+grep -qE "^api/src/test/RedStubs\.kt	deleted	#9	[^	]+	stub replaced$" "$H2/accepted.tsv" \
+  && pass "#170 AC-7 accepted.tsv records a deletion with the key deleted" || fail "#170 AC-7 accepted.tsv: $(cat "$H2/accepted.tsv")"
+
+# AC-6 doctor exits 0 when it only warns
+printf '#!/usr/bin/env bash\nexit 0\n' > "$GS/claude"; chmod +x "$GS/claude"; echo false > "$G/protection"; rm -f "$G/protection-fails"
+out="$(dr)"; rc="$(HOME="$dh" PATH="$GS:$SB:$PATH" SF_UNAME=Linux bash "$M" doctor >/dev/null 2>&1; echo $?)"
+case "$out" in *FAIL*) fail "#170 AC-6 doctor has a FAIL line in this setup: $out" ;; *) pass "#170 AC-6 no FAIL line" ;; esac
+assert_contains "$out" "WARN shop: main does not require up-to-date branches"
+[ "$rc" = 0 ] && pass "#170 AC-6 doctor exits 0 with warnings only" || fail "#170 AC-6 doctor exits $rc with warnings only"
 finish
