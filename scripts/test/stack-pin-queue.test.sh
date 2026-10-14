@@ -5,7 +5,9 @@
 source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)"; export TMPDIR="$T"
-trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$T" "${LIBTMP[@]}"' EXIT
+# only this shell cleans up: a subshell that still holds the trap (a lease's heartbeat loop) must not remove $T
+MAINPID=$BASHPID
+trap '[ "$BASHPID" = "$MAINPID" ] || exit 0; kill $(jobs -p) 2>/dev/null; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 GATE="$FACTORY_DIR/gate.sh"
 source "$FACTORY_DIR/lib/project.sh"
 source "$FACTORY_DIR/lib/stack.sh"

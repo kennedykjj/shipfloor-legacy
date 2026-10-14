@@ -5,7 +5,8 @@
 source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)"; export TMPDIR="$T"
-trap 'rm -rf "$T" "${LIBTMP[@]}"' EXIT
+MAINPID=$BASHPID  # only this shell cleans up, never a subshell that holds the trap
+trap '[ "$BASHPID" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 unset SHIPFLOOR_GATE_FRESH   # lib.sh sets it so the other tests keep running the command; this file tests the cache
 GATE="$FACTORY_DIR/gate.sh"
 FIXTURE="$FACTORY_DIR/test/fixture/factory.yml"

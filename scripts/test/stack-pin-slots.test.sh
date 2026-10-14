@@ -5,7 +5,10 @@
 source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)"; export TMPDIR="$T"
-trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$T" "${LIBTMP[@]}"' EXIT
+# only this shell cleans up: a subshell that still holds the trap (the lease's heartbeat loop ends when the test resets
+# the lock, and some bash versions run the inherited EXIT trap there) must not remove $T under the test
+MAINPID=$BASHPID
+trap '[ "$BASHPID" = "$MAINPID" ] || exit 0; kill $(jobs -p) 2>/dev/null; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 source "$FACTORY_DIR/lib/project.sh"
 source "$FACTORY_DIR/lib/stack.sh"
 
