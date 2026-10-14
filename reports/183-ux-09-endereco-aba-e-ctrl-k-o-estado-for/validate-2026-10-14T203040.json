@@ -1,0 +1,1 @@
+{"outcome": "staged", "issue": 183, "pipeline": "validate", "rounds": 0, "failed_gates": [], "gates_reused": ["build", "green factory scripts/test/dashboard-views.test.sh", "green factory scripts/test/notify.test.sh"], "flaky": [], "amendments": [], "agents": []}
