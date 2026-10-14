@@ -30,7 +30,12 @@ def cmd_metrics(args):
     return metrics.main(args)
 
 
-COMMANDS = {"version": cmd_version, "report": cmd_report, "metrics": cmd_metrics}
+def cmd_review_page(args):
+    from shipfloor_core import review_page
+    return review_page.main(args)
+
+
+COMMANDS = {"version": cmd_version, "report": cmd_report, "metrics": cmd_metrics, "review-page": cmd_review_page}
 
 
 def main(argv):
