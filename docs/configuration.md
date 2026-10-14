@@ -11,7 +11,7 @@ pool: 4
 stages: {refine: 2, develop: 2, validate: 2, deploy: 1}
 ```
 
-`shipfloor pool` shows it and the runs in progress; `shipfloor pool set 6` and `shipfloor pool stage validate 3` change it. A project runs one deploy at a time (merges into main are serial); its `limits.<stage>.wip` in `factory.yml` caps the cards waiting in Spec Review (refine, default 2) and in Coding + Validation (develop, default 4).
+`shipfloor pool` shows it and the runs in progress; `shipfloor pool set 6` and `shipfloor pool stage validate 3` change it. A project runs one deploy at a time (merges into main are serial); its `limits.<stage>.wip` in `factory.yml` caps the cards waiting in Spec Review (refine, default 2) and in Coding + Validation (develop, default 4); `0` is no cap (the dispatcher starts cards however many are there, and so does the agent's first step). With the column full and cards waiting, the cycle says so (`dispatch: develop: Coding + Validation is full (limits.develop.wip 4); 2 cards wait`) and starts none.
 
 ## Cost limits
 
@@ -39,6 +39,28 @@ models:
 ```
 
 A model is `opus`, `sonnet`, `haiku` or `fable`. A card's weight (`light`, `standard` or `heavy`) is the `**Weight:**` line Refine writes in its spec header, which the owner can change in Spec Review; a card with no weight line runs as `standard`. A stage, weight or agent left out keeps the model the plugin ships with: refine on Sonnet; develop on Sonnet for light and standard cards and Opus for heavy ones; validate and deploy on Sonnet for every weight; each agent on its frontmatter model. A develop run that ends on a failed gate runs once more one model up (haiku → sonnet → opus; `fable` is not on the ladder), from the next dispatcher cycle; the run's log, the Feed and the card's Sessions tab say so. A bad model, weight or name does not stop the factory: `shipfloor doctor` warns about it, the run uses the shipped model, and the dashboard's Settings section "Agents and models" edits it, with the average cost per card of the last 7 days next to each stage.
+
+## Disk floor
+
+A run that cannot write has nothing to do but stop, and it still pays for its start. The machine config sets how much room the disks a run writes to must have before the dispatcher starts one:
+
+```yaml
+disk: {min_free_gb: 2, min_free_inodes_pct: 10}   # the defaults; 0 turns a check off
+```
+
+Each cycle checks the folder the runs' `TMPDIR` is made in (`<home>/tmp`), the machine's temp folder (`TMPDIR`) and the worktrees' folder, once per filesystem. Under the floor no run starts (the rest of the cycle still runs) and one line says where and how much: `dispatch: /tmp has 0.5 GB free, the floor is 2 GB; no run starts until there is space`. Windows has no inode count, so only the space is checked there; a filesystem that does not count inodes (btrfs) is skipped for that check.
+
+## Runs that stop
+
+An agent can end without doing its stage: it finds a limit, a rate limit or a change only the owner may make, writes a report saying so, and exits 0. The run's `== end` line then carries `stopped=<why>` (and `runs.jsonl` the same field), so these runs are counted apart from the ones that did the work:
+
+| `stopped=` | What the run's report says |
+|---|---|
+| `blocked`, `infra` | outcome `blocked` or `infra` with no round done (the agent stopped at its first steps). The label it puts on the card already holds the card |
+| `owner-only` | `blocked` and its words say the change is the owner's (`owner-only`) |
+| `no-report` | the agent ended well and wrote no report for this run (read only where the project has a `reports-wt`) |
+
+A run that crashed (non-zero exit) or ended on the usage limit is not judged. `owner-only` and `no-report` also leave a mark in `<home>/stopped/<n>` (the stage, the reason and the column the run started from). Two marks in a row hold the card: the dispatcher says `#<n> stopped twice in a row` and does not start it until you move it to another column or delete the mark. A run that did its stage clears the marks, and so does the card leaving the board. `shipfloor_health.py` puts today's counts per project in the health line (`stopped_runs`).
 
 ## Notifications
 

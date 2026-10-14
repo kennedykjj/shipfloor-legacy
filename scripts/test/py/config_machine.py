@@ -152,6 +152,25 @@ class Costs(MachineCase):
         self.assertEqual(self.mach("values", "costs.card_block")[0], 2, "an invalid costs section is never read as a limit")
 
 
+class Disk(MachineCase):
+    """disk: the floor under which the dispatcher starts no run (min_free_gb 2, min_free_inodes_pct 10 by default)."""
+
+    def test_read(self):
+        "the defaults read back; a file's values win; 0 is allowed (that check is off)"
+        self.assertEqual(self.values("disk.min_free_gb", "disk.min_free_inodes_pct", sep="|"), "2|10|")
+        self.good("disk: {min_free_gb: 5.5, min_free_inodes_pct: 0}")
+        self.assertEqual(self.values("disk.min_free_gb", "disk.min_free_inodes_pct", sep="|"), "5.5|0|")
+
+    def test_refused(self):
+        "a negative or non-number floor, inodes above 100, an unknown key or a disk that is no mapping is refused"
+        self.bad("disk: {min_free_gb: -1}", "disk.min_free_gb must be a number from 0")
+        self.bad("disk: {min_free_gb: lots}", "disk.min_free_gb must be a number from 0")
+        self.bad("disk: {min_free_inodes_pct: 101}", "disk.min_free_inodes_pct must be a number from 0 to 100")
+        self.bad("disk: {min_free_gb: true}", "disk.min_free_gb must be a number from 0")
+        self.bad("disk: {free: 1}", "disk.free: unknown key (use min_free_gb, min_free_inodes_pct)")
+        self.bad("disk: 5", "disk must be a mapping of min_free_gb, min_free_inodes_pct")
+
+
 class Limits(MachineCase):
     """limits: the dispatcher's optional memory and CPU ceilings; `machine limits` prints the systemd lines."""
 
