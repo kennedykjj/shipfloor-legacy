@@ -390,9 +390,10 @@ def _rm(path):
 
 
 class _Held:
-    """What an interrupted command gives back: its ticket, the slot it leased."""
+    """What an interrupted command gives back: its ticket, the slot it leased (k: the slot it got, kept after)."""
     ticket = None
     slot = None
+    k = None
 
 
 def lease(s, owner, held=None):
@@ -436,7 +437,7 @@ def lease(s, owner, held=None):
                     os.mkdir(d)
                 except OSError:
                     continue
-                held.slot = k
+                held.slot = held.k = k
                 if s.SOLO != "-":
                     _write(os.path.join(d, "solo"), s.SOLO + "\n")
                 _write(os.path.join(d, "info"), "%s %s %d\n" % (owner, os.environ.get("SHIPFLOOR_RUN_LOCK") or "-",
