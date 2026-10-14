@@ -1,0 +1,7 @@
+{"issue": 182, "slug": "ux-08-a-area-de-trabalho-uma-coisa-por-v", "pipeline": "validate", "started_at": "2026-10-14T19:00:00-03:00", "finished_at": "2026-10-14T19:50:00-03:00", "outcome": "ok",
+ "agents": [{"role": "engineer", "tokens": 172243, "duration_s": 536}, {"role": "qa-engineer", "tokens": 27828, "duration_s": 54}],
+ "rounds": {"2": 2},
+ "gates_failed": ["build (hygiene: teto de 52 arquivos de teste e marcador suite, depois do merge com a main)"],
+ "flaky": [], "gates_reused": [], "manual_edit": false,
+ "amendments": ["scripts/test/dashboard-quick.test.sh, dashboard-work-area.test.sh, dashboard-work-keys.test.sh e design-doc.test.sh dobrados em dashboard-views.test.sh (teto de arquivos; nenhuma asserção mudou)"],
+ "pr": 268}
