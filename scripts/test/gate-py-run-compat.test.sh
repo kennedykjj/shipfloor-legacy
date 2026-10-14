@@ -27,7 +27,8 @@ done
 # ---- gate.sh still uses it; dispatch.sh is a wrapper over dispatch.py since #168, which calls stack.py itself
 grep -q 'release_run' "$FACTORY_DIR/shipfloor_core/dispatch.py" \
   && pass "AC-8 dispatch.py releases a run's slot through stack.py (#168: dispatch.sh no longer sources lib/stack.sh)" || fail "AC-8 dispatch.py does not release a run's slot through stack.py"
-grep -q 'source "$HERE/lib/stack.sh"' "$FACTORY_DIR/gate.sh" && pass "AC-8 gate.sh still sources lib/stack.sh" || fail "AC-8 gate.sh no longer sources lib/stack.sh"
+# since #165 gate.sh is a wrapper and its build/red/green/stack Bash lives in lib/gate-run.sh, which sources the shim
+grep -q 'source "$HERE/lib/stack.sh"' "$FACTORY_DIR/lib/gate-run.sh" && pass "AC-8 the gate's Bash half (lib/gate-run.sh) still sources lib/stack.sh" || fail "AC-8 lib/gate-run.sh no longer sources lib/stack.sh"
 
 # ---- stack_settings sets the variables its callers read; stack_release_run releases the run's slot through them
 printf 'stacks: 2\nports: {base: 26300, span: 10}\nstack_wait: 4\nstack_stale: 90\nstack_hold_max: 2700\n' > "$SHIPFLOOR_HOME/config.yml"
