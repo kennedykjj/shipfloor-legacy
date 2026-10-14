@@ -193,6 +193,17 @@ Sourced after `lib/project.sh`, with a resolved project; the one place stack-slo
 - `stack_up <owner>` exports `SHIPFLOOR_SLOT`, `SHIPFLOOR_STACK` (`shipfloor-<project>-<k>`), `SHIPFLOOR_PORT_<NAME>` (`ports.base + k * ports.span + i`) and `SHIPFLOOR_STACK_URL`, runs `stack.up`, waits for `stack.health` up to `stack.timeout` s (a body matching `stack.reject` is unhealthy), and prints the URL on stdout; failure returns 3 (`stack: up failed:` or `stack: not healthy after <n>s at <url>`).
 - `stack_down <owner>` does nothing when the owner holds no slot. `stack_status` prints `<k><TAB><free|busy|stuck><TAB><owner|-><TAB><held seconds><TAB><reason>` per slot, then `queue<TAB><n>`.
 
+## lib/portable.sh
+
+Sourced, never run; defines functions only, for the tools that differ between GNU (Linux) and BSD (macOS) userlands. `deploy.sh` sources it directly and `dispatch.sh` gets it through `lib/stack.sh`.
+
+**Interface:** no subcommands; the functions are `mtime`, `run_bounded` and the internal `_kill_tree`.
+
+**Contracts:**
+- `mtime <path>` prints the modification time in epoch seconds; it tries `stat -c %Y`, `stat -f %m`, `date -r` and `python3`, in that order, and fails when the path cannot be read.
+- `run_bounded <seconds> <command...>` returns the command's exit code, or 124 when it was stopped at its limit. It uses `timeout` when present; otherwise it runs the command in the background with a watcher that, at the limit, kills the command's process tree.
+- `_kill_tree <pid>` kills the process and all its descendants (found with `pgrep -P`), children first.
+
 ## shipfloor
 
 The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). Run with no argument or an unknown one it prints the header lines 2 to 10 of its own source on stderr and exits 2; the `dashboard` line (line 11) is not among them. Errors are `shipfloor: <message>` on stderr; `die` exits 1 unless it says otherwise.
