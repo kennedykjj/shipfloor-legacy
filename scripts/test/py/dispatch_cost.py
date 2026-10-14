@@ -268,6 +268,25 @@ class Estimate(Base):
         self.assertEqual((round(m["baseline"], 2), round(m["total"], 2), round(sum(m["stages"].values()), 2)),
                          (41.0, 82.0, 41.0))
 
+    def test_AC4_old_cost_cache_is_discarded(self):
+        "AC-4 a cost-cache.json from before the runtime contract (no version) is reread, never trusted and never an error; the new one says version 2"
+        self.costs("card_block: 40")
+        self.tx("s1", 77, "develop", 41)
+        path = os.path.join(self.claude_dir, "projects", "C--x--shipfloor-projects-shop-control", "s1.jsonl")
+        self.assertEqual(self.limits(), "block\t77\n")
+        parsed = dashboard_cost.parse_transcript(dashboard_cost.Path(path))
+        st = os.stat(path)
+        stale = {"stage": parsed["stage"], "issue": parsed["issue"], "start": parsed["start"],
+                 "tokens": {m: dict.fromkeys(dashboard_cost.TOKEN_KINDS, 0) for m in parsed["tokens"]}}
+        cache = os.path.join(self.shome, "cost-cache.json")
+        with open(cache, "w") as f:  # what the old code wrote: {path: [size, mtime_ns, parsed]}, no version
+            json.dump({path: [st.st_size, st.st_mtime_ns, stale]}, f)
+        self.assertEqual(self.limits(), "block\t77\n", "the stale entry is not believed")
+        self.assertEqual(json.load(open(cache)).get("version"), 2)
+        with open(cache, "w") as f:
+            f.write("not json at all")
+        self.assertEqual(self.limits(), "block\t77\n")
+
     def test_day_stop(self):
         "day_stop is today's estimate across every project (>=), and a new local day starts again"
         self.costs("day_stop: 80")

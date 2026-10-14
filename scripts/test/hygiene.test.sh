@@ -20,8 +20,8 @@ stale="$(cd "$root" && grep -rIniE 'mylos|aghanim' skills agents scripts templat
 $stale"
 # AC-7: the old names stay only as the dashboard's old-log readers: a "legacy aghanim" / "legacy mylos" marker
 # is accepted in scripts/dashboard.py and scripts/dashboard_cost.py and nowhere else
-marked="$(cd "$root" && grep -rIniE 'legacy (aghanim|mylos)' skills agents scripts templates installer examples README.md docs/install.md .claude-plugin .gitattributes 2>/dev/null | grep -v '^scripts/test/' | grep -vE '^scripts/(dashboard|dashboard_cost)\.py:' || true)"
-[ -z "$marked" ] && pass "AC-7 legacy markers only in the dashboard's old-log readers" || fail "AC-7 legacy marker outside scripts/dashboard.py and scripts/dashboard_cost.py:
+marked="$(cd "$root" && grep -rIniE 'legacy (aghanim|mylos)' skills agents scripts templates installer examples README.md docs/install.md .claude-plugin .gitattributes 2>/dev/null | grep -v '^scripts/test/' | grep -vE '^scripts/((dashboard|dashboard_cost)\.py|runtimes/[^:]*\.py):' || true)"
+[ -z "$marked" ] && pass "AC-7 legacy markers only in the old-log readers" || fail "AC-7 legacy marker outside scripts/dashboard.py, scripts/dashboard_cost.py and scripts/runtimes/:
 $marked"
 for f in scripts/dashboard.py scripts/dashboard_cost.py; do
   grep -qE 'legacy (aghanim|mylos)' "$root/$f" && pass "AC-7 $f keeps its old-log reader" || fail "AC-7 $f lost its legacy marker"
