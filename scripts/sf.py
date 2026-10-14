@@ -45,6 +45,11 @@ def cmd_review_page(args):
     return review_page.main(args)
 
 
+def cmd_brief(args):
+    from shipfloor_core import brief
+    return brief.main(args)
+
+
 def cmd_cli(args):
     from shipfloor_core import cli
     return cli.main(args)
@@ -77,7 +82,8 @@ def cmd_stack(args):
 
 COMMANDS = {"version": cmd_version, "board": cmd_board, "setup-board": cmd_setup_board, "report": cmd_report,
             "metrics": cmd_metrics, "review-page": cmd_review_page, "cli": cmd_cli, "deploy": cmd_deploy,
-            "dispatch": cmd_dispatch, "cycle": cmd_cycle, "cycle-project": cmd_cycle_project, "stack": cmd_stack}
+            "dispatch": cmd_dispatch, "cycle": cmd_cycle, "cycle-project": cmd_cycle_project, "stack": cmd_stack,
+            "brief": cmd_brief}
 
 
 def main(argv):
