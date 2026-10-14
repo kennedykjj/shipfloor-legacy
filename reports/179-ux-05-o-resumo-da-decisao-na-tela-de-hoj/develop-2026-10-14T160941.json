@@ -1,0 +1,15 @@
+{
+  "issue": 179,
+  "pipeline": "develop",
+  "outcome": "ok",
+  "resumed": true,
+  "reason": "sent back by deploy: 13 files conflicted with main (limit 5)",
+  "agents": [{"name": "engineer", "task": "merge origin/main and resolve conflicts", "tokens": 30507, "duration_ms": 100100}],
+  "rounds": 0,
+  "failed_gates": [],
+  "gates": ["qa-commit", "acceptance-intact", "forbidden", "migration", "build"],
+  "gates_reused": ["green factory scripts/test/dashboard-brief.test.sh", "green factory scripts/test/dashboard-catalog.test.sh"],
+  "amendments": [],
+  "flaky": [],
+  "head": "48edbb4c171e"
+}
