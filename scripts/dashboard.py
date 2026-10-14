@@ -37,6 +37,12 @@ ACCEPTANCE_DIFF = """qa="$(bash "$1" -C "$2" qa-commit "$3" 2>/dev/null)"; [ -n 
 mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
 [ "${#files[@]}" -gt 0 ] && git -C "$2" -c core.quotePath=false diff --no-color -U1 "$qa" HEAD -- "${files[@]}"
 """
+# The acceptance test files of the newest QA commit as they changed against the QA commit before it (what qa-amend counts).
+AMEND_DIFF = """qa="$(bash "$1" -C "$2" qa-commit "$3" 2>/dev/null)"; [ -n "$qa" ] || exit 0
+prev="$(git -C "$2" log --format=%H -1 -E --grep "acceptance tests for #$3([^0-9]|\\$)" "$qa^" 2>/dev/null)"; [ -n "$prev" ] || exit 0
+mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --format= --diff-filter=d "$qa")
+[ "${#files[@]}" -gt 0 ] && git -C "$2" -c core.quotePath=false diff --no-color -U1 "$prev" "$qa" -- "${files[@]}"
+"""
 COST_BLOCK = "Cost limit: blocked."  # how the dispatcher opens the note of a block by cost
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
@@ -625,6 +631,10 @@ class Factory:
         why, _, tried = text.partition("Tried:")
         intact = re.search(r"acceptance-intact\W{0,4}(?:gate\W+)?fail|fail\w*[^.\n]{0,60}acceptance-intact", reason, re.I)
         gate = "acceptance-intact" if intact or any("acceptance-intact" in str(r["failed_gates"]) for r in blocked[-1:]) else ""
+        if "qa-amend" in reason and "the owner decides now" in reason:  # the extra amendment is the owner's call (#204)
+            return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
+                    "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": "qa-amend",
+                    "diff": self.acceptance_diff(p, n, AMEND_DIFF, "amend"), "approved": self.amend_ok(p, n)}
         return {"kind": "stage", "stage": stage, "step": step, "steps": [{"k": k, "label": v} for k, v in sorted(STEPS.get(stage, {}).items())],
                 "why": why.strip(), "tried": tried.strip(), "times": len(blocked), "gate": gate,
                 "diff": self.acceptance_diff(p, n) if gate else ""}
@@ -637,19 +647,39 @@ class Factory:
         return {"block_line": "" if mark else self.block_line(p, n),
                 "block_cost": {k: mark[k] for k in ("total", "limit", "baseline")} if mark else None}
 
-    def acceptance_diff(self, p, n):
-        at, diff = self._diffs.get((p, n), (0, ""))
+    def amend_ok(self, p, n):
+        """Whether the issue already carries qa-amend-ok (added by hand): then the note keeps Unblock & retry."""
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
+        issue, _ = gh_json("api", f"repos/{repo}/issues/{n}")
+        return any(isinstance(l, dict) and l.get("name") == "qa-amend-ok" for l in (issue or {}).get("labels") or [])
+
+    def approve_amend(self, p, n):
+        """The owner allows one more amendment of the card's acceptance tests: the label qa-amend-ok, then the block comes off.
+        A label that cannot be written leaves the card blocked."""
+        locked, err = self.lock(p, n)
+        if err:
+            return 502, {"error": err}
+        if locked != "blocked":
+            return 409, {"error": LOCKED[locked] if locked else "it is not blocked now", "locked": locked}
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
+        r = gh("api", f"repos/{repo}/issues/{n}/labels", "-f", "labels[]=qa-amend-ok")
+        if r.returncode != 0:
+            return 502, {"error": r.stderr.strip() or "gh could not add the label"}
+        return self.unblock(p, n)
+
+    def acceptance_diff(self, p, n, script=ACCEPTANCE_DIFF, kind=""):
+        at, diff = self._diffs.get((p, n, kind) if kind else (p, n), (0, ""))
         if time.time() - at > 60:
             wt = next((c[2] for c in (l.split("\t") for l in (self.home / "registry.tsv").read_text(encoding="utf-8").splitlines())
                        if c[0] == p and len(c) > 2), "")
             env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
             try:
-                r = subprocess.run([bash(), "-c", ACCEPTANCE_DIFF, "diff", (HERE / "gate.sh").as_posix(), f"{wt}/{n}", str(n)],
+                r = subprocess.run([bash(), "-c", script, "diff", (HERE / "gate.sh").as_posix(), f"{wt}/{n}", str(n)],
                                    env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
                 diff = r.stdout[:8000] if r.returncode == 0 else ""
             except (OSError, subprocess.TimeoutExpired):
                 diff = ""
-            self._diffs[(p, n)] = (time.time(), diff)
+            self._diffs[(p, n, kind) if kind else (p, n)] = (time.time(), diff)
         return diff
 
     def pull(self, p, number):
@@ -1749,7 +1779,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send(500, {"error": f"{type(e).__name__}: {e}"})
         if not (len(parts) == 5 and parts[:2] == ["api", "card"] and parts[2] in self.factory.projects()
-                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "take-back", "unblock", "message", "accept", "send-back", "weight")):
+                and number(parts[3]) and parts[4] in ("approve", "request-changes", "move", "reorder", "comment", "take-back", "unblock", "message", "accept", "send-back", "weight", "approve-amend")):
             return self.send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -1763,6 +1793,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(*fn(parts[2], int(parts[3]), str(body.get("text", ""))))
             if parts[4] == "unblock":
                 return self.send(*self.factory.unblock(parts[2], int(parts[3])))
+            if parts[4] == "approve-amend":
+                return self.send(*self.factory.approve_amend(parts[2], int(parts[3])))
             if parts[4] == "weight":
                 return self.send(*self.factory.set_weight(parts[2], int(parts[3]), body.get("weight")))
             if parts[4] == "move":

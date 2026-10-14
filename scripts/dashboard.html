@@ -355,6 +355,11 @@ h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: .02em; font-wei
 .block-note .md ul, .lv.md ul { margin: 4px 0; padding-left: 18px; } .block-note .md li, .lv.md li { margin: 2px 0; }
 .block-note .md pre, .lv.md pre { margin: 4px 0; padding: 6px 8px; background: var(--ground); border-radius: 4px; font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
 .block-note code { font: 12px var(--mono); }
+.block-note .button-approve { background: var(--text); color: var(--ground); border-color: var(--text); border-radius: 6px; }
+.block-note .button-approve[disabled] { cursor: progress; opacity: .7; }
+.block-note .adiff { margin: 0; max-height: 16em; overflow: auto; white-space: pre; }
+.block-note .adiff .p { color: var(--ok); } .block-note .adiff .m { color: var(--bad); } .block-note .adiff .h { color: var(--muted); }
+.block-note .bn-ok { grid-column: 1 / -1; color: var(--ok); }
 .block-note .bn-err { grid-column: 1 / -1; color: var(--bad); }
 .block-note .bn-err:empty { display: none; }
 @media (prefers-reduced-motion: reduce) {
@@ -1426,6 +1431,7 @@ async function loadDecide(key) {
   const { status, body } = await api(`/api/decide/${encodeURIComponent(p)}/${n}`); INB.loading = null;
   INB.data[key] = status === 200 ? { ...body, at: Date.now() } : { at: Date.now() };
   if (inboxOn()) renderInbox();
+  if (S.open === key && S.card) renderDrawer();  // the block note of an open card waits for the reading
 }
 function renderInbox() {
   const w = inboxCards();
@@ -1870,13 +1876,22 @@ function blockNote(c) {
   const decide = plain(line(/must decide|owner must|needs? you to/i)).replace(/^[^:]*(must decide|owner must|needs? you to)[^:]*:\s*/i, "");
   const gate = (src.match(/failed gates?:\**\s*([^.\n]+)/i) || [])[1] || "";
   const infra = c.blocked === "infra";
+  // qa-amend with "the owner decides now": the extra amendment is the owner's call, with the diff in front of them
+  const amend = !infra && /qa-amend/.test(src) && /the owner decides now/.test(src);
+  const key = `${c.project}/${c.issue}`, d = INB.data[key];
+  if (amend && !d && INB.loading !== key) loadDecide(key);
+  const ab = amend && d?.block?.gate === "qa-amend" ? d.block : null, approve = amend && !ab?.approved;
+  const diffBody = !d ? `<span class="muted">${t("amend.reading")}</span>` : ab?.diff ? `<pre class="adiff">${amendDiff(ab.diff)}</pre>` : `<span class="muted">${t("amend.nodiff")}</span>`;
   return `<div class="block-note ${esc(c.blocked)}"><div class="bn-k"><b>${t("q.blocked")}</b> · ${t(infra ? "block.infra" : "block.owner")}</div>
     ${decide ? `<p class="bn-lead">${inline(decide.charAt(0).toUpperCase() + decide.slice(1))}</p>` : ""}
     ${gate ? `<p class="bn-gate">${t("pass.failed_gate", { gate: inline(gate.trim()) })}</p>` : ""}
-    <button class="btn" data-unblock>${t("act.unblock")}</button>
+    ${approve ? `<button class="btn button-approve" data-approve-amend${S.amending === key ? " disabled" : ""}>${t("amend.approve")}</button>` : `<button class="btn" data-unblock>${t("act.unblock")}</button>`}
+    ${amend ? `<details open><summary>${t("amend.diff")}</summary><div class="md">${diffBody}</div></details>` : ""}
     ${src ? `<details><summary>${t("block.report")}</summary><div class="md">${mdLite(src)}</div></details>` : ""}
     <div class="bn-err" id="bn-err" role="status"></div></div>`;
 }
+// the diff as git prints it, a line a row; the +/- prefix stays, the color only helps
+const amendDiff = (src) => src.split("\n").map((l) => `<span class="${l[0] === "+" && !l.startsWith("+++") ? "p" : l[0] === "-" && !l.startsWith("---") ? "m" : l.startsWith("@@") ? "h" : ""}">${esc(l)}</span>`).join("\n");
 const inline = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
 // enough markdown for the factory's reports: headings, bullets (with continuation lines), code fences
 function mdLite(src) {
@@ -2428,6 +2443,22 @@ function renderFeed() {
 }
 
 let tailing = false;
+async function approveAmend() {
+  const key = S.open, [p, n] = key.split("/");
+  S.amending = key; renderDrawer();
+  const btn = document.querySelector("[data-approve-amend]"); if (btn) btn.style.cursor = "progress";
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/approve-amend`, { method: "POST", body: "{}" });
+  S.amending = null;
+  if (status !== 200) {
+    renderDrawer();
+    if ($("bn-err")) $("bn-err").textContent = t("amend.failed", { reason: body?.error || String(status) });
+    return;
+  }
+  delete INB.data[key];
+  const note = document.querySelector(".block-note");
+  if (note) note.innerHTML = `<div class="bn-ok" role="status">${t("amend.done")}</div>`;
+  loadOverview();
+}
 async function unblock() {
   const [p, n] = S.open.split("/");
   const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/unblock`, { method: "POST", body: "{}" });
@@ -2470,7 +2501,7 @@ document.addEventListener("toggle", (e) => { if (e.target.matches?.("details[dat
 document.addEventListener("click", (e) => {
   if (S.peek && !e.target.closest(".dot") && (!e.target.closest("#peek") || e.target.closest("[data-full],[data-open]"))) peek(S.peek);  // a click elsewhere, or on one of its buttons, closes the peek
   if (L.hold && L.hold.via !== "drag" && !e.target.closest("[data-acc],[data-rord],[data-mv],#lstat")) { const onChip = e.target.closest("#lanes .chip"); letGo(); if (onChip) return; }  // a tap elsewhere lets go
-  const t = e.target.closest("[data-hp],[data-hstep],[data-hnow],[data-hday],[data-hmore],[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],tr.session");
+  const t = e.target.closest("[data-hp],[data-hstep],[data-hnow],[data-hday],[data-hmore],[data-mv],[data-acc],[data-rord],[data-lt],#mgo,#mcancel,[data-resume],[data-step],[data-show],[data-theme-pick],[data-setsec],[data-fold],[data-set],[data-iq],[data-io],#igo,#iundo,[data-max],[data-dmax],[data-full],[data-feed],[data-peek],[data-q],[data-open],[data-close],[data-tab],[data-view],[data-sub],[data-act],[data-retry],#fill,[data-unblock],[data-approve-amend],tr.session");
   if (!t || e.target.closest("a[href]")) return;  // a link to GitHub is just a link
   if (t.dataset.hp) { if (t.dataset.hp === "custom") { H.custom = true; renderTelem(project()); $("hfrom")?.focus(); } else histSet({ days: +t.dataset.hp }); }
   else if (t.dataset.hstep) { if (t.getAttribute("aria-disabled") !== "true") histStep(t.dataset.hstep === "prev" ? -1 : 1); }
@@ -2516,6 +2547,7 @@ document.addEventListener("click", (e) => {
   else if (t.dataset.act) act(t.dataset.act);
   else if (t.dataset.retry) act(t.dataset.retry, true);
   else if (t.hasAttribute("data-unblock")) unblock();
+  else if (t.hasAttribute("data-approve-amend")) approveAmend();
   else if (t.id === "fill") { const r = S.review[S.open]; $("changes").value = r.changes.join("\n"); syncDecide(); $("changes").focus(); }
   else if (t.matches("tr.session") && t.dataset.log) { S.log = t.dataset.log; S.logNext = -1; S.logText = ""; selectTab("log"); }
 });
