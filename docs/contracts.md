@@ -152,7 +152,7 @@ The `PostToolUse` hook of a factory run (`hooks/hooks.json`).
 
 ## review-page.sh
 
-**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html>`. No subcommands. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). `FACTORY_PROJECT` is passed through.
+**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html> [--request-file F]` and `review-page.sh --diff <old.md> <new.md>`. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). Beside the page it keeps `<issue>.published.md` (the spec as last built) and `<issue>.read.md` (the previous published spec, once the spec changes); with a `.read.md` the page marks each statement new, changed or untouched against it and quotes the request in `F`. `--diff` prints the JSON entries `{section, status, old, new}` and writes nothing. `FACTORY_PROJECT` is passed through.
 
 ## setup-board.sh
 

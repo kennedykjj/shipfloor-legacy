@@ -753,6 +753,12 @@
     "hist.cards": "Karten des Zeitraums, nach gesch. Kosten",
     "th.column": "Spalte",
     "th.runs": "Läufe",
-    "hist.th.cost": "Eingang bis jetzt"
+    "hist.th.cost": "Eingang bis jetzt",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

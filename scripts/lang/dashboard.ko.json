@@ -753,6 +753,12 @@
     "hist.cards": "기간 내 카드(추정 비용순)",
     "th.column": "열",
     "th.runs": "실행",
-    "hist.th.cost": "인박스→현재"
+    "hist.th.cost": "인박스→현재",
+    "rv.new": "New",
+    "rv.changed": "Changed",
+    "rv.removed": "Removed",
+    "rv.before": "Before",
+    "rv.request": "Your request",
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
   }
 }

@@ -84,6 +84,12 @@ addEventListener("load",function(){
  send();new MutationObserver(send).observe(document.body,{subtree:true,childList:true,characterData:true});
  document.addEventListener("input",send)});
 </script>"""
+# The labels a returned card's review page shows (#177), with their English text: the embedded page gets them in the
+# machine's language with the theme (labels_block); the standalone page carries the English ones itself.
+RV_LABELS = (shipfloor_config.Msg("rv.new", "New"), shipfloor_config.Msg("rv.changed", "Changed"),
+             shipfloor_config.Msg("rv.removed", "Removed"), shipfloor_config.Msg("rv.before", "Before"),
+             shipfloor_config.Msg("rv.request", "Your request"),
+             shipfloor_config.Msg("rv.since", "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"))
 # The moves the owner makes from the dashboard, M1 to M7 of #125: from -> [(to, a note is required)]. Nothing else moves
 # a card from here. In Spec Review and Staged the move without a note is Approve, the one with a note Request changes.
 OWNER_MOVES = {"Inbox": [("Ready for Refinement", False)],
@@ -286,6 +292,15 @@ class Factory:
             pass
         j = json.dumps({"rev": rev, "marks": marks}).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
         return f"<script>window.__shipfloorMarks={j}</script>"
+
+    def labels_block(self):
+        """The <script> that hands the embedded page the labels of a returned card (RV_LABELS) in the machine's language,
+        English where its catalog lacks one: the page is sandboxed and cannot read the dashboard's catalogs itself."""
+        lang = self.lang()
+        messages = {m.key: lang["messages"].get(m.key) or lang["en"].get(m.key) or str(m) for m in RV_LABELS}
+        j = json.dumps({"language": lang["language"], "messages": messages}, ensure_ascii=False)
+        j = j.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+        return f"<script>window.__shipfloorLabels={j}</script>"
 
     def save_marks(self, p, n, body):
         """Keeps the Keep/Change marks of a review page (reviews/<n>.marks.json). Nothing is stored on a refusal."""
@@ -1639,7 +1654,7 @@ class Handler(BaseHTTPRequestHandler):
                 if page.is_file():
                     html = page.read_bytes()
                     if q.get("embed") == ["1"]:
-                        html = html.replace(b"</head>", f.marks_block(parts[1], int(parts[2])).encode() + EMBED_CSS.encode() + b"</head>", 1)
+                        html = html.replace(b"</head>", f.marks_block(parts[1], int(parts[2])).encode() + f.labels_block().encode() + EMBED_CSS.encode() + b"</head>", 1)
                     # agents write these pages: sandboxed, they get an opaque origin and cannot call the API
                     return self.send(200, html, "text/html; charset=utf-8",
                                      [("Content-Security-Policy", "sandbox allow-scripts")])
