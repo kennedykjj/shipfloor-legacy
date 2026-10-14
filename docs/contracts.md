@@ -232,6 +232,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). Ru
 - `accept` `<slug> <n> <reason>`
 - `weight` `<slug> <n> <weight>`, the weight being `light`, `standard` or `heavy`
 - `dashboard` `[--port N] [--no-open] [--token T]`
+- `demo` `[--no-dashboard] [--keep]`
 
 **Per command:**
 - `install`: copies `scripts/` (not `test/`) and `templates/` into `~/.shipfloor/factory` by rename (so a running script keeps its inode), removes what the plugin no longer ships, writes `.source` (the plugin checkout) and, when it is a git clone, `.origin` (`<commit><TAB><branch|detached><TAB>verified|forced`). Refuses (exit 1, reasons on stderr, `install anyway: shipfloor install --force`) when the clone is not a clean, current `main`, unless `--force`. Prints `installed <src> → <dest>: <n> replaced, <n> added, <n> removed` and a `next:` line on stdout; with `--force` a `WARN installed copy is not a verified <main>: ...` line. Exit 0 when nothing failed.
@@ -243,6 +244,7 @@ The CLI, `scripts/shipfloor` (installed to `~/.shipfloor/factory/shipfloor`). Ru
 - `accept <slug> <n> <reason>`: owner only. For each file of card `<n>`'s QA commit that changed since, records a line `<file><TAB><blob or own:<hash>|deleted><TAB>#<n><TAB><ISO><TAB><reason>` in the project's `accepted.tsv` and prints `accepted <file> at <12 hex>` or `accepted the deletion of <file>`; `nothing to accept: acceptance-intact already passes for card <n>` when nothing differs. Exit 2 on a usage error, 1 on any other refusal.
 - `weight <slug> <n> <weight>`: owner only. Rewrites the one `**Weight:** <w>` line of the card's spec header, commits it on the card's branch as `docs(<scope>): weight <w> for #<n>` and pushes (reset on a failed push); prints `weight <w>`. Exit 3 when the card is no longer in Spec Review or a run is working on it; 2 on usage; 1 otherwise.
 - `dashboard`: runs `dashboard.py` with `--home`; its first stdout line is `shipfloor dashboard: <url>  (Ctrl+C stops it)`, which the dashboard skill reads and gives back as the one link; the URL carries the machine's token. When it cannot bind, it exits with `shipfloor dashboard: ports <a>-<b> are taken`.
+- `demo`: plays one fake card through refine, develop, validate and deploy on a temporary home (`SHIPFLOOR_HOME` and `HOME` of its processes point there, `FACTORY_GH` at the stand-in `scripts/demo/gh`): the board moves, `gate.sh` red, green and build, git and `report.sh` are real, what the agents write is recorded, and the screen says no LLM ran. Without `--no-dashboard` it serves the dashboard on the temporary home, prints its URL, opens the browser and waits for Enter or Ctrl+C; the temporary home is removed at the end unless `--keep`, which prints its path. Exit 0 when the card reached Done, 1 on an error, 130 on Ctrl+C, 2 on an unknown flag. The caller's `~/.shipfloor` is never read or written.
 
 ## GitHub markers
 

@@ -54,6 +54,14 @@ The yellow columns are yours; the factory works the dark ones.
 
 It comes with twelve themes, in twelve languages: English, Simplified and Traditional Chinese, Spanish, Japanese, German, French, Brazilian Portuguese, Russian, Korean, Italian and Turkish.
 
+## Try it: `shipfloor demo`
+
+```bash
+bash <plugin>/scripts/shipfloor demo
+```
+
+One fake card crosses the factory in about two minutes, on a temporary home: no repository of yours, no network, no tokens. The board moves, the gates, the git commits and the reports are real; what the agents write is recorded, and the screen says so (no LLM runs). It opens the dashboard on the sample, and deletes everything when you press Enter. `--no-dashboard` skips the dashboard; `--keep` keeps the temporary home and prints where it is.
+
 ## Quick start
 
 You need `git`, an authenticated `gh`, `claude`, Python 3.11+ with PyYAML, and Git Bash on Windows.

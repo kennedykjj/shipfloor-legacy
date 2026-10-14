@@ -1036,7 +1036,13 @@ def usage():
     return 2
 
 
-COMMANDS = {"install": cmd_install, "doctor": cmd_doctor, "add": cmd_add, "remove": cmd_remove, "list": cmd_list,
+def cmd_demo(args):
+    """demo [--no-dashboard] [--keep]: a fake card crosses the factory on a temporary home (no network, no LLM)."""
+    from . import demo
+    return demo.main(args)
+
+
+COMMANDS = {"demo": cmd_demo, "install": cmd_install, "doctor": cmd_doctor, "add": cmd_add, "remove": cmd_remove, "list": cmd_list,
             "pool": cmd_pool, "clean": cmd_clean, "accept": cmd_accept, "weight": cmd_weight, "pause": cmd_pause,
             "resume": cmd_resume, "setup-board": cmd_setup_board, "dashboard": cmd_dashboard, "metrics": cmd_metrics}
 
