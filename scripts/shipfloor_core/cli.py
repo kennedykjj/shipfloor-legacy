@@ -814,8 +814,9 @@ def cmd_pool(args):
         _out(line)
     first = next((l.split("\t")[0] for l in _records() if l), "")
     if not first:
-        return 1
-    # ( use first; cd FACTORY_HOME && bash gate.sh stack status ) | while read ...: exit as that pipeline (pipefail)
+        return 0
+    # use the first project and read its stack status; an empty queue is not a failure,
+    # so the exit is the stack command's own (or 2 for a non-integer queue count)
     saved = dict(os.environ)
     try:
         use(first)
@@ -840,9 +841,6 @@ def cmd_pool(args):
                 right = 2
             elif n > 0:
                 _out("  queue: %s waiting" % st)
-                right = 0
-            else:
-                right = 1
         else:
             _out("  slot %s: %s%s%s%s" % (k, st, " " + owner if owner else "",
                                           "" if st == "free" else " (%dm)" % _div60(_int(held) or 0),
