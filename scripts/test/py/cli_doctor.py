@@ -186,6 +186,15 @@ class Doctor(CliCase):
         os.environ["SF_UNAME"] = "MINGW64_NT-10.0"
         self.assertNotIn("dispatcher registered", self.doctor())
 
+    def test_dispatcher_pace(self):
+        "doctor shows the pace the registration runs at (installer --status), in words; 30 seconds stays seconds"
+        self.assertNotIn("dispatcher pace", self.doctor(), "no dispatcher, no pace line")
+        for line, want in (("*/3", "every 3 minutes"), ("*/1", "every 1 minute")):
+            self.write_file(self.table, "%s * * * * /usr/bin/bash -l %s/factory/run-dispatcher.sh # shipfloor-dispatcher\n" % (line, self.sh))
+            self.assertIn("ok   dispatcher pace: " + want, self.doctor())
+        self.assertEqual([cli._pace_words(p) for p in ("every 30 seconds", "every 600 seconds", "every 90 seconds", "odd")],
+                         ["every 30 seconds", "every 10 minutes", "every 90 seconds", "odd"])
+
     def test_AC6_dispatcher_limits(self):
         "AC-6 doctor shows the limits in effect on the installed dispatcher: none when unlimited, not supported on a scheduler without cgroups"
         self.assertNotIn("dispatcher limits", self.doctor(), "no dispatcher, no limits line")

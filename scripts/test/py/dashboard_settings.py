@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+from unittest import mock
 
 import dashboard_support as ds
 
@@ -415,7 +416,7 @@ class Dispatcher(Settings):
 
     def test_pace(self):
         "the dispatcher's pace: 3 by default of 1, 3, 5, 10; a save re-registers the task with the minutes last and leaves a running cycle alone; 7 is refused before anything runs"
-        self.assertEqual((self.disp()["every_min"], self.disp()["choices"], self.disp()["can_set"], self.disp()["why"]), (3, [1, 3, 5, 10], True, None))
+        self.assertEqual((self.disp()["every_min"], self.disp()["choices"], self.disp()["can_set"], self.disp()["why"]), (3, [0.5, 1, 3, 5, 10], True, None))
         sleeper = subprocess.Popen(["sleep", "300"])
         self.addCleanup(sleeper.kill)
         self.write("shome/dispatch.pid", "%d\n" % sleeper.pid)
@@ -431,6 +432,18 @@ class Dispatcher(Settings):
         os.unlink(os.path.join(self.tmp, "sched.calls"))
         self.assertEqual(self.machine({"dispatcher": {"every_min": 7}}).code, 400)
         self.assertEqual(self.sched_calls(), "", "the scheduler is not called")
+
+    def test_pace_30_seconds(self):
+        "30 seconds is offered and saved as every_min 0.5, the scheduler told 0.5; the next cycle is 30 s after the last one started; Windows offers no 30 s"
+        self.assertEqual(self.machine({"dispatcher": {"every_min": 0.5}}).code, 200)
+        self.assertEqual(self.sched_calls().strip(), "0.5")
+        self.assertEqual((self.read_config()["dispatcher"]["every_min"], self.disp()["every_min"]), (0.5, 0.5))
+        self.write("shome/logs/health-2026-10.jsonl", '{"ts":"2026-10-11T10:00:10+00:00","cycle":{"s":10,"exit":0,"overlap":false},"paused":false,"idle":[],"over":[]}\n')
+        from datetime import datetime, timezone
+        n = self.settings()["cycle"].get("next_at")
+        self.assertEqual(datetime.fromisoformat(n).astimezone(timezone.utc).isoformat(), "2026-10-11T10:00:30+00:00")
+        with mock.patch.object(ds.server()[0].os, "name", "nt"):
+            self.assertEqual(ds.server()[0].dispatcher_choices(), [1, 3, 5, 10])
 
     def test_scheduler_fails(self):
         "a failing re-register is a 409 with the scheduler's last line; config.yml stays byte for byte (the other limits are not saved either)"

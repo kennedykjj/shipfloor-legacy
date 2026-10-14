@@ -651,16 +651,22 @@ STAGES = ("refine", "develop", "validate", "deploy")
 MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
                     "stacks": 3, "ports": {"base": 20000, "span": 20},
                     "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3},
+                    "disk": {"min_free_gb": 2, "min_free_inodes_pct": 10},
                     "notify": {"events": {"waiting": True, "blocked": True, "reminder": True, "stuck": True, "done": False},
                                "channels": {"toast": True, "ntfy": False}, "ntfy_topic": "", "reminder_min": 60, "quiet": ""}}
-DISPATCHER_EVERY = (1, 3, 5, 10)  # minutes between dispatcher cycles; the installer's trigger reads it
+DISPATCHER_EVERY = (0.5, 1, 3, 5, 10)  # minutes between dispatcher cycles (0.5: 30 seconds); the installer's trigger reads it
+
+
+def every_ok(every):
+    """A pace the config may set: the integers 1, 3, 5, 10 or the float 0.5 (True == 1 and 3.0 are not)."""
+    return (type(every) is int and every in DISPATCHER_EVERY) or (type(every) is float and every == 0.5)
 
 
 def dispatcher_every(raw):
     """The pace a raw machine config sets (minutes between cycles), or the default when it sets none or a bad one."""
     disp = raw.get("dispatcher") if isinstance(raw, dict) else None
     every = disp.get("every_min") if isinstance(disp, dict) else None
-    return every if type(every) is int and every in DISPATCHER_EVERY else MACHINE_DEFAULTS["dispatcher"]["every_min"]
+    return every if every_ok(every) else MACHINE_DEFAULTS["dispatcher"]["every_min"]
 
 
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
@@ -783,6 +789,26 @@ def model_problem_line(p):
     return Msg("err.model.unknown", f"{p['key']}: \"{p['value']}\" is not a model the factory knows ({', '.join(MODELS)})", key=p["key"], value=p["value"], models=", ".join(MODELS))
 
 
+DISK_KEYS = ("min_free_gb", "min_free_inodes_pct")
+
+
+def disk_problems(disk):
+    """The machine's disk floor, under which the dispatcher starts no run: min_free_gb (a number >= 0) of free space on
+    the run's TMPDIR and on the worktrees' filesystem, min_free_inodes_pct (0..100) of free inodes where the OS
+    counts them. 0 turns a check off."""
+    if disk is None:
+        return []
+    if not isinstance(disk, dict):
+        return ["disk must be a mapping of min_free_gb, min_free_inodes_pct"]
+    errs = [f"disk.{k}: unknown key (use {', '.join(DISK_KEYS)})" for k in disk if k not in DISK_KEYS]
+    for k, top in (("min_free_gb", None), ("min_free_inodes_pct", 100)):
+        v = disk.get(k)
+        if k in disk and (isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0
+                          or (top is not None and v > top)):
+            errs.append(f"disk.{k} must be a number from 0" + (f" to {top}" if top else ""))
+    return errs
+
+
 COST_KEYS = ("card_warn", "card_block", "day_stop")
 
 
@@ -868,6 +894,7 @@ def machine_problems(raw):
         errs.append(lang_problem())
     errs += runtime_problems(raw["runtime"]) if "runtime" in raw else []
     errs += cost_problems(raw.get("costs"))
+    errs += disk_problems(raw.get("disk"))
     errs += limits_problems(raw.get("limits"))
     errs += notify_problems(raw["notify"]) if "notify" in raw else []
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
@@ -906,8 +933,8 @@ def machine_problems(raw):
         errs.append("dispatcher must be a mapping {every_min}")
     else:
         every = disp.get("every_min", MACHINE_DEFAULTS["dispatcher"]["every_min"])
-        if type(every) is not int or every not in DISPATCHER_EVERY:  # True == 1: the type is checked too
-            errs.append(Msg("err.every_min", "dispatcher.every_min must be 1, 3, 5 or 10"))
+        if not every_ok(every):  # True == 1: the type is checked too
+            errs.append(Msg("err.every_min", "dispatcher.every_min must be 0.5, 1, 3, 5 or 10"))
     return errs
 
 

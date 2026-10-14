@@ -89,6 +89,7 @@ The deterministic deploy of one card: `deploy.sh <n> [--refresh | --continue]`. 
 - Approval is the newest `staged-head: <40 hex>` comment written by the factory's own GitHub user; `HEAD_SHA` of the PR must be that commit or a chain (at most 10) of recorded `deploy-merge`/`deploy-fix` commits on top of it, each merge's second parent an ancestor of `origin/<main>`.
 - A fork PR, zero or several open PRs for the card, a PR changed after staging, red gates or red CI before merge are `block`: exit 5.
 - Merge is `gh pr merge --squash --match-head-commit <sha>`. After merge it checks `deploy.ci_workflow` on `origin/<main>` (a failed run reruns its failed jobs once), then `deploy.environment`, then each `deploy.healthcheck` url (5 tries); any failure opens `revert/<n>` and a revert PR, comments with a closing `staged-head: <sha of the revert branch>`, reopens the issue, labels `blocked` and exits 6.
+- Waiting for the PR's checks: a head this run did not push (the approved head, or a merge of main recorded and pushed earlier, e.g. by `--refresh`) that is up to date with main and all green (every `deploy.required_checks` present) on the first poll is merged at once, with no further poll or sleep. A head this run pushed (main merged in, a renumbered migration, a small fix) must be seen green on two polls, against workflows that register late after a push. Polls are `FACTORY_POLL` s apart (default 10).
 - `deploy.local_ci`, when set, replaces waiting for GitHub's checks.
 - A fix of at most `deploy.fix_max_files` files and `fix_max_lines` lines that touches no acceptance test ships with the approved head; a larger one goes back to Staged with a new `staged-head:`.
 - At most two fix rounds (`<tmp>/fix.round`), after which the card goes back to Coding.
@@ -99,7 +100,7 @@ One dispatcher cycle for one project: starts pipelines for cards waiting in the 
 
 **Interface:** none: it takes no arguments and has no subcommands. It exits 0 with nothing to do when `PAUSE` exists in the project's home; 2 for an invalid config, unreadable limits, pool or stage models; 1 when the board read fails; otherwise the number of failing steps (0 or 1).
 
-**What it does, in order:** reads the board once into `board.tsv` (a temp file per process, then renamed) and exports `FACTORY_BOARD_SNAPSHOT=<home>/board.tsv`; stops when a log under the home's `logs/` was written in the last 30 min and holds `hit your session limit` after its last `== start`; removes `cost/<n>.json` and `stepup/<n>` markers of cards that left the board or Coding; applies the machine's `costs` limits through `dashboard_cost.py`; retries `blocked:infra` cards once; unless outside the working hours, runs the pipelines `refine`, `develop`, `validate` and `deploy` in that order; optionally refreshes Staged cards when `deploy.refresh_staged` is true; sweeps stale `tmp/` folders.
+**What it does, in order:** reads the board once into `board.tsv` (a temp file per process, then renamed) and exports `FACTORY_BOARD_SNAPSHOT=<home>/board.tsv`; stops when a log under the home's `logs/` was written in the last 30 min and holds `hit your session limit` after its last `== start`; removes `cost/<n>.json`, `stopped/<n>` and `stepup/<n>` markers of cards that left the board (or, for `stepup/`, Coding); applies the machine's `costs` limits through `dashboard_cost.py`; retries `blocked:infra` cards once; unless outside the working hours or under the machine's `disk` floor, runs the pipelines `refine`, `develop`, `validate` and `deploy` in that order; optionally refreshes Staged cards when `deploy.refresh_staged` is true; sweeps stale `tmp/` folders.
 
 **Dependencies:** for the pipelines `develop`, `validate` and `deploy` (never `refine`), before it labels a card or takes a slot, it makes one call per candidate per cycle, `gh api repos/<repo>/issues/<n>/dependencies/blocked_by?per_page=100` (`<repo>` is `project.repo`), through `shipfloor_core/deps.py`. If a dependency is open, or the call fails or does not answer a JSON array, the card is not started: no label, no slot, no failed cycle; the next cycle asks again. A closed dependency (merged or not planned) never blocks. The owner declares one with GitHub's native "Blocked by" relation; text in the issue body is not read. At the end of the cycle it writes `<home>/deps.json` (see the files table).
 
@@ -107,14 +108,14 @@ One dispatcher cycle for one project: starts pipelines for cards waiting in the 
 
 **The run's own log** is `logs/<YYYY-MM-DD>-<n>-<stage>.log` of the project's home, with these lines written by the dispatcher (the dashboard reads them with regular expressions in `dashboard.py`: `RUN_LINE` and `STEPUP_LINE`):
 - `== start /sf:<stage> <n> <ISO> pid=<pid>[ model=<m>] weight=<w>`
-- `== end /sf:<stage> <n> exit=<rc> <ISO>`
+- `== end /sf:<stage> <n> exit=<rc> <ISO>[ stopped=<why>] outcome=<ok|fail|usage_limit>` (`stopped=` when the agent ended without doing its stage: `blocked`, `infra`, `owner-only` or `no-report`; `exit` stays 0 then)
 - `== step-up /sf:develop <n> <from> -> <to>: gate <gate> failed <ISO>`
 
 `<ISO>` is `date -Is`. The pid is the run's supervisor process, the one that owns the lock. For the `deploy` stage `exit=` is the exit code of `deploy.sh` after its handover rounds (up to three agent rounds on exit 3).
 
 **Run telemetry** (`shipfloor_core/telemetry.py`): the agent runs with `--output-format stream-json --verbose` and the supervisor reads its stdout. Between `== start` and `== end` the log keeps the text a plain `claude -p` printed (the `result` event's text, else the last assistant text); a stdout line that is not JSON and everything on stderr go to it as they came. Beside it, only when the stream carried JSON:
 - `logs/<YYYY-MM-DD>-<n>-<stage>.events.jsonl`: every event as it arrived, one per line, `{"t": <epoch s, received>, "pid": <supervisor pid>, "event": {...}}`; several runs of a card on one day share the file, told apart by `pid`.
-- `logs/runs.jsonl`: one line per run when it ends: `stage`, `card`, `pid`, `model`, `weight`, `start`, `end` (ISO), `seconds`, `exit`; from the `result` event `result` (subtype), `is_error`, `session_id`, `duration_ms`, `duration_api_ms`, `num_turns`, `cost_usd`, `tokens` (`input`, `output`, `cache_read`, `cache_creation`); `tools` (`{<tool>: {"n", "s"}}`, seconds from a `tool_use` to its `tool_result`, as received), `bash` (the same for Bash calls by kind: `gate` for `gate.sh`, `board` for `board.sh`, `gh`, `other`), `unfinished` (tool calls with no result), `events`, `parse_errors`. A run that ended with no `result` has those fields `null`.
+- `logs/runs.jsonl`: one line per run when it ends: `stage`, `card`, `pid`, `model`, `weight`, `start`, `end` (ISO), `seconds`, `exit`; from the `result` event `result` (subtype), `is_error`, `session_id`, `duration_ms`, `duration_api_ms`, `num_turns`, `cost_usd`, `tokens` (`input`, `output`, `cache_read`, `cache_creation`); `stopped` (why the run did not do its stage, `""` when it did), `tools` (`{<tool>: {"n", "s"}}`, seconds from a `tool_use` to its `tool_result`, as received), `bash` (the same for Bash calls by kind: `gate` for `gate.sh`, `board` for `board.sh`, `gh`, `other`), `unfinished` (tool calls with no result), `events`, `parse_errors`. A run that ended with no `result` has those fields `null`.
 Telemetry never fails a run or holds its lock: a write that fails is dropped.
 
 **Locks:** `locks/<stage>-<n>.lock/` per card and stage, holding `info` (`<pid> <epoch> <n>`), written by `launch`; `step` (`<k><TAB><epoch>`, from `shipfloor-config.sh step`); `last-gate`; `inbox` and `inbox.<agent>`. A lock older than `FACTORY_LOCK_TTL` (default 10800 s) whose pid is gone is removed. `locks/refresh-<n>.lock/` is a `deploy.sh --refresh` and does not count as a run.
@@ -311,6 +312,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `<home>/locks/<stage>-<n>.lock/` | directory: `info` (`<pid> <epoch> <n>`), `step` (`<k><TAB><epoch>`), `last-gate` (`<gate><TAB><pass|FAIL|INFRA>`), `inbox`, `inbox.<agent>` | `dispatch.sh`, `shipfloor-config.sh step`, `gate.sh`, the dashboard | `dispatch.sh`, `dashboard.py`, `inbox_hook.py`, `shipfloor weight` |
 | `<home>/locks/deploysh-<n>.lock/` | `info` (`<pid> <epoch>`) | `deploy.sh` | `deploy.sh` |
 | `<home>/locks/refresh-<n>.lock/` | `info` (`<pid> <epoch> <n>`) | `dispatch.sh` | `dispatch.sh` |
+| `<home>/stopped/<n>` | one line per run that stopped and holds: `<epoch><TAB><stage><TAB><owner-only\|no-report><TAB><column it started from>`; two in a row hold the card | `dispatch.py` (the run) | `dispatch.py` (the cycle) |
 | `<home>/stepup/<n>` | `<from model><TAB><to model><TAB><gate>` | `dispatch.sh` | `dispatch.sh`, `dashboard.py` |
 | `<home>/infra/<n>` | `<epoch>`; the retry's marker | `dispatch.sh` | `dispatch.sh` (the run gets `SHIPFLOOR_INFRA_RETRY=1`), `dashboard.py` |
 | `<home>/cost/<n>.json` | the baseline of a cost block | `dashboard_cost.py` | `dashboard_cost.py`, `dispatch.sh` (removes it when the card leaves the board) |
@@ -329,6 +331,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `~/.shipfloor/logs/health-<YYYY-MM>.jsonl` | one JSON object per cycle | `shipfloor_health.py record` | `shipfloor doctor`, `shipfloor_notify.py`, `dashboard.py` |
 | `<reviews>/<n>.brief.json` | the card's brief: `verdict`, `flags`, `proven`, `facts`, `since_request`, `what`, `rest` (see `brief.sh`) | `brief.sh build`, from the refine and validate skills | `dashboard.py` |
 | `<home>/reports-wt/` | worktree of the `factory-reports` branch | `report.sh` | `metrics.sh`, `dashboard.py` |
+| `<home>/dashboard.port` | one line: the port the running dashboard listens on; removed on a clean exit | `dashboard.py` | `shipfloor_notify.py` (the `Click` link of a push) |
 | `~/.shipfloor/cost-cache.json`, `notify.json` | caches | `dashboard_cost.py`, `shipfloor_notify.py` | the same |
 
 Readers that parse what the scripts write, which a port must not break:
@@ -358,12 +361,12 @@ Readers that parse what the scripts write, which a port must not break:
 | `FACTORY_CLEANUP` | `dispatch.sh` | `0` skips killing a run's leftover processes (Windows) |
 | `SHIPFLOOR_MAX_PARALLEL` | `dispatch.sh` | overrides the machine `pool` |
 | `SHIPFLOOR_CYCLE_STALE_MIN`, `SHIPFLOOR_STALE_LOCK_MIN`, `SHIPFLOOR_LOCK_RETRY_S` | `shipfloor-dispatch.sh` | minutes before a `dispatch.pid` or an `index.lock` is stale (30, 10); seconds between lock retries (5) |
-| `FACTORY_POLL`, `FACTORY_POLLS` | `deploy.sh` | seconds between polls (default 30); with `FACTORY_POLL=0`, `FACTORY_POLLS` is the number of polls (default 60) |
+| `FACTORY_POLL`, `FACTORY_POLLS` | `deploy.sh` | seconds between polls (default 10); with `FACTORY_POLL=0`, `FACTORY_POLLS` is the number of polls (default 60) |
 | `SHIPFLOOR_NOW` | `shipfloor_config.py` | the clock (`HH:MM`) the working hours are judged by |
 | `SHIPFLOOR_MACHINE_CONFIG` | `shipfloor_config.py` | the machine config file's path (set by `shipfloor_machine`) |
 | `CLAUDE_CONFIG_DIR` | `dashboard.py`, `dashboard_cost.py`, `shipfloor_health.py` | Claude Code's directory (default `~/.claude`) |
 | `SHIPFLOOR_BASH`, `SHIPFLOOR_SCHEDULER` | `dashboard.py` | the bash it uses to run scripts; the scheduler it asks |
-| `SHIPFLOOR_NOTIFY_SEND` | `shipfloor_notify.py` | a script that sends a notification; it receives channel, title and body |
+| `SHIPFLOOR_NOTIFY_SEND` | `shipfloor_notify.py` | a script that sends a notification; it receives channel, title, body and click (the link to the card on the owner's dashboard, `""` when there is none) |
 | `SNAPSHOT` | `setup-board.sh` | where the board's item-status snapshot goes |
 | `FAKE_GH_FAIL_AT` | `fake-gh`, `fake-gh-deploy` (tests) | `<n>`: the n-th call to the fake (counted in its `fail-count` file) exits 1 with `gh: injected failure`; unset: no effect |
 | `FAKE_GH_FAIL_CMD` | `fake-gh`, `fake-gh-deploy` (tests) | an ERE: every call whose argument line matches it exits 1 with `gh: injected failure`; unset: no effect |

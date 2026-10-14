@@ -34,7 +34,7 @@ class NotifyCase(Case):
         shipfloor_notify.gh_json = self._gh_json
         self.health("false")
 
-    def _send(self, channel, title, body, topic):
+    def _send(self, channel, title, body, topic, click=""):
         self.sent.append("%s\t%s\t%s" % (channel, title, body.replace("\r", "").replace("\n", "|")))
         self.topics.append(topic)
         return "boom: %s is down" % channel if channel in self.fail_channels else None

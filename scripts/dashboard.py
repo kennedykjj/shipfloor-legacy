@@ -252,6 +252,11 @@ def scheduler():
             str(Path(source) / "installer" / "install-dispatcher.ps1"), "-EveryMin"], None
 
 
+def dispatcher_choices():
+    """The paces Settings offers: Windows' Task Scheduler repeats at most once a minute, so it has no 30 seconds."""
+    return [c for c in shipfloor_config.DISPATCHER_EVERY if os.name != "nt" or c >= 1]
+
+
 NO_LIMITS = "Resource limits are applied on Linux with systemd only. They are saved but not applied here."
 
 
@@ -329,6 +334,16 @@ def gh_json(*args):
         return json.loads(r.stdout or "null"), None
     except ValueError:
         return None, "gh did not print JSON"
+
+
+def page_source():
+    """dashboard.html as the browser gets it: the page is one self-contained file, but its twelve @font-face rules are
+    woff2 data URIs (~270 KB of base64) that nobody edits, so the source keeps them in fonts/dashboard-fonts.css and
+    the `/*@dashboard-fonts*/` line of the page's <style> stands for them. An agent reading or editing the page never
+    has to read the fonts."""
+    html = (HERE / "dashboard.html").read_text(encoding="utf-8")
+    fonts = (HERE / "fonts" / "dashboard-fonts.css").read_text(encoding="utf-8")
+    return html.replace("/*@dashboard-fonts*/\n", fonts, 1)
 
 
 class Factory:
@@ -963,7 +978,7 @@ class Factory:
                   "supported": limits_applier() is not None, "why": None if limits_applier() else NO_LIMITS}
         return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "language": m.get("language") or "en", "costs": self.costs(), "limits": limits},
                 "languages": catalogs(), "paused": (self.home / "PAUSE").exists(),
-                "dispatcher": {"every_min": every, "choices": list(shipfloor_config.DISPATCHER_EVERY), "can_set": bool(command), "why": why},
+                "dispatcher": {"every_min": every, "choices": dispatcher_choices(), "can_set": bool(command), "why": why},
                 "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours(), "unpriced": unpriced}
 
     def project_agents(self):
@@ -1291,6 +1306,23 @@ class Factory:
             out.append({"n": d["n"], "title": str(d.get("title") or ""), "state": state})
         return {"deps": out, "deps_unread": entry.get("read") is False}
 
+    def shipped(self, p, columns, titles, since, per_card, today):
+        """The cards that reached Done today, newest first: {issue, title, pr, at, cost}. `at` is when the card's last run ended,
+        `pr` the last pull request a report names, `cost` its Inbox-to-now estimate (None when unpriced)."""
+        out = []
+        for n, col in columns.items():
+            at = since.get(n)
+            if col != "Done" or not at:
+                continue
+            try:
+                if parse_ts(at).astimezone().date().isoformat() != today:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            pr = next((r["pr"] for r in reversed(self.reports(p, n)) if isinstance(r.get("pr"), int)), None)
+            out.append({"issue": n, "title": titles.get(n, ""), "pr": pr, "at": at, "cost": rounded(per_card.get(n, 0.0))})
+        return sorted(out, key=lambda x: parse_ts(x["at"]).timestamp(), reverse=True)
+
     def overview(self):
         size, slots = self.pool()
         prices, today, limits = self.prices(), datetime.now().date().isoformat(), self.costs()
@@ -1336,7 +1368,8 @@ class Factory:
                                         "blocked": blocked.get(n), **self.brief_row(p, n, col),
                                         **self.block_brief(p, n, blocked.get(n)),
                                         **self.card_deps(record, columns, n)}
-                                       for n, col in columns.items()]})
+                                       for n, col in columns.items()],
+                             "shipped": self.shipped(p, columns, titles, since, per_card, today)})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
         stacks, queue = self.stacks()
@@ -1722,7 +1755,7 @@ class Factory:
         already in that language and the browser picks the language's glyphs and case rules."""
         lang = self.lang()
         data = json.dumps(lang, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-        html = (HERE / "dashboard.html").read_text(encoding="utf-8")
+        html = page_source()
         html = html.replace('<html lang="en">', f'<html lang="{lang["language"]}">', 1)
         html = html.replace('<script type="application/json" id="lang-data">null</script>', f'<script type="application/json" id="lang-data">{data}</script>', 1)
         return html.encode("utf-8")
@@ -2016,6 +2049,13 @@ def main():
     if not server:
         sys.exit(f"shipfloor dashboard: ports {args.port}-{args.port + 9} are taken")
     url = f"http://127.0.0.1:{server.server_address[1]}/?t={Handler.token}"
+    port_file = Path(args.home) / "dashboard.port"
+    try:
+        tmp = port_file.with_name("dashboard.port.tmp")
+        tmp.write_text(f"{server.server_address[1]}\n", encoding="utf-8")
+        os.replace(tmp, port_file)
+    except OSError:
+        pass  # without it a push just carries no link
     print(f"shipfloor dashboard: {url}  (Ctrl+C stops it)", flush=True)
     if not args.no_open:
         webbrowser.open(url)
@@ -2023,6 +2063,8 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        port_file.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

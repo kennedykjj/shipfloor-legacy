@@ -170,7 +170,7 @@ def _append_line(path, obj):
         pass
 
 
-def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None):
+def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None, stopped=None):
     """Start the agent with `prompt` on stdin, its stdout read as a stream into `log` (see the module's docstring),
     its stderr straight to `log`. The agent's exit code (128 - signal for a signal, 127 when it cannot start, with the
     shell's line in the log), as `dispatch._run` gives it."""
@@ -212,5 +212,11 @@ def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None):
         if iso:
             meta = dict(meta, end=iso())
             run.meta = meta
-        _append_line(runs, run.summary(rc))
+        row = run.summary(rc)
+        if stopped:  # why the run did not do its stage ("" = it did; None = not judged)
+            try:
+                row["stopped"] = stopped(rc) or ""
+            except Exception:
+                row["stopped"] = ""
+        _append_line(runs, row)
     return rc

@@ -656,6 +656,15 @@ def _runtimes_in_use():
     return found or [runtimes.NAMES[0]]
 
 
+def _pace_words(pace):
+    """'every 30 seconds' stays; 'every 180 seconds' reads 'every 3 minutes', 'every 60 seconds' 'every 1 minute'."""
+    m = re.fullmatch(r"every (\d+) seconds", pace)
+    if not m or int(m.group(1)) < 60 or int(m.group(1)) % 60:
+        return pace
+    n = int(m.group(1)) // 60
+    return "every %d minute%s" % (n, "" if n == 1 else "s")
+
+
 def cmd_doctor(args):
     bad, agents, warned = 0, [], False
     for t in ("git", "gh"):
@@ -708,6 +717,9 @@ def cmd_doctor(args):
         got = rows[1][len("limits: "):] if len(rows) > 1 and rows[1].startswith("limits: ") else ""
         if got:
             _out("ok   dispatcher limits: " + _limits_hint(src, home, got))
+        pace = next((r[len("pace: "):] for r in rows if r.startswith("pace: ")), "")
+        if pace:
+            _out("ok   dispatcher pace: " + _pace_words(pace))
     elif dst == 1:
         _out("WARN no dispatcher registered; run: bash %s/installer/install-dispatcher.sh" % src)
     if os.path.isdir(inst):

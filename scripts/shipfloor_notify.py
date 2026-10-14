@@ -43,11 +43,21 @@ def log(message):
     print(f"{datetime.now().astimezone().isoformat(timespec='seconds')} shipfloor: notify: {message}", file=sys.stderr)
 
 
-def send(channel, title, body, topic):
-    """None when the channel delivered, else why not, in words of our own: an exception can carry the ntfy URL."""
+def click_url(home, n):
+    """The link a push opens: the card on this machine's dashboard; "" when <home>/dashboard.port holds no port."""
+    try:
+        port = int((Path(home) / "dashboard.port").read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return ""
+    return f"http://127.0.0.1:{port}/#card/{n}" if 1 <= port <= 65535 else ""
+
+
+def send(channel, title, body, topic, click=None):
+    """None when the channel delivered, else why not, in words of our own: an exception can carry the ntfy URL.
+    click: the link a tap opens; the sender gets it as a fourth argument ("" without a link), and None leaves it out."""
     try:
         if os.environ.get("SHIPFLOOR_NOTIFY_SEND"):
-            run = [bash(), os.environ["SHIPFLOOR_NOTIFY_SEND"], channel, title, body]
+            run = [bash(), os.environ["SHIPFLOOR_NOTIFY_SEND"], channel, title, body] + ([] if click is None else [click])
             return None if subprocess.run(run, capture_output=True, timeout=TIMEOUT_S).returncode == 0 else "the sender failed"
         if channel == "toast":
             env = dict(os.environ, SHIPFLOOR_TOAST_TITLE=title, SHIPFLOOR_TOAST_BODY=body)
@@ -55,7 +65,8 @@ def send(channel, title, body, topic):
             r = subprocess.run(run, env=env, capture_output=True, timeout=TIMEOUT_S, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             return None if r.returncode == 0 else "powershell failed"
         title_header = "=?UTF-8?B?" + base64.b64encode(title.encode("utf-8")).decode() + "?="  # headers are latin-1; ntfy reads RFC 2047
-        request = urllib.request.Request(f"https://ntfy.sh/{topic}", data=body.encode("utf-8"), headers={"Title": title_header}, method="POST")
+        headers = dict({"Title": title_header}, **({"Click": click} if click else {}))
+        request = urllib.request.Request(f"https://ntfy.sh/{topic}", data=body.encode("utf-8"), headers=headers, method="POST")
         with urllib.request.urlopen(request, timeout=TIMEOUT_S):
             return None
     except subprocess.TimeoutExpired:
@@ -188,12 +199,12 @@ def deliver(messages, channels, topic):
     """Each message goes to every channel; a message counts as told (its marks are set) when one channel delivered.
     A channel that failed is not tried again in this cycle, and its failure is one log line."""
     failed = {}
-    for title, body, marks in messages:
+    for title, body, marks, click in messages:
         delivered = False
         for channel in channels:
             if channel in failed:
                 continue
-            err = send(channel, title, body, topic)
+            err = send(channel, title, body, topic, click)
             if err:
                 failed[channel] = err
             else:
@@ -246,19 +257,19 @@ def cycle(home, now):
         if listed or why:
             marks = [(cards[w["key"]], "told", stamp) for w in listed] + [(stucks[c["key"]], "told", stamp) for c in why]
             marks += [(cards[w["key"]], "reminded", stamp) for w in listed if waited(w)] + [(state, "held", False)]  # the digest is their reminder
-            messages.append((*digest_message(t, listed, why, title), marks))
+            messages.append((*digest_message(t, listed, why, title), marks, ""))
         else:
             state["held"] = False
     else:
-        messages += [(*wait_message(t, w, title(w["project"], w["n"])), [(cards[w["key"]], "told", stamp)]) for w in fresh]
+        messages += [(*wait_message(t, w, title(w["project"], w["n"])), [(cards[w["key"]], "told", stamp)], click_url(home, w["n"])) for w in fresh]
         if on["reminder"]:
-            messages += [(*wait_message(t, w, title(w["project"], w["n"]), True), [(cards[w["key"]], "reminded", stamp)]) for w in waits
+            messages += [(*wait_message(t, w, title(w["project"], w["n"]), True), [(cards[w["key"]], "reminded", stamp)], click_url(home, w["n"])) for w in waits
                          if cards[w["key"]]["told"] and cards[w["key"]]["reminded"] is None and waited(w)]
         for c in fresh_causes:
             head, body, _ = CAUSES[c["cause"]]
-            messages.append((t(head, project=c["project"]), t(body, runtime=c.get("runtime", "")), [(stucks[c["key"]], "told", stamp)]))
+            messages.append((t(head, project=c["project"]), t(body, runtime=c.get("runtime", "")), [(stucks[c["key"]], "told", stamp)], ""))
         if on["done"]:
-            messages += [(t("{project} · #{n} reached production", project=p, n=n), title(p, n), []) for p, n in done]
+            messages += [(t("{project} · #{n} reached production", project=p, n=n), title(p, n), [], "") for p, n in done]
 
     channels = [ch for ch in ("toast", "ntfy") if nf["channels"][ch] and (nf["ntfy_topic"] if ch == "ntfy" else
                 os.name == "nt" or os.environ.get("SHIPFLOOR_NOTIFY_SEND"))]
