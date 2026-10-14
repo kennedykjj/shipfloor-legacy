@@ -381,6 +381,16 @@ Readers that parse what the scripts write, which a port must not break:
 
 The skills and agents parse nothing of this; the dashboard parses the `== ` lines and the transcripts.
 
+## The codex exec launch
+
+A stage whose runtime is `codex` (`scripts/runtimes/codex.py`) goes through the same steps as above, with these differences:
+
+- The command is `codex exec -s workspace-write -C <home>/control [-m <model>] --add-dir <worktrees> --add-dir <home>/tmp --add-dir <home>/reviews --skip-git-repo-check --json -o <log>.last -`, with `CODEX_HOME=<the factory's Codex home>` (`SHIPFLOOR_CODEX_HOME`, default `~/.shipfloor/runtimes/codex`) in the environment, plus `SHIPFLOOR_TRAILER=Co-Authored-By: Codex <noreply@openai.com>`. `FACTORY_CODEX` stands in for the `codex` binary in tests.
+- The prompt on **stdin** is `<CODEX_HOME>/sf/<stage>.md` followed by `Card: #<n>`. `shipfloor install` generates that file from `skills/<stage>/SKILL.md`: the frontmatter out, a preface (the headless rules, the owner's messages), `<!-- sf:stage=<stage> -->` first (how a rollout is tied to its stage), and the runtime blocks `<!-- rt:codex -->...<!-- /rt -->` of the sources resolved: the Codex ones kept, another runtime's dropped. The Claude Code plugin reads the same files as they are, where the blocks are HTML comments. The agents are generated as `agents/<name>.toml` (`name`, `description`, `developer_instructions`, and `model` from `runtime.models.agents`), `config.toml` (`approval_policy = "never"`, `workspace-write`, the hook switch) and `hooks.json` (the `PostToolUse` hook, `inbox_hook.py --codex`, which prints the same `additionalContext` as the Claude Code hook and tracks the lead and each subagent by `session_id`).
+- The log keeps the `--json` stream as it comes (it is not Claude's `stream-json`, so no `events` file beside it); when the run ends, the agent's final message (`<log>.last`) is appended to the log.
+- The outcome in `== end` is `usage_limit` when the run's log, apart from the stream's `item.*` events, matches `You've hit your usage limit`, `out of credits`, `hit your spend cap`, `Quota exceeded`, `upgrade to Plus` or `exceeded retry limit, last status: 429` (whatever the exit code); else `ok` on exit 0 and `fail` otherwise.
+- The dashboard reads cost, Sessions and Live from the rollouts under `<CODEX_HOME>/sessions/YYYY/MM/DD` whose `session_meta.cwd` is the project's control checkout (subagents by `parent_thread_id`; `.jsonl.zst` only when `zstd` or `zstandard` is there). The card comes from `Card: #<n>` and the stage from the marker. `input` is `input_tokens` less `cached_input_tokens`, `cache_read` is `cached_input_tokens`, `output` is `output_tokens`.
+
 ## Security invariants
 
 - Configuration comes from the snapshot of the committed config of `origin/main` (`<home>/factory.yml`, taken from the control checkout), never from a worktree: a card's PR cannot change the gates that judge it. `.shipfloor/` is a forbidden path for agents.
