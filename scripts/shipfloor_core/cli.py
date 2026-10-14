@@ -603,6 +603,7 @@ def cmd_doctor(args):
         _out("WARN installed copy differs from %s (shipfloor install)" % src)
     dst, dkind = _cap(["bash", os.path.join(src, "installer", "install-dispatcher.sh"), "--status"], err=DEVNULL)
     if dst == 0:
+        dkind = dkind.splitlines()[0] if dkind.strip() else dkind
         _out("ok   dispatcher registered (%s)" % (dkind[len("registered: "):] if dkind.startswith("registered: ") else dkind))
     elif dst == 1:
         _out("WARN no dispatcher registered; run: bash %s/installer/install-dispatcher.sh" % src)
