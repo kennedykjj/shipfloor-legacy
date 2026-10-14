@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 from collections import Counter
 
-from .. import proc
+from .. import proc, text
 from . import changes
 from .scope import grep, _bad
 
@@ -337,7 +337,7 @@ def qa_commit(ctx, args):
 def _count(ctx, pattern, lines):
     """`grep -Ec -- pattern` of the lines: the count it prints ("" when the pattern is invalid)."""
     data = ("\n".join(lines) + "\n").encode("utf-8", "surrogateescape") if lines else b""
-    r = subprocess.run(["grep", "-Ec", "--", pattern], input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    r = text.grep("-Ec", pattern, data)
     ctx.err_bytes(r.stderr)
     return _text(r.stdout).strip("\n")
 

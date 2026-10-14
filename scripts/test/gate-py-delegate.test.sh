@@ -78,7 +78,9 @@ mb=""; [ -z "$top" ] || mb="$(git -C "$top" merge-base origin/main HEAD 2>/dev/n
 if [ -n "$mb" ]; then
   edited=""
   for f in $(git -C "$top" ls-tree -r --name-only "$mb" -- scripts/test | grep -E '/(gate-[a-z-]+|stack-[a-z-]+|dispatch-stepup|deploy-[a-z-]+|py-[a-z-]+)\.test\.sh$' \
-             | grep -vE '/(gate-py-run-compat|stack-py-lease|gate-py-delegate)\.test\.sh$'); do  # #166's own files and this one (gate-run.sh is gone), which its gate half extends
+             | grep -vE '/(gate-py-run-compat|stack-py-lease)\.test\.sh$' \
+             | grep -vE '/(gate-py-delegate|stack-py-heartbeat|stack-py-up)\.test\.sh$'); do  # #166's own files, which its gate half extends;
+    # #171 moved lib/portable.sh to test/fixtures/: those two suites' path to it, and this list
     git -C "$top" diff --quiet "$mb" -- "$f" || edited="$edited $f"
   done
   [ -z "$edited" ] && pass "AC-9 the existing gate, stack, dispatch-stepup, deploy and py suites are unedited" || fail "AC-9 these suites were edited:$edited"

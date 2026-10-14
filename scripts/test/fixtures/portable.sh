@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Tools that differ between GNU (Linux) and BSD (macOS) userlands. Sourced; defines functions only.
+# FIXTURE (#171): was scripts/lib/portable.sh; only the Bash reference fixtures (stack.bash.sh, deploy-bash.sh) use it.
 
 mtime() {  # mtime <path>: the modification time in epoch seconds; fails when the path cannot be read
   local t
