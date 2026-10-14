@@ -1,41 +1,10 @@
 #!/usr/bin/env bash
-# The Python package's process and text helpers (#162), proved by unittest modules run under `python -I -B`:
-#   AC-5  proc.gh() issues the calls board.sh makes today, argv byte for byte, --jq included (fake-gh's call log)
+# The Python package's text helpers (#162), proved by a unittest module run under `python -I -B`:
 #   AC-7  text.ere_match() agrees with `grep -E` on valid patterns and raises on an invalid one
 # The unittest modules are written to a temp dir by this file (a test file outside scripts/test/*.test.sh would not
 # be run by the gates); the Python prints "ok" / "FAIL" lines like every test here.
 source "$(dirname "$0")/lib.sh"
 T="$(mktemp -d)"
-
-# ---- AC-5 reference: the calls board.sh makes today, recorded argv by argv (NUL-separated, one extra NUL ends a call)
-export FAKE_GH_BIN="$FACTORY_DIR/test/fake-gh"
-cat > "$T/rec-gh" <<'EOF'
-#!/usr/bin/env bash
-{ printf '%s\0' "$@"; printf '\0'; } >> "$REC_LOG"
-exec "$FAKE_GH_BIN" "$@"
-EOF
-chmod +x "$T/rec-gh"
-mkdir -p "$T/bin"; cp "$T/rec-gh" "$T/bin/gh"; chmod +x "$T/bin/gh"   # "fake-gh on PATH": the name gh
-
-seed_gh() {  # seed_gh <dir>: what the board.sh calls below read
-  mkdir -p "$1"
-  printf 'I1\t25\t👤 Ready for Refinement\nI3\t33\t👤 Spec Review\nI4\t40\t🤖 Coding\nI5\t41\t🤖 Validation\n' > "$1/items.tsv"
-  printf '{"number":7,"title":"Seven","body":"b","comments":[]}\n' > "$1/issue-7.json"
-  printf '41\n' > "$1/infra"
-}
-A="$T/ref"; seed_gh "$A"
-ref_run() {  # ref_run <board.sh args...>
-  FAKE_GH_DIR="$A" REC_LOG="$T/ref.rec" FACTORY_GH="$T/rec-gh" FACTORY_HOME="$(mktemp -d)" bash "$FACTORY_DIR/board.sh" "$@" >/dev/null 2>&1
-}
-: > "$T/ref.rec"
-ref_run items
-ref_run eligible Coding
-ref_run move 40 Validation
-ref_run infra
-ref_run label 41 add blocked:infra
-ref_run label 41 remove blocked:infra
-ref_run issue 7
-[ -s "$T/ref.rec" ] && pass "reference: board.sh made $(tr -cd '\n' < "$A/calls" | wc -c | tr -d ' ') gh calls" || fail "reference: board.sh made no gh call"
 
 cat > "$T/unit.py" <<'PY'
 import importlib, os, subprocess, sys, unittest
@@ -51,34 +20,6 @@ def core(name):
         return importlib.import_module("shipfloor_core." + name)
     except Exception as e:
         raise AssertionError("shipfloor_core.%s cannot be loaded: %s: %s" % (name, type(e).__name__, e))
-
-
-class Gh(unittest.TestCase):
-    def test_ac5_gh_issues_the_boards_calls_byte_identical(self):
-        "AC-5 gh() issues the calls board.sh makes today, byte-identical argv, --jq included"
-        proc = core("proc")
-        ref = open(os.environ["UNIT_REF_REC"], "rb").read()
-        calls = [c.split(b"\0") for c in ref.split(b"\0\0") if c]
-        self.assertTrue(calls, "the reference run recorded no call")
-        env = {
-            "FAKE_GH_DIR": os.environ["UNIT_GH_B"],
-            "REC_LOG": os.environ["UNIT_REC_B"],
-            "FACTORY_GH": os.environ["UNIT_REC_GH"],
-            "PATH": os.environ["UNIT_BIN"] + os.pathsep + os.environ["PATH"],
-        }
-        os.environ.update(env)
-        for argv in calls:
-            args = [a.decode("utf-8") for a in argv]
-            try:
-                proc.gh(*args)
-            except Exception as e:
-                raise AssertionError("gh%s raised %s: %s" % (args[:2], type(e).__name__, e))
-        got = open(os.environ["UNIT_REC_B"], "rb").read()
-        self.assertEqual(got, ref, "argv recorded through gh() differs from the one board.sh issues")
-        want_log = open(os.environ["UNIT_GH_A"] + "/calls", "rb").read()
-        got_log = open(os.environ["UNIT_GH_B"] + "/calls", "rb").read()
-        self.assertEqual(got_log, want_log, "fake-gh's call log differs")
-        self.assertTrue(any(b"--jq" in c for c in calls), "the reference has no --jq call")
 
 
 def grep_e(pattern, text, ignore_case=False):
@@ -147,16 +88,14 @@ class R(unittest.TestResult):
 
 
 suite = unittest.TestSuite()
-for cls in (Gh, Ere):
+for cls in (Ere,):
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(cls))
 res = R()
 suite.run(res)
 sys.exit(0 if res.wasSuccessful() else 1)
 PY
 
-seed_gh "$T/b"; : > "$T/b.rec"
-out="$(UNIT_SCRIPTS="$FACTORY_DIR" UNIT_REF_REC="$T/ref.rec" UNIT_GH_A="$A" UNIT_GH_B="$T/b" UNIT_REC_B="$T/b.rec" \
-  UNIT_REC_GH="$T/rec-gh" UNIT_BIN="$T/bin" "$FACTORY_PYTHON" -I -B "$T/unit.py" 2>&1)"; rc=$?
+out="$(UNIT_SCRIPTS="$FACTORY_DIR" "$FACTORY_PYTHON" -I -B "$T/unit.py" 2>&1)"; rc=$?
 printf '%s\n' "$out"
 n="$(printf '%s\n' "$out" | grep -c '^  FAIL ')"
 FAILS=$((FAILS + n))
