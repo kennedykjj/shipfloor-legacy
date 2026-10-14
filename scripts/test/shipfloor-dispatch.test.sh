@@ -130,6 +130,22 @@ assert_contains "$(cat "$tmp/ran")" "shop "
 bash "$MD"
 [ ! -s "$tmp/ran" ] && pass "AC-5 10 minutes old is still a running cycle under the default of 30" || fail "AC-5 a 10 minute old dispatch.pid was taken over by default"
 
+# AC-5: two cycles that start at once both find no dispatch.pid and race to take it: exactly one runs.
+# A cat that lingers when it reads dispatch.pid widens the window between looking and taking.
+setup; project shop
+real_cat="$(command -v cat)"; shim="$(mktemp -d)"
+printf '#!/usr/bin/env bash\ncase "${1:-}" in *dispatch.pid) "%s" "$@"; rc=$?; sleep 1; exit $rc ;; esac\nexec "%s" "$@"\n' "$real_cat" "$real_cat" > "$shim/cat"
+chmod +x "$shim/cat"
+bash "$MD" >/dev/null 2>&1; : > "$tmp/ran"  # the control checkout exists before the race: it is the cycles' claim on dispatch.pid that is tested
+printf '#!/usr/bin/env bash\necho "$FACTORY_PROJECT" >> "%s/ran"\nsleep 4\n' "$tmp" > "$tmp/dispatch"
+PATH="$shim:$PATH" bash "$MD" >/dev/null 2>&1 & p1=$!
+PATH="$shim:$PATH" bash "$MD" >/dev/null 2>&1 & p2=$!
+wait "$p1"; c1=$?; wait "$p2"; c2=$?
+[ "$(grep -c . "$tmp/ran")" -eq 1 ] && pass "AC-5 two simultaneous cycles: exactly one dispatches" || fail "AC-5 $(grep -c . "$tmp/ran") cycles dispatched at once: $(cat "$tmp/ran")"
+[ "$c1" -eq 0 ] && [ "$c2" -eq 0 ] && pass "AC-5 both cycles exit 0" || fail "AC-5 exits $c1 and $c2"
+[ ! -e "$SHIPFLOOR_HOME/dispatch.pid" ] && pass "AC-5 the winner removes dispatch.pid when it ends" || fail "AC-5 dispatch.pid left behind"
+assert_contains "$(cat "$SHIPFLOOR_HOME"/logs/health-*.jsonl 2>/dev/null)" '"overlap": true'
+
 # no registry → nothing to do, no error
 setup; assert_exit 0 bash "$MD"
 finish

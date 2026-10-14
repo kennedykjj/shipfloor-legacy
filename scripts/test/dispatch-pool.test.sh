@@ -79,6 +79,14 @@ assert_contains "$(cat "$tmp/refreshed")" "refresh 36 --refresh"
 setup; export FACTORY_CONFIG="$cfg"; mkdir -p "$FACTORY_HOME/locks/validate-35.lock"; echo "$$ $(date +%s) 35" > "$FACTORY_HOME/locks/validate-35.lock/info"
 Q_STG="35" run_dispatch; [ -z "$(cat "$tmp/refreshed")" ] && pass "busy card not refreshed" || fail "refreshed a busy card"
 
+# AC-3: a running deploy is ONE unit of the pool, although it holds deploy-<n>.lock (dispatch) and deploysh-<n>.lock (deploy.sh)
+setup; machine $'pool: 2\nstages: {refine: 4, develop: 4, validate: 4, deploy: 1}'; live_lock shop deploy-9; live_lock shop deploysh-9
+Q_DEV="26 27" run_dispatch; out="$(launched)"
+[ "$(printf '%s' "$out" | grep -o '/sf:develop' | wc -l)" -eq 1 ] && pass "AC-3 pool of 2 with one deploy running → one more launch (the deploy counts once)" || fail "AC-3 the deploy was not counted as one unit: $out"
+setup; machine $'pool: 2\nstages: {refine: 4, develop: 4, validate: 4, deploy: 1}'; live_lock shop deploy-9; live_lock shop deploysh-9; live_lock other develop-5
+Q_DEV="26 27" run_dispatch; out="$(launched)"
+[ -z "$out" ] && pass "AC-3 a deploy and a develop run fill a pool of 2" || fail "AC-3 launched past the pool: $out"
+
 # an invalid machine config launches nothing
 setup; machine 'pool: 0'; Q_REF="25" run_dispatch; code=$?
 [ -z "$(launched)" ] && [ "$code" -ne 0 ] && pass "invalid machine config → nothing, non-zero" || fail "launched with an invalid machine config (exit $code)"
