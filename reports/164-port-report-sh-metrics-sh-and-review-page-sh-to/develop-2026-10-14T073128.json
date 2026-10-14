@@ -1,0 +1,1 @@
+{"issue": 164, "slug": "port-report-sh-metrics-sh-and-review-page-sh-to", "pipeline": "develop", "started_at": "2026-10-14T10:25:00Z", "finished_at": "2026-10-14T10:31:21Z", "outcome": "blocked", "agents": [], "rounds": {}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": null}
