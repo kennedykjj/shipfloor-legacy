@@ -27,12 +27,16 @@ In a factory run (SHIPFLOOR_RUN_LOCK), the verdict is also written to <lock>/las
 """
 
 # gate name -> (module in this package, function(ctx, args) -> exit code). The module is loaded when the gate runs.
-GATES = {}
+GATES = {
+    "scope": ("scope", "scope"),
+    "forbidden": ("scope", "forbidden"),
+    "test-plan": ("spec", "test_plan"),
+    "weight": ("spec", "weight"),
+}
 
 # The static gates the Python port has not taken over yet: lib/gate-legacy.sh runs them as the Bash gate did.
 # Each task that ports a gate adds it to GATES and drops it here; the last one deletes the legacy file.
-LEGACY = ("scope", "forbidden", "acceptance-intact", "acceptance-own", "qa-commit", "qa-amend", "migration", "fast",
-          "test-plan", "weight")
+LEGACY = ("acceptance-intact", "acceptance-own", "qa-commit", "qa-amend", "migration", "fast")
 
 NO_VERDICT = ("acceptance-own", "stack")  # their stdout/exit is read by a caller: no verdict line
 
