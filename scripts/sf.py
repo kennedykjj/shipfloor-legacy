@@ -20,6 +20,16 @@ def cmd_version(args):
     return 0
 
 
+def cmd_board(args):
+    from shipfloor_core import board
+    return board.main(args)
+
+
+def cmd_setup_board(args):
+    from shipfloor_core import setup
+    return setup.main(args)
+
+
 def cmd_report(args):
     from shipfloor_core import report
     return report.main(args)
@@ -40,8 +50,8 @@ def cmd_deploy(args):
     return deploy.main(args)
 
 
-COMMANDS = {"version": cmd_version, "report": cmd_report, "metrics": cmd_metrics, "review-page": cmd_review_page,
-            "deploy": cmd_deploy}
+COMMANDS = {"version": cmd_version, "board": cmd_board, "setup-board": cmd_setup_board, "report": cmd_report,
+            "metrics": cmd_metrics, "review-page": cmd_review_page, "deploy": cmd_deploy}
 
 
 def main(argv):
