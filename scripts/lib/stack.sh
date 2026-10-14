@@ -93,9 +93,10 @@ queue_ticket() {  # queue_ticket <owner>: write the owner's ticket, named by the
 }
 
 stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order (a no-up project's second run is skipped while its first runs), up to WAIT seconds on the clock; 3 = gave up
-  local q="$STACK_LOCKS/stack-queue" t f pid run solo k st head deadline=$(( SECONDS + WAIT )) note=$SECONDS
+  local q="$STACK_LOCKS/stack-queue" t="" f pid run solo k st head deadline=$(( SECONDS + WAIT )) note=$SECONDS
+  local saved; saved="$(trap -p INT TERM)"  # the caller's INT/TERM traps come back on every return; no EXIT trap here
+  trap '[ -n "${t:-}" ] && [ -f "$t" ] && rm -f "$t"; exit 3' INT TERM  # armed before the ticket exists: no window where a signal leaves it behind
   t="$(queue_ticket "$1")"
-  trap 'rm -f "$t"' EXIT INT TERM
   while :; do
     for f in "$q"/*; do  # tickets of waiters or runs that are gone leave the queue
       [ -f "$f" ] || continue; read -r pid run _ < "$f"
@@ -113,11 +114,11 @@ stack_lease() {  # stack_lease <owner>: SLOT=<k>, slots go to tickets in order (
         if mkdir "$(slot_dir "$k")" 2>/dev/null; then
           [ "$SOLO" != - ] && echo "$SOLO" > "$(slot_dir "$k")/solo"
           echo "$1 ${SHIPFLOOR_RUN_LOCK:--} $(date +%s)" > "$(slot_dir "$k")/info"; touch "$(slot_dir "$k")/beat"
-          rm -f "$t"; trap - EXIT INT TERM; SLOT="$k"; return 0
+          rm -f "$t"; trap - INT TERM; eval "$saved"; SLOT="$k"; return 0
         fi
       done
     fi
-    if [ "$SECONDS" -ge "$deadline" ]; then rm -f "$t"; trap - EXIT INT TERM; echo "stack: no free slot after ${WAIT}s" >&2; return 3; fi
+    if [ "$SECONDS" -ge "$deadline" ]; then rm -f "$t"; trap - INT TERM; eval "$saved"; echo "stack: no free slot after ${WAIT}s" >&2; return 3; fi
     [ "$SECONDS" -ge "$note" ] && { note=$(( SECONDS + 60 )); echo "stack: waiting, position $(ls "$q" | sort | grep -nxF "${t##*/}" | cut -d: -f1) of $(ls "$q" | wc -l | tr -d ' ')" >&2; }
     sleep 1
   done
@@ -128,7 +129,7 @@ stack_up() {  # stack_up <owner>: lease, clean the range, up, wait for health up
   stack_settings; stack_lease "$1" || return 3
   d="$(slot_dir "$SLOT")"; slot_env "$SLOT"
   env | grep -E '^SHIPFLOOR_(SLOT|STACK|STACK_URL|PORT_[A-Z0-9]+)=' > "$d/env"; printf '%s' "$DOWN" > "$d/down"; pwd > "$d/cwd"
-  ( trap '' HUP; cd /; while [ -d "$d" ]; do touch "$d/beat" 2>/dev/null; sleep 15; done ) >/dev/null 2>&1 &
+  ( trap '' HUP; cd /; while [ -d "$d" ]; do touch "$d/beat" 2>/dev/null; sleep 15; done ) </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
   echo $! > "$d/beat.pid"
   slot_down "$SLOT"
   if [ -n "$UP" ]; then
