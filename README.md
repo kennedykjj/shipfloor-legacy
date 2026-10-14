@@ -54,6 +54,8 @@ The yellow columns are yours; the factory works the dark ones.
 
 It comes with twelve themes, in twelve languages: English, Simplified and Traditional Chinese, Spanish, Japanese, German, French, Brazilian Portuguese, Russian, Korean, Italian and Turkish.
 
+The page is set in IBM Plex, embedded in the file, so it needs no network. The faces are under the SIL Open Font License 1.1; the text is in [scripts/fonts/OFL.txt](scripts/fonts/OFL.txt).
+
 ## Try it: `shipfloor demo`
 
 ```bash
