@@ -9,6 +9,10 @@
 #  - the deploy loop stops after 3 rounds of exit 3
 #  - refresh-<n>.lock and <date>-<n>-refresh.log; refresh-* is not counted as a run
 #  - cleanup_processes with powershell.exe stubbed targets only $WT_ROOT/<n>/
+# Safety: a failing mktemp (no space or inodes in /tmp) aborts the whole test at once, never handing back an empty path
+# that a later git -C "", rm -rf or sed -i would act on in the current (real) repository. Defined before lib.sh so lib's
+# own mktemp (REPO_TEMPLATE, new_repo) is covered too; kill because an exit inside $(...) only ends the subshell.
+mktemp() { local d; d="$(command mktemp "$@")" && [ -n "$d" ] && [ -e "$d" ] || { echo "FAIL cannot create a temp dir" >&2; kill -TERM "$$"; exit 1; }; printf '%s\n' "$d"; }
 source "$(dirname "$0")/lib.sh"
 D="$FACTORY_DIR/dispatch.sh"
 BASE_CONFIG="$FACTORY_CONFIG"

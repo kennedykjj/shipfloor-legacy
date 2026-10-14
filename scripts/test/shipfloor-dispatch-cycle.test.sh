@@ -4,6 +4,10 @@
 #  - SHIPFLOOR_STALE_LOCK_MIN overrides the 10 minutes after which an index.lock is taken for a dead git's
 #  - the SKIPPED reason: format of the file and of the reason taken from git's error
 #  - the health line (logs/health-<month>.jsonl) is written on PAUSE, on the usage limit and on an overlap
+# Safety: a failing mktemp (no space or inodes in /tmp) aborts the whole test at once, never handing back an empty path
+# that a later git -C "", rm -rf or sed -i would act on in the current (real) repository. Defined before lib.sh so lib's
+# own mktemp (REPO_TEMPLATE, new_repo) is covered too; kill because an exit inside $(...) only ends the subshell.
+mktemp() { local d; d="$(command mktemp "$@")" && [ -n "$d" ] && [ -e "$d" ] || { echo "FAIL cannot create a temp dir" >&2; kill -TERM "$$"; exit 1; }; printf '%s\n' "$d"; }
 source "$(dirname "$0")/lib.sh"
 MD="$FACTORY_DIR/shipfloor-dispatch.sh"
 PY="$FACTORY_PYTHON"

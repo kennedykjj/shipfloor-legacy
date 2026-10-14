@@ -4,6 +4,10 @@
 #  - SHIPFLOOR_INFRA_RETRY=1 is passed only when infra/<n> exists
 #  - --model and weight= on the == start line: the model matches dashboard.py's own regex (RUN_MODEL, read out of the
 #    source here, not copied) and the --model flag; weight= closes the line (dashboard.py has no regex for it)
+# Safety: a failing mktemp (no space or inodes in /tmp) aborts the whole test at once, never handing back an empty path
+# that a later git -C "", rm -rf or sed -i would act on in the current (real) repository. Defined before lib.sh so lib's
+# own mktemp (REPO_TEMPLATE, new_repo) is covered too; kill because an exit inside $(...) only ends the subshell.
+mktemp() { local d; d="$(command mktemp "$@")" && [ -n "$d" ] && [ -e "$d" ] || { echo "FAIL cannot create a temp dir" >&2; kill -TERM "$$"; exit 1; }; printf '%s\n' "$d"; }
 source "$(dirname "$0")/lib.sh"
 D="$FACTORY_DIR/dispatch.sh"
 export FACTORY_CONTROL_REFRESH=0

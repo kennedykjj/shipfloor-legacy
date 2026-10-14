@@ -4,6 +4,10 @@
 #    "== start" / "== end" / "== step-up" markers in a run's log stay English; with no language the lines are English
 #  - dispatch.sh reads the board into board.tsv.<pid>.tmp and moves it over board.tsv: two dispatches at once for the
 #    same project each write their own temp file and neither clobbers the other's
+# Safety: a failing mktemp (no space or inodes in /tmp) aborts the whole test at once, never handing back an empty path
+# that a later git -C "", rm -rf or sed -i would act on in the current (real) repository. Defined before lib.sh so lib's
+# own mktemp (REPO_TEMPLATE, new_repo) is covered too; kill because an exit inside $(...) only ends the subshell.
+mktemp() { local d; d="$(command mktemp "$@")" && [ -n "$d" ] && [ -e "$d" ] || { echo "FAIL cannot create a temp dir" >&2; kill -TERM "$$"; exit 1; }; printf '%s\n' "$d"; }
 source "$(dirname "$0")/lib.sh"
 D="$FACTORY_DIR/dispatch.sh"; MD="$FACTORY_DIR/shipfloor-dispatch.sh"
 BASE_CONFIG="$FACTORY_CONFIG"

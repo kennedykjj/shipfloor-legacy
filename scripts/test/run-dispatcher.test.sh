@@ -3,6 +3,10 @@
 #  - PAUSE: exit 0 with no health line (it stops before shipfloor-dispatch.sh, which would record one)
 #  - stdout and stderr of the whole cycle are appended to logs/dispatcher.log, nothing reaches the terminal
 #  - PATH comes from the first line of dispatcher.path, put in front of the PATH the task started with
+# Safety: a failing mktemp (no space or inodes in /tmp) aborts the whole test at once, never handing back an empty path
+# that a later git -C "", rm -rf or sed -i would act on in the current (real) repository. Defined before lib.sh so lib's
+# own mktemp (REPO_TEMPLATE, new_repo) is covered too; kill because an exit inside $(...) only ends the subshell.
+mktemp() { local d; d="$(command mktemp "$@")" && [ -n "$d" ] && [ -e "$d" ] || { echo "FAIL cannot create a temp dir" >&2; kill -TERM "$$"; exit 1; }; printf '%s\n' "$d"; }
 source "$(dirname "$0")/lib.sh"
 RD="$FACTORY_DIR/run-dispatcher.sh"
 unset FACTORY_CONFIG FACTORY_HOME FACTORY_REPO FACTORY_PROJECT FACTORY_WT_ROOT
