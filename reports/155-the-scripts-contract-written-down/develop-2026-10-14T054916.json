@@ -1,0 +1,1 @@
+{"issue":155,"slug":"the-scripts-contract-written-down","pipeline":"develop","started_at":null,"finished_at":null,"outcome":"ok","agents":[{"role":"qa-engineer","tokens":45121,"duration_s":84},{"role":"engineer","tokens":145305,"duration_s":246}],"rounds":{"qa":0,"implementation":0},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":false,"amendments":[]}
