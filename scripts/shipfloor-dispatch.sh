@@ -12,7 +12,13 @@ REGISTRY="$SHIPFLOOR_HOME/registry.tsv"
 # One line of history per cycle, however it ends (logs/health-<month>.jsonl); it never fails the cycle.
 START="$(date +%s)"; CYCLE="$SHIPFLOOR_HOME/dispatch.pid"; OVERLAP=
 # a live pid in a dispatch.pid younger than SHIPFLOOR_CYCLE_STALE_MIN is another cycle: this one records the overlap and stops; an older file was left behind and is taken over
-if kill -0 "$(cat "$CYCLE" 2>/dev/null)" 2>/dev/null && [ -z "$(find "$CYCLE" -mmin +"${SHIPFLOOR_CYCLE_STALE_MIN:-30}" 2>/dev/null)" ]; then OVERLAP=--overlap; else echo $$ > "$CYCLE"; fi
+# The claim is atomic (noclobber: the file is created only if absent), so two cycles starting at once cannot both take it.
+claim() { ( set -C; echo $$ > "$CYCLE" ) 2>/dev/null; }
+if ! claim; then
+  other="$(cat "$CYCLE" 2>/dev/null)"
+  if [ -z "$(find "$CYCLE" -mmin +"${SHIPFLOOR_CYCLE_STALE_MIN:-30}" 2>/dev/null)" ] && { [ -z "$other" ] || kill -0 "$other" 2>/dev/null; }; then OVERLAP=--overlap  # a fresh marker (or one still being written) is a cycle running
+  else rm -f "$CYCLE"; claim || OVERLAP=--overlap; fi  # left behind: take over, unless another cycle got there first
+fi
 health() {
   local rc=$?
   [ -n "$OVERLAP" ] || rm -f "$CYCLE"
