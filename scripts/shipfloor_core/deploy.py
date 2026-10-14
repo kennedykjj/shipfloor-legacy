@@ -20,11 +20,11 @@ import sys
 import time
 
 from . import fs, proc, project, text
+from .defaults import DEPLOY_DEFAULTS, TRAILER
 from .proc import alive as _alive
 from .text import read_tab as _read_tab
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 USAGE = "usage: deploy.sh <n> [--refresh | --continue]"
 KEYS = ("project.repo", "project.main", "deploy.ci_workflow", "deploy.environment", "deploy.timeout_min",
         "deploy.conflict_max_files", "deploy.conflict_max_hunks", "paths.specs", "deploy.allow_no_checks",
@@ -168,7 +168,7 @@ def _env(name):
 
 
 def _bounded(secs, argv, cwd, out):
-    """run_bounded (lib/portable.sh): the command's exit code, or 124 when it was stopped at its limit.
+    """run_bounded (the old lib/portable.sh, now test/fixtures/portable.sh): the command's exit code, or 124 when it was stopped at its limit.
     GNU timeout when there is one; otherwise the command's whole process tree is killed at the limit."""
     if shutil.which("timeout"):
         return _run(["timeout", str(secs), *argv], out=out, err=STDOUT, cwd=cwd)[0]
@@ -307,8 +307,9 @@ class Deploy:
             print("deploy: cannot read the project config", file=sys.stderr)
             return 2
         self.REPO, self.MAIN, self.CI_WORKFLOW, self.ENVIRONMENT = V[0], V[1], V[2], V[3]
-        self.TIMEOUT_MIN = V[4] or "30"
-        self.MAX_FILES, self.MAX_HUNKS, self.SPECS = V[5] or "5", V[6] or "20", V[7]
+        self.TIMEOUT_MIN = V[4] or str(DEPLOY_DEFAULTS["timeout_min"])
+        self.MAX_FILES, self.MAX_HUNKS = V[5] or str(DEPLOY_DEFAULTS["conflict_max_files"]), V[6] or str(DEPLOY_DEFAULTS["conflict_max_hunks"])
+        self.SPECS = V[7]
         self.ALLOW_NO_CHECKS = V[8] or "false"
         self.HEALTH, self.REQUIRED = V[9], V[10]  # lists, one item per line
         self.lang = V[13] or "en"  # what this script says, in the log and on the card

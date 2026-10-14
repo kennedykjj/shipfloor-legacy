@@ -12,6 +12,7 @@ HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
+from shipfloor_core.defaults import DEPLOY_DEFAULTS
 import shipfloor_health
 import dashboard_cost
 from dashboard_cost import LEGACY_STAGES, cost, events, parse_transcript, parse_ts, per_card, rounded
@@ -24,10 +25,10 @@ STEPS = {"refine": {1: "Pick the card", 2: "Worktree", 3: "Product Owner", 4: "U
 STACKS_TTL_S = 15
 PIPELINES = set(LEGACY_STAGES.values())
 # What the owner may set per project on this machine (overrides.yml), and what each is when nobody set it:
-# the project config's defaults for the limits, deploy.sh's own for the deploy.
+# the project config's defaults for the limits, the deploy's own (shipfloor_core/defaults.py) for the deploy.
 KNOBS = {"limits.refine.wip": shipfloor_config.DEFAULTS["limits"]["refine"]["wip"],
          "limits.develop.wip": shipfloor_config.DEFAULTS["limits"]["develop"]["wip"],
-         "deploy.timeout_min": 30, "deploy.conflict_max_files": 5}
+         **{"deploy." + k: DEPLOY_DEFAULTS[k] for k in shipfloor_config.OVERRIDABLE_DEPLOY}}
 #  how the skills open a block note: "Factory validate, step 2 (gates): blocked." or "Validate, step 2 (gates): ..."
 BLOCK_LINE = re.compile(r"(?:Factory )?\b(refine|develop|validate|deploy),? step (\d+)(?:\s*\([^)\n]*\))?:?\s*(?:blocked\.?\s*)?", re.I)
 # The acceptance test files of a card as they changed since its QA commit: what the acceptance-intact gate looks at.
