@@ -95,6 +95,8 @@
     "alert.hours.text": "reprend à {at}",
     "alert.skipped": "{project} ignoré depuis {since}",
     "alert.skipped.text": "{reason}. Rien n'y bouge tant que ce n'est pas corrigé ; le Fil contient le journal du dispatcher.",
+    "alert.silent": "Dispatcher silencieux",
+    "alert.silent.text": "Le dernier cycle date d'il y a {m} min ; il devrait tourner toutes les {every} min. Le dispatcher s'est-il arrêté ? Vérifier : <code>{check}</code>. Réinstaller : <code>{reinstall}</code>.",
     "alert.health": "Santé",
     "alert.health.text": "{what}. Historique dans <code>~/.shipfloor/logs/health-*.jsonl</code>.",
     "alert.orphans": "{n, plural, one {# verrou orphelin} other {# verrous orphelins}}",

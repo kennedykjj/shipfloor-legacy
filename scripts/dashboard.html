@@ -896,6 +896,7 @@ function renderFlags() {
   const add = (k, b, text, rs) => f.push(`<span class="${k}"><b>${b}</b>${rs && S.resumeErr === rs.to ? t("alert.resume_failed") : text}${rs ? `<button class="btn ghost" data-resume="${esc(rs.to)}" aria-label="${esc(rs.label)}"${S.resuming === rs.to ? " disabled" : ""}>${t("alert.resume")}</button>` : ""}</span>`);
   if (S.offline) add("bad", t("alert.offline"), t("alert.offline.text"));
   else if (S.error) add("bad", t("alert.error"), esc(S.error));
+  if (o?.silent) add("bad", t("alert.silent"), t("alert.silent.text", { m: o.silent.min, every: o.silent.every, check: esc(o.silent.check), reinstall: esc(o.silent.reinstall) }));
   if (o?.paused) add("bad", t("alert.paused"), t("alert.paused.text"), { to: "", label: t("alert.paused.resume") });
   if (o?.costs?.day_stopped) add("bad", t("alert.day_stop"), t("alert.day_stop.text", { spent: usd(o.today.cost), limit: usd(o.costs.day_stop) }));
   if (p?.paused) add("warn", t("alert.project_paused", { project: esc(p.slug) }), t("alert.project_paused.text"), { to: p.slug, label: t("alert.project_paused.resume", { project: p.slug }) });
