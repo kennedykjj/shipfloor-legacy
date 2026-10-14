@@ -24,7 +24,7 @@ HEALTH="${V[9]}" REQUIRED="${V[10]}"  # lists, one item per line
 DLANG="${V[13]:-en}"  # what this script says, in the log and on the card
 LOCAL_CI="${V[14]:-}"  # the project's CI as a command run here, where GitHub's checks would be waited for
 FIX_FILES="${V[11]:-3}" FIX_LINES="${V[12]:-40}"  # a fix within both, outside the acceptance tests, ships without a new approval
-GH="${FACTORY_GH:-gh}"; BOARD="${FACTORY_BOARD:-$HERE/board.sh}"; GATE="$HERE/gate.sh"
+GH="${FACTORY_GH:-gh}"; if [ -n "${FACTORY_BOARD:-}" ]; then BOARD=("$FACTORY_BOARD"); else BOARD=(bash "$HERE/board.sh"); fi; GATE="$HERE/gate.sh"
 CURL="${FACTORY_CURL:-curl}"; POLL="${FACTORY_POLL:-30}"
 WT="$FACTORY_WT_ROOT/$n"; TMP="$FACTORY_HOME/tmp/$n"; mkdir -p "$TMP"
 [ "$mode" = --continue ] || rm -f "$TMP"/fix.*  # a fresh run starts its fix rounds over
@@ -53,7 +53,7 @@ back_to_coding() {
   reset_worktree
   [ "$mode" = --refresh ] && { say "$1; left for the deploy"; exit 0; }
   comment "Back to Coding: $1"
-  "$BOARD" move "$n" Coding >/dev/null || { say "could not move the card to Coding"; exit 2; }
+  "${BOARD[@]}" move "$n" Coding >/dev/null || { say "could not move the card to Coding"; exit 2; }
   say "back to Coding: $1"; exit 4
 }
 retry_later() { say "$1; will retry"; exit 2; }
@@ -68,7 +68,7 @@ fi
 echo "$$ $(date +%s)" > "$LOCK/info"; trap 'rm -rf "$LOCK"' EXIT
 
 # 1. card and PR
-status="$("$BOARD" status "$n")" || retry_later "cannot read the board"
+status="$("${BOARD[@]}" status "$n")" || retry_later "cannot read the board"
 if [ "$mode" = --refresh ]; then
   [ "$status" = Staged ] || { say "not Staged ($status); nothing to refresh"; exit 0; }
 elif [ "$status" != "Ready for Prod" ]; then
@@ -217,7 +217,7 @@ check_fix() {  # --continue after a fix round: commits on top of what was handed
   g push -q --force-with-lease="$BRANCH:$HEAD_SHA" origin "HEAD:$BRANCH" || block "push of $sha failed (the branch moved?)"
   comment "Back to Staged: the deploy merged $MAIN and an agent fixed what broke ($(tail -3 "$TMP/fix.findings" 2>/dev/null | tr '\n' ' ')). The fix is $nfiles files and $lines lines${accept:+, with acceptance tests ($accept)}: more than deploy.fix_max_files=$FIX_FILES / fix_max_lines=$FIX_LINES let through without you. Review the diff $parent..$sha and approve again.
 staged-head: $sha"
-  "$BOARD" move "$n" Staged >/dev/null || { say "could not move the card to Staged"; exit 2; }
+  "${BOARD[@]}" move "$n" Staged >/dev/null || { say "could not move the card to Staged"; exit 2; }
   say "back to Staged: a fix of $nfiles files, $lines lines${accept:+, acceptance tests} needs the owner"; exit 4
 }
 
@@ -279,7 +279,7 @@ wait_checks() {  # wait_checks <sha>: 0 green, 1 red (CI_STATES), 2 timed out
 push_recorded() {  # record this script's commits before pushing them: an unpushed record is harmless, an unrecorded push wedges the card
   # every commit since the PR head: the merge of main (deploy-merge), a renumbered migration or a small fix (deploy-fix)
   local sha="$1" c lines=""
-  [ "$("$BOARD" status "$n")" = "$status" ] || retry_later "the card moved meanwhile"
+  [ "$("${BOARD[@]}" status "$n")" = "$status" ] || retry_later "the card moved meanwhile"
   for c in $(g rev-list --first-parent --reverse "$HEAD_SHA..$sha"); do
     if g rev-parse -q --verify "$c^2" >/dev/null; then lines+="deploy-merge: $c $(g rev-parse "$c^2")"$'\n'; else lines+="deploy-fix: $c"$'\n'; fi
     RECORDED="$RECORDED"$'\n'"$c"
@@ -427,7 +427,7 @@ staged-head: $rhead"
 fi
 
 # 11. done
-"$BOARD" move "$n" Done >/dev/null || say "could not move the card to Done"
+"${BOARD[@]}" move "$n" Done >/dev/null || say "could not move the card to Done"
 mins=$(( ($(date +%s) - START) / 60 ))
 comment "Deployed: merge $MERGED${deploy_url:+ · $deploy_url} · $mins min from the start of this deploy run."
 git -C "$FACTORY_REPO" worktree remove --force "$WT" >/dev/null 2>&1
