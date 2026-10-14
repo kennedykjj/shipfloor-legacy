@@ -70,7 +70,7 @@ One layer: `factory` (path `./`). Builds on #182's work-area selection (the one 
 - `docs/operation.md`: the tab, the address, the palette, the push link that opens only on this machine, `dashboard.port`.
 - `docs/contracts.md`: the seam's new argument.
 - `DESIGN.md`: the tab, address and palette rules (they leave floor-v4 when shipped).
-- Tests: `scripts/test/dashboard-tab.test.sh`, `scripts/test/dashboard-address.test.sh`, `scripts/test/dashboard-palette.test.sh` (new), `scripts/test/notify.test.sh` (sender records `$4`).
+- Tests: `scripts/test/dashboard-views.test.sh` (extended: the file-count ceiling in `hygiene.test.sh` forbids new files), `scripts/test/notify.test.sh` (sender records `$4`).
 
 **Migration:** none; no data changes. Reverting leaves a harmless `dashboard.port` and `shipfloor.token` in storage.
 
@@ -80,14 +80,14 @@ _Tech Lead_
 
 | AC | Layer | Test file |
 |---|---|---|
-| AC-1 | factory | `scripts/test/dashboard-tab.test.sh` |
-| AC-2 | factory | `scripts/test/dashboard-tab.test.sh` |
-| AC-3 | factory | `scripts/test/dashboard-address.test.sh` |
-| AC-4 | factory | `scripts/test/dashboard-address.test.sh` |
+| AC-1 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-2 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-3 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-4 | factory | `scripts/test/dashboard-views.test.sh` |
 | AC-5 | factory | `scripts/test/notify.test.sh` |
-| AC-6 | factory | `scripts/test/dashboard-palette.test.sh` |
-| AC-7 | factory | `scripts/test/dashboard-palette.test.sh` |
-| AC-8 | factory | `scripts/test/dashboard-address.test.sh` |
+| AC-6 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-7 | factory | `scripts/test/dashboard-views.test.sh` |
+| AC-8 | factory | `scripts/test/dashboard-views.test.sh` |
 
 ## Security
 _Cybersec_ — n/a
