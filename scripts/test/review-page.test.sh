@@ -66,6 +66,60 @@ data="$(ids "$d/out/26.html")"
 assert_contains "$data" "d-vidas=False;produto=True"
 assert_exit 2 bash "$GEN" "$d/missing.md" 25 feat/25-x "$d/out/x.html"
 
+# ---- #161 (PY-08): pins what review-page.sh does today.
+# AC-5 the argument count: exactly four, else exit 2 with the usage on stderr and no page written
+assert_exit 2 bash "$GEN"
+assert_exit 2 bash "$GEN" "$d/spec.md" 25 feat/25-x
+assert_exit 2 bash "$GEN" "$d/spec.md" 25 feat/25-x "$d/out/five.html" extra
+[ ! -e "$d/out/five.html" ] && pass "AC-5 a wrong argument count writes no page" || fail "AC-5 a page was written with five arguments"
+assert_contains "$(bash "$GEN" "$d/spec.md" 25 feat/25-x 2>&1 >/dev/null)" "usage: review-page.sh <spec.md> <issue> <branch> <out.html>"
+
+# AC-5 __KEY__ is <project>-spec-<issue>-review, the project being "factory" unless FACTORY_PROJECT names one; __DATE__ is today, dd/mm/yyyy
+assert_contains "$html" 'const KEY="factory-spec-25-review";'
+assert_exit 0 env FACTORY_PROJECT=shop bash "$GEN" "$d/spec.md" 25 feat/25-x "$d/out/shop.html"
+assert_contains "$(cat "$d/out/shop.html")" 'const KEY="shop-spec-25-review";'
+case "$(cat "$d/out/shop.html")" in *'"factory-spec-25-review"'*) fail "AC-5 the default key is left beside the project's" ;; *) pass "AC-5 FACTORY_PROJECT replaces the default key" ;; esac
+case "$html" in *__KEY__*|*__DATE__*|*__BRANCH__*|*__SPEC__*|*__TITLE__*) fail "AC-5 a placeholder is left in the page" ;; *) pass "AC-5 no __KEY__, __DATE__, __BRANCH__, __SPEC__ or __TITLE__ left" ;; esac
+today="$(date +%d/%m/%Y)"
+assert_exit 0 bash "$GEN" "$d/spec.md" 25 feat/25-x "$d/out/date.html"
+assert_contains "$(cat "$d/out/date.html")" "<span>$today</span>"
+assert_contains "$(cat "$d/out/date.html")" "<span>branch <code>feat/25-x</code></span>"
+assert_contains "$(cat "$d/out/date.html")" "<code>$d/spec.md</code>"
+
+# AC-5 the open questions section comes first, whatever its place in the spec; the other sections keep the spec's order
+cat > "$d/order.md" <<'EOS'
+# [A2] Order — spec
+
+## Product
+- **AC-1** — Given x, then y.
+
+## Open questions
+- **Q:** which one?
+
+## Security
+- a rule
+
+## Architecture
+- a contract
+EOS
+assert_exit 0 bash "$GEN" "$d/order.md" 27 feat/27-x "$d/out/27.html"
+[ "$(ids "$d/out/27.html")" = "open-questions=False;product=True;security=True;architecture=True" ] && pass "AC-5 open questions first, the rest in the spec's order" || fail "AC-5 order: $(ids "$d/out/27.html")"
+# the legacy title "Dúvidas" is editable and goes first too
+cat > "$d/order-pt.md" <<'EOS'
+# [A2] Ordem — spec
+
+## Produto
+- **CA-1** — Dado x, então y.
+
+## Dúvidas
+- **P:** qual?
+
+## Segurança
+- uma regra
+EOS
+assert_exit 0 bash "$GEN" "$d/order-pt.md" 28 feat/28-x "$d/out/28.html"
+[ "$(ids "$d/out/28.html")" = "d-vidas=False;produto=True;seguran-a=True" ] && pass "AC-5 Dúvidas first, the rest in the spec's order" || fail "AC-5 legacy order: $(ids "$d/out/28.html")"
+
 # AC-8: the page served without embed=1 is the standalone page: it carries no dashboard marks, even when marks are stored
 nat() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
 PY=python3; $PY -c '' 2>/dev/null || PY=python
