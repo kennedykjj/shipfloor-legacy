@@ -2,7 +2,7 @@
 
 # Shipfloor
 
-**A software factory for Claude Code.** Write a GitHub issue, approve twice, and it ships.
+**A software factory.** Write a GitHub issue, approve twice, and it ships.
 
 ![The Shipfloor dashboard: the lifecycle line with every card on its stage, four cards that wait for the owner, four in progress with their step and cost, and today's runs and spend](docs/img/dashboard.png)
 
