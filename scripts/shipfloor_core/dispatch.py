@@ -26,8 +26,10 @@ import subprocess
 import sys
 import time
 
+import runtimes
+
 from . import deps, proc, project, stack, text
-from .defaults import STAGES as STAGE_COLUMNS
+from .defaults import STAGES as STAGE_COLUMNS, TRAILER
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PIPE, DEVNULL, STDOUT = subprocess.PIPE, subprocess.DEVNULL, subprocess.STDOUT
@@ -40,7 +42,6 @@ PS_CLEANUP = r'''
     $p = [regex]::Escape($env:SHIPFLOOR_WT) -replace "/", "[\\/]"
     Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $p -and $_.ProcessId -ne $PID } |
       ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'''
-USAGE_LIMIT = b"hit your session limit"
 GH_LIMIT = re.compile(r"API rate limit|secondary rate limit", re.I)
 
 
@@ -376,6 +377,12 @@ class Cycle:
         for i, st in enumerate(STAGES):
             for j, w in enumerate(WEIGHTS):
                 self.stage_model[st + ":" + w] = models[i * 3 + j]
+        # the runtime of each stage: the machine's, the project's over it; a name nobody knows stops the cycle
+        rc, out = self.machine("runtimes", proc.native_path(os.environ.get("FACTORY_CONFIG", "")))
+        names = _nul(out)
+        if rc != 0 or len(names) != 4:
+            self.die("dispatch: invalid runtime config (known runtimes: %s)" % ", ".join(runtimes.NAMES), 2)
+        self.runtime = dict(zip(STAGES, names))
 
         if self.github_limited():
             self.say("dispatch: GitHub API limit hit recently; waiting")
@@ -503,11 +510,7 @@ class Cycle:
                         lines = f.read().split(b"\n")
                 except OSError:
                     continue
-                last = 0
-                for i, line in enumerate(lines):
-                    if line.startswith(b"== start"):
-                        last = i
-                if any(USAGE_LIMIT in line for line in lines[last:]):
+                if runtimes.usage_limited(b"\n".join(lines)):
                     return True
         return False
 
@@ -653,12 +656,6 @@ class Cycle:
         return _run(g + ["reset", "-q", "--hard", "origin/" + main])[0] == 0 and _run(g + ["clean", "-qfdx"])[0] == 0
 
     # --- launching
-    def read_rule(self, d):
-        """The permission rule that lets a run read under <d>, never write; None when it does not exist."""
-        if not os.path.isdir(d):
-            return None
-        return "Read(/%s/**)" % _posix(os.path.abspath(d))  # a rule's absolute path opens with two slashes
-
     def launch(self, p, n):
         d = "%s/locks/%s-%s.lock" % (self.home, p, n)
         try:
@@ -673,18 +670,10 @@ class Cycle:
         # print mode stops background subagents 10 min after the last turn and ends the run half done; 0 waits.
         # Only the project's settings and this plugin: the owner's personal plugins, MCP servers and output style
         # cost every run ~19k tokens of context and steer its agents.
-        extra = ["--setting-sources", "project,local", "--strict-mcp-config", "--plugin-dir", self.plugin]
-        envs = ["SHIPFLOOR_FACTORY=1", "SHIPFLOOR_RUN_LOCK=" + d, "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0"]
+        # The command line is the runtime's (scripts/runtimes/): it knows its CLI's flags and the variables it needs.
+        rt = runtimes.get(self.runtime[p])
+        envs = ["SHIPFLOOR_FACTORY=1", "SHIPFLOOR_RUN_LOCK=" + d]
         # A run reads the factory's scripts and templates and the reports of earlier runs, and writes neither.
-        # PowerShell is refused in every headless run; without the tool no turn is spent finding that out.
-        rules = [r for r in (self.read_rule(SCRIPTS), self.read_rule(self.home + "/reports-wt")) if r]
-        if rules:
-            extra += ["--allowedTools", *rules]
-        extra += ["--disallowedTools", "PowerShell"]
-        # The owner's personal CLAUDE.md is loaded whatever the setting sources are: its memory and notes are not
-        # for a run.
-        envs.append("CLAUDE_CODE_DISABLE_AUTO_MEMORY=1")
-        extra += ["--append-system-prompt", SYSTEM_PROMPT]
         # The model comes from the card's weight (its spec header, standard when none); a develop run after a failed
         # gate runs one model up (stepup/<n>: <from> <to> <gate>, written when the run before ended).
         weight = project.card_weight(n)
@@ -696,8 +685,6 @@ class Cycle:
                 frm, step, gate = text.read_tab(first[0], 3)
             if step:
                 model = step
-        if model:
-            extra += ["--model", model]
         # the language the project writes in, read once: the run keeps it even if the owner changes it while it runs
         rc, out = self.cfg("get", "language", quiet=True)
         lang = _t(out).rstrip("\n")
@@ -706,10 +693,16 @@ class Cycle:
         if os.path.exists("%s/infra/%s" % (self.home, n)):
             envs.append("SHIPFLOOR_INFRA_RETRY=1")
         envs.append("TMPDIR=" + scratch + "/tmp")
-        args = ["-p", "--permission-mode", "acceptEdits", "--add-dir", self.wt_root, "--add-dir", self.home + "/tmp",
-                "--add-dir", self.home + "/reviews", *extra]
+        if rt.TRAILER != TRAILER:  # the commits' trailer names the agent that wrote them; the default needs no variable
+            envs.append("SHIPFLOOR_TRAILER=" + rt.TRAILER)
+        argv, envs, stdin = rt.command({
+            "stage": p, "issue": n, "model": model, "plugin": self.plugin, "system_prompt": SYSTEM_PROMPT,
+            "write": [self.wt_root, self.home + "/tmp", self.home + "/reviews"],
+            "read": [SCRIPTS, self.home + "/reports-wt"], "envs": envs})
+        binary = (os.environ.get("FACTORY_CLAUDE") or rt.BINARY) if rt.NAME == "claude-code" else rt.BINARY
         _detach({"mode": "run", "p": p, "n": n, "dir": d, "log": log, "model": model, "weight": weight,
-                 "step": step, "from": frm, "gate": gate, "envs": envs, "claude": self.claude, "args": args,
+                 "step": step, "from": frm, "gate": gate, "runtime": rt.NAME, "binary": binary, "argv": argv,
+                 "envs": envs, "stdin": stdin,
                  "control": self.control, "wt_root": self.wt_root, "home": self.home, "mlang": self.mlang,
                  "deploy": os.environ.get("FACTORY_DEPLOY") or os.path.join(SCRIPTS, "deploy.sh")})
 
@@ -911,13 +904,17 @@ def supervise(spec):
     model, step = spec["model"], spec["step"]
     pid = os.getpid()
     _write_info(d, n)
-    _append(log, "== start /sf:%s %s %s pid=%d%s weight=%s\n" % (p, n, _iso(), pid, " model=" + model if model else "",
-                                                                 spec["weight"]))
+    try:  # where this run's block of the log begins: what the runtime classifies the end from
+        offset = os.path.getsize(log)
+    except OSError:
+        offset = 0
+    _append(log, "== start /sf:%s %s %s pid=%d%s weight=%s runtime=%s\n"
+            % (p, n, _iso(), pid, " model=" + model if model else "", spec["weight"], spec["runtime"]))
     if step:
         _say(spec["mlang"], "%s dispatch: #%s runs on %s, one model up after %s failed gate %s"
              % (_iso(), n, step, spec["from"], spec["gate"]))
     if _no_control(control):
-        _append(log, "== end /sf:%s %s exit=1 %s: no %s\n" % (p, n, _iso(), control))
+        _append(log, "== end /sf:%s %s exit=1 %s: no %s outcome=fail\n" % (p, n, _iso(), control))
         _rmtree(d)  # no lock left to hold the slot
         return 1
     os.chdir(control)  # as the Bash run did: what follows (the step-up, the cleanup) runs from the control checkout
@@ -925,16 +922,16 @@ def supervise(spec):
 
     def agent():
         # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into "C:/Program Files/Git/develop 54".
-        argv = proc.script_argv(spec["claude"], *spec["args"])
+        argv = proc.script_argv(spec["binary"], *spec["argv"])
         with open(log, "ab") as f:
-            return _run(argv, out=f, err=STDOUT, cwd=control, env=env, input=("/sf:%s %s" % (p, n)).encode("utf-8"))[0]
+            return _run(argv, out=f, err=STDOUT, cwd=control, env=env, input=spec["stdin"].encode("utf-8"))[0]
 
     def deploy(*args):
         with open(log, "ab") as f:
             return _run(["bash", spec["deploy"], n, *args], out=f, err=STDOUT, cwd=control, env=env)[0]
 
     try:
-        _work(spec, agent, deploy, log)
+        _work(spec, agent, deploy, log, offset)
     except Exception as e:  # whatever happens, the cleanup below runs and the lock goes
         _write(sys.stderr, "dispatch: #%s: %s\n" % (n, e))
     # what the run created goes with it, before its lock: its stack slot, its tmp/<n>/, its retry marker stays
@@ -975,7 +972,19 @@ def wake_dispatcher():
         _write(sys.stderr, "dispatch: cannot ask for a cycle: %s\n" % (e.strerror or e))
 
 
-def _work(spec, agent, deploy, log):
+def _end_line(spec, log, offset, rc):
+    """The == end line of a run: its exit code, the time, and the outcome its runtime reads from the run's block."""
+    try:
+        with open(log, "rb") as f:
+            f.seek(offset)
+            block = f.read()
+    except OSError:
+        block = b""
+    return "== end /sf:%s %s exit=%d %s outcome=%s\n" % (spec["p"], spec["n"], rc, _iso(),
+                                                         runtimes.get(spec["runtime"]).outcome(rc, block))
+
+
+def _work(spec, agent, deploy, log, offset=0):
     """The run itself: the agent, or deploy.sh and its rounds; == end; the step-up. Its exit code."""
     p, n, model = spec["p"], spec["n"], spec["model"]
     if p == "deploy":
@@ -988,10 +997,10 @@ def _work(spec, agent, deploy, log):
                 break
             agent()
             rc = deploy("--continue")
-        _append(log, "== end /sf:%s %s exit=%d %s\n" % (p, n, rc, _iso()))
+        _append(log, _end_line(spec, log, offset, rc))
     else:
         rc = agent()
-        _append(log, "== end /sf:%s %s exit=%d %s\n" % (p, n, rc, _iso()))
+        _append(log, _end_line(spec, log, offset, rc))
         if p == "develop" and rc == 0:
             step_up(spec, model, log)
     return rc
