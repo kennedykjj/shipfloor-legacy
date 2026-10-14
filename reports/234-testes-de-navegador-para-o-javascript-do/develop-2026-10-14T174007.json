@@ -1,0 +1,14 @@
+{
+  "issue": 234,
+  "slug": "testes-de-navegador-para-o-javascript-do",
+  "pipeline": "develop",
+  "outcome": "blocked",
+  "step": 3,
+  "agents": [],
+  "rounds": {},
+  "failed_gates": ["red"],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": [],
+  "note": "Playwright/Chromium e BROWSER_PYTHON/BROWSER_TESTS=required ainda ausentes no ambiente dos gates; terceira execução bloqueada no mesmo ponto."
+}
