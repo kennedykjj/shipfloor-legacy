@@ -6,9 +6,9 @@ source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)"; export TMPDIR="$T"
 MAINPID=$BASHPID  # only this shell cleans up, never a subshell that holds the trap
-# the pid comes from a child (sh's $PPID), not $BASHPID: bash 5.2 can run the inherited EXIT trap in a subshell
+# the pid comes from a child (sh exec'd from the substitution, so its $PPID is this shell), not $BASHPID: bash 5.2 can run the inherited EXIT trap in a subshell
 # killed right after fork while $BASHPID still reads the parent's pid, and that removed $T under the running test
-trap '[ "$(sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
+trap '[ "$(exec sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 unset SHIPFLOOR_GATE_FRESH   # lib.sh sets it so the other tests keep running the command; this file tests the cache
 GATE="$FACTORY_DIR/gate.sh"
 FIXTURE="$FACTORY_DIR/test/fixture/factory.yml"
