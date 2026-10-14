@@ -14,7 +14,7 @@ _Product Owner_
 - **AC-2** — Given fixture cards waiting for the owner, when the suite opens the dashboard, then the waiting list shows them in the expected order and opening one shows the Review / Gates / Sessions / Log tabs.
 - **AC-3** — Given an owner-movable card, when the suite moves it by drag and by keyboard, then the move commits after the 5 s delay, undo within the delay cancels it, and a refused move shows its reason.
 - **AC-4** — Given Spec Review cards, when the suite requests changes with a note and approves a spec, then each action reaches the dashboard API with its note/target.
-- **AC-5** — Given the dashboard, when the suite switches language and theme and reloads, then the choices persist (localStorage); at a phone-width viewport the page has no horizontal scroll.
+- **AC-5** — Given the dashboard, when the suite switches language and theme and reloads, then the choices persist: the theme in localStorage, the language in the factory's `config.yml` (shown as `<html lang>`); at a phone-width viewport the page has no horizontal scroll.
 - **AC-6** — Given CI, when it runs, then the browser suite runs headless Chromium as a shard or separate job in under 1 minute, and Playwright is absent from the factory's runtime dependencies.
 **Out of scope:** Screenshot/visual tests; per-string catalog tests (the catalog consistency test covers them); any change to dashboard behavior or UI.
 **Product fit:** Serves principle 2 (deterministic gates outrank any agent's claim): owner flows are proven by an executable check, not by text matching. Keeps the stack promise (no build, no framework at runtime) since Playwright is test-only.
@@ -39,7 +39,7 @@ _Tech Lead_
 **Behavior**
 - Playwright not importable → every test is skipped with the reason "playwright not installed", unless `BROWSER_TESTS=required` → one `FAIL` line. The CI job sets `required`; the other shards skip.
 - The 5 s move delay and undo use Playwright's clock (`page.clock.install` / `fast_forward`), never a real 5 s wait, to keep the suite under 1 minute.
-- Each action is asserted on observable results: the gh stand-in's recorded calls / the board state after reload, the rendered tabs, `localStorage` keys, `document.documentElement.scrollWidth <= innerWidth` at 375 px.
+- Each action is asserted on observable results: the gh stand-in's recorded calls / the board state after reload, the rendered tabs, the `localStorage` theme key, the language in `config.yml` and `<html lang>`, `document.documentElement.scrollWidth <= innerWidth` at 375 px.
 - No assertion on catalog text beyond locating elements; locators prefer roles, `data-*` and ids already in the page.
 
 **CI:** a `browser` job in `.github/workflows/ci.yml` (Python 3.11, install from `requirements-browser.txt`, `BROWSER_TESTS=required bash scripts/test/run.sh dashboard-browser.test.sh`, `timeout-minutes: 5`) and listed in the `test` job's `needs`. `.github/` is out of the pipeline's reach: done by the owner by hand (see Open questions).
@@ -73,6 +73,8 @@ _What the pipeline decided on its own; one line each, with the reason._
 - Fixture from `demo_home.py` + `demo-gh`: it already draws every card kind the owner flows need; no second fixture to maintain.
 - Skip when Playwright is absent, required in CI: keeps `run.sh` green on machines and shards without a browser while the CI job proves the flows.
 - Fake clock for the 5 s delay: real waits would break the 1-minute budget.
+- owner: language lives in config.yml, not localStorage — it is a factory setting, shared by the dashboard and the agents' output; AC-5 tests the theme in localStorage and the language in `config.yml` / `<html lang>`.
+- One test file slot for `dashboard-browser.test.sh` under the hygiene ceiling: `dashboard-settings.test.sh` folded into `dashboard-views.test.sh` (both thin `py_suite` drivers of the dashboard API).
 - AC-6 checked by hand in review: CI wall time and the job definition are not observable from inside the suite.
 
 ## Open questions

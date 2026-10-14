@@ -217,21 +217,21 @@ class Browser(support.Case):
 
     # ---- AC-5
     def test_ac5_theme_and_language_persist_across_a_reload(self):
-        """AC-5 the chosen theme (localStorage) and language survive a reload"""
+        """AC-5 the chosen theme (localStorage) and language (config.yml, shown as html lang) survive a reload"""
         page = self.open_page()
         expect(page.locator("#list .pass").first).to_be_visible(timeout=SLOW)
         page.click('[data-view="settings"]')
         page.click('[data-setsec="themes"]')
-        page.click('[data-theme-pick="kraft"]')
-        self.assertEqual(page.evaluate("localStorage.getItem('shipfloor.theme')"), "kraft")
+        page.click('[data-theme-pick="paper"]')
+        self.assertEqual(page.evaluate("localStorage.getItem('shipfloor.theme')"), "paper")
         page.click('[data-setsec="language"]')
         page.select_option("#lang", "pt-BR")
         page.click('[data-set="save"]')
         self.until("the language saved", lambda: "pt-BR" in self.machine_config())
         page.reload()
         expect(page.locator("html")).to_have_attribute("lang", "pt-BR", timeout=SLOW)
-        self.assertEqual(page.evaluate("localStorage.getItem('shipfloor.theme')"), "kraft")
-        self.assertEqual(page.evaluate("document.documentElement.dataset.theme"), "kraft")
+        self.assertEqual(page.evaluate("localStorage.getItem('shipfloor.theme')"), "paper")
+        self.assertEqual(page.evaluate("document.documentElement.dataset.theme"), "paper")
 
     def test_ac5_phone_width_has_no_horizontal_scroll(self):
         """AC-5 at a phone-width viewport the page does not scroll sideways"""
