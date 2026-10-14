@@ -1,0 +1,3 @@
+{"issue": 244, "slug": "shipfloor-pool-sai-com-1-quando-ha", "pipeline": "refine", "started_at": "2026-10-14T00:00:00Z", "finished_at": "2026-10-14T00:00:00Z", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 13053, "duration_s": 15}, {"role": "product-owner (revision)", "tokens": 13948, "duration_s": 37}],
+ "rounds": {"3": 2, "4": 1, "6": 1}, "gates_failed": ["scope po (bad short revision, rerun with full SHA)"], "flaky": [], "gates_reused": [], "manual_edit": null}
