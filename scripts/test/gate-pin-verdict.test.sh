@@ -5,7 +5,9 @@ source "$(dirname "$0")/lib.sh"
 LIBTMP=("$FACTORY_HOME" "$SHIPFLOOR_HOME" "$REPO_TEMPLATE")
 T="$(mktemp -d)"; export TMPDIR="$T"
 MAINPID=$BASHPID  # only this shell cleans up, never a subshell that holds the trap
-trap '[ "$BASHPID" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
+# the pid comes from a child (sh's $PPID), not $BASHPID: bash 5.2 can run the inherited EXIT trap in a subshell
+# killed right after fork while $BASHPID still reads the parent's pid, and that removed $T under the running test
+trap '[ "$(sh -c "echo \$PPID")" = "$MAINPID" ] || exit 0; rm -rf "$T" "${LIBTMP[@]}"' EXIT
 GATE="$FACTORY_DIR/gate.sh"
 FIX="$FACTORY_DIR/test/fixture/factory.yml"
 nat() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
