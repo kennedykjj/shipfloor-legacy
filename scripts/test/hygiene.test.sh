@@ -72,4 +72,18 @@ export BOARD_CALLS="$stub_board/calls"; : > "$BOARD_CALLS"
 assert_contains "$(cat "$BOARD_CALLS")" "snapshot"
 assert_contains "$(cat "$BOARD_CALLS")" "status"
 case "$(cat "$stub_board/dispatch.out" "$stub_board/deploy.out")" in *"Permission denied"*|*"cannot execute"*) fail "AC-1 the board was run directly: $(cat "$stub_board/dispatch.out" "$stub_board/deploy.out")" ;; *) pass "AC-1 no permission error from the board call" ;; esac
+
+# AC-8 (#164): report.sh, metrics.sh and review-page.sh hold no logic: they source lib/py.sh and run `sf.py <command>`
+for pair in report.sh:report metrics.sh:metrics review-page.sh:review-page; do
+  w="$root/scripts/${pair%%:*}"; cmd="${pair##*:}"
+  code="$(grep -vE '^[[:space:]]*(#|$)' "$w")"
+  [ "$(printf '%s\n' "$code" | wc -l)" -le 5 ] && pass "AC-8 ${pair%%:*} is a few lines" || fail "AC-8 ${pair%%:*} has logic:
+$code"
+  case "$code" in *'lib/py.sh'*) pass "AC-8 ${pair%%:*} sources lib/py.sh" ;; *) fail "AC-8 ${pair%%:*} does not source lib/py.sh" ;; esac
+  case "$code" in *"$cmd"*) pass "AC-8 ${pair%%:*} runs the $cmd command" ;; *) fail "AC-8 ${pair%%:*} never names $cmd" ;; esac
+  if printf '%s\n' "$code" | grep -qE '(^|[[:space:];])(if|case|for|while|until)[[:space:]]|git |python|shipfloor_resolve|lib/project\.sh'; then fail "AC-8 ${pair%%:*} has control flow, git or python in it:
+$code"; else pass "AC-8 ${pair%%:*} has no control flow, git or python"; fi
+done
+grep -q 'report.json schema' "$root/scripts/report.sh" && pass "AC-8 report.sh keeps the report.json schema header" || fail "AC-8 report.sh lost its schema header"
+[ ! -e "$root/scripts/review_page.py" ] && pass "AC-8 scripts/review_page.py is gone (absorbed in shipfloor_core)" || fail "AC-8 scripts/review_page.py still exists"
 finish

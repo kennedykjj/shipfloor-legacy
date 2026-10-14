@@ -72,7 +72,7 @@ Reads and moves cards on the project's GitHub Project v2 (config: `board.owner`,
 
 ## deploy.sh
 
-The deterministic deploy of one card: `deploy.sh <n> [--refresh | --continue]`. Run from the control checkout by the dispatcher (stage `deploy`) and, with `--refresh`, by the dispatcher's refresh of Staged cards.
+The deterministic deploy of one card: `deploy.sh <n> [--refresh | --continue]`. Run from the control checkout by the dispatcher (stage `deploy`) and, with `--refresh`, by the dispatcher's refresh of Staged cards. A wrapper of `sf.py deploy`: the logic is `shipfloor_core/deploy.py`.
 
 **Interface:** `<n>` is the issue number; the modes are `--refresh` (bring a Staged card's PR up to date with main, clean merges only, never merges to main) and `--continue` (resume after what a previous run handed over was fixed and committed); no flag is a full deploy. There are no subcommand words.
 
@@ -152,7 +152,7 @@ The `PostToolUse` hook of a factory run (`hooks/hooks.json`).
 
 ## review-page.sh
 
-**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html>`. No subcommands. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). `FACTORY_PROJECT` is passed through.
+**Interface:** `review-page.sh <spec.md> <issue> <branch> <out.html>`. No subcommands. Exit 2 on a wrong argument count or a spec that is not a file; otherwise the exit status of `shipfloor_core/review_page.py`, which builds the local review page from the spec and `review-template.html` and writes `<out.html>` (its folder is created). `FACTORY_PROJECT` is passed through.
 
 ## setup-board.sh
 
@@ -195,7 +195,7 @@ Sourced after `lib/project.sh`, with a resolved project; the one place stack-slo
 
 ## lib/portable.sh
 
-Sourced, never run; defines functions only, for the tools that differ between GNU (Linux) and BSD (macOS) userlands. `deploy.sh` sources it directly and `dispatch.sh` gets it through `lib/stack.sh`.
+Sourced, never run; defines functions only, for the tools that differ between GNU (Linux) and BSD (macOS) userlands. `dispatch.sh` gets it through `lib/stack.sh` (`shipfloor_core/deploy.py` has its own `run_bounded`).
 
 **Interface:** no subcommands; the functions are `mtime`, `run_bounded` and the internal `_kill_tree`.
 
