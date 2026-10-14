@@ -1,6 +1,7 @@
 """What a dispatcher cycle starts and what it leaves: queues, WIP, the machine pool and stage slots, locks, the waits
 (PAUSE, usage limit, GitHub limit, working hours), the infra retry, refresh_staged, exit codes and streams, the board
-read, the markers and tmp/ it cleans, its language, and the control checkout (shipfloor_core/dispatch.py).
+read, the "Blocked by" dependencies it waits on, the markers and tmp/ it cleans, its language, and the control
+checkout (shipfloor_core/dispatch.py).
 
 The runs a cycle launches are recorded, not run (DispatchCase.cycle(runs=False)), unless a case needs what a run does."""
 import os
@@ -113,6 +114,94 @@ class Queues(Base):
         self.write("gh/labels-41", "blocked\n")
         self.cycle(runs=False)
         self.assertEqual(self.started(), ["develop 40"], "the first card that can start")
+
+
+class Dependencies(Base):
+    """A card with an open "Blocked by" dependency is not started (#202): no label, no slot, it stays queued."""
+    OPEN = [{"number": 162, "title": "The base", "state": "open"}]
+
+    def touched(self, n):
+        """The board calls that name card n (a block would label it, a move would move it)."""
+        return [c for c in self.board_calls() if str(n) in c.split()]
+
+    def reads(self, n):
+        return [c for c in self.deps_calls() if "/issues/%s/dependencies/blocked_by" % n in " ".join(c)]
+
+    def test_open_dependency_skips_the_card(self):
+        "an open dependency: the top card is not started, gets no label or move, the next card starts; deps.json says so"
+        self.board(queues={"Ready for Dev": "41 40"})
+        self.deps(41, self.OPEN)
+        self.assertEqual(self.cycle(runs=False), 0, "waiting is not a failed cycle")
+        self.assertEqual(self.started(), ["develop 40"])
+        self.assertEqual(self.touched(41), [])
+        self.assertEqual(self.deps_record()["41"], {"read": True, "deps": [{"n": 162, "title": "The base", "state": "open"}]})
+
+    def test_waiting_orphan_is_not_resumed(self):
+        "an orphan (Coding, no run) with an open dependency is not resumed, and gets no label"
+        self.board(queues={"Coding": 60}, counts={"Coding": 1})
+        self.deps(60, self.OPEN)
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), [])
+        self.assertEqual(self.touched(60), [])
+
+    def test_every_later_stage_waits(self):
+        "validate and deploy candidates wait on an open dependency too"
+        self.board(queues={"Validation": 36, "Ready for Prod": 47})
+        self.deps(36, self.OPEN)
+        self.deps(47, self.OPEN)
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), [])
+        self.assertEqual((len(self.reads(36)), len(self.reads(47))), (1, 1))
+
+    def test_starts_once_the_dependency_closes(self):
+        "the dependency closes: the next cycle starts the card, with no owner action"
+        self.board(queues={"Ready for Dev": 41})
+        self.deps(41, self.OPEN)
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), [])
+        self.deps(41, [{"number": 162, "title": "The base", "state": "closed"}])
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), ["develop 41"])
+
+    def test_not_planned_is_closed(self):
+        "a dependency closed as not planned does not block, and deps.json records it as closed"
+        self.board(queues={"Ready for Dev": 41})
+        self.deps(41, [{"number": 162, "title": "Dropped", "state": "closed", "state_reason": "not_planned"}])
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), ["develop 41"])
+        self.assertEqual([(d["n"], d["state"]) for d in self.deps_record()["41"]["deps"]], [(162, "closed")])
+
+    def test_one_rest_read_per_candidate(self):
+        "the read is gh api (REST) on project.repo, one call per candidate per cycle, never GraphQL"
+        self.board(queues={"Ready for Dev": "41 40"})
+        self.deps(41, self.OPEN)
+        self.cycle(runs=False)
+        self.assertEqual((len(self.reads(41)), len(self.reads(40))), (1, 1))
+        self.assertEqual(self.reads(41), [["api", "repos/acme/shop/issues/41/dependencies/blocked_by?per_page=100"]])
+        self.assertFalse([c for c in self.deps_calls() if "graphql" in c])
+
+    def test_failed_read_waits_without_blocking(self):
+        "an API error or a body that is not a JSON array: not started, not labeled, read false; it starts once GitHub answers"
+        self.board(queues={"Ready for Dev": 41})
+        self.deps(41, fail=True)
+        self.assertEqual(self.cycle(runs=False), 0)
+        self.assertEqual(self.started(), [])
+        self.assertEqual(self.touched(41), [])
+        self.assertEqual(self.deps_record()["41"], {"read": False, "deps": []})
+        self.deps(41, '{"message":"Not Found"}', fail=False)
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), [], "a body that is not an array is an error too")
+        self.deps(41, [])
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), ["develop 41"])
+
+    def test_refinement_never_reads_them(self):
+        "refinement starts with open dependencies and does not even read them"
+        self.board(queues={"Ready for Refinement": 51})
+        self.deps(51, self.OPEN)
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), ["refine 51"])
+        self.assertEqual(self.reads(51), [])
 
 
 class Pool(Base):

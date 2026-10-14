@@ -142,6 +142,24 @@ print("deploy call %%d: %%s" %% (i + 1, " ".join(argv)))
 sys.exit(codes[min(i, len(codes) - 1)])
 '''
 
+# gh: the dispatcher's only gh call is the read of a candidate's "Blocked by" issues (#202). It answers from
+# <tmp>/deps/<n> (the body, default []); <tmp>/deps/fail fails it. Every call is a JSON line (argv) of <tmp>/deps.calls.
+GH = r'''
+import json, os, sys
+argv = sys.argv[1:]
+d = %(dir)r
+with open(%(calls)r, "a") as f:
+    f.write(json.dumps(argv) + "\n")
+path = argv[1].split("?")[0] if argv[:1] == ["api"] and len(argv) > 1 else ""
+if path.endswith("/dependencies/blocked_by"):
+    if os.path.exists(os.path.join(d, "fail")):
+        sys.stderr.write("gh: HTTP 502\n")
+        sys.exit(1)
+    n = path.split("/")[-3]
+    f = os.path.join(d, n)
+    sys.stdout.write(open(f).read() if os.path.exists(f) else "[]")
+'''
+
 
 class DispatchCase(support.Case):
     """Project shop at <shome>/projects/shop with an (empty) control checkout, worktrees under <tmp>/wt, no machine
@@ -172,6 +190,7 @@ class DispatchCase(support.Case):
         # deploy.sh is run by bash (`bash <deploy> <n> ...`): a shell script that hands over to the Python one
         py = self.script("deploy.py", DEPLOY % dict(names, calls=self.path("deploy.calls")))
         os.environ["FACTORY_DEPLOY"] = self.script("deploy", 'exec "%s" "$@"\n' % py, python=False)
+        os.environ["FACTORY_GH"] = self.script("gh", GH % {"dir": self.path("deps"), "calls": self.path("deps.calls")})
 
     # --- files and fakes
     def script(self, name, body, python=True):
@@ -218,6 +237,29 @@ class DispatchCase(support.Case):
                     val = "".join("%s\n" % x for x in val)
                 with open(os.path.join(d, name), "w") as f:
                     f.write(val)
+
+    def deps(self, n, body=None, fail=None):
+        """What gh answers for card n's "Blocked by" read: body (a list is dumped as JSON, a str is the raw body);
+        fail True/False makes every read fail or answer again."""
+        d = self.path("deps")
+        if body is not None:
+            with open(os.path.join(d, str(n)), "w") as f:
+                f.write(body if isinstance(body, str) else json.dumps(body))
+        if fail is not None:
+            f = os.path.join(d, "fail")
+            if fail:
+                open(f, "w").close()
+            elif os.path.exists(f):
+                os.unlink(f)
+
+    def deps_calls(self):
+        """The argv of every gh call, in order."""
+        return self._records("deps")
+
+    def deps_record(self):
+        """<home>/deps.json, the dispatcher's record of the dependencies it read."""
+        with open(os.path.join(self.home, "deps.json"), encoding="utf-8") as f:
+            return json.load(f)
 
     def board_calls(self):
         p = os.path.join(self.tmp, "board", "calls")

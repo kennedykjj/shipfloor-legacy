@@ -15,6 +15,12 @@ export FACTORY_CONFIG="${FACTORY_CONFIG:-$FACTORY_DIR/test/fixture/factory.yml}"
 # found once here: a config query runs in a subshell, where what shipfloor_python finds is lost
 export FACTORY_PYTHON="${FACTORY_PYTHON:-$(python3 -c '' >/dev/null 2>&1 && echo python3 || echo python)}"
 export SHIPFLOOR_HOME="${SHIPFLOOR_HOME:-$(mktemp -d)}"  # never touch the real ~/.shipfloor
+# A dispatcher cycle reads each candidate's "Blocked by" issues through gh (#202): a test of the dispatcher with no gh of
+# its own gets the fake one (it answers [] there), never the real gh and its network. Other tests keep their own gh.
+case "$(basename "$0")" in
+  dispatch*)
+    export FACTORY_GH="${FACTORY_GH:-$FACTORY_DIR/test/fake-gh}" FAKE_GH_DIR="${FAKE_GH_DIR:-$(mktemp -d)}" ;;
+esac
 
 # One template repo per test file; new_repo copies it (one process) instead of six git commands.
 REPO_TEMPLATE="$(mktemp -d)"

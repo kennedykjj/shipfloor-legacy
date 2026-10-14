@@ -38,11 +38,14 @@ if len(argv) > 2 and os.path.basename(argv[1]) == "dashboard_cost.py":
 os.execv(%(real)r, [%(real)r] + argv)
 '''
 
-# gh: each call a JSON line of <tmp>/gh.calls, with the board's label calls made before it; fake.json's "gh_fails" fails it
+# gh: no dependencies (#202); each other call a JSON line of <tmp>/gh.calls, with the board's label calls made before it; fake.json's "gh_fails" fails it
 GH = r'''
 import json, os, sys
 fake = json.load(open(%(fake)r)) if os.path.exists(%(fake)r) else {}
 argv = sys.argv[1:]
+if argv[:1] == ["api"] and "/dependencies/blocked_by" in argv[1]:
+    print("[]")  # the dispatcher's dependency read (#202): none
+    sys.exit(0)
 board = open(%(board)r).read().splitlines() if os.path.exists(%(board)r) else []
 body = open(argv[argv.index("--body-file") + 1]).read() if "--body-file" in argv else None
 open(%(calls)r, "a").write(json.dumps({"argv": argv, "labels_before": [l for l in board if l.startswith("label")],
