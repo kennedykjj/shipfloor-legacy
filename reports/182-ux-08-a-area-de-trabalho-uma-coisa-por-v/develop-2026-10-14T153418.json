@@ -1,0 +1,19 @@
+{
+  "issue": 182,
+  "slug": "ux-08-a-area-de-trabalho-uma-coisa-por-v",
+  "pipeline": "develop",
+  "date": "2026-10-14",
+  "outcome": "blocked",
+  "step": 1,
+  "reason": "The spec requires #179 (UX-05) and #181 (UX-07) to be merged before develop; #179 is in Ready for Prod and #181 in Coding, neither merged",
+  "base": "9ca82d1b0d322a0f30b1ed303ff7e4bffe1baf77",
+  "agents": [],
+  "tokens": null,
+  "duration": null,
+  "rounds": 0,
+  "gates": [{"name": "test-plan", "result": "pass"}],
+  "failed_gates": [],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": []
+}
