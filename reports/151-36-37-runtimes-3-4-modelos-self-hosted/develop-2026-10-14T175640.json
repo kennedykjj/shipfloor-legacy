@@ -1,0 +1,16 @@
+{
+  "card": 151,
+  "stage": "develop",
+  "outcome": "blocked",
+  "weight": "heavy",
+  "agents": [],
+  "rounds": {},
+  "failed_gates": [],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": [],
+  "notes": [
+    "Dependencies #149 and #150 are in Coding and not on main; the codex runtime this card extends does not exist yet.",
+    "Card left in Ready for Dev with label blocked; not moved to Coding."
+  ]
+}
