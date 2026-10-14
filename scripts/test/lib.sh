@@ -18,7 +18,7 @@ export SHIPFLOOR_HOME="${SHIPFLOOR_HOME:-$(mktemp -d)}"  # never touch the real 
 # A dispatcher cycle reads each candidate's "Blocked by" issues through gh (#202): a test of the dispatcher with no gh of
 # its own gets the fake one (it answers [] there), never the real gh and its network. Other tests keep their own gh.
 case "$(basename "$0")" in
-  dispatch*|shipfloor-dispatch*|run-dispatcher*|tmp-sweep*|cycle-port*)
+  dispatch*)
     export FACTORY_GH="${FACTORY_GH:-$FACTORY_DIR/test/fake-gh}" FAKE_GH_DIR="${FAKE_GH_DIR:-$(mktemp -d)}" ;;
 esac
 
