@@ -22,10 +22,51 @@ for name, t in blocks.items():
             a, b = sorted((lum(t[fg]), lum(t[bg])), reverse=True)
             if (a + .05) / (b + .05) < 4.5: bad.append(f"{name}: {fg} on {bg} is {(a + .05) / (b + .05):.2f}:1")
     if (lum(t["ground"]) > .5) != ("color-scheme: light" in h[h.index(f'[data-theme="{name}"]'):].split("}")[0]): bad.append(f"{name}: color-scheme does not match its ground")
+
+# AC-1 (#180): every theme, the base one included, defines the five tokens of the v4 system; text is readable on raise and paper too
+NEW = ["raise", "accent-ink", "paper", "accent-soft", "accent-line"]
+def alpha_ok(v, pct):  # accent at pct%: a color-mix percentage, a rgba() alpha, or an 8-digit hex alpha
+    v = v.strip()
+    if re.search(r"(?<![\d.])%s(\.0+)?%%" % pct, v) and "color-mix" in v: return True
+    m = re.fullmatch(r"rgba?\(.*[,/]\s*(0?\.\d+|\d+%)\s*\)", v)
+    if m:
+        a = m.group(1); a = float(a[:-1]) / 100 if a.endswith("%") else float(a)
+        return abs(a - pct / 100) < .006
+    m = re.fullmatch(r"#[0-9a-fA-F]{6}([0-9a-fA-F]{2})", v)
+    return bool(m) and abs(int(m.group(1), 16) - round(pct * 2.55)) <= 1
+for name, t in blocks.items():
+    miss = [k for k in NEW if not t.get(k, "").strip()]
+    if miss: bad.append(f"AC-1 {name}: does not define {miss}"); continue
+    for k in ("raise", "accent-ink", "paper"):
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", t[k].strip()): bad.append(f"AC-1 {name}: {k} is not a hex color ({t[k].strip()})")
+    if not alpha_ok(t["accent-soft"], 14): bad.append(f"AC-1 {name}: accent-soft is {t['accent-soft'].strip()}, want the accent at 14%")
+    if not alpha_ok(t["accent-line"], 45): bad.append(f"AC-1 {name}: accent-line is {t['accent-line'].strip()}, want the accent at 45%")
+    for bg in ("raise", "paper"):
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", t[bg].strip()) and re.fullmatch(r"#[0-9a-fA-F]{6}", t.get("text", "")):
+            a, b = sorted((lum(t["text"]), lum(t[bg])), reverse=True)
+            if (a + .05) / (b + .05) < 4.5: bad.append(f"AC-1 {name}: text on {bg} is {(a + .05) / (b + .05):.2f}:1")
+# AC-1: Graphite and Paper take the Floor v4 table values exactly (the accent is --sand)
+V4 = {
+ "graphite": dict(ground="#141412", panel="#1b1b19", **{"panel-hi": "#23231f"}, raise_="#2a2925", edge="#2e2d29", **{"edge-hi": "#44423c"}, text="#ecebe6", soft="#cbc8bf", muted="#a29f95", faint="#8b887f", sand="#e9b44c", **{"accent-ink": "#1d1606"}, ok="#86c29c", warn="#e59a62", bad="#e8806f", track="#3b3a35", paper="#1f1e1b"),
+ "paper": dict(ground="#f4f2ec", panel="#faf9f5", **{"panel-hi": "#ffffff"}, raise_="#ffffff", edge="#e2ddd2", **{"edge-hi": "#cdc6b8"}, text="#1f1d19", soft="#3e3a33", muted="#5f5a51", faint="#6f6a60", sand="#8f5b00", **{"accent-ink": "#ffffff"}, ok="#2f7a4b", warn="#a2531a", bad="#b4372a", track="#d9d3c6", paper="#fffdf8"),
+}
+for name, want in V4.items():
+    if name not in blocks: bad.append(f'AC-1 {name}: no [data-theme="{name}"] block'); continue
+    for k, v in want.items():
+        k = "raise" if k == "raise_" else k
+        got = blocks[name].get(k, "").strip().lower()
+        if got != v: bad.append(f"AC-1 {name}: --{k} is {got or 'missing'}, Floor v4 says {v}")
+    r = lambda x, y: (max(lum(x), lum(y)) + .05) / (min(lum(x), lum(y)) + .05)
+    if all(re.fullmatch(r"#[0-9a-fA-F]{6}", blocks[name].get(k, "")) for k in ("accent-ink", "sand")) and r(blocks[name]["accent-ink"], blocks[name]["sand"]) < 4.5:
+        bad.append(f"AC-1 {name}: accent-ink on the accent is {r(blocks[name]['accent-ink'], blocks[name]['sand']):.2f}:1")
+# AC-1: today's blue "paper" is now Cobalt, with its old colors
+cob = blocks.get("cobalt", {})
+if cob.get("ground", "").strip().lower() != "#e3ebf6" or cob.get("sand", "").strip().lower() != "#006478": bad.append(f"AC-1 cobalt: ground/sand are {cob.get('ground')}/{cob.get('sand')}, want the old paper's #e3ebf6/#006478")
+if "paper" in blocks and blocks["paper"].get("ground", "").strip().lower() == "#e3ebf6": bad.append("AC-1 paper is still the old blue theme")
 print(len(blocks), "themes"); print("\n".join(bad) or "all readable")
 PY
 )"
-assert_contains "$out" "12 themes"
+assert_contains "$out" "14 themes"
 assert_contains "$out" "all readable"
 
 # Settings offers four themes first and the rest behind "More themes" (AC-5), and says which is in use when it is behind the fold (AC-6).
@@ -45,10 +86,17 @@ def ids(k):
     return re.findall(r'"([a-z]+)"', win[pos[k]:later[0] if later else len(win)].split("\n")[0])
 first, dark, light = ids("first"), ids("dark"), ids("light")
 css = set(re.findall(r'\[data-theme="([a-z]+)"\]\s*\{', h))
-check("AC-5 THEMES.first holds Auto, Floor tape, Kraft, High contrast in that order", first == ["auto", "tape", "kraft", "contrast"], f"first is {first}")
+check("AC-2 THEMES.first holds Auto, Graphite, Paper, High contrast in that order", first == ["auto", "graphite", "paper", "contrast"], f"first is {first}")
 rest = dark + light
-check("AC-5 dark and light keep the other nine themes, none of the four", len(rest) == 9 and not set(rest) & set(first), f"dark+light are {rest}")
-check("AC-5 each of the twelve themes is offered once", sorted(x for x in first + rest if x != "auto") == sorted(css) and len(css) == 12, f"offered {sorted(first + rest)}")
+check("AC-2 dark and light keep the other eleven themes, none of the four", len(rest) == 11 and not set(rest) & set(first), f"dark+light are {rest}")
+check("AC-2 Tape is dark; Kraft and Cobalt are light", "tape" in dark and "kraft" in light and "cobalt" in light, f"dark {dark}, light {light}")
+check("AC-2 each of the fourteen themes is offered once", sorted(x for x in first + rest if x != "auto") == sorted(css) and len(css) == 14, f"offered {sorted(first + rest)}")
+check("AC-2 Cobalt stays selectable", "cobalt" in rest and "cobalt" in css, "cobalt is not offered or has no css block")
+fn = re.search(r"function theme\(pick\)\s*\{.*?\n\}", h, flags=re.S)
+fb = fn.group(0) if fn else ""
+auto = next((l for l in fb.splitlines() if "dataset.theme" in l), "")
+check("AC-2 Auto resolves to Graphite in dark and Paper in light", "graphite" in auto and '"paper"' in auto and "prefers-color-scheme: light" in auto and "kraft" not in auto and "tape" not in auto, f"theme() sets the theme with: {auto.strip()}")
+check("AC-2 pt-BR names Graphite, Paper and Cobalt", [page_text.msg("pt-BR", k) for k in ("theme.graphite", "theme.paper", "theme.cobalt")] == ["Graphite", "Paper", "Cobalt"], "theme.graphite/paper/cobalt are not Graphite/Paper/Cobalt in pt-BR")
 check("AC-5 More themes fold is labelled", "More themes" in h, 'the text "More themes" is missing')
 check("AC-5 the fold is a data-fold=themes button with aria-expanded and aria-controls", bool(re.search(r'<button[^>]*data-fold="themes"', h)) and bool(re.search(r'<button[^>]*data-fold="themes"[^>]*aria-expanded=', h) or re.search(r'<button[^>]*aria-expanded=[^>]*data-fold="themes"', h)) and bool(re.search(r'<button[^>]*data-fold="themes"[^>]*aria-controls=', h) or re.search(r'<button[^>]*aria-controls=[^>]*data-fold="themes"', h)), 'no button[data-fold="themes"] with aria-expanded and aria-controls')
 check("AC-5 SET.moreThemes starts closed", bool(re.search(r"moreThemes\s*:\s*false", h)), "SET has no moreThemes: false")
@@ -152,7 +200,7 @@ for name, t in sorted(blocks.items()):
         check(f"AC-5 {name}: the pill's text {pill_fg} on its hover background is 4.5:1", r >= 4.5, f"{pill_fg} text on the pill's hover background {hov_bg} is {r:.2f}:1")
     except ValueError as e:
         check(f"AC-5 {name}: the pill's hover colors resolve", False, f"cannot resolve the pill's hover background {hov_bg or 'missing'} or its text color {pill_fg or 'missing'}")
-check("AC-5 twelve themes are checked", len(blocks) == 12, f"{len(blocks)} themes")
+check("AC-5 fourteen themes are checked", len(blocks) == 14, f"{len(blocks)} themes")
 print("\n".join(res))
 PY
 )"
@@ -189,7 +237,7 @@ def ratio(a, b):
     hi, lo = sorted((lum(a), lum(b)), reverse=True); return (hi + .05) / (lo + .05)
 
 themes = sorted(blocks)
-check("every one of the twelve themes sets --validate as a hex color", [f"{t} has no --validate" for t in themes if not hexof(t, "validate")] + ([] if len(themes) == 12 else [f"{len(themes)} themes"]))
+check("every one of the fourteen themes sets --validate as a hex color", [f"{t} has no --validate" for t in themes if not hexof(t, "validate")] + ([] if len(themes) == 14 else [f"{len(themes)} themes"]))
 p = []
 for t in themes:
     v = hexof(t, "validate")
@@ -233,7 +281,7 @@ for t in themes:
     for a, b in itertools.combinations(cols, 2):
         d = de(cols[a], cols[b])
         if d < 20: p.append(f"{t}: {a} {cols[a]} and {b} {cols[b]} are dE {d:.1f} apart")
-check("AC-6 in all twelve themes the four pool-bar stage colors are four different colors, none the accent", p)
+check("AC-6 in all fourteen themes the four pool-bar stage colors are four different colors, none the accent", p)
 print("\n".join(res))
 PY
 )"
