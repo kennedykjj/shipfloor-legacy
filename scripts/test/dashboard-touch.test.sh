@@ -139,8 +139,8 @@ ok(re.search(r"else if \(t\.dataset\.step\) setStep\(t\)", js) and "function set
 b = hits(wide, ".stp button")
 ok(last(b, "width") == "34px" and last(b, "height") == "34px",
    "AC-7 (guard, passes today) .stp button is 34px by 34px", f"AC-7: .stp button is {last(b,'width')!r} by {last(b,'height')!r}")
-ok(last(hits(wide, ".stp.dirty output"), "color") == "var(--sand)",
-   "AC-7 (guard, passes today) a dirty stepper value is --sand", "AC-7: .stp.dirty output is not var(--sand)")
+ok(last(hits(wide, ".stp.dirty output"), "color") == "var(--text)",
+   "AC-7 (guard, passes today) a dirty stepper value is --text", "AC-7: .stp.dirty output is not var(--text)")
 ok("t.dataset.step" in js and 'class="stp${k in SET.draft ? " dirty" : ""}' in js,
    "AC-7 (guard, passes today) a stepper still marks the change as dirty", "AC-7: the dirty class on .stp is gone")
 
