@@ -1,0 +1,1 @@
+{"issue":155,"slug":"the-scripts-contract-written-down","pipeline":"refine","started_at":"2026-10-14T00:00:00Z","finished_at":"2026-10-14T00:00:00Z","outcome":"ok","agents":[{"role":"product-owner","tokens":14429,"duration_s":15}],"rounds":{"3":1,"6":1},"gates_failed":[],"flaky":[],"gates_reused":[],"manual_edit":null}
