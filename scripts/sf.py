@@ -60,6 +60,16 @@ def cmd_deploy(args):
     return deploy.main(args)
 
 
+def cmd_cycle(args):
+    from shipfloor_core import cycle
+    return cycle.main(args)
+
+
+def cmd_cycle_project(args):
+    from shipfloor_core import cycle
+    return cycle.main_project(args)
+
+
 def cmd_stack(args):
     from shipfloor_core import stack
     return stack.main(args)
@@ -67,7 +77,7 @@ def cmd_stack(args):
 
 COMMANDS = {"version": cmd_version, "board": cmd_board, "setup-board": cmd_setup_board, "report": cmd_report,
             "metrics": cmd_metrics, "review-page": cmd_review_page, "deploy": cmd_deploy, "cli": cmd_cli,
-            "gate": cmd_gate, "stack": cmd_stack}
+            "gate": cmd_gate, "cycle": cmd_cycle, "cycle-project": cmd_cycle_project, "stack": cmd_stack}
 
 
 def main(argv):
