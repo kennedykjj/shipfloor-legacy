@@ -13,6 +13,7 @@
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
       "Bash(gh pr checks:*)",
+      "Bash(gh run view:*)",
       "Bash(gh pr update-branch:*)",
       "Bash(bash ~/.shipfloor/factory/gate.sh:*)",
       "Bash(bash ~/.shipfloor/factory/board.sh:*)",

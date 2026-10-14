@@ -168,4 +168,119 @@ assert_contains "$readme" "install-dispatcher.sh --uninstall"
 case "$readme" in *[Ll]inger*) pass "README explains lingering" ;; *) fail "README does not mention lingering for the Linux dispatcher" ;; esac
 case "$readme" in *"PATH changes"*) pass "README says to run the installer again after PATH changes" ;; *) fail "README does not say to run the installer again after your PATH changes" ;; esac
 case "$readme" in *macOS*) pass "README names macOS" ;; *) fail "README does not name macOS" ;; esac
+
+# ---- #161 (PY-08): pins what the shipfloor CLI does today. "shop" is registered (re-added above) and its control checkout exists.
+# A stand-in gh on PATH (setup-board.sh, doctor and the board scripts call `gh` by name): it records every call with the folder it ran in.
+G="$(mktemp -d)"; GS="$(mktemp -d)"; export GH_STUB_DIR="$G"
+cat > "$GS/gh" <<'EOS'
+#!/usr/bin/env bash
+d="$GH_STUB_DIR"; args="$*"
+printf '%s\t%s\n' "$PWD" "$args" >> "$d/calls"
+case "$args" in
+  "auth status"*) [ -e "$d/noauth" ] && { echo "You are not logged in" >&2; exit 1; }; exit 0 ;;
+  "api repos/acme/shop/branches/main/protection"*) cat "$d/protection"; [ -e "$d/protection-fails" ] && exit 1; exit 0 ;;
+  "project view"*) echo PVT_x ;;
+  "project field-list"*"| .id") echo FLD_x ;;
+  "project field-list"*) i=0; for s in "👤 Inbox" "👤 Ready for Refinement" "🤖 Technical Refinement" "👤 Spec Review" "👤 Ready for Dev" "🤖 Coding" "🤖 Validation" "👤 Staged" "👤 Ready for Prod" "🤖 Done"; do i=$((i+1)); printf '%s\topt%s\n' "$s" "$i"; done ;;
+  "project item-list"*group_by*) echo "Coding: 1" ;;
+  "project item-list"*) printf 'I1\t🤖 Coding\n' ;;
+  "api graphql"*|"project item-edit"*|"label create"*) ;;
+  *) exit 1 ;;
+esac
+EOS
+chmod +x "$GS/gh"
+H2="$SHIPFLOOR_HOME/projects/shop"
+
+# AC-8 setup-board <slug>: runs setup-board.sh in the project's control checkout, with the project's config and home
+echo "PVT_x FLD_x" > "$H2/board-ids"
+out="$(PATH="$GS:$PATH" bash "$M" setup-board shop 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && pass "AC-8 setup-board shop exits 0" || fail "AC-8 setup-board exit $rc: $out"
+assert_contains "$(head -1 "$G/calls")" "$H2/control"$'\t'"project view 7 --owner acme"
+assert_contains "$(cat "$G/calls")" "project item-edit --project-id PVT_x --id I1 --field-id FLD_x --single-select-option-id opt6"
+assert_contains "$(cat "$G/calls")" "label create blocked --repo acme/shop"
+[ ! -e "$H2/board-ids" ] && pass "AC-8 setup-board removed the project's board-ids" || fail "AC-8 board-ids left in $H2"
+assert_contains "$out" "): 1 items"
+assert_contains "$out" "Coding: 1"
+assert_exit 1 bash "$M" setup-board nope
+assert_contains "$(bash "$M" setup-board nope 2>&1)" "shipfloor: no project 'nope' (shipfloor list)"
+assert_exit 1 bash "$M" setup-board
+
+# AC-8 metrics <slug>: metrics.sh on the project's reports
+mkdir -p "$H2/reports-wt/reports/9-x"
+echo '{"issue":9,"slug":"x","pipeline":"refine","outcome":"ok","agents":[{"role":"po","tokens":500}],"rounds":{"a":1},"gates_failed":[],"manual_edit":false,"started_at":"2026-10-09T10:00:00-03:00","finished_at":"2026-10-09T10:05:00-03:00"}' > "$H2/reports-wt/reports/9-x/refine-1.json"
+out="$(bash "$M" metrics shop 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && pass "AC-8 metrics shop exits 0" || fail "AC-8 metrics exit $rc: $out"
+[ "$out" = $'issue\tpipeline\toutcome\ttokens\tduration_min\trounds\tgates_failed\tmanual_edit\n9\trefine\tok\t500\t5\t1\t\tFalse' ] && pass "AC-8 metrics prints the header and one line per report" || fail "AC-8 metrics output: $out"
+assert_exit 1 bash "$M" metrics nope
+
+# AC-8 dashboard: the first line is "shipfloor dashboard: <url>  (Ctrl+C stops it)", the one skills/dashboard reads
+dash() {  # dash <out file> <args...>: starts the dashboard, waits for its first line, stops it
+  local f="$1" pid; shift
+  CLAUDE_CONFIG_DIR="$(mktemp -d)" bash "$M" dashboard "$@" > "$f" 2>&1 &
+  pid=$!
+  for _ in $(seq 1 100); do [ -s "$f" ] && break; sleep 0.1; done
+  pkill -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+}
+dash "$G/dash1" --port 0 --no-open
+first="$(head -1 "$G/dash1" | tr -d '\r')"
+[[ "$first" =~ ^shipfloor\ dashboard:\ http://127\.0\.0\.1:[0-9]+/\?t=[^\ ]+\ \ \(Ctrl\+C\ stops\ it\)$ ]] && pass "AC-8 dashboard first line: shipfloor dashboard: <url>  (Ctrl+C stops it)" || fail "AC-8 dashboard first line: $first"
+dash "$G/dash2" --port 0 --no-open --token sekret
+assert_contains "$(head -1 "$G/dash2")" "/?t=sekret  (Ctrl+C stops it)"
+
+# AC-8 pool stacks <n>: the machine's stack slots; the machine config is the only thing it writes
+assert_exit 0 bash "$M" pool stacks 5
+out="$(bash "$M" pool)"; assert_contains "$out" "stacks: 5"; assert_contains "$out" "slot 4: free"
+assert_contains "$(cat "$SHIPFLOOR_HOME/config.yml")" "stacks: 5"
+assert_exit 1 bash "$M" pool stacks x
+assert_exit 1 bash "$M" pool stacks
+assert_exit 1 bash "$M" pool stacks 0
+assert_contains "$(bash "$M" pool)" "stacks: 5"   # a refused value leaves the setting alone
+assert_exit 0 bash "$M" pool stacks 3
+assert_contains "$(bash "$M" pool)" "stacks: 3"
+assert_exit 2 bash "$M" pool bogus
+
+# AC-8 add --main <b>: the project follows that branch, not origin/HEAD or main
+tcfg="$(sed -e 's/name: shop/name: trunky/' -e 's#acme/shop#acme/trunky#' "$FACTORY_DIR/test/fixture/factory.yml")"
+tr="$(with_config "$tcfg")"
+git -C "$tr" push -q origin main:trunk
+git -C "$tr" commit -q --allow-empty -m "main moves on"; git -C "$tr" push -q origin main
+assert_exit 0 bash "$M" add "$tr" --main trunk
+assert_contains "$(cat "$SHIPFLOOR_HOME/registry.tsv")" "trunky	$(git -C "$tr" rev-parse --show-toplevel)	$SHIPFLOOR_HOME/projects/trunky/wt	trunk"
+[ "$(git -C "$SHIPFLOOR_HOME/projects/trunky/control" rev-parse HEAD)" = "$(git -C "$tr" rev-parse origin/trunk)" ] && pass "AC-8 add --main: the control checkout is at origin/trunk" || fail "AC-8 control checkout is not at origin/trunk"
+[ "$(git -C "$SHIPFLOOR_HOME/projects/trunky/control" rev-parse HEAD)" != "$(git -C "$tr" rev-parse origin/main)" ] && pass "AC-8 add --main: not at origin/main" || fail "AC-8 control checkout followed main"
+assert_exit 1 bash "$M" add "$tr" --main nope-branch
+assert_exit 2 bash "$M" add "$tr" --bogus
+
+# AC-8 doctor: the gh-auth line, the branch-protection line of each project and the models line
+dr() { HOME="$dh" PATH="$GS:$SB:$PATH" SF_UNAME=Linux bash "$M" doctor 2>&1; }
+echo true > "$G/protection"
+out="$(dr)"
+assert_contains "$out" "ok   gh authenticated"
+assert_contains "$out" "ok   shop: main requires up-to-date branches"
+assert_contains "$out" "ok   models"
+touch "$G/noauth"; echo false > "$G/protection"
+out="$(dr)"
+assert_contains "$out" "FAIL gh auth login"
+case "$out" in *"ok   gh authenticated"*) fail "AC-8 doctor says gh is authenticated while it is not" ;; *) pass "AC-8 doctor: no gh-auth ok line without auth" ;; esac
+assert_contains "$out" "WARN shop: main does not require up-to-date branches (false); a hand merge can race the deploy"
+assert_exit 1 env HOME="$dh" PATH="$GS:$SB:$PATH" SF_UNAME=Linux bash "$M" doctor   # a failed check makes doctor exit 1
+rm -f "$G/noauth"
+printf 'gh: Branch not protected (HTTP 404)\n' > "$G/protection"; touch "$G/protection-fails"
+assert_contains "$(dr)" "WARN shop: main does not require up-to-date branches (Branch not protected (HTTP 404)); a hand merge can race the deploy"
+cp "$SHIPFLOOR_HOME/config.yml" "$G/config.yml.bak"
+printf 'models:\n  stages: {develop: gpt}\n' >> "$SHIPFLOOR_HOME/config.yml"
+out="$(dr)"
+assert_contains "$out" 'WARN models: models.stages.develop: "gpt" is not a model the factory knows (opus, sonnet, haiku, fable)'
+case "$out" in *"ok   models"*) fail "AC-8 doctor says ok models beside a models warning" ;; *) pass "AC-8 doctor: a models warning replaces the ok line" ;; esac
+cp "$G/config.yml.bak" "$SHIPFLOOR_HOME/config.yml"
+
+# AC-8 the usage: a command the CLI does not know prints the header lines 2-10 of scripts/shipfloor (comment marks off) on stderr, exit 2.
+# Today that stops one line short of the header: the dashboard line (line 11) is not in it.
+want=$'shipfloor: installs the factory scripts and manages the projects the dispatcher serves.\n  install [--force]             copy scripts and templates to ~/.shipfloor/factory\n  doctor                        check tools, the installed copy and every project\'s config\n  add <repo> [--worktrees DIR]  register a local clone whose origin/main has .shipfloor/factory.yml\n  remove <slug> | list | pause [slug] | resume [slug] | setup-board <slug> | metrics <slug>\n  pool [set <n> | stage <stage> <n> | stacks <n>]  runs at once on this machine, per stage, and stack slots\n  clean <slug>                  remove what cards left under tmp/ (the dispatcher does it every cycle)\n  accept <slug> <n> <reason>    owner only: take card <n>\'s acceptance tests as they stand (acceptance-intact)\n  weight <slug> <n> <light|standard|heavy>  owner only: card <n>\'s weight, in Spec Review (the model its runs take)'
+out="$(bash "$M" nonsense 2>&1 >/dev/null)"
+[ "$out" = "$want" ] && pass "AC-8 the usage is the header's lines 2-10, '# ' removed" || fail "AC-8 usage text: $out"
+assert_exit 2 bash "$M" nonsense
+[ "$(bash "$M" 2>&1 >/dev/null)" = "$want" ] && pass "AC-8 no command prints the same usage" || fail "AC-8 no command: usage differs"
+[ -z "$(bash "$M" nonsense 2>/dev/null)" ] && pass "AC-8 the usage goes to stderr only" || fail "AC-8 the usage reached stdout"
+case "$out" in *"dashboard [--port"*) fail "AC-8 the usage now lists dashboard (line 11 of the header)" ;; *) pass "AC-8 the usage stops before the dashboard line, as today" ;; esac
 finish

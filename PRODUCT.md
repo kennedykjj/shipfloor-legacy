@@ -16,7 +16,7 @@ The factory's owner, a developer who runs Shipfloor on their own machine, and ot
 
 ## Product Purpose
 
-Shipfloor is a software factory for Claude Code: GitHub issues become shipped PRs through agents (refine, develop, validate, deploy) held by deterministic gates. The dashboard is its local control room: pool and slots, live runs, each run's log, the estimated cost of each card from Inbox to Done, and the review pages where the owner approves or sends back Spec Review and Staged cards.
+Shipfloor is a software factory: GitHub issues become shipped PRs through agents (refine, develop, validate, deploy) held by deterministic gates. The dashboard is its local control room: pool and slots, live runs, each run's log, the estimated cost of each card from Inbox to Done, and the review pages where the owner approves or sends back Spec Review and Staged cards.
 
 ## Positioning
 
@@ -35,7 +35,7 @@ The GitHub Project board is the source of truth for card columns; the dashboard 
 
 ## Brand Commitments
 
-Name: Shipfloor (CLI: `shipfloor`; plugin and slash commands: `sf`). Brand line: "Shipfloor — a software factory for Claude Code". The name is "shop floor" with ship: the floor of the factory that software ships from.
+Name: Shipfloor (CLI: `shipfloor`; plugin and slash commands: `sf`). Brand line: "Shipfloor — a software factory". The name is "shop floor" with ship: the floor of the factory that software ships from.
 
 ## Evidence on Hand
 
