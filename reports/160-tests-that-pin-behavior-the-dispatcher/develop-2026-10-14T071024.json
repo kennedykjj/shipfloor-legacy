@@ -1,0 +1,25 @@
+{
+  "issue": 160,
+  "stage": "develop",
+  "outcome": "infra",
+  "step": 4,
+  "agents": [
+    {"name": "qa-engineer", "tokens": 197889, "duration_s": 1141, "rounds": 1},
+    {"name": "qa-engineer (amend)", "tokens": 29136, "duration_s": 74, "rounds": 1}
+  ],
+  "gates_failed": [
+    "green factory scripts/test/shipfloor-dispatch-cycle.test.sh (infra: /tmp out of inodes)",
+    "green factory scripts/test/run-dispatcher.test.sh (infra: /tmp out of inodes)"
+  ],
+  "gates_passed": ["test-plan", "scope techlead", "scope qa", "qa-commit", "acceptance-intact", "migration", "build",
+    "green dispatch-process", "green dispatch-launch-flags", "green dispatch-cost-cleanup", "green dispatch-lang-files"],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": [
+    {"files": ["scripts/test/dispatch-process.test.sh", "scripts/test/dispatch-launch-flags.test.sh", "scripts/test/dispatch-cost-cleanup.test.sh", "scripts/test/dispatch-lang-files.test.sh", "scripts/test/shipfloor-dispatch-cycle.test.sh", "scripts/test/run-dispatcher.test.sh"],
+     "commit": "16c864f140a15023fa495331c38cf64d1e07c9ff",
+     "reason": "A failed mktemp left an empty path, and git -C \"\" then acted on the real repository (it emptied origin's URL). Each test now aborts when it can't create a temp dir. No assertion changed.",
+     "verified": false}
+  ],
+  "commits": {"base": "8a318bc8b1d05efba6a3969fbdcd68e5186b4c21", "plan": "36f6fd495b2ecd2954eb270e7ab1c8b9b81045bc", "qa": "ec229876c268e08fa7447fe691058de82a9b580f", "head": "16c864f140a15023fa495331c38cf64d1e07c9ff"}
+}
