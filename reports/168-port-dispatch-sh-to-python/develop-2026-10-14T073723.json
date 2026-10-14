@@ -1,0 +1,16 @@
+{
+  "issue": 168,
+  "slug": "port-dispatch-sh-to-python",
+  "stage": "develop",
+  "outcome": "blocked",
+  "step": 1,
+  "reason": "prerequisites #157, #160, #162, #166, #167 not merged; scripts/shipfloor_core/ absent on origin/main",
+  "agents": [],
+  "tokens": 0,
+  "rounds": 0,
+  "gates_run": ["test-plan"],
+  "failed_gates": [],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": []
+}
