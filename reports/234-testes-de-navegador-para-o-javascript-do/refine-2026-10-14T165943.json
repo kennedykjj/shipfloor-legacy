@@ -1,0 +1,4 @@
+{"issue": 234, "slug": "testes-de-navegador-para-o-javascript-do", "pipeline": "refine",
+ "started_at": "2026-10-14T16:57:20-03:00", "finished_at": "2026-10-14T17:12:00-03:00", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 13956, "duration_s": 17.6}],
+ "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": false}
