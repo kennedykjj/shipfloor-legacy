@@ -148,9 +148,76 @@ def runtime_problems(raw, where="runtime"):
                         check(name, f"{where}.stages.{stage}")
             elif k == "stages":
                 errs.append(f"{where}.stages must be a mapping of stage: runtime (known runtimes: {known})")
+            elif k == "models":
+                errs += [f"{e} (known runtimes: {known})" for e in runtime_models_problems(v, f"{where}.models")]
+            elif k == "ladder":
+                if not is_str_list(v):
+                    errs.append(f"{where}.ladder must be a list of model names, lowest first (known runtimes: {known})")
             else:
-                errs.append(f"{where}.{k}: unknown setting (use default, stages; known runtimes: {known})")
+                errs.append(f"{where}.{k}: unknown setting (use default, stages, models, ladder; known runtimes: {known})")
     return errs
+
+
+def runtime_models_problems(raw, where):
+    """`runtime.models`: {stages: {<stage>: model | {light|standard|heavy: model}}, agents: {<name>: model}}. A model is
+    any non-empty name (the runtime's own CLI takes it); refine runs before the card has a weight, so it has one."""
+    if not isinstance(raw, dict):
+        return [f"{where} must be a mapping of stages and agents"]
+
+    def model(v, at):
+        return [] if isinstance(v, str) and v.strip() else [f"{at} must be a model name (not empty)"]
+
+    errs = []
+    for group, entries in raw.items():
+        if group not in ("stages", "agents"):
+            errs.append(f"{where}.{group}: unknown setting (use stages, agents)")
+        elif not isinstance(entries, dict):
+            errs.append(f"{where}.{group} must be a mapping")
+        elif group == "agents":
+            for name, v in entries.items():
+                errs += model(v, f"{where}.agents.{name}")
+        else:
+            for stage, v in entries.items():
+                at = f"{where}.stages.{stage}"
+                if stage not in STAGES:
+                    errs.append(f"{at}: unknown stage (use {', '.join(STAGES)})")
+                elif isinstance(v, dict) and stage != "refine":
+                    for weight, m in v.items():
+                        if weight not in WEIGHTS:
+                            errs.append(f"{at}.{weight}: not a weight ({', '.join(WEIGHTS)})")
+                        else:
+                            errs += model(m, f"{at}.{weight}")
+                else:
+                    errs += model(v, at)
+    return errs
+
+
+def runtime_setting(machine_raw, project_raw, key):
+    """What `runtime.<key>` (models, ladder) says: the project's over the machine's. models merge group by group and
+    name by name; a ladder is replaced as a whole."""
+    out = None
+    for raw in (machine_raw, project_raw):
+        value = raw.get("runtime").get(key) if isinstance(raw, dict) and isinstance(raw.get("runtime"), dict) else None
+        if value is None:
+            continue
+        if key == "models" and isinstance(out, dict):
+            out = {g: {**(out.get(g) or {}), **(value.get(g) or {})} for g in {*out, *value}}
+        else:
+            out = value
+    return out
+
+
+def runtime_stage_models(machine_raw, project_raw=None):
+    """Stage -> weight -> model of the stages that do not run on claude-code, from `runtime.models.stages`; '' = the
+    runtime's own default (no model flag). Call it on valid values."""
+    configured = (runtime_setting(machine_raw, project_raw, "models") or {}).get("stages") or {}
+    out = {}
+    for stage, rt in zip(STAGES, runtime_of(machine_raw, project_raw)):
+        if rt == "claude-code":
+            continue
+        m = configured.get(stage)
+        out[stage] = {w: (m.get(w, "") if isinstance(m, dict) else m or "") for w in WEIGHTS}
+    return out
 
 
 def runtime_of(machine_raw, project_raw=None):
@@ -592,10 +659,10 @@ STAGE_MODELS = {"refine": "sonnet", "develop": {"light": "sonnet", "standard": "
 PLUGIN_AGENTS = {"product-owner": "opus", "ux-designer": "opus", "qa-engineer": "sonnet", "engineer": "sonnet", "cybersec": "opus"}
 
 
-def model_up(model):
-    """The next model up the ladder; None for the top one or a model outside it."""
-    i = MODEL_LADDER.index(model) if model in MODEL_LADDER else len(MODEL_LADDER)
-    return MODEL_LADDER[i + 1] if i + 1 < len(MODEL_LADDER) else None
+def model_up(model, ladder=MODEL_LADDER):
+    """The next model up the ladder (claude-code's by default); None for the top one or a model outside it."""
+    i = ladder.index(model) if model in ladder else len(ladder)
+    return ladder[i + 1] if i + 1 < len(ladder) else None
 
 
 def model_problems(raw, project_agents=()):
@@ -911,17 +978,33 @@ def machine(rest):
         for line in limits_directives(limits):
             print(line)
         return 0
-    if cmd == "stage-models" and not args:  # each stage x light, standard, heavy
-        stages = models_of(raw)["stages"]
-        sys.stdout.write("".join(f"{stage_model(stages, s, w) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
-    if cmd == "runtimes" and len(args) <= 1:  # the runtime of each stage, NUL-terminated; the project's factory.yml over this file
-        project = load(args[0]) if args else None
+    def project_of(args):  # the project's factory.yml, when it is given and its runtime is valid
+        project = load(args[0]) if args and args[0] else None
         bad = runtime_problems(project["runtime"]) if isinstance(project, dict) and "runtime" in project else []
         if bad:
             raise Unusable(f"{args[0]} is invalid: " + "; ".join(bad))
-        sys.stdout.write("".join(f"{r}\0" for r in runtime_of(raw, project))); return 0
-    if cmd == "model-up" and len(args) == 1:
-        up = model_up(args[0])
+        return project
+    if cmd == "stage-models" and len(args) <= 1:  # each stage x light, standard, heavy; the project's factory.yml over this file
+        project = project_of(args)
+        stages = models_of(raw)["stages"]
+        other = runtime_stage_models(raw, project)  # a stage off claude-code: runtime.models, never models.stages
+        sys.stdout.write("".join(
+            f"{(other[s][w] if s in other else stage_model(stages, s, w)) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
+    if cmd == "runtimes" and len(args) <= 1:  # the runtime of each stage, NUL-terminated; the project's factory.yml over this file
+        sys.stdout.write("".join(f"{r}\0" for r in runtime_of(raw, project_of(args)))); return 0
+    if cmd == "models-stages-check" and len(args) <= 1:  # models.stages.<stage> that a stage on another runtime ignores
+        project = project_of(args)
+        stages = raw.get("models", {}).get("stages") if isinstance(raw.get("models"), dict) else None
+        for stage, rt in zip(STAGES, runtime_of(raw, project)):
+            if rt != "claude-code" and isinstance(stages, dict) and stage in stages:
+                print(f"models.stages.{stage} is ignored: {stage} runs on {rt}, which takes runtime.models.stages.{stage}")
+        return 0
+    if cmd == "model-up" and 1 <= len(args) <= 3:  # model-up <model> [<runtime> [<project factory.yml>]]
+        if len(args) == 1 or args[1] == "claude-code":
+            up = model_up(args[0])
+        else:  # another runtime climbs runtime.ladder; none = no step-up
+            ladder = runtime_setting(raw, project_of(args[2:]), "ladder")
+            up = model_up(args[0], tuple(ladder) if is_str_list(ladder) else ())
         if up:
             print(up)
         return 0

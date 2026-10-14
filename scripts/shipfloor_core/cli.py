@@ -729,6 +729,23 @@ def cmd_doctor(args):
         if line:
             _out("WARN models: " + line)
             warned = True
+    # models.stages is Claude Code's: set for a stage that runs on another runtime, it does nothing
+    seen = set()
+    cfgs = [""]
+    if os.path.isfile(reg) and os.path.getsize(reg) > 0:
+        for row in _rows():
+            slug, repo, wt, main = text.read_tab(row, 4)
+            if slug:
+                with _ProjectEnv(slug, repo, wt, main):
+                    cfg = os.environ.get("FACTORY_CONFIG", "")
+                    cfgs.append(proc.native_path(cfg) if cfg and os.path.isfile(cfg) else "")
+    for cfg in cfgs:
+        r = project.machine("models-stages-check", *([cfg] if cfg else []))
+        for line in _t(r.stdout).replace("\r", "").split("\n"):
+            if line and line not in seen:
+                seen.add(line)
+                _out("WARN models: " + line)
+                warned = True
     if not warned:
         _out("ok   models")
     return bad

@@ -370,7 +370,8 @@ class Cycle:
         if len(pool) != 7:
             self.die("dispatch: cannot read the machine pool", 2)
         self.stage_slots = dict(zip(STAGES, pool[1:5]))
-        models = _nul(self.machine("stage-models")[1])  # each stage x light standard heavy; empty = no --model flag
+        # each stage x light standard heavy; empty = no --model flag. A stage off claude-code takes runtime.models.
+        models = _nul(self.machine("stage-models", proc.native_path(os.environ.get("FACTORY_CONFIG", "")))[1])
         if len(models) != 12:
             self.die("dispatch: cannot read the stage models", 2)
         self.stage_model = {}
@@ -702,6 +703,7 @@ class Cycle:
         binary = (os.environ.get("FACTORY_CLAUDE") or rt.BINARY) if rt.NAME == "claude-code" else rt.BINARY
         _detach({"mode": "run", "p": p, "n": n, "dir": d, "log": log, "model": model, "weight": weight,
                  "step": step, "from": frm, "gate": gate, "runtime": rt.NAME, "binary": binary, "argv": argv,
+                 "config": proc.native_path(os.environ.get("FACTORY_CONFIG", "")),
                  "envs": envs, "stdin": stdin,
                  "control": self.control, "wt_root": self.wt_root, "home": self.home, "mlang": self.mlang,
                  "deploy": os.environ.get("FACTORY_DEPLOY") or os.path.join(SCRIPTS, "deploy.sh")})
@@ -859,7 +861,7 @@ def step_up(spec, model, log):
     name, verdict = text.read_tab(first[0], 2)
     if verdict != "FAIL":
         return
-    r = project.machine("model-up", model)
+    r = project.machine("model-up", model, spec.get("runtime") or "claude-code", spec.get("config") or "")
     up = _t(r.stdout).rstrip("\n")
     if not up:
         return
