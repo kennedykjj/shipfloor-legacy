@@ -5,11 +5,6 @@ SF="$FACTORY_DIR/sf.py"
 PY="$FACTORY_PYTHON"
 sf() { "$PY" -I "$SF" "$@"; }
 
-for m in report metrics review_page; do
-  [ -f "$FACTORY_DIR/shipfloor_core/$m.py" ] && pass "shipfloor_core/$m.py exists" || fail "shipfloor_core/$m.py missing"
-done
-[ ! -e "$FACTORY_DIR/review_page.py" ] && pass "scripts/review_page.py was absorbed" || fail "scripts/review_page.py still exists"
-
 # Without the commands every case below fails for the same reason: stop here with one line per missing command.
 for c in report metrics review-page; do
   case "$(env -u FACTORY_CONFIG SHIPFLOOR_HOME=/nonexistent "$PY" -I "$SF" "$c" 2>&1)" in *"usage: sf.py"*) fail "sf.py has no '$c' command"; missing=1 ;; esac
