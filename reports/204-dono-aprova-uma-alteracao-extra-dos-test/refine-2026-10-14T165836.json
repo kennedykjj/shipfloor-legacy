@@ -1,0 +1,5 @@
+{"issue": 204, "slug": "dono-aprova-uma-alteracao-extra-dos-test", "pipeline": "refine",
+ "started_at": "2026-10-14T16:53:30-03:00", "finished_at": "2026-10-14T16:58:40-03:00", "outcome": "ok",
+ "agents": [{"role": "product-owner", "tokens": 14319, "duration_s": 22},
+            {"role": "ux-designer", "tokens": 43943, "duration_s": 81}],
+ "rounds": {"3": 1, "4": 1, "6": 1}, "gates_failed": [], "flaky": [], "gates_reused": [], "manual_edit": false}
