@@ -1221,7 +1221,8 @@ function backToLive(focus, fromUrl) {
 }
 function fromAddress() {
   const m = hashMin();
-  if (m == null) { if (R.at && !parseHash(location.hash)?.card) backToLive(false, true); }  // a card's address (#183) leaves the replay as it is else if (!R.at || atMin() !== m) needle(m, "key", true);
+  // a card's address (#183) leaves the replay as it is
+  if (m == null) { if (R.at && !parseHash(location.hash)?.card) backToLive(false, true); } else if (!R.at || atMin() !== m) needle(m, "key", true);
 }
 window.addEventListener("popstate", fromAddress); window.addEventListener("hashchange", fromAddress);
 $("ph").addEventListener("keydown", async (e) => {
