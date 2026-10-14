@@ -798,8 +798,15 @@ sys.exit(0 if res.wasSuccessful() else 1)
 PY
 
 out="$(UNIT_SCRIPTS="$FACTORY_DIR" "$FACTORY_PYTHON" -I -B "$T/unit.py" 2>&1)"; rc=$?
-printf '%s\n' "$out"
 n="$(printf '%s\n' "$out" | grep -c '^  FAIL ')"
+# the red gate shows only the first lines of a run and closes the pipe: a long listing would end this file with SIGPIPE
+# (exit 141) before it reaches its verdict. With failures, print at most 12 of them and a count; else every line.
+if [ "$n" -gt 0 ]; then
+  printf '%s\n' "$out" | grep -v '^  ok ' | sed -n '1,12p'
+  [ "$n" -gt 12 ] && printf '  ... %s FAIL lines in all, %s shown\n' "$n" 12
+else
+  printf '%s\n' "$out"
+fi
 FAILS=$((FAILS + n))
 if [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]; then fail "unit.py exited $rc without a FAIL line"; fi
 finish
