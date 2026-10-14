@@ -1,0 +1,15 @@
+{
+  "issue": 150,
+  "pipeline": "develop",
+  "outcome": "blocked",
+  "step": 1,
+  "reason": "pré-requisito #149 (contrato do adaptador de runtime) ausente na main",
+  "agents": [],
+  "tokens": 0,
+  "rounds": 0,
+  "failed_gates": [],
+  "gates_run": ["test-plan"],
+  "gates_reused": [],
+  "flaky": [],
+  "amendments": []
+}
