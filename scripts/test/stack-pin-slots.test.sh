@@ -43,11 +43,19 @@ plant() {  # plant <k> <owner> <run> <epoch>: a lease whose holder sleeps 300 s 
   touch "$d/beat"
   printf 'echo "down slot=$SHIPFLOOR_SLOT cwd=$(pwd)" >> "%s"' "$calls" > "$d/down"
   printf 'SHIPFLOOR_SLOT=%s\n' "$1" > "$d/env"; echo "$T" > "$d/cwd"
-  sleep 300 & BEATPID=$!; echo "$BEATPID" > "$d/beat.pid"
+  # signal-safe: the heartbeat writes a marker once it runs its own program, so a TERM never lands in the
+  # fork-to-exec window of bash (where it can be lost and leave the sleep running)
+  local mark="$T/beat.ready.$RANDOM$RANDOM"; rm -f "$mark"
+  sh -c 'echo ready > "$1"; exec sleep 300' _ "$mark" & BEATPID=$!; echo "$BEATPID" > "$d/beat.pid"
+  local n=0; while [ ! -e "$mark" ] && [ "$n" -lt 100 ]; do sleep 0.1; n=$((n+1)); done
 }
 dead() { local rc; kill -0 "$1" 2>/dev/null || return 0; return 1; }
-gone() {  # gone <pid>: the process ended (it was our child: reap it)
-  wait "$1" 2>/dev/null; local rc=$?; [ "$rc" = 143 ] || [ "$rc" = 127 ]
+gone() {  # gone <pid>: the process ended (it was our child: reap it); bounded: a survivor is killed after 10 s
+  local dog rc
+  ( sleep 10; kill -9 "$1" 2>/dev/null ) & dog=$!
+  wait "$1" 2>/dev/null; rc=$?
+  kill "$dog" 2>/dev/null; wait "$dog" 2>/dev/null
+  [ "$rc" = 143 ] || [ "$rc" = 127 ]
 }
 now() { date +%s; }
 
@@ -91,7 +99,6 @@ reclaim_case() {  # reclaim_case <reason> <owner> <run> <epoch> [beat age to set
     kill "$BEATPID" 2>/dev/null; gone "$BEATPID"
   else
     gone "$BEATPID" && pass "AC-5 ($reason) the old lease's beat process is stopped" || fail "AC-5 ($reason) the beat process still runs"
-    kill "$BEATPID" 2>/dev/null
   fi
 }
 reclaim_case hold-max olduser - "$(( $(now) - 5000 ))"
@@ -113,7 +120,7 @@ kill "$BEATPID" 2>/dev/null; gone "$BEATPID"
 for reason in hold-max run-ended no-info; do
   plant 0 owner - "$(now)"
   slot_release 0 "$reason"
-  gone "$BEATPID" && pass "AC-5 slot_release with reason $reason stops the heartbeat process" || { fail "AC-5 slot_release $reason kept the heartbeat"; kill "$BEATPID" 2>/dev/null; }
+  gone "$BEATPID" && pass "AC-5 slot_release with reason $reason stops the heartbeat process" || { fail "AC-5 slot_release $reason kept the heartbeat"; }
 done
 reset; mkdir -p "$L/stack-0.lock"
 slot_release 0; [ ! -d "$L/stack-0.lock" ] && pass "AC-5 slot_release works on a lock with no beat.pid" || fail "AC-5 slot_release left a lock without beat.pid"
