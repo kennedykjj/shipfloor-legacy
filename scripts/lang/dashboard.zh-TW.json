@@ -752,6 +752,15 @@
     "rv.removed": "Removed",
     "rv.before": "Before",
     "rv.request": "Your request",
-    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}",
+    "title.stopped": "已停止",
+    "pal.open": "命令",
+    "pal.field": "卡片編號、標題或操作",
+    "pal.next": "下一個決定",
+    "pal.live": "返回即時",
+    "pal.at": "查看 {time} 的產線",
+    "pal.pause": "暫停工廠",
+    "pal.none": "沒有相符項目",
+    "pal.count": "{n, plural, other {# 個結果}}"
   }
 }

@@ -752,6 +752,15 @@
     "rv.removed": "Removida",
     "rv.before": "Antes",
     "rv.request": "Seu pedido",
-    "rv.since": "{n, plural, one {# afirmação mudou desde o seu pedido} other {# afirmações mudaram desde o seu pedido}}"
+    "rv.since": "{n, plural, one {# afirmação mudou desde o seu pedido} other {# afirmações mudaram desde o seu pedido}}",
+    "title.stopped": "parado",
+    "pal.open": "Comandos",
+    "pal.field": "Número do card, título ou ação",
+    "pal.next": "Próxima decisão",
+    "pal.live": "Voltar ao vivo",
+    "pal.at": "Ver a esteira às {time}",
+    "pal.pause": "Pausar a fábrica",
+    "pal.none": "Nada encontrado",
+    "pal.count": "{n, plural, one {# resultado} other {# resultados}}"
   }
 }

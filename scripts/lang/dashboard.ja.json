@@ -752,6 +752,15 @@
     "rv.removed": "Removed",
     "rv.before": "Before",
     "rv.request": "Your request",
-    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}",
+    "title.stopped": "停止中",
+    "pal.open": "コマンド",
+    "pal.field": "カード番号、タイトル、操作",
+    "pal.next": "次の判断",
+    "pal.live": "ライブに戻る",
+    "pal.at": "{time} のラインを見る",
+    "pal.pause": "ファクトリーを一時停止",
+    "pal.none": "一致するものはありません",
+    "pal.count": "{n, plural, other {# 件}}"
   }
 }

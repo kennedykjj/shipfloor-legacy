@@ -752,6 +752,15 @@
     "rv.removed": "Removed",
     "rv.before": "Before",
     "rv.request": "Your request",
-    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"
+    "rv.since": "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}",
+    "title.stopped": "중지됨",
+    "pal.open": "명령",
+    "pal.field": "카드 번호, 제목 또는 동작",
+    "pal.next": "다음 결정",
+    "pal.live": "실시간으로 돌아가기",
+    "pal.at": "{time}의 라인 보기",
+    "pal.pause": "팩토리 일시 중지",
+    "pal.none": "일치하는 항목 없음",
+    "pal.count": "{n, plural, other {결과 #개}}"
   }
 }
