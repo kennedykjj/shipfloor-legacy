@@ -675,7 +675,9 @@ def cmd_doctor(args):
             bad = 1
     for name in _runtimes_in_use():
         for found, line, *failed in runtimes.get(name).doctor():  # a runtime may say its own FAIL text
-            if found:
+            if found == "WARN":
+                _out("WARN " + line)
+            elif found:
                 _out("ok   " + line)
             else:
                 _out("FAIL " + (failed[0] if failed else "%s not found" % line))

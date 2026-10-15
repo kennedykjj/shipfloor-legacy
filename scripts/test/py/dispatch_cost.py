@@ -414,6 +414,34 @@ class CodexCost(Base):
                                   self.path("body", "78.md"))[0], 1)
 
 
+    def test_AC6_self_hosted_model_is_unknown_until_it_has_a_price(self):
+        "AC-6 a run on a self-hosted model without a price keeps its tokens but has no cost (never 0), counts for no card or day limit; with the model in prices.yml it costs and the limits see it"
+        import dashboard_cost as dc
+        names = ("Qwen/Qwen3-Coder-30B-A3B", "llama3.1:8b")
+        self.rollout("a", stage="develop", issue=77, model=names[0], usage=(900000000, 0, 1000000))
+        self.rollout("b", stage="validate", issue=78, model=names[1], usage=(900000000, 0, 1000000))
+        s = self.sessions(77)[0]
+        self.assertEqual(s["tokens"], {names[0]: tokens(input=900000000, output=1000000)}, "the tokens stay")
+        prices = dc.load_prices(self.shome)
+        self.assertIsNone(dc.session_cost(s, prices))
+        today = datetime.date.today().isoformat()
+        spent = dc.spend(self.sessions(77) + self.sessions(78), prices, today)
+        self.assertEqual((spent["cards"][77]["total"], spent["cards"][78]["total"], spent["today"]), (None, None, 0.0))
+        self.machine_cfg(ds.POOL8 + "\nruntime:\n  default: codex\n  provider:\n    base_url: http://127.0.0.1:8000/v1\n"
+                         "    models: {stages: {develop: 'Qwen/Qwen3-Coder-30B-A3B'}}\n"
+                         "costs:\n  card_warn: 1\n  card_block: 1\n  day_stop: 1\n")  # the machine that runs them has a provider
+        limits = ("limits", "--home", self.shome, "--project", "shop", "--claude-dir", self.claude_dir)
+        self.assertEqual(self.cli(*limits), (0, ""))
+        self.write(os.path.join(self.shome, "prices.yml"), PRICES + GPT
+                   + '"Qwen/Qwen3-Coder-30B-A3B": {input: 0.50, output: 1.00}\n"llama3.1:8b": {input: 0.10, output: 0.20}\n')
+        prices = dc.load_prices(self.shome)
+        self.assertAlmostEqual(dc.session_cost(self.sessions(77)[0], prices), 451.0, places=2)
+        rc, out = self.cli(*limits)
+        self.assertEqual(rc, 0)
+        self.assertIn("block\t77\n", out)
+        self.assertRegex(out, r"(?m)^day_stop\t")
+
+
 class EndToEnd(Base):
     def test_real_estimate_blocks_the_card(self):
         "the real dashboard_cost.py under the dispatcher: card 77 over card_block is commented on (acme/shop), labeled, not started"
