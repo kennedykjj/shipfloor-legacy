@@ -222,9 +222,10 @@ def main():
         says("The coupon removal clears the discount but not the cached total; fixing the cart service."),
         tool("Edit", file_path="app/cart/service.py"), tool("Bash", description="Run the cart tests")])
 
-    # a run that began yesterday evening and ended after midnight: the Logbook's belt draws it from the left edge
+    # a run that began yesterday evening and ended after midnight: the Logbook's belt draws it from the left edge. It is a
+    # validate, not a deploy: a clean deploy ending today would make card 101 "done today" (the belt's Done counts those)
     start = day(1, 23, 48)
-    run_log(home, a, 101, "deploy", [(start, MIDNIGHT + timedelta(minutes=8), 0)])
+    run_log(home, a, 101, "validate", [(start, MIDNIGHT + timedelta(minutes=8), 0)])
 
     review_page(home, a, 127, [
         {"id": "open-questions", "t": "Open questions", "intro": "", "items": ["Should signed-in tokens get a higher limit than anonymous ones?"], "ro": False},

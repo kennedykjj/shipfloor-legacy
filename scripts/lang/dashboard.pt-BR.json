@@ -809,7 +809,7 @@
     "pal.count": "{n, plural, one {# resultado} other {# resultados}}",
     "fd.day.h": "O dia da fábrica",
     "fd.belt.h": "Cards na esteira",
-    "fd.pool": "Pool",
+    "fd.pool": "Reserva",
     "fd.limit.github": "Parada por limite do GitHub",
     "fd.limit.usage": "Parada por limite de uso do Claude",
     "fd.all": "Todas",
