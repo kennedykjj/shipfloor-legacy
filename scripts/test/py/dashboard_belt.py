@@ -65,8 +65,8 @@ class Scene(ds.Dash):
         p = self.ov["projects"][0]
         for c in p["cards"]:  # how long each card has been where it is: Inbox 13 the longest, 11 the shortest
             c["since"] = ago({11: 60, 12: 120, 13: 180, 21: 30, 22: 90, 50: 20, 51: 80}.get(c["issue"], 45))
-            if c["column"] == "Done":
-                c["since"] = today_ago({70: 5, 71: 10}[c["issue"]])
+            if c["column"] == "Done":  # deployed clean today: the server's done_at (#B2)
+                c["since"] = c["done_at"] = today_ago({70: 5, 71: 10}[c["issue"]])
         p["done_today"] = 2
         self.ov["today"]["cost"] = 1.36
 
@@ -200,6 +200,9 @@ class BeltRender(Scene):
         snap = bp.run([{"op": "read", "overview": ov}])["results"][0]
         want = {c["issue"]: c["column"] for c in mine["cards"]}
         self.assertEqual(len(want), 10)
+        self.assertEqual(sorted(n for n, col in want.items() if col == "Done"), [96, 101])
+        self.assertEqual(mine["done_today"], 0, "the demo's Done cards shipped days ago")
+        want = {n: col for n, col in want.items() if col != "Done"}  # Done shows only what was done today: those two are in the whole line
         only_one(self, snap, ["atlas/%d" % n for n in want], "AC-1 demo")
         segs, idx = segment_names(snap)
         for n, col in want.items():
@@ -222,11 +225,11 @@ class BeltRender(Scene):
             blob = " ".join(str(v) for t, _ in bp.walk(tok[n]) for v in list(t["attrs"].values()) + list(t["css"].values()))
             self.assertTrue(re.search(pct, blob), "AC-2 the bar of #%d is as wide as its step over its steps (%s): %s" % (n, pct, blob[:300]))
         self.assertEqual(bp.attr(tok[31], "title"), "#31 Title 31 · step 4 of 7")
-        for n in (50, 42):  # a gate card and a blocked card waiting for the owner look the same
-            self.assertTrue(all(re.search(ACCENT, lk[n][g]) for g in ("background", "border", "color")) and "dashed" not in lk[n]["border"], "waits for you (#%d): %s" % (n, lk[n]))
+        self.assertTrue(all(re.search(ACCENT, wait[g]) for g in ("background", "border", "color")) and "dashed" not in wait["border"], "waits for you (#50): %s" % wait)
+        self.assertTrue(all(re.search(r"--bad", lk[42][g]) for g in ("background", "border", "color")), "m3 a blocked card has its own look, in --bad: %s" % lk[42])
         self.assertTrue(re.search(r"gradient", infra["background"]) and all(re.search(r"warn", infra[g]) for g in ("background", "border", "color")), "blocked by infrastructure: %s" % infra)
         self.assertTrue(all(re.search(r"var\(--ok\)|\bok\b", done[g]) for g in ("background", "border", "color")), "done today: %s" % done)
-        self.assertEqual(len({str(sorted(v.items())) for v in (q, run, wait, infra, done)}), 5, "the five states look alike")
+        self.assertEqual(len({str(sorted(v.items())) for v in (q, run, wait, infra, done, lk[42])}), 6, "the six states look alike")
         for n in (11, 31, 40, 50, 41, 42, 70):
             self.assertIn("#%d" % n, bp.text(tok[n]), "a token shows its number")
 

@@ -29,9 +29,9 @@ def hm(h, m=0):
     return CLOCK.replace(hour=h, minute=m).isoformat(timespec="seconds")
 
 
-# the board at three moments of the day: card 12 appears at 09:30, card 40 reaches the Staged gate at 10:15
-EARLY = {"11": "Inbox", "21": "Spec Review", "40": "Validation", "70": "Done"}
-MID = dict(EARLY, **{"12": "Inbox"})
+# the board at three moments of the day: card 12 appears and card 70 is done at 09:30, card 40 reaches the Staged gate at 10:15
+EARLY = {"11": "Inbox", "21": "Spec Review", "40": "Validation", "70": "Ready for Prod"}
+MID = dict(EARLY, **{"12": "Inbox", "70": "Done"})
 LATE = dict(MID, **{"40": "Staged", "71": "Done"})
 LINES = [{"t": hm(8), "cards": EARLY}, {"t": hm(9, 30), "cards": MID}, {"t": hm(10, 15), "cards": LATE}]
 

@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import time
+from datetime import datetime, timedelta
 
 import dashboard_support as ds
 from dashboard_support import opt, slash
@@ -788,3 +789,96 @@ class Amend(ds.Dash):
         self.gh("calls", "")
         self.assertEqual(self.card_post(8, "approve-amend", {}).code, 409)
         self.assertFalse(any("qa-amend-ok" in l for l in self.calls()))
+
+
+class BeltData(ds.Dash):
+    """What the belt and the work area read of the overview (the UI review's B2, M1, M2, M5): done today as History counts it,
+    a stage's runs per project, the dispatcher's stop marks and since when a card is in its column."""
+    PROJECTS = ("shop", "blog")
+
+    def logged(self, n, stage, start, end=None, code=0, p="shop"):
+        """a run in the dispatcher's log of card n: its == start line and, when it ended, its == end line"""
+        text = "== start /sf:%s %d %s pid=1\n" % (stage, n, start.isoformat(timespec="seconds"))
+        if end:
+            text += "== end /sf:%s %d exit=%d %s\n" % (stage, n, code, end.isoformat(timespec="seconds"))
+        self.log("%s-%d-%s.log" % (start.date().isoformat(), n, stage), text, p=p)
+
+    def test_done_today_is_the_history_count(self):
+        "B2/m2 done today is a clean deploy that ended today, as History's Today counts it: done_today, each card's done_at, shipped"
+        now = datetime.now().astimezone().replace(microsecond=0)
+        early = max(now - timedelta(minutes=30), now.replace(hour=0, minute=0, second=1))
+        yesterday = now - timedelta(days=1)
+        self.board({70: "Done", 71: "Done", 72: "Done", 73: "Done"})
+        self.logged(70, "deploy", early - timedelta(seconds=1), early)
+        self.logged(71, "deploy", early - timedelta(seconds=1), early, code=1)  # a failed deploy is not done
+        self.logged(72, "deploy", yesterday - timedelta(minutes=5), yesterday)  # done, but not today
+        self.logged(73, "validate", early - timedelta(seconds=1), early)  # a run of today that is not a deploy
+        ov = self.overview()
+        shop = next(p for p in ov["projects"] if p["slug"] == "shop")
+        cards = {c["issue"]: c for c in shop["cards"]}
+        self.assertEqual(shop["done_today"], 1)
+        self.assertEqual({n: c["done_at"] for n, c in cards.items()}, {70: early.isoformat(), 71: None, 72: None, 73: None})
+        self.assertEqual([x["issue"] for x in shop["shipped"]], [70])
+        self.assertEqual(self.get("/api/history/shop?days=1").json["totals"]["done"], shop["done_today"], "the Logbook's Today says the same")
+
+    def test_a_stage_counts_its_runs_per_project(self):
+        "M1 a stage's slots are the machine's: running is everyone's, by_project says whose"
+        self.config("pool: 6\nstages:\n  refine: 1\n  develop: 2\n  validate: 1\n  deploy: 1\n")
+        self.board({31: "Coding"})
+        self.board({5: "Coding", 6: "Validation"}, p="blog")
+        self.lock("develop-31", 31)
+        self.lock("develop-5", 5, p="blog")
+        self.lock("validate-6", 6, p="blog")
+        st = self.overview()["pool"]["stages"]
+        self.assertEqual(st["develop"], {"slots": 2, "running": 2, "by_project": {"shop": 1, "blog": 1}})
+        self.assertEqual(st["validate"], {"slots": 1, "running": 1, "by_project": {"blog": 1}})
+        self.assertEqual(st["refine"]["by_project"], {})
+
+    def test_a_card_held_after_two_stopped_runs(self):
+        "M2 stopped/<n> with two marks and the card still where the last run started is the card's stopped; one mark, or a card moved since, is none"
+        marks = "1792019421\tvalidate\tno-report\tValidation\n1792019492\tvalidate\tno-report\tValidation\n"
+        self.board({40: "Validation", 41: "Validation", 42: "Coding"})
+        self.write(os.path.relpath(self.pdir("shop", "stopped", "40"), self.tmp), marks)
+        self.write(os.path.relpath(self.pdir("shop", "stopped", "41"), self.tmp), marks.splitlines()[0] + "\n")
+        self.write(os.path.relpath(self.pdir("shop", "stopped", "42"), self.tmp), marks)
+        cards = self.cards()
+        held = cards[40]["stopped"]
+        self.assertEqual({k: held[k] for k in ("why", "stage", "column", "times")}, {"why": "no-report", "stage": "validate", "column": "Validation", "times": 2})
+        self.assertEqual(datetime.fromisoformat(held["at"]).timestamp(), 1792019492)
+        self.assertEqual((cards[41]["stopped"], cards[42]["stopped"]), (None, None))
+        self.assertEqual((cards[40]["running"], cards[40]["awaiting"], cards[40]["blocked"]), (None, False, None), "only the mark says it waits for the owner")
+        self.lock("validate-40", 40)
+        self.assertIsNone(self.cards()[40]["stopped"], "a card that runs again is not held")
+
+    def test_take_back_a_held_card(self):
+        "M2 a held card goes back through the take-back move, without a block label; its marks go; one mark is not a hold"
+        marks = "1792019421\tvalidate\tno-report\tValidation\n1792019492\tvalidate\tno-report\tValidation\n"
+        path = self.pdir("shop", "stopped", "9")
+        self.items((9, "Validation"))
+        self.write(os.path.relpath(path, self.tmp), marks)
+        r = self.card_post(9, "take-back", {"to": "Ready for Dev", "text": ""})
+        self.assertEqual((r.code, r.json.get("moved_to"), r.json.get("unblocked")), (200, "Ready for Dev", False))
+        self.assertIn(opt("Ready for Dev"), self.gh("edits"))
+        self.assertFalse(os.path.exists(path), "the marks go with the move")
+        self.assertFalse(any("labels/blocked" in c for c in self.calls()), "no label to take off")
+        self.reset_gh(); self.items((9, "Validation"))
+        self.write(os.path.relpath(path, self.tmp), marks.splitlines()[0] + "\n")
+        self.assertEqual((self.card_post(9, "take-back", {"to": "Ready for Dev"}).code, self.edits()), (409, []))
+
+    def test_since_is_when_the_card_came_into_its_column(self):
+        "M5 since is when the card came into its column by the board history (#184); without a change on record it is its last run's end"
+        now = datetime.now().astimezone().replace(microsecond=0)
+        t = [(now - timedelta(minutes=m)).isoformat(timespec="seconds") for m in (50, 40, 30, 20)]
+        lines = [{"30": "Ready for Dev", "31": "Spec Review", "32": "Inbox"}, {"30": "Coding", "31": "Spec Review", "32": "Inbox"},
+                 {"30": "Coding", "31": "Spec Review", "32": "Inbox", "33": "Inbox"}, {"30": "Coding", "31": "Spec Review", "32": "Inbox", "33": "Inbox", "34": "Inbox"}]
+        self.write(os.path.relpath(self.pdir("shop", "logs", "board-%s.jsonl" % now.strftime("%Y-%m")), self.tmp),
+                   "".join(json.dumps({"t": a, "cards": c}) + "\n" for a, c in zip(t, lines)) + "not json\n")
+        ended = now - timedelta(minutes=10)
+        self.logged(31, "refine", ended - timedelta(minutes=5), ended)
+        self.board({30: "Coding", 31: "Spec Review", 32: "Inbox", 33: "Inbox", 34: "Ready for Refinement"})
+        cards = self.cards()
+        self.assertEqual(cards[30]["since"], t[1], "came into Coding at the second line")
+        self.assertEqual(cards[33]["since"], t[2], "came onto the board at the third line")
+        self.assertEqual(cards[31]["since"], ended.isoformat(), "in Spec Review on every line: its last run's end")
+        self.assertIsNone(cards[32]["since"], "no change on record and no run")
+        self.assertIsNone(cards[34]["since"], "the board moved it after the last line: the history does not say when")
