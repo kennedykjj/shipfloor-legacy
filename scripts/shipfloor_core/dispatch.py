@@ -831,7 +831,7 @@ class Cycle:
             envs.append("SHIPFLOOR_TRAILER=" + rt.TRAILER)
         # the agent's final message, for a runtime that writes it to a file (the dispatcher appends it to the log)
         last = log + rt.LAST_SUFFIX if getattr(rt, "LAST_SUFFIX", None) else ""
-        provider = self.provider if rt.NAME == "codex" else None
+        provider = self.provider if rt.NAME in ("codex", "opencode") else None
         argv, envs, stdin = rt.command({
             "stage": p, "issue": n, "model": model, "plugin": self.plugin, "system_prompt": SYSTEM_PROMPT,
             "write": [self.wt_root, self.home + "/tmp", self.home + "/reviews"],
@@ -1089,7 +1089,8 @@ def supervise(spec):
         argv = proc.script_argv(spec["binary"], *spec["argv"])
         last = spec.get("last")
         # a runtime with a final-message file streams its own JSON: the log keeps it as it comes
-        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso(), "raw": bool(last)}
+        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso(),
+                "raw": bool(last) or spec["runtime"] != "claude-code"}  # only Claude's stream is read as Claude's
         _flush()
         # a run with a final-message file is judged once that message is in the log (below), not inside the summary
         rc = telemetry.run_agent(argv, log, control, env, spec["stdin"].encode("utf-8"), meta,

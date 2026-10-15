@@ -866,7 +866,7 @@ class Factory:
             main = max(s["tokens"].items(), key=lambda kv: sum(v or 0 for v in kv[1].values()), default=(None, {}))[0]
             sessions.append({"id": s["id"], "stage": s["stage"], "start": s["start"], "end": s["end"],
                              "tokens": s["tokens"], "cost": None if c is None else round(c, 4),
-                             "subagents": [{"tokens": a["tokens"], "cost": cost(a["tokens"], prices)} for a in s["subagents"]],
+                             "subagents": [{"tokens": a["tokens"], "cost": cost(a["tokens"], prices, a.get("cost"))} for a in s["subagents"]],
                              "exit": run and run["exit"], "log": run and run["log"],
                              "model": (run and run.get("model")) or main, "stepped": run and run.get("stepped")})
         total = dashboard_cost.spend(found, prices, datetime.now().date().isoformat())["cards"].get(n, {"total": 0.0})["total"]

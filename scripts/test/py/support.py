@@ -57,6 +57,51 @@ class Case(unittest.TestCase):
         return lambda: [json.loads(l) for l in open(calls)] if os.path.exists(calls) else []
 
 
+def opencode_session(db, sid, directory, agent="sf-develop", issue=77, model="sf/qwen3-coder", tokens=None, says=(),
+                     commands=(), owner=(), parent=None, cost=0.0, start=None):
+    """A session in an opencode.db (created when absent), as the opencode 2.x CLI leaves it, in the two tables the
+    adapter reads:
+      session_v2(id, parent_id, directory, agent, cost, created_at, updated_at)   times: milliseconds since the epoch
+      session_message(id, session_id, created_at, data)                           data: JSON
+    A message's data is {"role": "user" | "assistant", "parts": [...]}: the first user message is the stage's stdin
+    (`Card: #<n>`, none for a subagent); an assistant message also has "model" (`provider/model`) and "tokens"
+    ({"input", "output", "reasoning", "cache": {"read", "write"}}); a part is {"type": "text", "text"} or {"type": "tool",
+    "tool": "shell", "input": {"command"}}; the owner's messages are user messages whose text is the inbox hook's INTRO,
+    a blank line and the owner's text. tokens = (input, output, reasoning, cache_read, cache_write), or a list of such
+    tuples, one assistant message each."""
+    import sqlite3
+    t0 = int((start or (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=10))).timestamp() * 1000)
+    rows, n = [], [0]
+
+    def message(role, parts, **extra):
+        n[0] += 1
+        rows.append((sid + "-m%d" % n[0], sid, t0 + n[0] * 1000, json.dumps(dict(role=role, parts=parts, **extra))))
+
+    if not parent:
+        message("user", [{"type": "text", "text": "Card: #%s\n" % issue}])
+    used = tokens if isinstance(tokens, list) else [tokens] if tokens else []
+    for i, text in enumerate(says):
+        message("assistant", [{"type": "text", "text": text}], model=model)
+    for i, cmd in enumerate(commands):
+        message("assistant", [{"type": "tool", "tool": "shell", "input": {"command": cmd}}], model=model)
+    for text in owner:
+        from inbox_hook import INTRO
+        message("user", [{"type": "text", "text": INTRO + "\n\n" + text}])
+    for t in used:
+        message("assistant", [], model=model, tokens={"input": t[0], "output": t[1], "reasoning": t[2],
+                                                      "cache": {"read": t[3], "write": t[4]}})
+    con = sqlite3.connect(db)
+    with con:
+        con.execute("create table if not exists session_v2 (id text primary key, parent_id text, directory text, agent text,"
+                    " cost real, created_at integer, updated_at integer)")
+        con.execute("create table if not exists session_message (id text primary key, session_id text, created_at integer, data text)")
+        con.execute("insert into session_v2 values (?,?,?,?,?,?,?)",
+                    (sid, parent, directory, agent, cost, t0, t0 + (n[0] + 1) * 1000))
+        con.executemany("insert into session_message values (?,?,?,?)", rows)
+    con.close()
+    return db
+
+
 def codex_rollout(home, sid, cwd, stage=None, issue=None, model="gpt-6-sol", usage=None, says=(), commands=(),
                   owner=(), parent=None, start=None):
     """A Codex rollout, <home>/sessions/YYYY/MM/DD/rollout-<time>-<sid>.jsonl, as `codex exec --json` leaves it: the
