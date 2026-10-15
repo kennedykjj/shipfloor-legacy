@@ -1,0 +1,3 @@
+{"issue":262,"slug":"estado-da-fabrica-organizado-um-sqlite","pipeline":"develop","started_at":"2026-10-14T00:00:00Z","finished_at":"2026-10-14T00:30:00Z","outcome":"ok",
+"agents":[{"role":"qa-engineer","tokens":69640,"duration_s":142},{"role":"engineer","tokens":35460,"duration_s":89},{"role":"engineer","tokens":39557,"duration_s":62}],
+"rounds":{"qa":1,"implementation":1},"gates_failed":["build (intermediário, antes das tarefas 2 e 3)"],"flaky":[],"gates_reused":[],"manual_edit":false,"amendments":[]}
