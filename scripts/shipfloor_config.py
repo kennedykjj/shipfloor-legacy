@@ -11,8 +11,11 @@ import runtimes
 from runtimes import claude_code
 
 warnings.simplefilter("ignore")  # ERE classes like [[:space:]] make Python's re warn
-sys.stdout.reconfigure(encoding="utf-8", newline="\n")
-sys.stderr.reconfigure(encoding="utf-8", newline="\n")
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", newline="\n")
+    except AttributeError:  # a stream that is not a text file (a test's StringIO): nothing to set
+        pass
 
 try:
     import yaml
