@@ -27,6 +27,12 @@ printf '%s\t%s\n' "$PWD" "$args" >> "$d/calls"
 case "$args" in
   "auth status"*) [ -e "$d/noauth" ] && { echo "You are not logged in" >&2; exit 1; }; exit 0 ;;
   "api repos/"*"/protection"*) cat "$d/protection" 2>/dev/null || echo true; [ -e "$d/protection-fails" ] && exit 1; exit 0 ;;
+  "api -X POST repos/"*"/issues/"*"/comments"*)
+    [ -e "$d/comment-fails" ] && { echo "HTTP 500" >&2; exit 1; }
+    f=""; for a in "$@"; do case "$a" in body=@*) f="${a#body=@}" ;; esac; done
+    [ -n "$f" ] || exit 1
+    k=1; while [ -e "$d/comment-$k" ]; do k=$((k+1)); done
+    cp "$f" "$d/comment-$k" ;;
   "repo view"*) echo acme/shop ;;
   "project view"*) echo PVT_x ;;
   "project field-list"*"| .id") echo FLD_x ;;

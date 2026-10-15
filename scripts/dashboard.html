@@ -60,6 +60,9 @@
 [data-theme="cobalt"] { --raise: #ffffff; --accent-ink: #ffffff; --paper: #fbfdff; --accent-soft: color-mix(in srgb, var(--sand) 14%, transparent); --accent-line: color-mix(in srgb, var(--sand) 45%, transparent); --ground: #e3ebf6; --panel: #eef3fb; --panel-hi: #f9fbff; --edge: #c6d4ea; --edge-hi: #9db2d2; --text: #0b1f44; --soft: #1f355e; --muted: #3f567e; --faint: #4c628a; --sand: #006478; --ok: #2c6e1c; --warn: #854a00; --bad: #b3261e; --glow1a: #f4f8ff; --glow1b: #e9f0fa; --glow2: #d0dcf0; --track: #8ba0c2; --track-on: #1f355e; --refine: #6a3fa8; --validate: #a3277f; --ov: #0b1f44; --well: #ffffff66; --scrim: rgba(30, 48, 84, .55); --shadow: 0 10px 30px rgba(20, 40, 80, .16); color-scheme: light; }
 /* derived from the theme: money is the accent, and the owner's action is the ink on the ground */
 :root { --gold: var(--text); --azure: var(--text); --azure-ink: var(--ground); --azure-soft: color-mix(in srgb, var(--text) 12%, transparent); }
+/* Paper: the accent and ok as small text on their own tints are just under AA (4.5:1); a fifth of the ink brings them over 5:1 */
+[data-theme="paper"] .tok.you:not(.open), [data-theme="paper"] .seg.gate .sname, [data-theme="paper"] .seg.gate .smeta.on { color: color-mix(in srgb, var(--sand) 80%, var(--text)); }
+[data-theme="paper"] .tok.done, [data-theme="paper"] .seg.done .smeta.on { color: color-mix(in srgb, var(--ok) 80%, var(--text)); }
 * { box-sizing: border-box; }
 /* Languages (#122). IBM Plex Sans draws Latin only: Cyrillic falls back to the system's faces after it, and Chinese, Japanese
    and Korean take their own faces, picked by the page's language (<html lang>, set by the server) so a shared character
@@ -77,7 +80,7 @@ body { overflow-wrap: break-word; }
 html, body { margin: 0; height: 100%; }
 body {
   color: var(--text); font: 15px/1.45 var(--sans); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased;
-  display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 16px; padding: 0 var(--pad) 24px; overflow: hidden;
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 16px; padding: 0 var(--pad) 24px; overflow: hidden auto;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E"),
     radial-gradient(1100px 600px at 74% 16%, var(--glow1a) 0%, var(--glow1b) 38%, transparent 72%), radial-gradient(700px 500px at 4% 100%, var(--glow2) 0%, transparent 70%), var(--ground);
 }
@@ -105,7 +108,7 @@ header { min-height: 68px; display: flex; flex-wrap: wrap; align-items: center; 
 .views { display: flex; gap: clamp(8px, 2vw, 28px); }
 .views button { background: none; border: 0; padding: 4px 0; min-height: 24px; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--muted); }
 .views button[aria-pressed="true"] { color: var(--text); }
-.stats { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px clamp(16px, 2.4vw, 36px); }  /* a longer language wraps the figures under the views */
+.stats { margin-left: auto; flex: 1 1 360px; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px clamp(12px, 1.6vw, 28px); }  /* it shares the views' line and wraps inside itself: a longer language, or the palette's button, never sits alone on a row */
 .stats b { color: var(--text); font-weight: 600; margin-left: 8px; } .stats .stuck b { color: var(--warn); }
 select { font-size: 13px; background: color-mix(in srgb, var(--ov) 5.1%, transparent); border: 1px solid color-mix(in srgb, var(--ov) 18.0%, transparent); border-radius: 8px; padding: 4px 8px; }
 /* the project switch reads like the stats beside it: a label and its value */
@@ -134,6 +137,10 @@ main { min-height: 0; display: grid; }
 .board { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0; min-height: 0; }
 .board[hidden], .feed[hidden], .band[hidden], .cols[hidden], .telem[hidden], #msg[hidden] { display: none; }
 .board > .band { grid-row: 1; margin-bottom: 16px; } .board > .cols { grid-row: 2; }
+/* the band never takes the work area's place: it stops at 45% of the screen (420px at most) and scrolls inside; the work
+   area keeps room for a decision, and the page scrolls when a short screen cannot hold both */
+.board { grid-template-rows: auto minmax(280px, 1fr); }
+.board > .band:not(.maxed) { max-height: min(45vh, 420px); overflow-y: auto; }
 .untitled { color: var(--faint); font-style: italic; }
 .dial {
   width: 13px; height: 13px; border-radius: 50%; flex: none; display: inline-block;
@@ -168,6 +175,9 @@ main { min-height: 0; display: grid; }
 .tok.run { background: var(--raise); border: 1px solid var(--edge); color: var(--text); }
 .tok.you { background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--sand); }
 .tok.infra { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--warn) 14%, transparent) 0 4px, transparent 4px 8px), var(--panel); border: 1px solid var(--warn); color: var(--warn); }
+.tok.stop { background: color-mix(in srgb, var(--bad) 10%, transparent); border: 1px solid color-mix(in srgb, var(--bad) 55%, transparent); color: var(--bad); }
+.tok.stop.open { background: var(--bad); color: var(--ground); }
+.tok.more { background: none; border: 1px solid var(--edge-hi); color: var(--muted); font: 500 12px var(--sans); } .tok.more:hover { color: var(--text); border-color: var(--text); } .tok.more.ghost { cursor: default; border-style: dashed; }
 .tok.done { background: color-mix(in srgb, var(--ok) 8%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent); color: var(--ok); }
 .tok.open { outline: 2px solid var(--text); outline-offset: 2px; }
 .tok.you.open { background: var(--sand); color: var(--accent-ink); }
@@ -181,9 +191,9 @@ main { min-height: 0; display: grid; }
 .bnote { margin: 0; padding: 20px 8px; text-align: center; font-size: 12px; color: var(--faint); }
 /* the scrubber under the belt (#184): today 00:00-24:00, the runs and the owner's decisions as marks, the needle that replays the belt */
 .scrub { margin-top: 4px; }
-.lane { position: relative; height: 38px; cursor: pointer; touch-action: none; user-select: none; }
-.lane::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 1px; background: var(--edge); }
-.fut { position: absolute; right: 0; top: 10px; height: 9px; background-image: repeating-linear-gradient(45deg, var(--track) 0 2px, transparent 2px 6px); pointer-events: none; }
+#lane { position: relative; height: 38px; cursor: pointer; touch-action: none; user-select: none; }
+#lane::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 1px; background: var(--edge); }
+.fut, .pre { position: absolute; right: 0; top: 10px; height: 9px; background-image: repeating-linear-gradient(45deg, var(--track) 0 2px, transparent 2px 6px); pointer-events: none; } .pre { left: 0; right: auto; }
 .hl { position: absolute; top: 22px; font-family: var(--mono); font-size: 12px; line-height: 1; color: var(--faint); font-variant-numeric: tabular-nums; pointer-events: none; }
 .mk { position: absolute; top: 14px; display: block; }
 .mk.ok { width: 2px; height: 10px; margin: -5px 0 0 -1px; background: var(--ok); }
@@ -204,7 +214,9 @@ main { min-height: 0; display: grid; }
 .stat { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 #status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--soft); }
 .sdot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ok); } .stat.stopped .sdot { background: var(--bad); }
-#status .need { color: var(--sand); font-weight: 500; }
+#status .need { color: var(--sand); font-weight: 500; background: none; border: 0; padding: 0; min-height: 24px; cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+#status .need:hover { text-decoration-color: currentColor; }
+.stat.st-paused .sdot, .stat.st-usage .sdot { background: var(--warn); } .stat.st-cost_stop .sdot { background: var(--bad); } .stat.st-hours .sdot { background: var(--faint); }
 .rrow { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; white-space: normal; font-size: 12px; color: var(--muted); }
 .rrow[hidden] { display: none; } .rrow p { margin: 0; } .rrow code { font: 12px var(--mono); color: var(--text); background: var(--panel-hi); border: 1px solid var(--edge-hi); border-radius: 4px; padding: 4px 8px; user-select: all; white-space: nowrap; }
 
@@ -226,8 +238,8 @@ main { min-height: 0; display: grid; }
 .band.maxed { display: flex; flex-direction: column; overflow: hidden; } .band.maxed > h1 { display: block; }
 .band.maxed .cells, .band.maxed .legend { display: none; }
 .band.maxed .lanes { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr); }
-.lane { margin: 12px 0 0; padding-bottom: 8px; border-bottom: 1px solid var(--edge-hi); font-size: 17px; color: var(--soft); }
-.lane small { font: 400 12px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 8px; }
+h2.lane { margin: 12px 0 0; padding-bottom: 8px; border-bottom: 1px solid var(--edge-hi); font-size: 17px; color: var(--soft); }
+h2.lane small { font: 400 12px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 8px; }
 .lcols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: 0; }
 .lcol { min-width: 0; overflow-y: auto; padding: 8px 12px 8px; border-left: 1px solid color-mix(in srgb, var(--ov) 14.9%, transparent); display: flex; flex-direction: column; gap: 8px; } .lcol:first-child { border-left: 0; padding-left: 0; }
 .lcol .lab { height: auto; padding: 0 0 4px; }
@@ -271,7 +283,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .iconf { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--edge-hi); } .ihint { margin: 0; font-size: 12px; color: var(--muted); }
 .itoast { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45.1%, transparent); border-radius: 8px; padding: 8px; }
 .itoast button { background: none; border: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.feed .telem:not(.maxed) { flex: none; max-height: none; overflow: visible; margin-bottom: 16px; }
+.feed .telem:not(.maxed) { flex: none; max-height: none; overflow: visible; margin-bottom: 16px; padding: 0 0 16px; border: 0; border-bottom: 1px solid var(--hair); border-radius: 0; background: none; }  /* in the Logbook's panel: one panel, not one inside another */
 .telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); }
 .pnote { margin: 8px 0 0; font-size: 13px; color: var(--bad); } .ext { width: 10px; height: 10px; margin-left: 4px; fill: none; stroke: currentColor; stroke-width: 1.4; }
 .empty { color: var(--muted); font-size: 14px; padding-top: 4px; max-width: 34ch; }
@@ -289,6 +301,8 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .wk-q { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--muted); }
 .wk-dash { display: inline-flex; gap: 3px; } .wk-dash i { width: 14px; height: 4px; border-radius: 2px; background: var(--edge-hi); } .wk-dash i.ok { background: var(--ok); } .wk-dash i.cur { background: var(--sand); }
 .wk-title { margin: 12px 0 20px; max-width: 40ch; font-size: 24px; font-weight: 500; line-height: 1.25; text-wrap: balance; } .wk-title:focus, .wk-calm:focus { outline: none; }
+.wk-title:focus-visible, .wk-calm:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; border-radius: 4px; }
+.wk-dec .btn, .wk-dec textarea, .wk-title { scroll-margin: 24px; }
 .wk-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 24px; align-items: start; }
 .wk-read { min-width: 0; } .wk-frame iframe { height: 70vh; min-height: 420px; }
 .wk-dec { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--panel-hi); border: 1px solid var(--edge); border-radius: 14px; }
@@ -474,7 +488,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .sknob small.warn { color: var(--warn); max-width: 40ch; text-align: right; } .set-body > .note.warn { margin: 16px 0 0; font-size: 13px; color: var(--warn); }
 .trio { display: flex; gap: 8px; } .trio label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); } .trio select { min-width: 11ch; }
 @media (max-width: 600px) { .trio { flex-direction: column; align-items: stretch; } .trio label { flex-direction: row; align-items: center; gap: 8px; } .trio label span { min-width: 9ch; } }
-@media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow > .stp { justify-self: start; } .srow .sv { text-align: left; } .nf.topic { width: 100%; } .sknob { align-items: flex-start; } .sknob small.warn { text-align: left; } }
+@media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav button { flex: none; white-space: nowrap; hyphens: manual; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow > .stp { justify-self: start; } .srow .sv { text-align: left; } .nf.topic { width: 100%; } .sknob { align-items: flex-start; } .sknob small.warn { text-align: left; } }
 /* feed: every project's runs and the dispatcher's own lines, newest first; a run's line opens its card on that run's log */
 .feed { overflow: auto; min-width: 0; min-height: 0; padding: 16px clamp(16px, 2.2vw, 28px) 28px; scrollbar-color: var(--edge-hi) transparent; }
 .ftools { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -517,6 +531,12 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .section-k { font-size: 12px; color: var(--muted); margin: 16px 20px 8px; font-weight: 600; }
 
 table { border-collapse: collapse; width: 100%; font-size: 12px; }
+/* a wide table on a narrow screen scrolls sideways; the edge it hides fades */
+.tscroll { overflow-x: auto; overscroll-behavior-x: contain; } .tscroll > table { min-width: 560px; }
+.tscroll.more-r { -webkit-mask-image: linear-gradient(to right, var(--ground) calc(100% - 40px), transparent); mask-image: linear-gradient(to right, var(--ground) calc(100% - 40px), transparent); }
+.tscroll.more-l { -webkit-mask-image: linear-gradient(to left, var(--ground) calc(100% - 40px), transparent); mask-image: linear-gradient(to left, var(--ground) calc(100% - 40px), transparent); }
+.tscroll.more-l.more-r { -webkit-mask-image: linear-gradient(to right, transparent, var(--ground) 40px, var(--ground) calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, var(--ground) 40px, var(--ground) calc(100% - 40px), transparent); }
+.tscroll:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 th { text-align: right; font-weight: 500; color: var(--muted); font-size: 12px; padding: 8px; border-bottom: 1px solid var(--edge); white-space: nowrap; position: sticky; top: 0; background: var(--panel); }
 td { text-align: right; padding: 8px; border-bottom: 1px solid var(--edge); white-space: nowrap; }
 th:first-child, td:first-child { padding-left: 20px; text-align: left; }
@@ -615,7 +635,14 @@ body.refused .views, body.refused .stats, body.refused #alerts, body.refused #ba
   .block-note .btn { grid-column: 1; grid-row: auto; justify-self: start; }
 }
 @media (max-width: 599px) {
-  .stats { width: 100%; } .stat .more { display: none; }
+  .stats { width: 100%; } .stat .more { display: none; } .stats .sep { display: none; }
+  /* the work area first; the belt under it, a segment a row (its name beside its tokens), the buttons on the heading's line */
+  .board > .cols { grid-row: 1; } .board > .band { grid-row: 2; margin: 16px 0 0; }
+  .band { padding: 12px 16px 8px; } .band:not(.maxed) > h1 { display: block; font-size: 17px; line-height: 28px; padding-right: 72px; margin-bottom: 4px; }
+  .band:not(.maxed) .segs { flex-direction: column; gap: 4px; }
+  .band:not(.maxed) .seg { flex: none; min-width: 0; display: grid; grid-template-columns: minmax(96px, 34%) minmax(0, 1fr); gap: 8px; align-items: start; }
+  .band:not(.maxed) .shead { min-height: 0; } .band:not(.maxed) .stoks { margin-top: 0; }
+  .band:not(.maxed) .belt { min-width: 0; }
 }
 @media (max-width: 1180px) {
   body { height: auto; min-height: 100%; overflow: auto; grid-template-rows: auto auto auto; grid-template-columns: minmax(0, 1fr); align-content: start; }
@@ -645,6 +672,8 @@ code, pre, kbd, .log, .did, .ftime, .gate, .iacs b, .idiff, .cin, .cin input, .n
 .pal-row .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pal-row .col { flex: none; font-size: 12px; color: var(--muted); }
 .pal-row.none { color: var(--muted); cursor: default; }
+.pal-ask { margin: 0; padding: 12px 16px 4px; font-size: 14px; line-height: 1.5; color: var(--text); } .pal-ask[hidden] { display: none; }
+.pal-row.yes { color: var(--bad); }
 @media (max-width: 599px) {
   .pal-box { top: 16px; width: calc(100vw - 32px); }
   .pal-row { min-height: 44px; flex-wrap: wrap; align-items: center; } .pal-row .ttl { flex-basis: calc(100% - 64px); } .pal-row .col { flex-basis: 100%; padding-left: 0; order: 3; }
@@ -683,8 +712,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
 <header>
   <span class="g brand"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M12 48H44V32H20V16H40"/><rect x="40" y="8" width="16" height="16" rx="3"/></svg>Shipfloor</span>
   <nav class="views" aria-label="View" data-i-aria="nav.view"><button data-view="board" aria-pressed="true" data-i="nav.factory">Factory</button><button data-view="feed" aria-pressed="false" data-i="nav.feed">Logbook</button><button data-view="settings" aria-pressed="false" data-i="nav.settings">Settings</button></nav>
-  <div class="stats"><a class="cap" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener"><span data-i="nav.docs">Docs</span><svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a><span id="scope"></span><div class="stat" id="stat"><span id="status" role="status" aria-live="polite"></span><span id="rbtn"></span><div class="rrow" id="rrow" hidden></div></div></div>
-  <button class="btn ghost pal-btn" id="pal-btn" type="button" aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog"><span data-i="pal.open">Commands</span><kbd id="pal-kbd">Ctrl K</kbd></button>
+  <div class="stats"><button class="btn ghost pal-btn" id="pal-btn" type="button" aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog"><span data-i="pal.open">Commands</span><kbd id="pal-kbd">Ctrl K</kbd></button><a class="cap" href="https://github.com/kennedykjj/shipfloor#learn-more" target="_blank" rel="noopener"><span data-i="nav.docs">Docs</span><svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a><span id="scope"></span><div class="stat" id="stat"><span id="status" role="status" aria-live="polite"></span><span id="rbtn"></span><div class="rrow" id="rrow" hidden></div></div></div>
 </header>
 <div class="alerts" id="alerts" role="status"></div>
 <main>
@@ -721,6 +749,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
   <div class="pal-scrim" id="pal-scrim"></div>
   <div class="pal-box" role="dialog" aria-modal="true" aria-label="Commands" data-i-aria="pal.open">
     <input class="pal-in" id="pal-in" type="text" role="combobox" aria-expanded="true" aria-controls="pal-list" aria-autocomplete="list" aria-activedescendant="" autocomplete="off" spellcheck="false" aria-label="Card number, title or action" placeholder="Card number, title or action" data-i-aria="pal.field" data-i-ph="pal.field">
+    <p class="pal-ask" id="pal-ask" hidden></p>
     <ul class="pal-list" id="pal-list" role="listbox" aria-label="Commands" data-i-aria="pal.open"></ul>
     <p class="sr" id="pal-live" role="status" aria-live="polite"></p>
   </div>
@@ -826,6 +855,9 @@ function arg(body, v) {
   }
   return fmt(forms[`=${n}`] ?? forms[RULES.select(n)] ?? forms.other ?? "", v, n);
 }
+// What waits for the owner (one answer for the header, the tab, the palette and the work area's queue): a card at a gate,
+// one blocked for the owner, or one the dispatcher holds after two stopped runs (stopped/<n>); never a card that runs or is Done.
+const needsOwner = (c) => !!c && c.column !== "Done" && !c.running && !!(c.awaiting || c.blocked === "owner" || c.stopped);
 // the static markup: data-i is an element's text, data-i-title, data-i-aria and data-i-ph its title, aria-label and placeholder
 function staticText(root = document) {
   root.querySelectorAll("[data-i]").forEach((el) => { el.textContent = t(el.dataset.i); });
@@ -922,7 +954,7 @@ const project =() => S.overview?.projects.find((p) => p.slug === S.project);
 const cardOf = (p, n) => S.overview?.projects.find((x) => x.slug === p)?.cards.find((c) => c.issue === n);
 // what waits for the owner in the project on screen: the other projects' cards stay with their own board
 const waiting = () => (project()?.cards || []).map((c) => ({ ...c, key: `${S.project}/${c.issue}` }))
-  .filter((c) => (c.awaiting || c.blocked === "owner") && !(c.key in S.moving))
+  .filter((c) => needsOwner(c) && !(c.key in S.moving))
   .sort((a, b) => (a.since || "~") < (b.since || "~") ? -1 : 1);  // the oldest wait first; a card with no date goes last
 
 function renderStrip() {
@@ -940,9 +972,21 @@ function renderStrip() {
 // Restart, which runs nothing: it shows the reinstall command to run on this machine, and copies it.
 const ageText = (m) => m < 60 ? t("status.age.m", { m }) : m % 60 ? t("status.age.hm", { h: Math.floor(m / 60), m: m % 60 }) : t("status.age.h", { h: m / 60 });
 const RESTART = { open: false, copiedAt: 0 };
+// What the factory is doing, in the order that explains the most: the paused factory (or project), the usage limit, the cost
+// stop and the working hours each hold the belt and have their own word and dot; silence outranks them all (renderStatus).
+function factoryState(o, p) {
+  if (o.paused || p?.paused) return "paused";
+  if (o.usage_limited) return "usage";
+  if (o.costs?.day_stopped) return "cost_stop";
+  if (o.hours && !o.hours.open) return "hours";
+  return "running";
+}
+const STATE_CLASSES = ["paused", "usage", "cost_stop", "hours"].map((k) => `st-${k}`);
 function renderStatus() {
   const o = S.overview; if (!o) return;
-  const dead = o.silent, waits = o.projects.reduce((n, p) => n + p.cards.filter((c) => c.awaiting || c.blocked === "owner").length, 0);
+  const owed = (p) => p.cards.filter(needsOwner).length, here = project() ? owed(project()) : 0;
+  const dead = o.silent, other = o.projects.reduce((n, p) => p.slug === S.project ? n : n + owed(p), 0), state = factoryState(o, project());
+  $("stat").classList.remove(...STATE_CLASSES);
   $("stat").classList.toggle("replay", !!R.at);
   if (R.at) {  // the belt is looking at the past: the sentence says so, and the only control is the way back
     $("stat").classList.remove("stopped"); RESTART.open = false; $("rrow").hidden = true; setHTML($("rrow"), "");
@@ -951,9 +995,11 @@ function renderStatus() {
     return;
   }
   $("stat").classList.toggle("stopped", !!dead);
+  if (!dead && state !== "running") $("stat").classList.add(`st-${state}`);
+  const need = here || other ? ` · <button class="need" type="button" data-need>${other ? t("status.waits_split", { n: here, m: other }) : t(here === 1 ? "status.waits_one" : "status.waits", { n: here })}</button>` : "";
   const more = `${t("status.sessions", { a: o.pool.used, b: o.pool.size })} · ${t("status.cost", { cost: usd(o.today.cost) })}`;
   setHTML($("status"), `<i class="sdot" aria-hidden="true"></i>` + (dead ? (dead.min == null ? t("status.none") : t("status.stopped", { age: ageText(dead.min) }))
-    : `${t("status.running")}${waits ? ` · <span class="need">${t(waits === 1 ? "status.waits_one" : "status.waits", { n: waits })}</span>` : ""}<span class="more" title="${esc(more)}"> · ${t("status.sessions", { a: o.pool.used, b: o.pool.size })} · ${t("status.cost", { cost: usd(o.today.cost) })}</span>`));
+    : `${t(`status.${state}`)}${need}<span class="more" title="${esc(more)}"> · ${t("status.sessions", { a: o.pool.used, b: o.pool.size })} · ${t("status.cost", { cost: usd(o.today.cost) })}</span>`));
   if (!dead) RESTART.open = false;
   const was = $("rrow").contains(document.activeElement) ? "copy" : $("rbtn").contains(document.activeElement) ? "btn" : "";
   setHTML($("rbtn"), dead ? `<button class="btn ghost" data-restart aria-expanded="${RESTART.open}" aria-controls="rrow">${t("status.restart")}</button>` : "");
@@ -973,6 +1019,12 @@ function copyCommand() {
   navigator.clipboard?.writeText(cmd)?.catch?.(() => {});
   RESTART.copiedAt = Date.now(); renderStatus(); setTimeout(renderStatus, 2100);
 }
+// A health finding (shipfloor_health.findings) in the page's language: what is wrong and what the owner can do.
+function healthText(a) {
+  if (typeof a === "string") return esc(a);  // a server from before the findings had keys
+  const s = t(`health.${a.key}`, { project: esc(a.project || ""), stage: esc(stageName(a.stage)), cycles: a.cycles, used: a.used, limit: a.limit, what: esc(a.what || ""), m: a.min, every: a.every });
+  return s === `health.${a.key}` ? esc(a.line || a.key || "") : s;  // a key this page does not know: the line as the health log has it
+}
 // The alerts line exists only while something is wrong.
 function renderFlags() {
   if (S.refused) return;
@@ -987,7 +1039,7 @@ function renderFlags() {
   if (o?.usage_limited) add("bad", t("alert.usage"), t("alert.usage.text"));
   if (o && !o.paused && o.hours && !o.hours.open) add("warn", t("alert.hours"), t("alert.hours.text", { at: esc(o.hours.next) }));  // a paused factory shows only the pause
   for (const x of o?.projects || []) if (x.skipped) add("bad", t("alert.skipped", { project: esc(x.slug), since: when(x.skipped.since) }), t("alert.skipped.text", { reason: esc(x.skipped.reason) }));
-  for (const a of o?.alerts || []) add("warn", t("alert.health"), t("alert.health.text", { what: esc(a) }));
+  for (const a of o?.alerts || []) add("warn", t("alert.health"), t("alert.health.text", { what: healthText(a) }));
   const orphans = (o?.runs || []).filter((r) => r.orphan);
   if (orphans.length) add("warn", t("alert.orphans", { n: orphans.length }), esc(orphans.map((r) => `${r.stage}-${r.issue}.lock`).join(", ")));
   if ((o?.stacks || []).some((x) => x.state === "stuck")) add("warn", t("alert.stuck"), t("alert.stuck.text"));
@@ -1024,7 +1076,7 @@ function maximize(panel, on) {
   const b = panel.querySelector(":scope > [data-max]"); b.title = t(on ? "btn.restore_esc" : "btn.maximize"); b.setAttribute("aria-label", t(`panel.${panel.dataset.maxable}.${on ? "restore" : "max"}`));
 }
 const stale = (p) => p?.board_age_s != null && p.board_age_s > STALE_S;
-const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" ? "stop" : c.blocked === "infra" ? "infra" : c.running ? "run" : c.awaiting ? "you" : "wait";
+const kindOf = (key, c) => key in S.moving ? "wait" : c.blocked === "owner" || c.stopped && !c.running ? "stop" : c.blocked === "infra" ? "infra" : c.running ? "run" : c.awaiting ? "you" : "wait";
 function renderBoard() {
   if (S.refused) return;
   const p = project();
@@ -1054,33 +1106,46 @@ function progress(p, c) {
 // The belt: each card once, as a token in the segment of its board column, oldest first; the segments come in board order and
 // each says how full it is. Stages show their free slots as ghost tokens. The page keeps no card state of its own here.
 const BELT = { tab: null, slug: null, where: null };  // the token that holds the belt's one tab stop
-const KIND_CLASS = { run: "run", wait: "q", you: "you", stop: "you", infra: "infra", done: "done" };
+const KIND_CLASS = { run: "run", wait: "q", you: "you", stop: "stop", infra: "infra", done: "done" };
+// The Inbox and Done show their first few tokens and "+N", which opens the whole line (maximized, every card by name).
+const BELT_CAP = 5, CAPPED = ["Inbox", "Done"];
+const moreTok = (n, live) => live ? `<li><button class="tok more" type="button" data-more tabindex="-1" aria-label="${ta("belt.more", { n })}">+${NUM.format(n)}</button></li>`
+  : `<li class="tok more ghost" aria-label="${ta("belt.more_n", { n })}">+${NUM.format(n)}</li>`;
+// A stage's slots are the machine's, shared by every project: this project's runs of it, and who holds the others.
+function stageMeta(st, slug) {
+  const by = st.by_project; if (!by) return t("belt.slots", { i: st.running, n: st.slots });
+  const others = Object.entries(by).filter(([p, k]) => p !== slug && k > 0);
+  const mine = by[slug] || 0, k = others.reduce((a, [, x]) => a + x, 0);
+  return k ? t("belt.slots_shared", { i: mine, n: st.slots, k, projects: others.map(([p]) => p).join(", ") }) : t("belt.slots", { i: mine, n: st.slots });
+}
 function renderBelt(p, by, key) {
   if (R.at) return renderReplayBelt(p);
-  const midnight = new Date().setHours(0, 0, 0, 0), today = (c) => !!c.since && new Date(c.since) >= midnight;
-  const doneToday = p.done_today ?? by.Done.filter(today).length, at = (c) => c.since ? +new Date(c.since) : Infinity;
+  const at = (c) => c.since ? +new Date(c.since) : Infinity, doneAt = (c) => c.done_at ? +new Date(c.done_at) : -Infinity;
   const sorted = Object.fromEntries(COLS.map((col) => [col.name, by[col.name].slice().sort((a, b) => at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0)]));
-  const order = COLS.flatMap((col) => sorted[col.name].map(key)), tab = order.includes(BELT.tab) ? BELT.tab : order[0];
-  const labels = {}, where = {};
+  sorted.Done = by.Done.filter((c) => c.done_at).sort((a, b) => doneAt(b) - doneAt(a));  // done today (a clean deploy today, as History counts), the newest first
+  const doneToday = p.done_today ?? sorted.Done.length;
+  const shown = Object.fromEntries(COLS.map((col) => [col.name, CAPPED.includes(col.name) ? sorted[col.name].slice(0, BELT_CAP) : sorted[col.name]]));
+  const order = COLS.flatMap((col) => shown[col.name].map(key)), tab = order.includes(BELT.tab) ? BELT.tab : order[0];
+  const labels = {}, where = {}, state0 = factoryState(S.overview, p);
   const segs = COLS.map((col, i) => {
-    const cs = sorted[col.name], done = col.name === "Done", gate = col.kind === "y", st = S.overview.pool.stages[col.stage] || { slots: 0, running: 0 };
+    const cs = shown[col.name], all = sorted[col.name], done = col.name === "Done", gate = col.kind === "y", st = S.overview.pool.stages[col.stage] || { slots: 0, running: 0 };
     const name = col.stage ? stageName(col.stage) : colName(col.name);
     const meta = done ? (doneToday ? t("belt.today", { n: doneToday }) : t("belt.nothing_today")) : gate ? (cs.length ? t("belt.for_you", { n: cs.length }) : t("belt.nothing_you"))
-      : col.stage ? t("belt.slots", { i: st.running, n: st.slots }) : cs.length ? String(cs.length) : t("belt.empty");
+      : col.stage ? stageMeta(st, p.slug) : cs.length ? String(all.length) : t("belt.empty");
     labels[col.name] = esc(meta);
     const toks = cs.map((c) => {
       const k = key(c); where[k] = i; const kind = done ? "done" : kindOf(k, c), run = kind === "run" ? runOf(p.slug, c) : null, of = STEP_COUNT[c.running], step = run?.step && of ? run.step : null;
-      const state = done ? (today(c) ? t("belt.state.done") : "") : kind === "run" ? (step ? t("belt.state.running_step", { i: step.i, n: of }) : t("belt.state.running"))
-        : kind === "you" ? t("belt.state.waits") : kind === "stop" ? t("belt.state.blocked") : kind === "infra" ? t("belt.state.infra") : t("belt.state.queued");
+      const state = done ? t("belt.state.done") : kind === "run" ? (step ? t("belt.state.running_step", { i: step.i, n: of }) : t("belt.state.running"))
+        : kind === "you" ? t("belt.state.waits") : kind === "stop" ? t(c.stopped && c.blocked !== "owner" ? "belt.state.stopped" : "belt.state.blocked") : kind === "infra" ? t("belt.state.infra") : t("belt.state.queued");
       const head = `#${c.issue}${c.title ? ` ${c.title}` : ""}`, ek = esc(k);
       return `<li><button class="tok ${KIND_CLASS[kind]}${S.work.key === k ? " open" : ""}" data-key="${ek}" data-pick="${ek}" tabindex="${k === tab ? 0 : -1}" aria-label="${esc([head, name, state].filter(Boolean).join(", "))}" title="${esc(head + (step ? ` · ${t("belt.step", { i: step.i, n: of })}` : ""))}"><b class="n">#${c.issue}</b>${kind === "run" ? `<i class="bar" style="width:${progress(p, c).toFixed(1)}%"></i>` : ""}</button></li>`;
-    }).join("");
+    }).join("") + (all.length > cs.length ? moreTok(all.length - cs.length, true) : "");
     const free = col.stage ? `<li class="tok ghost" aria-hidden="true">${t("belt.free")}</li>`.repeat(Math.max(0, st.slots - st.running)) : "";
     return `<div class="seg ${done ? "done" : gate ? "gate" : col.stage ? "stage" : "queue"}"><div class="shead"><b class="sname" id="bn-${i}">${esc(name)}</b><span class="smeta${(gate || done) && cs.length ? " on" : ""}" id="bm-${i}">${esc(meta)}</span></div><ul class="stoks" role="list" aria-labelledby="bn-${i} bm-${i}">${toks}${free}</ul></div>`;
   }).join("");
   if ($("band").classList.contains("maxed") && L.hold?.via !== "drag") renderLanes(p, by, key, labels);  // a drag would end if its chip were drawn again
   const held = document.activeElement?.closest?.("#cells .tok")?.dataset.key;
-  const html = `<div class="belt"><div class="segs">${segs}</div><div class="rail${S.overview.silent ? " stop" : ""}" aria-hidden="true"></div></div>`;
+  const html = `<div class="belt"><div class="segs">${segs}</div><div class="rail${S.overview.silent ? " stop" : state0 !== "running" ? " paused" : ""}" aria-hidden="true"></div></div>`;
   if ($("cells")._html === html) return;
   const was = beltBefore(p.slug);
   if (!setHTML($("cells"), html)) return;
@@ -1154,6 +1219,7 @@ function loadDay() {
     if (R.at) renderBoard();
   })();
 }
+const firstMin = () => !R.lines || R.slug !== S.project ? null : R.lines.length ? minuteOf(R.lines[0].at) : nowMin();  // none today: all of it
 const ensureDay = async () => { if (!R.lines || R.slug !== S.project) await loadDay(); };
 const lineAt = () => R.lines.reduce((best, l) => l.at <= R.at ? l : best, null);
 function markText(m) {
@@ -1166,6 +1232,10 @@ function renderScrub() {
   const nowM = nowMin(), min = R.at ? atMin() : nowM, pct = (m) => `${(m / 14.4).toFixed(2)}%`;
   R.minute = nowM;
   $("ph").style.left = pct(min); $("fut").style.left = pct(nowM);
+  // before the day's first board line there is nothing to replay: hatched like the future, and the needle stops at it
+  if (!$("pre")) $("lane").insertAdjacentHTML("afterbegin", '<div class="pre" id="pre" aria-hidden="true"></div>');
+  const first = firstMin();
+  $("pre").hidden = first == null; if (first != null) $("pre").style.width = pct(Math.min(first, nowM));
   $("ph").setAttribute("aria-valuenow", min); $("ph").setAttribute("aria-valuetext", R.at ? hm4(min) : t("scrub.now"));
   setHTML($("marks"), R.marks.map((m) => { const d = new Date(m.t), text = esc(markText(m));
     return `<i class="mk ${m.kind === "decision" ? "dec" : m.kind === "bad" ? "bad" : "ok"}" style="left:${pct(d.getHours() * 60 + d.getMinutes())}" title="${text}"><span class="vh">${text}</span></i>`; }).join(""));
@@ -1182,15 +1252,21 @@ function renderReplayBelt(p) {
   if (!ready) inner = `<p class="bnote">${t("replay.reading")}</p>`;
   else if (!line) inner = `<p class="bnote">${R.lines.length ? t("replay.before", { time, first: hm4(minuteOf(R.lines[0].at)) }) : t("replay.none")}</p>`;
   else {
-    const by = Object.fromEntries(COLS.map((c) => [c.name, []]));
+    const by = Object.fromEntries(COLS.map((c) => [c.name, []])), into = {};  // into: when a card came into Done today, by the lines
     for (const [n, col] of Object.entries(line.cards)) if (col in by) by[col].push(+n);
-    const keys = COLS.flatMap((c) => by[c.name].slice().sort((a, b) => a - b).map((n) => `${p.slug}/${n}`)), tab = keys.includes(BELT.tab) ? BELT.tab : keys[0];
+    for (let j = 0, prev = {}; j < R.lines.length && R.lines[j].at <= line.at; prev = R.lines[j].cards, j++)
+      for (const [n, col] of Object.entries(R.lines[j].cards)) if (col === "Done" && prev[n] !== "Done" && j) into[n] = R.lines[j].at;
+    by.Done = by.Done.filter((n) => n in into).sort((a, b) => into[b] - into[a]);  // done today, the newest first, as the live belt
+    for (const col of COLS) if (col.name !== "Done") by[col.name].sort((a, b) => a - b);
+    const all = Object.fromEntries(COLS.map((c) => [c.name, by[c.name]]));
+    for (const c of CAPPED) by[c] = by[c].slice(0, BELT_CAP);
+    const keys = COLS.flatMap((c) => by[c.name].map((n) => `${p.slug}/${n}`)), tab = keys.includes(BELT.tab) ? BELT.tab : keys[0];
     inner = `<div class="segs">${COLS.map((col, i) => {
-      const ns = by[col.name].sort((a, b) => a - b), done = col.name === "Done", gate = col.kind === "y", name = col.stage ? stageName(col.stage) : colName(col.name), meta = ns.length ? String(ns.length) : t("belt.empty");
+      const ns = by[col.name], done = col.name === "Done", gate = col.kind === "y", name = col.stage ? stageName(col.stage) : colName(col.name), meta = all[col.name].length ? String(all[col.name].length) : t("belt.empty");
       const toks = ns.map((n) => {
         const k = `${p.slug}/${n}`, ek = esc(k), c = cardOf(p.slug, n), head = `#${n}${c?.title ? ` ${c.title}` : ""}`; where[k] = i;
         return `<li><button class="tok ${done ? "done" : gate ? "you" : "q"}" data-key="${ek}"${c ? ` data-open="${ek}"` : ""} tabindex="${k === tab ? 0 : -1}" aria-label="${esc(`${head}, ${name}${t("replay.as_at", { time })}`)}" title="${esc(head)}"><b class="n">#${n}</b></button></li>`;
-      }).join("");
+      }).join("") + (all[col.name].length > ns.length ? moreTok(all[col.name].length - ns.length, false) : "");
       return `<div class="seg ${done ? "done" : gate ? "gate" : col.stage ? "stage" : "queue"}"><div class="shead"><b class="sname" id="bn-${i}">${esc(name)}</b><span class="smeta" id="bm-${i}">${esc(meta)}</span></div><ul class="stoks" role="list" aria-labelledby="bn-${i} bm-${i}">${toks}</ul></div>`;
     }).join("")}</div>`;
   }
@@ -1211,7 +1287,8 @@ function setAddress(min, push) {
 // Puts the needle at a minute of today. At or after now it is live. how: "drag" swaps the belt instantly, any other travels.
 function needle(min, how, fromUrl) {
   if (min >= nowMin()) return backToLive(false, fromUrl);
-  min = Math.max(0, Math.round(min));
+  const first = R.lines?.length && R.slug === S.project ? minuteOf(R.lines[0].at) : null;
+  min = Math.max(first ?? 0, Math.round(min));
   const entering = !R.at;
   if (entering) { if ($("band").classList.contains("maxed")) maximize($("band"), false); S.editing = null; if (L.hold) letGo(true); }
   R.at = dayStart() + min * 60000; R.note = ""; R.dragging = how === "drag";
@@ -1250,13 +1327,13 @@ $("band").addEventListener("keydown", (e) => {  // Esc in the belt panel leaves 
   let down = false;
   const lane = $("lane"), minuteAt = (x) => { const r = lane.getBoundingClientRect(); return r.width ? Math.min(1440, Math.max(0, Math.round((x - r.left) / r.width * 1440))) : null; };
   const to = (e, how) => { const m = minuteAt(e.clientX); if (m != null) needle(m, how); };
-  lane.addEventListener("pointerdown", (e) => { if (e.button) return; down = true; lane.setPointerCapture?.(e.pointerId); $("ph").focus({ preventScroll: true }); to(e, "drag"); });
+  lane.addEventListener("pointerdown", (e) => { if (e.button) return; e.preventDefault(); down = true; lane.setPointerCapture?.(e.pointerId); $("ph").focus({ preventScroll: true }); to(e, "drag"); });  // preventDefault: the press does not move the focus off the needle, so Esc still reaches the panel
   lane.addEventListener("pointermove", (e) => { if (down) to(e, "drag"); });
   lane.addEventListener("pointerup", (e) => { if (down) { down = false; to(e, "release"); } });  // releasing travels; in the future it is live
   lane.addEventListener("pointercancel", () => { down = false; R.dragging = false; });
 }
 // The decide controls are turned off in replay: aria-disabled, faint, titled, still focusable. They come back on the way back.
-const DECIDE = '[data-w="approve"], [data-w="send"], [data-w="retry"], [data-w="baccept"], [data-w="bsend"], [data-unblock], [data-approve-amend], [data-mv], #band > button[data-max]';
+const DECIDE = '[data-w="approve"], [data-w="send"], [data-w="retry"], [data-w="baccept"], [data-w="bsend"], [data-unblock], [data-approve-amend], [data-mv], [data-stopmv], [data-more], #band > button[data-max]';
 function paintReplayLock(root = document) {
   if (R.at) root.querySelectorAll(DECIDE).forEach((el) => {
     if (!el.hasAttribute("data-denied")) { el._was = el.getAttribute("title"); el.setAttribute("data-denied", ""); }
@@ -1275,7 +1352,7 @@ function paintReplayLock(root = document) {
 // One tab stop for the whole belt: Left and Right walk the tokens across the segments, Home and End go to the ends.
 $("cells").addEventListener("focusin", (e) => {
   const b = e.target.closest?.("button.tok"); if (!b) return;
-  BELT.tab = b.dataset.key;
+  if (b.dataset.key) BELT.tab = b.dataset.key;
   $("cells").querySelectorAll("button.tok").forEach((x) => { x.tabIndex = x === b ? 0 : -1; });
   b.scrollIntoView({ block: "nearest", inline: "nearest" });
 });
@@ -1296,7 +1373,8 @@ const meaning = (from, to) => t(MEANING[`${from}>${to}`]);
 // A card blocked for the owner can be taken back (#127): where it may go comes from the overview's take_back (the server
 // holds the table, "*" for every column but Coding and Validation), never its own column; what each drop means.
 const TAKE = { "Ready for Dev": "take.redo", "Ready for Refinement": "take.refine", "Inbox": "take.out" };
-const takeOf = (c) => c.blocked === "owner" ? (S.overview?.take_back?.[c.column] || S.overview?.take_back?.["*"] || []).filter((to) => to !== c.column) : [];
+const heldForOwner = (c) => c.lock === "blocked" || (!!c.stopped && !c.lock);  // blocked, or held by the dispatcher after two stopped runs
+const takeOf = (c) => c.blocked === "owner" || c.stopped ? (S.overview?.take_back?.[c.column] || S.overview?.take_back?.["*"] || []).filter((to) => to !== c.column) : [];
 const means = (h, x) => x.take ? t(TAKE[x.to]) : meaning(h.from, x.to);
 const locked = (lock) => t(`lock.${lock}`);  // run, infra, blocked
 const LOCK = '<svg class="lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
@@ -1309,7 +1387,7 @@ const numOf = (k) => +k.split("/")[1];
 // a card the owner can pick up: a From column of the table and no lock, or blocked for the owner and taken back (#127); no
 // move of its own on the way (a reorder may go on)
 const movable = (slug, c) => { const k = `${slug}/${c.issue}`, e = S.pending[k];
-  return (c.lock === "blocked" ? takeOf(c).length > 0 : movesOf(c.column).length > 0 && !c.lock) && !(k in S.moving) && !(e && !e.reorder); };
+  return (heldForOwner(c) ? takeOf(c).length > 0 : movesOf(c.column).length > 0 && !c.lock) && !(k in S.moving) && !(e && !e.reorder); };
 // the columns a held card may go to, numbered left to right in board order
 const targets = (h) => (h.take ? h.take.map((to) => ({ to, take: true })) : movesOf(h.from).map((m) => ({ ...m }))).sort((a, b) => COLUMNS.indexOf(a.to) - COLUMNS.indexOf(b.to)).map((m, i) => ({ ...m, n: i + 1 }));
 function orderFor(slug, col) {  // the order the page shows in a queue until the board agrees: the held card's, a pending reorder's, a sent one's
@@ -1334,6 +1412,8 @@ function laneCards(p, by, key) {
 }
 function renderLanes(p, by, key, labels) {
   const shown = laneCards(p, by, key), h = L.hold; let any = false;
+  const last = (c) => c.done_at || c.since || "";
+  shown.Done.sort((a, b) => last(a) < last(b) ? 1 : last(a) > last(b) ? -1 : 0);  // the newest first; the whole column, with its own scroll
   const chip = (c, i, list) => { const k = key(c), kind = c.moving ? "wait" : kindOf(k, c), run = kind === "run" && runOf(p.slug, c), of = STEP_COUNT[c.running];
     const can = !c.moving && movable(p.slug, c), lock = !c.moving && !can && (movesOf(c.column).length > 0 || c.lock === "infra") && c.lock, bits = [];
     if (can) any = true;
@@ -1352,7 +1432,7 @@ function renderLanes(p, by, key, labels) {
     return `<div class="cw" data-cw="${esc(k)}"><button class="chip ${c.column === "Done" ? "" : kind}${lock ? " locked" : ""}${L.only && !can ? " dimc" : ""}" data-key="${esc(k)}" data-open="${esc(k)}"${can ? ' draggable="true"' : ""}${can ? ' data-mvok aria-pressed="false"' : ""}${lock ? ' aria-disabled="true"' : ""}>${pos}<b class="g">#${c.issue}</b>${c.title ? esc(c.title) : UNTITLED}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}</button>${can ? `<button class="btn ghost mvb" data-mv="${esc(k)}">${t("chip.move")}</button>` : ""}${rord}</div>`; };
   const was = Object.fromEntries([...$("lanes").querySelectorAll(".chip")].map((el) => [el.dataset.key, el.getBoundingClientRect()]));
   const changed = setHTML($("lanes"), LANES.map(([lane, a, b]) => `<h2 class="lane g">${t(lane)}<small>${t(`${lane}.what`)}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
-    `<div class="lcol" data-col="${esc(col.name)}"${col.stage ? ` data-stage="${col.stage}"` : ""}><div class="lab">${col.stage ? `<b class="g">${esc(stageName(col.stage))}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${labels[col.name]}</span></div><div class="accl"></div>${shown[col.name].map(chip).join("")}</div>`).join("")}</div>`).join(""));
+    `<div class="lcol" data-col="${esc(col.name)}"${col.stage ? ` data-stage="${col.stage}"` : ""}><div class="lab">${col.stage ? `<b class="g">${esc(stageName(col.stage))}</b>` : `<span class="q">${esc(colName(col.name))}</span>`}<span class="d">${labels[col.name]}</span></div><div class="accl"></div>${shown[col.name].map(chip).join("")}</div>`).join("")}</div>`).join(""));
   if (changed && !still.matches) $("lanes").querySelectorAll(".chip").forEach((el) => {  // a chip that changed place slides there
     const a = was[el.dataset.key]; if (!a) return; const z = el.getBoundingClientRect(), dx = a.left - z.left, dy = a.top - z.top;
     if (dx || dy) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 150, easing: "ease-out" });
@@ -1404,7 +1484,7 @@ function tryHold(k, via) {
     if (pe?.reorder) pe.timer = setTimeout(() => sendPending(old.key), 5000);
   }
   const e = S.pending[k]; if (e?.reorder) clearTimeout(e.timer);  // holding it again continues its reorder: the 5 s start over when it lands
-  L.hold = { key: k, slug, n: +n, from: c.column, via, base: shownKeys(c.column), order: null, take: c.lock === "blocked" ? takeOf(c) : null };
+  L.hold = { key: k, slug, n: +n, from: c.column, via, base: shownKeys(c.column), order: null, take: heldForOwner(c) ? takeOf(c) : null };
   tell(holdLine(L.hold));
   if (via === "drag") paintHold(); else renderBoard();
   if (via !== "drag" && !queue(L.hold) && matchMedia("(max-width: 860px)").matches)  // the first column that takes it comes into view
@@ -1616,12 +1696,12 @@ const waitingCard = (c) => !!OWNER[c.column] && !!c.awaiting;
 // The cards that wait for the owner, the oldest first (a card with no date last); the skipped ones follow, in the order they were skipped.
 function decisionQueue(cards, skipped) {
   const at = (c) => c.since ? +new Date(c.since) : Infinity, set = skipped || new Set();
-  const own = cards.filter(waitingCard).sort((a, b) => at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0);
+  const own = cards.filter(needsOwner).sort((a, b) => at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0);
   return [...own.filter((c) => !set.has(c.key)), ...[...set].map((k) => own.find((c) => c.key === k)).filter(Boolean)];
 }
 // card: the card picked on the belt (or null); waits: whether anything waits for the owner
 function workMode({ card, waits }) {
-  if (card) return waitingCard(card) && !card.moving ? "decide" : card.running ? "run" : "card";
+  if (card) return card.running ? "run" : needsOwner(card) && !card.moving ? "decide" : "card";
   return waits ? "decide" : "calm";
 }
 // The runs nearest a gate: how many steps a run still has before the card waits for the owner (a card carries `step` when its run reported one).
@@ -1642,7 +1722,7 @@ function workView() {
   const sel = S.work.key ? cards.find((c) => c.key === S.work.key) || null : null;
   if (S.work.key && !sel) S.work.key = null;  // the card left the board
   const mode = workMode({ card: sel, waits: queue.length });
-  return { p, cards, queue, mode, cur: mode === "decide" ? (sel && waitingCard(sel) && !sel.moving ? sel : queue[0]) : mode === "calm" ? null : sel };
+  return { p, cards, queue, mode, cur: mode === "decide" ? (sel && needsOwner(sel) && !sel.moving ? sel : queue[0]) : mode === "calm" ? null : sel };
 }
 async function loadWorkCard(key, force) {  // the card's payload (brief, review page, block): read again when it is 15 s old
   if (W.loading[key] || (!force && Date.now() - (W.at[key] || 0) < (W.card[key] ? 15000 : 4000))) return;
@@ -1667,7 +1747,7 @@ function renderWork() {
   const at = document.activeElement, keep = swap.contains(at) ? at.dataset.f : "";
   const old = changed && !still.matches ? swap.innerHTML.replace(/<iframe[\s\S]*?<\/iframe>/g, "").replace(/ id="[^"]*"/g, "") : "";  // a copy with no page and no ids
   ({ decide: paintDecide, run: paintRun, card: paintCard, calm: paintCalm })[v.mode](v);
-  $("wk-keys").hidden = v.mode !== "decide";
+  $("wk-keys").hidden = v.mode !== "decide" || !waitingCard(v.cur);
   const box = $("wk-note");  // the note is kept per card; whether Send can go is not part of the markup, so typing never rewrites it
   if (box) { const want = W.notes[W.cur] || ""; if (box.value !== want) box.value = want; $("wk-send").disabled = !want.trim(); }
   const bn = $("wk-bnote");  // the note of a blocked card, kept per card; the buttons wait for it
@@ -1709,6 +1789,7 @@ const toastHtml = () => {  // the decision in its five seconds, and after it whi
 };
 const elseToast = (key) => { const h = W.hold || W.flight; return h && h.key !== key ? toastHtml() : ""; };  // a decision of another card is still undoable
 function paintDecide(v) {
+  if (!waitingCard(v.cur)) return paintHeld(v);
   const c = v.cur, key = c.key, [slug, n] = key.split("/"), data = W.card[key], i = W.decided + 1, k = W.decided + v.queue.length, next = v.queue.find((x) => x.key !== key);
   loadWorkCard(key);
   setHTML($("wk-swap"), SKEL.decide);
@@ -1801,6 +1882,7 @@ function workAct(a, ds) {
   if (a === "baccept") return ownerSend("accept");
   if (a === "bsend") return ownerSend("send-back");
   const v = workView(); if (!v || v.mode !== "decide" || W.hold) return;
+  if (!waitingCard(v.cur) && a !== "skip") return;  // a blocked or held card is decided with its own buttons
   if (a === "retry") retryMove(v.cur, ds.act);
   else if (a === "approve") approveStart(v.cur);
   else if (a === "request") W.req === v.cur.key ? closeRequest() : openRequest(v.cur);
@@ -1810,7 +1892,7 @@ function workAct(a, ds) {
 }
 function workKey(e) {  // A, R and N, with the focus outside any field and no wide view open
   if (S.view !== "board" || S.open || maxed() || W.hold) return;
-  const v = workView(), k = e.key.toLowerCase(); if (!v || v.mode !== "decide" || !["a", "r", "n"].includes(k)) return;
+  const v = workView(), k = e.key.toLowerCase(); if (!v || v.mode !== "decide" || !["a", "r", "n"].includes(k) || (k !== "n" && !waitingCard(v.cur))) return;
   e.preventDefault();
   if (k === "a" && !deciding()) return;
   if (k === "a") approveStart(v.cur); else if (k === "r") openRequest(v.cur); else skip(v);
@@ -1858,7 +1940,7 @@ function addrFrom() {  // Back, Forward or an edited hash: the page follows the 
 // The tab (#183): what waits for the owner in the project on screen, and whether the dispatcher is silent (#176: overview.silent).
 function tabState(overview, project) {
   const p = overview?.projects?.find((x) => x.slug === project);
-  return { count: (p?.cards || []).filter((c) => c.awaiting || c.blocked === "owner").length, stopped: !!overview?.silent };
+  return { count: (p?.cards || []).filter(needsOwner).length, stopped: !!overview?.silent };
 }
 function tabTitle(state, project) {
   const name = project ? ` · ${project}` : "";
@@ -1877,7 +1959,7 @@ function tabPaint() {  // every read: the title is written only when its text ch
 function fold(s) {
   return String(s ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
-const palWait = (c) => !!(c.awaiting || c.blocked === "owner");
+const palWait = (c) => needsOwner(c);
 function palTime(q) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(q) || /^(\d\d)(\d\d)$/.exec(q);
   return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
@@ -1892,13 +1974,14 @@ function palCards(q, cards) {
   return cards.filter((c) => { const h = fold(`${c.issue} ${c.title}`); return words.every((w) => h.includes(w)); });
 }
 function palette(query, cards, actions) {
-  const q = fold(query).trim().replace(/^#/, ""), acts = actions || [], rows = [];
+  const q = fold(query).trim().replace(/^#/, ""), acts = actions || [], rows = [], late = [];
   const min = q && acts.some((a) => a.id === "at") ? palTime(q) : null;
   if (min != null) rows.push({ kind: "action", id: "at", min, label: t("pal.at", { time: hm4(min) }) });
-  for (const a of acts) if (a.id !== "at" && (!q || fold(a.label).includes(q))) rows.push({ kind: "action", id: a.id, label: a.label });
+  // what acts on the whole factory (pause, resume) comes after the cards, never first under Enter, and is never cut
+  for (const a of acts) if (a.id !== "at" && (!q || fold(a.label).includes(q))) (a.id === "pause" || a.id === "resume" ? late : rows).push({ kind: "action", id: a.id, label: a.label });
   for (const c of palCards(q, cards || [])) rows.push({ kind: "card", key: c.key, issue: c.issue, title: c.title || "", column: c.column, waits: palWait(c) });
-  if (!rows.length) rows.push({ kind: "none", label: t("pal.none") });
-  return rows.slice(0, 9);
+  if (!rows.length && !late.length) rows.push({ kind: "none", label: t("pal.none") });
+  return rows.slice(0, 9 - late.length).concat(late);
 }
 function paintRun(v) {
   const c = v.cur, key = c.key, [slug] = key.split("/"), run = runOf(slug, c), of = STEP_COUNT[c.running], step = run?.step, acts = run?.activity || [];
@@ -1915,8 +1998,13 @@ function paintRun(v) {
     <span class="wk-clock">${clock(run?.started, true)}</span><span class="wk-cost">${t("work.cost_est", { cost: money(c.cost) })} ${flag(c)}</span>${linkRow(c, ["log"])}`);
 }
 // A card the factory does not run now, in words: where it is, what it waits for, or what became of it.
+const STOP_WHY = { "no-report": "stop.why.no_report", "owner-only": "stop.why.owner_only" };
+const stopLine = (c) => t("stop.line", { times: c.stopped.times || 2, why: STOP_WHY[c.stopped.why] ? t(STOP_WHY[c.stopped.why]) : c.stopped.why || "" });
 function stateWords(v, c) {
   if (c.moving) return t("head.moving", { column: esc(colName(S.moving[c.key])) });
+  if (c.blocked === "owner") return `${t("q.blocked")} · ${t("block.owner")}`;  // a block says so before anything else
+  if (c.stopped && !c.running) return esc(stopLine(c));
+  if (c.blocked === "infra") return esc(t("why.infra"));
   if (c.column === "Done") { const pr = (v.p.shipped || []).find((x) => x.issue === c.issue)?.pr; return pr ? t("work.done_pr", { pr }) : t(c.since && new Date(c.since) >= new Date().setHours(0, 0, 0, 0) ? "work.done_today" : "col.done"); }
   if (STAGE_OF[c.column] && !c.running) return esc(whyWaits(v.p, c));
   if (c.position) return `${esc(colName(c.column))} · ${t("chip.in_line", { i: c.position, n: v.cards.filter((x) => x.column === c.column).length })}`;
@@ -1929,15 +2017,57 @@ function paintCard(v) {
   const cost = c.cost == null || c.cost > 0 ? `<p class="wk-cost">${t("work.cost_since", { cost: c.cost == null ? money(null) : usd(c.cost) })} ${flag(c)}</p>` : "";
   const block = c.blocked && data ? blockNote({ ...data, blocked: c.blocked, project: v.p.slug, issue: c.issue }) : "";
   const mine = (W.hold || W.flight)?.key === key ? toastHtml() : "";
-  setHTML($("wk-card"), !data ? linkRow(c, ALL_TABS, true) : `<p class="wk-state">${stateWords(v, c)}</p>${cost}${block}${c.blocked === "owner" ? ownerBlockHtml(c) : ""}${mine}${linkRow(c, ALL_TABS)}`);
+  const line = c.block_line ? `<p class="bn-lead">${esc(c.block_line)}</p>` : "";
+  setHTML($("wk-card"), !data ? `<p class="wk-state">${stateWords(v, c)}</p>${line}${linkRow(c, ALL_TABS, true)}` : `<p class="wk-state">${stateWords(v, c)}</p>${line}${cost}${block}${c.blocked === "owner" ? ownerBlockHtml(c) : ""}${mine}${linkRow(c, ALL_TABS)}`);
 }
 // A card blocked for the owner: besides Unblock and retry (in the block note), send it back to Coding with a note, or, when the
 // acceptance-intact gate stopped it, accept the edited tests with the reason. Both need the note and wait 5 s with Undo.
 function ownerBlockHtml(c) {
   if (!INB.data[c.key]) loadDecide(c.key);
-  const accept = INB.data[c.key]?.block?.gate === "acceptance-intact";
+  const accept = INB.data[c.key]?.block?.gate === "acceptance-intact", back = c.column !== "Coding";  // in Coding, back to Coding moves nothing
+  if (!accept && !back) return "";
   return `<div class="wk-req" id="wk-bblock"><textarea id="wk-bnote" aria-label="${ta("opt.rework.note")}" placeholder="${ta(accept ? "opt.accept.note" : "opt.rework.note")}"></textarea><p class="hint">${t("hint.note_first")}</p>
-    ${accept ? `<button class="btn" id="wk-baccept" data-w="baccept" disabled>${t("opt.accept.verb")}</button>` : ""}<button class="btn" id="wk-bsend" data-w="bsend" disabled>${t("act.send_back")}</button></div>`;
+    ${accept ? `<button class="btn" id="wk-baccept" data-w="baccept" disabled>${t("opt.accept.verb")}</button>` : ""}${back ? `<button class="btn" id="wk-bsend" data-w="bsend" disabled>${t("act.send_back")}</button>` : ""}</div>`;
+}
+// Decide for a card blocked for the owner, or held by the dispatcher after two stopped runs (stopped/<n>): what happened on the
+// left, the owner's ways out on the right. A held card is taken back to another column (the take-back move, #127), which the
+// dispatcher reads as the owner's word and starts again from there.
+function paintHeld(v) {
+  const c = v.cur, key = c.key, data = W.card[key], i = W.decided + 1, k = W.decided + v.queue.length, next = v.queue.find((x) => x.key !== key);
+  loadWorkCard(key);
+  setHTML($("wk-swap"), SKEL.decide);
+  const dash = Array.from({ length: k }, (_, j) => `<i class="${j < i - 1 ? "ok" : j === i - 1 ? "cur" : ""}"></i>`).join("");
+  setHTML($("wk-top"), elseToast(key) + wkHead(c, c.since ? `<span class="wk-wait" data-waits="${esc(c.since)}"></span>` : "",
+    `<div class="wk-q"><span>${t("work.count", { i, n: k })}</span> <span class="wk-dash" aria-hidden="true">${dash}</span> ${next ? `<span>${t("work.next", { n: next.issue })}</span>` : ""}</div>`));
+  const owner = c.blocked === "owner", mine = (W.hold || W.flight)?.key === key;
+  setHTML($("wk-read"), `<p class="wk-state">${stateWords(v, c)}</p>${c.block_line ? `<p class="bn-lead">${esc(c.block_line)}</p>` : ""}${owner && data ? blockNote({ ...data, blocked: c.blocked, project: v.p.slug, issue: c.issue }) : ""}`);
+  const ways = owner ? ownerBlockHtml(c) : `<p class="hint">${t("stop.what")}</p>${takeOf(c).slice().reverse().map((to) => `<button class="btn wk-b" data-stopmv="${esc(to)}"${S.moving[key] ? " disabled" : ""}><span>${esc(cap1(t(TAKE[to])))}</span><small>${esc(colName(to))}</small></button>`).join("")}`;
+  setHTML($("wk-dec"), `<h3 class="g" id="wk-dh">${t("decide.h")}</h3>${mine ? toastHtml() : ways}${W.stopErr?.[key] ? `<p class="pnote" role="status">${W.stopErr[key]}</p>` : ""}
+    <button class="btn ghost wk-skip" data-w="skip" data-f="skip">${t("work.skip")}</button>${W.msg?.key === key ? `<p class="hint" role="status">${esc(W.msg.text)}</p>` : ""}${linkRow(c, ALL_TABS)}`);
+}
+const cap1 = (s) => s.charAt(0).toLocaleUpperCase(CODE) + s.slice(1);  // a move's meaning, said as a button
+async function stopMove(to) {  // a held card taken back from the work area: it shows as moving until the board says so
+  const c = workView()?.cur; if (!c || !c.stopped || c.blocked === "owner" || !deciding() || S.moving[c.key]) return;
+  const [p, n] = c.key.split("/"); W.stopErr = W.stopErr || {}; delete W.stopErr[c.key];
+  S.moving[c.key] = to; W.moved = true; renderBoard();
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/take-back`, { method: "POST", body: JSON.stringify({ to, text: "" }) });
+  if (status === 200) { W.decided++; if (S.work.key === c.key) { S.work.key = null; addrSync(); } return loadOverview(); }  // the queue resumes with the next card
+  delete S.moving[c.key]; S.work.key = c.key;
+  W.stopErr[c.key] = t("move.failed", { n, why: esc(told(body, "move.failed.why")) });
+  renderBoard();
+}
+// The header's "N decisions wait for you": the first of them in the work area, in this project or else in the next that has one.
+function goNeed() {
+  const here = waiting()[0];
+  if (!here) {
+    const p = S.overview?.projects.find((x) => x.slug !== S.project && x.cards.some(needsOwner));
+    if (!p) return;
+    S.project = p.slug; S.work.skipped.clear(); W.req = null; closeCard(); renderStrip();
+    const c = p.cards.filter(needsOwner).sort((a, b) => (a.since || "~") < (b.since || "~") ? -1 : 1)[0];
+    S.work.key = `${p.slug}/${c.issue}`;
+  } else S.work.key = here.key;
+  setView("board"); renderBoard(); addrSync();
+  const title = $("wk-title"); title?.focus({ preventScroll: true }); $("work").scrollIntoView({ block: "start", behavior: still.matches ? "auto" : "smooth" });
 }
 function ownerSend(action) {
   const c = workView()?.cur; if (!c || c.blocked !== "owner") return;
@@ -2096,14 +2226,17 @@ function renderTelem(p) {
   const spentTxt = T.unpriced ? money(null) : `<b>${usd(spent)}</b>`;
   let charts;
   if (d.unit === "hour") {
-    const W = big ? 1100 : 360, top = 4, floor = Hh - 16, band = W / Math.max(bs.length, 6), bw = Math.min(big ? 64 : 18, band - 4);
-    const chart = (label, max, marks) => `<svg class="chart" style="height:${Hh}px" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${esc(label)}"><defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="color-mix(in srgb, var(--bad) 22.0%, transparent)"/><rect width="2" height="4" fill="var(--bad)"/></pattern></defs><line class="base" x1="0" x2="${W}" y1="${floor + .5}" y2="${floor + .5}"/>${bs.map((h, i) => {
+    // the drawing is as wide as the panel draws it (one unit a pixel), so the bars fill it and the hour labels keep their size
+    const W = Math.round(el.clientWidth) || (big ? 1100 : 360), top = 4, floor = Hh - 16, band = W / Math.max(bs.length, 6), bw = Math.min(big ? 64 : 18, band - 4);
+    H.w = W;
+    const chart = (label, max, marks, defs = "") => `<svg class="chart" style="height:${Hh}px" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${esc(label)}">${defs}<line class="base" x1="0" x2="${W}" y1="${floor + .5}" y2="${floor + .5}"/>${bs.map((h, i) => {
       const x = i * band + (band - bw) / 2, sc = (v) => v / max * (floor - top);
       return `<g>${marks(h, x, sc)}${big || i === 0 || i === bs.length - 1 || h.h % 3 === 0 ? `<text x="${x + bw / 2}" y="${Hh - 3}" text-anchor="middle">${t("chart.hour", { h: h.h })}</text>` : ""}</g>`; }).join("")}</svg>`;
     const rect = (x, y, h, fill, tip) => h > 0 ? `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${fill}"><title>${esc(tip)}</title></rect>` : "";
+    const hatch = `<defs><pattern id="hhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="color-mix(in srgb, var(--bad) 22.0%, transparent)"/><rect width="2" height="4" fill="var(--bad)"/></pattern></defs>`;  // one pattern, one id, in the one chart that uses it
     const runs = chart(t("hist.chart.runs_h", { ok, failed }), Math.max(1, ...bs.map((h) => h.ok + h.failed)), (h, x, sc) => {
       const a = sc(h.ok), b = sc(h.failed), gap = a && b ? 2 : 0, tip = t("chart.runs.tip", { h: h.h, ok: h.ok, failed: h.failed });
-      return rect(x, floor - a, a, "var(--ok)", tip) + rect(x, floor - a - gap - b, b, "url(#hatch)", tip); });  // failed runs are hatched as well as coloured
+      return rect(x, floor - a, a, "var(--ok)", tip) + rect(x, floor - a - gap - b, b, "url(#hhatch)", tip); }, hatch);  // failed runs are hatched as well as coloured
     const cost = chart(t("hist.chart.spend_h", { spent: usd(spent) }), Math.max(.01, ...bs.map((h) => h.cost)), (h, x, sc) => rect(x, floor - sc(h.cost), sc(h.cost), "var(--text)", t("chart.spend.tip", { h: h.h, spent: usd(h.cost) })));
     charts = [t("today.runs"), runs, t("today.spend"), cost];
   } else {
@@ -2338,13 +2471,20 @@ function renderDrawer() {
   const column = c?.column || ov?.column || "";
   const onTitle = document.activeElement?.id === "tip-title";
   if (setHTML($("d-head"), headHtml(c, ov, p, n, column)) && onTitle) $("tip-title").focus({ preventScroll: true });
-  const tabs =[["live", ""], ["sessions", c ? c.sessions.length : ""], ["log", c ? new Set(c.runs.map((x) => x.log)).size || "" : ""], ["gates", c?.reports.length || ""], ["review", ""]];
+  const tabs =[["live", ""], ["sessions", c ? c.sessions.length : ""], ["log", c ? new Set(c.runs.map((x) => x.log)).size || "" : ""], ["gates", c ? (c.reports.at(-1)?.failed_gates || []).length || "" : ""], ["review", ""]];
   setHTML($("d-tabs"), tabs.map(([id, b]) => `<button role="tab" id="tab-${id}" aria-controls="pane" aria-selected="${S.tab === id}" tabindex="${S.tab === id ? 0 : -1}" data-tab="${id}">${t(`tab.${id}`)}${b !== "" ? `<span class="b num">${b}</span>` : ""}</button>`).join(""));
   $("pane").setAttribute("aria-labelledby", `tab-${S.tab}`);
   const fresh = setHTML($("pane"), c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>');
   if (fresh && S.tab === "log" && $("log")) $("log").textContent = S.logText || t("log.loading");
   if (fresh) paintLive(true);
+  $("pane").querySelectorAll(".tscroll").forEach(edges);
 }
+function edges(el) {  // which sides of a scrolling table hide columns
+  const rest = el.scrollWidth - el.clientWidth - el.scrollLeft;
+  el.classList.toggle("more-l", el.scrollLeft > 1); el.classList.toggle("more-r", rest > 1);
+}
+document.addEventListener("scroll", (e) => { if (e.target.classList?.contains("tscroll")) edges(e.target); }, true);
+window.addEventListener("resize", () => document.querySelectorAll(".tscroll").forEach(edges));
 // The card's weight, from its spec header (none yet before Refine ends): it picks the model of each run.
 const weightTag = (c) => c?.weight ? `<span class="tag"${c.weight_set ? "" : ` title="${ta("weight.none")}"`}>${t("weight.tag", { weight: wlow(c.weight) })}</span>` : "";
 const capModel = (m) => m ? ["opus", "sonnet", "haiku", "fable"].includes(m) ? m[0].toUpperCase() + m.slice(1) : m : t("model.default");  // only Claude's aliases are capitalized
@@ -2400,7 +2540,7 @@ function headHtml(c, ov, p, n, column) {
       <div class="total"><dt>${t("head.cost")} ${EST}</dt><dd class="num gold">${c ? money(c.total) : "–"}</dd></div>
       <div><dt>${t("head.sessions")}</dt><dd class="num">${c ? sessions.length : "–"}</dd></div>
       <div><dt>${t("head.span")}</dt><dd class="num">${span}</dd></div>
-      <div class="report"><dt>${t("head.report")}</dt><dd>${rep ? `${esc(rep.pipeline)} <span class="${outcome(rep.outcome)}">${esc(rep.outcome)}</span>${earlier}` : `<span class="muted">${t("head.report.none")}</span>`}</dd></div>
+      <div class="report"><dt>${t("head.report")}</dt><dd>${rep ? `${esc(stageName(rep.pipeline))} <span class="${outcome(rep.outcome)}">${outcomeName(rep.outcome)}</span>${earlier}` : `<span class="muted">${t("head.report.none")}</span>`}</dd></div>
     </dl>
 </div>`;
 }
@@ -2500,15 +2640,15 @@ function sessionsPane(c) {
     const subs = s.subagents.length ? `<button class="subtoggle" data-sub="${esc(s.id)}" aria-expanded="${!!S.expanded[s.id]}">${t("sessions.subs", { n: s.subagents.length })}</button>` : "";
     const live = s.exit == null && s.log && s === last(c.sessions, s.stage) && liveRun(c.project, c.issue, s.stage);
     const exit = s.exit == null ? (s.log ? `<span class="muted">${t("kind.run")}</span>` : "–") : s.exit === 0 ? `<span class="ok">${t("exit.ok")}</span>` : `<span class="bad">${t("exit.n", { n: s.exit })}</span>`;
-    let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(FULL.format(new Date(s.start)))}">${when(s.start)}</td><td class="l">${esc(s.stage)} <span class="muted">${esc(m.map(model).join(", "))}</span>${s.stepped ? ` <span class="tag" title="${ta("sessions.stepped.title", { model: capModel(s.stepped.from), gates: (s.stepped.gates || []).join(", ") })}">${t("sessions.stepped")}</span>` : ""}${subs}</td>
+    let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(FULL.format(new Date(s.start)))}">${when(s.start)}</td><td class="l">${esc(stageName(s.stage))} <span class="muted">${esc(m.map(model).join(", "))}</span>${s.stepped ? ` <span class="tag" title="${ta("sessions.stepped.title", { model: capModel(s.stepped.from), gates: (s.stepped.gates || []).join(", ") })}">${t("sessions.stepped")}</span>` : ""}${subs}</td>
       <td class="num">${tok(tk.input)}</td><td class="num">${tok(tk.output)}</td><td class="num" title="${esc(cacheTitle(tk))}">${cache(tk)}</td>
       <td class="num">${live ? clock(live, true) : dur(s.start, s.end)}</td><td>${exit}</td><td class="num gold">${money(s.cost)}</td></tr>`;
     if (S.expanded[s.id]) html += s.subagents.map((a) => { const u = sum(a.tokens); return `<tr class="sub"><td class="l"></td><td class="l">${t("sessions.subagent")} <span class="muted">${esc(Object.keys(a.tokens).map(model).join(", "))}</span></td>
       <td class="num">${tok(u.input)}</td><td class="num">${tok(u.output)}</td><td class="num" title="${esc(cacheTitle(u))}">${cache(u)}</td><td></td><td></td><td class="num">${money(a.cost)}</td></tr>`; }).join("");
     return html;
   }).join("");
-  return `<div class="section-k">${t("sessions.h")}</div><table><thead><tr><th class="l">${t("th.start")}</th><th class="l">${t("th.stage_model")}</th><th>${t("th.input")}</th><th>${t("th.output")}</th><th title="${ta("th.cache.title")}">${t("th.cache")}</th><th>${t("th.time")}</th><th>${t("th.result")}</th><th>${t("th.cost")} ${EST}</th></tr></thead>
-    <tbody>${rows}<tr class="total"><td class="l" colspan="7">${t("sessions.total")}</td><td class="num gold">${money(c.total)}</td></tr></tbody></table>`;
+  return `<div class="section-k" id="sess-h">${t("sessions.h")}</div><div class="tscroll" role="region" tabindex="0" aria-labelledby="sess-h"><table><thead><tr><th class="l">${t("th.start")}</th><th class="l">${t("th.stage_model")}</th><th>${t("th.input")}</th><th>${t("th.output")}</th><th title="${ta("th.cache.title")}">${t("th.cache")}</th><th>${t("th.time")}</th><th>${t("th.result")}</th><th>${t("th.cost")} ${EST}</th></tr></thead>
+    <tbody>${rows}<tr class="total"><td class="l" colspan="7">${t("sessions.total")}</td><td class="num gold">${money(c.total)}</td></tr></tbody></table></div>`;
 }
 // The latest session as it happens. The stream is painted apart from the pane, so a new line never
 // takes what the owner is typing; a message is read by the run after the tool call it is in.
@@ -2562,13 +2702,17 @@ function logPane(c) {
   return `<div class="logwrap"><div class="logbar">${t("tab.log")} <select id="logsel" aria-label="${ta("log.file")}">${logs.map((l) => `<option ${l === S.log ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><span>${t("log.follows")}</span></div>
     <pre class="log" id="log" tabindex="0"></pre></div>`;
 }
-const gateChips = (r) => { const failed = new Set(r?.failed_gates || []); return Object.entries(r?.gates || {}).map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`).join(""); };
+// A gate's result: the report's gates map when it has one, and every gate it lists as failed (gates_failed) even when it has none
+const gateChips = (r) => { const failed = new Set(r?.failed_gates || []), gates = r?.gates || {};
+  return [...Object.entries(gates).map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`),
+    ...[...failed].filter((g) => !(g in gates)).map((g) => `<span class="gate fail">${esc(g)} ${t("gates.failed")}</span>`)].join(""); };
+const outcomeName = (o) => ["ok", "blocked", "infra"].includes(o) ? t(`outcome.${o}`) : esc(o || "");
 function gatesPane(c) {
   if (!c.reports.length) return `<p class="placeholder">${t("gates.none")}</p>`;
   return [...c.reports].reverse().map((r) => {
-    const list = gateChips(r);
-    return `<div class="gate-run"><div class="h"><b>${esc(r.pipeline)}</b><span class="${outcome(r.outcome)}">${esc(r.outcome)}</span></div>
-      ${list ? `<div class="gate-list">${list}</div>` : r.notes ? "" : `<div class="notes">${t("gates.stage_none")}</div>`}
+    const list = gateChips(r), none = r.pipeline === "refine" ? (r.notes ? "" : t("gates.stage_none")) : t("gates.none_failed");  // refine runs no gate
+    return `<div class="gate-run"><div class="h"><b>${esc(stageName(r.pipeline))}</b><span class="${outcome(r.outcome)}">${outcomeName(r.outcome)}</span></div>
+      ${list ? `<div class="gate-list">${list}</div>` : none ? `<div class="notes">${none}</div>` : ""}
       ${r.notes ? `<div class="notes">${esc(r.notes)}</div>` : ""}</div>`;
   }).join("");
 }
@@ -2644,7 +2788,7 @@ function cycleStatus(d) {
     next = left > 0 && d.dispatcher.every_min < 1 ? ` · ${t("disp.next_in_s", { s: Math.max(1, Math.ceil(left * 60)) })}`  // 30 s: whole minutes would always say 1
       : left > 0 ? ` · ${t("disp.next_in", { m: Math.max(1, Math.ceil(left)) })}` : left > -1 ? ` · ${t("disp.overdue")}` : ` · <span class="late">${t("disp.overdue_by", { m: Math.floor(-left) })}</span>`;
   }
-  const ago = dur(d.cycle.at, new Date()), took = d.cycle.took_s, exit = d.cycle.exit;
+  const secs = (Date.now() - new Date(d.cycle.at)) / 1000, ago = secs < 60 ? t("dur.s", { s: Math.max(1, Math.floor(secs)) }) : dur(d.cycle.at, new Date()), took = d.cycle.took_s, exit = d.cycle.exit;  // under a minute in seconds, never "0m"
   return `${t(took != null ? exit ? "disp.cycle_took_exit" : "disp.cycle_took" : exit ? "disp.cycle_exit" : "disp.cycle", { ago, took, exit })}${next}${warn}`;
 }
 async function loadSettings() {
@@ -2667,7 +2811,7 @@ function renderSettings() {
   $("disp").classList.toggle("off", d.paused); $("disp").classList.toggle("idle", outside);
   const field = document.activeElement?.id === "hours-in" ? document.activeElement : null, caret = field && [field.selectionStart, field.selectionEnd];
   if (setHTML($("disp"), `<div class="who"><h1 class="g"><i class="sdot"></i>${t("disp.h")}</h1><p>${cycleStatus(d)}</p></div>
-    ${dp ? `<label class="sfl">${t("disp.every")} ${dp.can_set ? pace : `<span class="sknob">${pace}<small>${esc(dp.why || t("disp.no_task"))}</small></span>`}</label>` : ""}
+    ${dp ? `<label class="sfl">${t("disp.every")} ${dp.can_set ? pace : `<span class="sknob">${pace}<small>${dp.why_msg ? t(dp.why_msg.key, dp.why_msg.params) : esc(dp.why || t("disp.no_task"))}</small></span>`}</label>` : ""}
     <label class="sfl hrs">${t("disp.hours")}<input type="text" id="hours-in" class="${"hours" in SET.draft ? "dirty" : ""}" value="${esc(hv)}" placeholder="${ta("disp.always")}" spellcheck="false" autocomplete="off" title="${esc(helper)}" aria-describedby="hours-help"${bad ? ' aria-invalid="true"' : ""}></label><span class="vh" id="hours-help">${helper}</span>
     <label class="sfl">${t("disp.pause")}${sw("", d.paused, t("disp.pause"))}</label>`) && field) { const n = $("hours-in"); n.focus({ preventScroll: true }); n.setSelectionRange(...caret); }  // the rewrite took the focus and the caret with it
   const secs = ["sessions", "models", "projects", "costs", "themes", "notify", "language"];
@@ -2684,7 +2828,7 @@ function renderSettings() {
         ${row(t("sessions.at_once"), `${t("sessions.ceiling")}${now ? ` ${t("sessions.now", { n: now.used })}` : ""}`, stepper("pool", 1, 64))}
         ${stages.map((st) => row(esc(stageName(st)), `${stageHelp(st)}${usual[st] ? ` ${t("sessions.usually", { m: Math.max(1, Math.round(usual[st] / 60)) })}` : ""}${now?.stages[st] ? ` ${t("sessions.now", { n: now.stages[st].running })}` : ""}`, stepper("stages." + st, 0, 64))).join("")}
         <div class="spool"><div class="sbar" aria-hidden="true">${stages.map((st) => `<i style="--k:${STAGE_HUE[st]};width:${setVal("stages." + st) / w * 100}%"></i>`).join("")}</div>
-          <div class="key">${stages.map((st) => `<span style="--k:${STAGE_HUE[st]}"><i></i>${st}</span>`).join("")}<span style="--k:var(--edge)"><i></i>${t("sessions.never")}</span></div>
+          <div class="key">${stages.map((st) => `<span style="--k:${STAGE_HUE[st]}"><i></i>${esc(stageName(st))}</span>`).join("")}<span style="--k:var(--edge)"><i></i>${t("sessions.never")}</span></div>
           <p class="note${sum > pool ? " warn" : ""}">${sum > pool ? t("sessions.over", { sum, pool }) : sum < pool ? t("sessions.under", { sum, idle: pool - sum, pool }) : t("sessions.equal", { pool })}</p></div></div>
       <div class="sgroup panel"><h2>${t("sessions.envs")} <code>config.yml · stacks</code></h2>
         ${row(t("sessions.stacks"), `${t("sessions.stacks.help")}${S.overview?.stacks ? ` ${t("sessions.stacks.now", { i: S.overview.stacks.filter((x) => x.state !== "free").length, n: S.overview.stacks.length })}` : ""}`, stepper("stacks", 1, 16))}
@@ -3125,16 +3269,20 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 for (const id of ["pane", "wk-swap"]) $(id).addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
 $("history").addEventListener("scroll", fit);
 window.addEventListener("resize", fit);
+window.addEventListener("resize", () => { const el = $("telem"); if (H.w && el && el.clientWidth && Math.abs(Math.round(el.clientWidth) - H.w) > 8 && S.show.history) renderTelem(project()); });  // the hourly charts follow the panel's width
 document.addEventListener("click", (e) => {  // Restart shows the command and runs nothing; Copy puts it on the clipboard
   if (e.target.closest("[data-restart]")) restart(!RESTART.open);
   else if (e.target.closest("[data-copy]")) copyCommand();
+  else if (e.target.closest("[data-need]")) goNeed();
+  else if (e.target.closest("[data-more]")) { if (deciding()) maximize($("band"), true); }
+  else if (e.target.closest("[data-stopmv]")) stopMove(e.target.closest("[data-stopmv]").dataset.stopmv);
 });
 // a card's pass, its row and its dot light up together
 const hot = (e, on) => { const k = e.target.closest?.("[data-key]")?.dataset.key; if (k) document.querySelectorAll(`[data-key="${CSS.escape(k)}"]`).forEach((el) => el.classList.toggle("hot", on)); };
 for (const [ev, on] of [["mouseover", true], ["focusin", true], ["mouseout", false], ["focusout", false]]) document.addEventListener(ev, (e) => hot(e, on));
 
 // The palette's box (#183): the same handlers as the buttons it stands for; the page's own keys wait while it is open
-const PAL = { open: false, rows: [], i: -1, from: null, timer: 0, reading: false };
+const PAL = { open: false, rows: [], i: -1, from: null, timer: 0, reading: false, ask: false };
 const ADDR = { boot: null };
 function palPageCards() {  // the project on screen, in board order
   const p = project(); if (!p) return [];
@@ -3145,6 +3293,7 @@ function palActions() {  // what the page's buttons offer right now
   if (R.at) out.push({ id: "live", label: t("pal.live") });
   if (v && v.mode === "decide" && deciding() && !W.hold) out.push({ id: "next", label: t("pal.next") });
   if (o && !o.paused && !o.silent) out.push({ id: "pause", label: t("pal.pause") });
+  if (o?.paused && S.resuming === null) out.push({ id: "resume", label: t("pal.resume") });
   if (o) out.push({ id: "at", label: t("pal.at", { time: "" }) });
   return out;
 }
@@ -3152,7 +3301,7 @@ function palRow(r, i) {
   const base = `role="option" id="pal-o${i}" aria-selected="${i === PAL.i}"`;
   if (r.kind === "none") return `<li class="pal-row none" role="option" id="pal-o${i}" aria-disabled="true" aria-selected="false">${esc(r.label)}</li>`;
   if (r.kind === "card") return `<li class="pal-row card" ${base} data-pal="${i}"><span class="g n${r.waits ? " w" : ""}">#${r.issue}</span><span class="ttl">${esc(r.title)}</span><span class="col">${esc(colName(r.column))}</span></li>`;
-  return `<li class="pal-row action" ${base} data-pal="${i}">${esc(r.label)}</li>`;
+  return `<li class="pal-row action${r.id === "pause-yes" ? " yes" : ""}" ${base} data-pal="${i}">${esc(r.label)}</li>`;
 }
 function palActive(i) {  // the active row: the field names it for a screen reader, the list keeps it in view
   PAL.i = i;
@@ -3162,7 +3311,10 @@ function palActive(i) {  // the active row: the field names it for a screen read
 }
 function palDraw() {  // every change of the field: the first row is the active one
   PAL.reading = !S.overview;
-  PAL.rows = PAL.reading ? [] : palette($("pal-in").value, palPageCards(), palActions());
+  // Pause asks first, in the box: "keep it running" is the active row, so Enter twice changes nothing
+  $("pal-ask").hidden = !PAL.ask; $("pal-ask").textContent = PAL.ask ? t("pal.pause_ask") : "";
+  $("pal-in").setAttribute("aria-describedby", PAL.ask ? "pal-ask" : "");
+  PAL.rows = PAL.reading ? [] : PAL.ask ? [{ kind: "action", id: "pause-no", label: t("pal.pause_no") }, { kind: "action", id: "pause-yes", label: t("pal.pause_yes") }] : palette($("pal-in").value, palPageCards(), palActions());
   const list = $("pal-list"), html = PAL.reading ? `<li class="pal-row none" role="option" id="pal-o0" aria-disabled="true" aria-selected="false">${t("msg.reading")}</li>` : PAL.rows.map(palRow).join("");
   if (list._html !== html) { list._html = html; list.innerHTML = html; }
   palActive(PAL.rows.length && PAL.rows[0].kind !== "none" ? 0 : -1);
@@ -3173,7 +3325,7 @@ function palMove(to) {
 }
 function palOpen() {
   if (PAL.open || S.refused) return;
-  PAL.from = document.activeElement; PAL.open = true;
+  PAL.from = document.activeElement; PAL.open = true; PAL.ask = false;
   $("pal").hidden = false; $("pal-in").value = ""; $("pal-live").textContent = ""; palDraw(); $("pal-in").focus();
 }
 function palBack() {  // the focus goes back to where it was; to the page when that element is gone
@@ -3182,15 +3334,21 @@ function palBack() {  // the focus goes back to where it was; to the page when t
 }
 function palClose(restore = true) {
   if (!PAL.open) return;
-  PAL.open = false; clearTimeout(PAL.timer); $("pal").hidden = true;
+  PAL.open = false; PAL.ask = false; clearTimeout(PAL.timer); $("pal").hidden = true;
   if (restore) palBack();
 }
 async function palPause() {  // the Settings switch for the whole factory, applied at once
   const r = await api("/api/settings/pause", { method: "POST", body: JSON.stringify({ project: null, paused: true }) });
   if (r.status === 200) { if (SET.data) { SET.data = r.body; renderSettings(); } loadOverview(); } else setError(told(r.body, "set.pause_failed"));
 }
+function palAsk(on) {  // the pause's question in the box, or back to the list
+  PAL.ask = on; palDraw(); $("pal-in").focus();
+  $("pal-live").textContent = on ? t("pal.pause_ask") : "";
+}
 function palRun(i) {
   const r = PAL.rows[i]; if (!r || r.kind === "none") return;
+  if (r.id === "pause") return palAsk(true);
+  if (r.id === "pause-no") return palAsk(false);
   palClose(false);
   if (r.kind === "card") {
     if (S.view !== "board") setView("board");
@@ -3198,13 +3356,14 @@ function palRun(i) {
     document.querySelector(`[data-pick="${CSS.escape(r.key)}"]`)?.focus({ preventScroll: true });
   } else if (r.id === "live") backToLive(true);
   else if (r.id === "next") workAct("skip", {});
-  else if (r.id === "pause") palPause();
+  else if (r.id === "pause-yes") palPause();
+  else if (r.id === "resume") resume("");
   else if (r.id === "at") needle(r.min, "key");
   if (document.activeElement === document.body || document.activeElement === $("pal-in")) palBack(); else PAL.from = null;  // an action that moved the focus keeps it there
 }
 function palKey(e) {
   e.stopPropagation();  // A, R, N and the digits are inert while the palette is open
-  if (e.key === "Escape") { e.preventDefault(); palClose(); }
+  if (e.key === "Escape") { e.preventDefault(); if (PAL.ask) palAsk(false); else palClose(); }
   else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); palMove(e.key === "ArrowDown" ? 1 : -1); }
   else if (e.key === "Home" || e.key === "End") { e.preventDefault(); palMove(e.key === "Home" ? "first" : "last"); }
   else if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); if (PAL.i >= 0) palRun(PAL.i); }
@@ -3215,7 +3374,7 @@ document.addEventListener("keydown", (e) => {  // before every other key: Ctrl K
   if (PAL.open) palKey(e);
 }, true);
 $("pal-in").addEventListener("input", () => {
-  palDraw();
+  PAL.ask = false; palDraw();
   clearTimeout(PAL.timer); PAL.timer = setTimeout(() => { $("pal-live").textContent = t("pal.count", { n: PAL.rows.filter((r) => r.kind !== "none").length }); }, 250);
 });
 $("pal-list").addEventListener("click", (e) => { const li = e.target.closest("[data-pal]"); if (li) palRun(+li.dataset.pal); });

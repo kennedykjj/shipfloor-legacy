@@ -11,8 +11,11 @@ import runtimes
 from runtimes import claude_code
 
 warnings.simplefilter("ignore")  # ERE classes like [[:space:]] make Python's re warn
-sys.stdout.reconfigure(encoding="utf-8", newline="\n")
-sys.stderr.reconfigure(encoding="utf-8", newline="\n")
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", newline="\n")
+    except AttributeError:  # a stream that is not a text file (a test's StringIO): nothing to set
+        pass
 
 try:
     import yaml
@@ -153,19 +156,74 @@ def runtime_problems(raw, where="runtime"):
             elif k == "ladder":
                 if not is_str_list(v):
                     errs.append(f"{where}.ladder must be a list of model names, lowest first (known runtimes: {known})")
+            elif k == "provider":
+                errs += [f"{e} (known runtimes: {known})" for e in provider_problems(v, f"{where}.provider")]
             else:
-                errs.append(f"{where}.{k}: unknown setting (use default, stages, models, ladder; known runtimes: {known})")
+                errs.append(f"{where}.{k}: unknown setting (use default, stages, models, ladder, provider; known runtimes: {known})")
+        if not errs and "opencode" in [raw.get("default"), *(raw.get("stages") or {}).values()]:
+            errs += opencode_model_problems(raw, where)
     return errs
 
 
-def runtime_models_problems(raw, where):
+PROVIDER_MODEL = re.compile(r"^[^/\s]+/[^\s]+$")
+
+
+def opencode_model_problems(raw, where):
+    """With the opencode runtime in use, every model and ladder name is `provider/model` (opencode's -m)."""
+    names = []  # (where, name)
+    for scope, cfg in ((where, raw), (where + ".provider", raw.get("provider"))):
+        if not isinstance(cfg, dict):
+            continue
+        models = cfg.get("models") if isinstance(cfg.get("models"), dict) else {}
+        for group in ("stages", "agents"):
+            for key, v in (models.get(group) or {}).items():
+                for w, m in (v.items() if isinstance(v, dict) else [(None, v)]):
+                    names.append((f"{scope}.models.{group}.{key}" + (f".{w}" if w else ""), m))
+        for i, m in enumerate(cfg.get("ladder") or []):
+            names.append((f"{scope}.ladder[{i}]", m))
+    return [f"{at}: {m!r} must be provider/model for the opencode runtime (e.g. acme/mini)"
+            for at, m in names if not (isinstance(m, str) and PROVIDER_MODEL.match(m))]
+
+
+BASE_URL = re.compile(r"^https?://[^\s\"'\\]+$")  # it goes inside an inline TOML table in a -c: no quote, no space
+ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+MODEL_NAME = re.compile(r"^[A-Za-z0-9._:/@-]+$")
+
+
+def provider_problems(raw, where):
+    """`runtime.provider`: {base_url, api_key_env?, models?, ladder?}, the OpenAI-compatible endpoint a codex run talks to."""
+    if not isinstance(raw, dict):
+        return [f"{where} must be a mapping of base_url, api_key_env, models and ladder"]
+    errs = []
+    for k, v in raw.items():
+        if k == "base_url":
+            if not isinstance(v, str) or not BASE_URL.match(v):
+                errs.append(f"{where}.base_url must be an http:// or https:// URL without spaces or quotes")
+        elif k == "api_key_env":
+            if not isinstance(v, str) or not ENV_NAME.match(v):
+                errs.append(f"{where}.api_key_env must be the NAME of an environment variable ([A-Za-z_][A-Za-z0-9_]*)")
+        elif k == "models":
+            errs += runtime_models_problems(v, f"{where}.models", MODEL_NAME)
+        elif k == "ladder":
+            if not is_str_list(v) or not all(MODEL_NAME.match(m) for m in v):
+                errs.append(f"{where}.ladder must be a list of model names ([A-Za-z0-9._:/@-]), lowest first")
+        else:
+            errs.append(f"{where}.{k}: unknown setting (use base_url, api_key_env, models, ladder)")
+    return errs
+
+
+def runtime_models_problems(raw, where, pattern=None):
     """`runtime.models`: {stages: {<stage>: model | {light|standard|heavy: model}}, agents: {<name>: model}}. A model is
     any non-empty name (the runtime's own CLI takes it); refine runs before the card has a weight, so it has one."""
     if not isinstance(raw, dict):
         return [f"{where} must be a mapping of stages and agents"]
 
     def model(v, at):
-        return [] if isinstance(v, str) and v.strip() else [f"{at} must be a model name (not empty)"]
+        if not (isinstance(v, str) and v.strip()):
+            return [f"{at} must be a model name (not empty)"]
+        if pattern and not pattern.match(v):
+            return [f"{at} must be a model name ({pattern.pattern[1:-2]} only)"]
+        return []
 
     errs = []
     for group, entries in raw.items():
@@ -194,17 +252,30 @@ def runtime_models_problems(raw, where):
 
 def runtime_setting(machine_raw, project_raw, key):
     """What `runtime.<key>` (models, ladder) says: the project's over the machine's. models merge group by group and
-    name by name; a ladder is replaced as a whole."""
+    name by name; a ladder is replaced as a whole. `provider` merges key by key (its models as `models` do). With an
+    effective provider (one with a base_url) its models and ladder are the ones that count and runtime's are ignored."""
+    if key in ("models", "ladder"):
+        provider = runtime_setting(machine_raw, project_raw, "provider")
+        if provider and provider.get("base_url"):
+            return provider.get(key)
     out = None
     for raw in (machine_raw, project_raw):
         value = raw.get("runtime").get(key) if isinstance(raw, dict) and isinstance(raw.get("runtime"), dict) else None
         if value is None:
             continue
-        if key == "models" and isinstance(out, dict):
-            out = {g: {**(out.get(g) or {}), **(value.get(g) or {})} for g in {*out, *value}}
+        if key == "provider" and isinstance(value, dict):
+            out = dict(out or {})
+            for k, v in value.items():
+                out[k] = (_merge_models(out.get(k), v) if k == "models" and isinstance(out.get(k), dict) and isinstance(v, dict) else v)
+        elif key == "models" and isinstance(out, dict):
+            out = _merge_models(out, value)
         else:
             out = value
     return out
+
+
+def _merge_models(base, over):
+    return {g: {**(base.get(g) or {}), **(over.get(g) or {})} for g in {*base, *over}}
 
 
 def runtime_stage_models(machine_raw, project_raw=None):
@@ -1017,6 +1088,11 @@ def machine(rest):
         other = runtime_stage_models(raw, project)  # a stage off claude-code: runtime.models, never models.stages
         sys.stdout.write("".join(
             f"{(other[s][w] if s in other else stage_model(stages, s, w)) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
+    if cmd == "provider" and len(args) <= 1:  # base_url NUL api_key_env (the NAME, never a value) NUL; nothing without a provider
+        provider = runtime_setting(raw, project_of(args), "provider")
+        if isinstance(provider, dict) and provider.get("base_url"):
+            sys.stdout.write(f"{provider['base_url']}\0{provider.get('api_key_env') or ''}\0")
+        return 0
     if cmd == "runtimes" and len(args) <= 1:  # the runtime of each stage, NUL-terminated; the project's factory.yml over this file
         sys.stdout.write("".join(f"{r}\0" for r in runtime_of(raw, project_of(args)))); return 0
     if cmd == "models-stages-check" and len(args) <= 1:  # models.stages.<stage> that a stage on another runtime ignores
@@ -1049,7 +1125,7 @@ def machine(rest):
             print(f"  {k}: {data['stages'][k]}")
         print(f"stacks: {data['stacks']}")
         return 0
-    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | models-check [<agent>...] | limits [--memory-max V] [--cpu-weight V] [--cpu-quota V]")
+    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | provider | models-check [<agent>...] | limits [--memory-max V] [--cpu-weight V] [--cpu-quota V]")
 
 
 def main(argv):

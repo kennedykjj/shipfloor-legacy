@@ -79,7 +79,7 @@ bash <plugin>/scripts/shipfloor init <repo>       # add --yes to confirm every q
 > [!NOTE]
 > The manual steps are in [docs/install.md](docs/install.md). The dispatcher is registered by `powershell -File <plugin>/installer/install-dispatcher.ps1` on Windows and `bash <plugin>/installer/install-dispatcher.sh` on Linux and macOS; `install-dispatcher.sh --uninstall` removes it. On Linux with systemd, turn lingering on so it survives logout, and run the installer again after PATH changes.
 
-Move a card to Ready for Refinement and open the dashboard.
+Move a card to Ready for Refinement and open the dashboard. To run on your own model instead of a cloud one, see [Runtime: Own models](docs/configuration.md#runtime-own-models).
 
 ## Architecture
 

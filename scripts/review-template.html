@@ -118,7 +118,8 @@ const S=__DATA__;
 const SINCE=__SINCE__;
 const RE=SINCE;
 /* labels of the returned-card marks: the dashboard hands the language's own in window.__shipfloorLabels, these are the English ones */
-const RVD={"rv.new":"New","rv.changed":"Changed","rv.removed":"Removed","rv.before":"Before","rv.request":"Your request","rv.since":"{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"};
+const RVD={"rv.new":"New","rv.changed":"Changed","rv.removed":"Removed","rv.before":"Before","rv.request":"Your request","rv.since":"{n, plural, one {# statement changed since your request} other {# statements changed since your request}}",
+ "rv.of":"of {n} reviewed","rv.copy":"Copy review","rv.copied":"copied","rv.selected":"selected: press Ctrl+C","rv.clear":"Clear marks","rv.clear_confirm":"Confirm clear","rv.keep":"Keep","rv.change":"Change","rv.what":"What to change?"};
 function rv(k,p){const L=window.__shipfloorLabels||{};let m=(L.messages||{})[k]||RVD[k]||k;p=p||{};
  m=m.replace(/\{(\w+), plural, ((?:[=\w]+ \{[^{}]*\} ?)+)\}/g,(_,v,fs)=>{const f={};fs.replace(/([=\w]+) \{([^{}]*)\}/g,(_2,a,b)=>{f[a]=b});const n=+p[v];let c;try{c=f["="+n]||f[new Intl.PluralRules(L.language||"en").select(n)]}catch(e){}return (c||f.other||"").replace(/#/g,n)});
  return m.replace(/\{(\w+)\}/g,(_,v)=>p[v]).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
@@ -155,7 +156,7 @@ function render(){
   ${s.table?`<div class="tbl"><table>${s.table.map((r,i)=>`<tr>${r.map(c=>i?`<td>${fmt(c)}</td>`:`<th>${c}</th>`).join("")}</tr>`).join("")}</table></div>`:""}
   ${s.flags?s.flags.map(f=>`<div class="flag"><h3>Conflict: ${f[0]}</h3><p>${fmt(f[1])}</p></div>`).join(""):""}
   ${s.sim?sim(s.sim):""}
-  ${s.ro?`<details class="ro"><summary>${s.items.length} items (read-only)</summary><ul>${s.items.map(it=>`<li>${tag(it)}${fmt(tx(it))}</li>`).join("")}${gone(s,true)}</ul></details>`:s.items.map((it,k)=>{const id=s.id+"-"+k,v=st[id]||{};return `<div class="item ${v.s||""}${same(it)}" data-id="${id}"><p>${tag(it)}${fmt(tx(it))}</p><div class="btns"><button class="b-ok" aria-pressed="${v.s==="ok"}">Keep</button><button class="b-chg" aria-pressed="${v.s==="chg"}">Change</button></div>${was(it)}${v.s==="chg"?`<textarea id="n-${id}" aria-label="What to change" placeholder="What to change?">${esc(v.n||"")}</textarea>`:""}</div>`}).join("")+gone(s,false)}
+  ${s.ro?`<details class="ro"><summary>${s.items.length} items (read-only)</summary><ul>${s.items.map(it=>`<li>${tag(it)}${fmt(tx(it))}</li>`).join("")}${gone(s,true)}</ul></details>`:s.items.map((it,k)=>{const id=s.id+"-"+k,v=st[id]||{};return `<div class="item ${v.s||""}${same(it)}" data-id="${id}"><p>${tag(it)}${fmt(tx(it))}</p><div class="btns"><button class="b-ok" aria-pressed="${v.s==="ok"}">${rv("rv.keep")}</button><button class="b-chg" aria-pressed="${v.s==="chg"}">${rv("rv.change")}</button></div>${was(it)}${v.s==="chg"?`<textarea id="n-${id}" aria-label="${rv("rv.what")}" placeholder="${rv("rv.what")}">${esc(v.n||"")}</textarea>`:""}</div>`}).join("")+gone(s,false)}
  </section>`).join("")+(S.some(s=>!s.ro)?"":`<section class="sheet"><h2>Nothing to decide</h2><p class="intro">The pipeline decided everything on its own. Check the decisions above if you like, then move the card to Ready for Dev.</p></section>`);
  bindSims();toc();
 }
@@ -163,7 +164,7 @@ function toc(){
  let tot=0,done=0;
  document.getElementById("toc").innerHTML=S.filter(s=>!s.ro).map(s=>{const n=s.items.length;let ok=0,ch=0;s.items.forEach((_,k)=>{const v=st[s.id+"-"+k];if(v&&v.s==="ok")ok++;if(v&&v.s==="chg")ch++});tot+=n;done+=ok+ch;
   const cls=ch?"chg":(ok===n?"done":"");return `<li><a href="#${s.id}"><span>${s.t}</span><span class="st ${cls}">${ch?ch+" change · ":""}${ok+ch}/${n}</span></a></li>`}).join("");
- document.getElementById("count").innerHTML=`${done} <small>of ${tot} reviewed</small>`;
+ document.getElementById("count").innerHTML=`${done} <small>${rv("rv.of",{n:tot})}</small>`;
 }
 document.getElementById("main").addEventListener("click",e=>{
  const b=e.target.closest(".btns button");if(!b)return;const row=b.closest(".item"),id=row.dataset.id,cur=st[id]||{};
@@ -182,12 +183,12 @@ function reviewText(){
 }
 document.getElementById("copy").addEventListener("click",()=>{
  const txt=reviewText(),flag=document.getElementById("copied");
- const fb=()=>{const t=document.getElementById("fallback");t.value=txt;t.style.position="static";t.style.width="100%";t.style.height="160px";t.select();flag.textContent="selected: press Ctrl+C";flag.hidden=false};
- try{navigator.clipboard.writeText(txt).then(()=>{flag.textContent="copied";flag.hidden=false;setTimeout(()=>flag.hidden=true,2000)},fb)}catch(e){fb()}
+ const fb=()=>{const t=document.getElementById("fallback");t.value=txt;t.style.position="static";t.style.width="100%";t.style.height="160px";t.select();flag.textContent=rv("rv.selected");flag.hidden=false};
+ try{navigator.clipboard.writeText(txt).then(()=>{flag.textContent=rv("rv.copied");flag.hidden=false;setTimeout(()=>flag.hidden=true,2000)},fb)}catch(e){fb()}
 });
 let armed=false;
 document.getElementById("clear").addEventListener("click",e=>{
- if(!armed){armed=true;e.target.textContent="Confirm clear";setTimeout(()=>{armed=false;e.target.textContent="Clear marks"},3000);return}
+ if(!armed){armed=true;e.target.textContent=rv("rv.clear_confirm");setTimeout(()=>{armed=false;e.target.textContent=rv("rv.clear")},3000);return}
  st={};save();armed=false;render();
 });
 
@@ -216,6 +217,7 @@ function bindSims(){
    document.getElementById("dOut").innerHTML=[r,dv].map(x=>`<div class="res ${x[0]}"><b>${x[0]==="go"?"Runs.":"Does not run."}</b> ${fmt(x[1])}</div>`).join("")+`<div class="res"><b>Note.</b> /validate and /deploy follow the same rules: one run per stage, locked while running, an empty queue costs nothing.</div>`};
   ids.forEach(i=>{const el=document.getElementById(i);el.oninput=d;el.onchange=d});d()}
 }
+document.getElementById("copy").textContent=rv("rv.copy");document.getElementById("clear").textContent=rv("rv.clear");
 render();
 </script>
 

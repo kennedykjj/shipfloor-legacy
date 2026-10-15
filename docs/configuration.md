@@ -109,7 +109,7 @@ runtime:
   stages: {validate: claude-code}   # a stage here wins over default
 ```
 
-`factory.yml` wins over `config.yml` key by key: `default` and each stage are resolved on their own. Unset means `claude-code`. The known runtimes are `claude-code` and `codex` (the Codex CLI). A value that is not a known runtime, or a map with any key other than `default`, `stages`, `models` and `ladder`, makes the config invalid and the dispatch exits 2. The dispatcher's log lines carry `runtime=` and `outcome=` for each run.
+`factory.yml` wins over `config.yml` key by key: `default` and each stage are resolved on their own. Unset means `claude-code`. The known runtimes are `claude-code`, `codex` (the Codex CLI) and `opencode` (opencode 2.x). A value that is not a known runtime, or a map with any key other than `default`, `stages`, `models`, `ladder` and `provider`, makes the config invalid and the dispatch exits 2. The dispatcher's log lines carry `runtime=` and `outcome=` for each run.
 
 ### Runtime: Codex
 
@@ -132,6 +132,69 @@ runtime:
 After a failed gate, a Codex develop run takes the model one up `runtime.ladder`; with no ladder, or at the top of it, it does not climb. `models.stages` (Settings > Agents and models) is Claude Code's alone: for a stage on another runtime it does nothing, and `shipfloor doctor` warns about it. In the dashboard those stages take a free-text model field instead of the list. `runtime.models` merges name by name, and `runtime.ladder` is replaced as a whole, with the project's `factory.yml` over `config.yml`. `runtime.models.agents` is read from `~/.shipfloor/config.yml` when the Codex home is generated, so run `shipfloor install` again after changing it.
 
 The cost of a Codex run is measured from its rollouts under `<CODEX_HOME>/sessions`, priced from `prices.yml`, which lists the OpenAI models the factory knows. A model without a price shows `$ ?` with its tokens, never zero; a card with a priced part and an unpriced part shows `$ ?` for the total. A run that ends on a Codex usage limit pauses new launches for 30 minutes, like Claude's; the dispatcher's line and the notification name the runtime (`Codex usage limit hit recently; waiting`). Commits made by a Codex run carry `Co-Authored-By: Codex <noreply@openai.com>`.
+
+### Runtime: Own models
+
+`runtime.provider` points the `codex` runtime at an OpenAI-compatible endpoint you run yourself (vLLM, Ollama, LM Studio, or your company's), so no code goes to an LLM provider on the internet. It goes in `~/.shipfloor/config.yml` or in a project's `.shipfloor/factory.yml`; `factory.yml` wins key by key:
+
+```yaml
+runtime:
+  default: codex
+  provider:
+    base_url: http://127.0.0.1:8000/v1   # http(s)://, no spaces or quotes
+    api_key_env: SF_LLM_KEY              # optional: the NAME of an environment variable, never the key
+    models:
+      stages:
+        refine: qwen3-coder-30b
+        develop: {light: qwen3-coder-30b, standard: qwen3-coder-30b, heavy: qwen3-coder-480b}
+        validate: qwen3-coder-30b
+      agents: {engineer: qwen3-coder-30b}
+    ladder: [qwen3-coder-30b, qwen3-coder-480b]   # lowest first
+```
+
+`base_url` must match `^https?://[^\s"'\\]+$`, `api_key_env` is a variable name, and `models` and `ladder` have the shape of `runtime.models` and `runtime.ladder` (a model name uses only letters, digits and `. _ : / @ -`). Any other key under `provider` makes the config invalid and the dispatch exits 2. With a `provider`, its `models` and `ladder` are the ones that count, for each stage's model, for the climb after a failed gate and for the agents; `runtime.models` and `runtime.ladder` are ignored (`shipfloor doctor` warns when both are set).
+
+Examples of `base_url` (the model names are whatever the server lists in `GET /models`):
+
+| Server | `base_url` |
+|---|---|
+| vLLM | `http://127.0.0.1:8000/v1` |
+| Ollama | `http://127.0.0.1:11434/v1` |
+| LM Studio | `http://127.0.0.1:1234/v1` |
+| Company endpoint | `https://llm.example.internal/v1`, with `api_key_env` |
+
+The run is `codex exec` on a provider named `sf` with `wire_api="responses"`, and the `-c` switches for analytics, OpenTelemetry, feedback, the update check and web search are turned off, so the only host the run talks to is the endpoint (the sandbox network itself stays on, as for any Codex run). The key's value reaches Codex through the environment alone and is written nowhere under `~/.shipfloor`.
+
+What the model needs:
+
+- tool calling, since the agents run commands and edit files through tools;
+- a large context, more than 30k tokens;
+- the Responses API: the server must answer `POST /v1/responses`, not only chat completions. Which versions of vLLM, Ollama and LM Studio serve `/v1/responses` was not confirmed for this release, so no minimum version is promised here; check your server's release notes. `shipfloor doctor` tests the endpoint itself and, when `/responses` answers 404 or 405, fails with a line that suggests the opencode runtime.
+
+`shipfloor doctor` with a `provider` prints a separate line for each case: the endpoint is not answering, a configured model is missing from `GET /models`, the `api_key_env` variable is not set, and the endpoint has no `/responses`; with everything right the lines are `ok`.
+
+Cost: a self-hosted model has no price in `prices.yml`, so the dashboard shows `$ ?` with its tokens (never `$0`) and the card and day limits of [Cost limits](#cost-limits) do not count it. To have it counted, add the model's name, exactly as in `-m`, with a price to `~/.shipfloor/prices.yml` (the same format as the models already there). A run that ends with `exceeded retry limit, last status: 429` or `rate limit exceeded` counts as a usage limit: new launches wait, as for Codex's.
+
+The key's variable has to exist in the dispatcher's environment, and the scheduled dispatcher does not inherit your shell's. If it is missing, the run stops with `provider: <VAR> is not set` in its log, without calling Codex. Give it to the scheduler, never in a file under `~/.shipfloor`:
+
+```bash
+systemctl --user set-environment SF_LLM_KEY=...   # Linux (systemd)
+launchctl setenv SF_LLM_KEY ...                    # macOS
+```
+
+On Windows set it as a user environment variable and start the dispatcher again.
+
+### Runtime: opencode
+
+With `runtime: opencode` a stage runs as `opencode run --standalone --auto --agent sf-<stage> --format json` in the control checkout, with the permissions the factory generates (a directory outside the worktrees, `tmp` and `reviews` of the project is denied, the factory's own folder is read-only, `webfetch` and `websearch` are denied). The gates hold as with the other runtimes. It needs opencode 2.x: `shipfloor doctor` says `FAIL` for 1.x (`opencode-ai`) with the instruction to move to 2.x. The factory has its own `OPENCODE_CONFIG_DIR`, `SHIPFLOOR_OPENCODE_HOME` or `~/.shipfloor/runtimes/opencode`, which `shipfloor install` generates (`opencode.json`, one `agents/sf-<stage>.md` per stage and one agent per file of the plugin's `agents/`); your personal `~/.config/opencode` and the repository's own `.opencode/` are never read. Run `shipfloor install` again after changing `runtime.models.agents`.
+
+The model of a stage goes under `runtime.models` as `provider/model` (`anthropic/claude-sonnet-4`, `sf/qwen3-coder`); a name without the slash makes the config invalid. `runtime.ladder` works as for Codex.
+
+**Codex or opencode?** Both run any stage. Choose `codex` for OpenAI's models and for an endpoint that serves the Responses API. Choose `opencode` for the many providers it knows (log in with `opencode auth login`) and for a self-hosted endpoint that serves chat completions only, which is what vLLM, Ollama, LM Studio and most company gateways offer.
+
+With `runtime.provider` (same keys as in [Runtime: Codex](#runtime-codex): `base_url`, `api_key_env`, `models`, `ladder`) the run uses the provider `sf` of the generated config, as an `@ai-sdk/openai-compatible` provider, and only that provider may serve it; name the model `sf/<name the endpoint serves>`. The key reaches opencode only as `{env:<api_key_env>}`, never in a file. `shipfloor doctor` prints a line for each case: the endpoint is not answering, a model is missing from `GET /models`, the key variable is not set, and the endpoint has no `/chat/completions` (it asks it a one-token completion); without a `provider`, it checks that `opencode auth list` has a credential for the provider of each configured model.
+
+The cost of an opencode run is measured from opencode's own database (`~/.local/share/opencode/opencode.db`, or `OPENCODE_DB`), read-only: the tokens per model, reasoning counted as output. The price comes from `prices.yml`; a model with no price there uses the cost opencode itself calculated for the session when it is above zero, always as an estimate; with neither, the dashboard shows `$ ?` with the tokens, never `$0`, and no card or day limit counts it. A run that ends with a provider `quota` or `rate-limit` error counts as a usage limit and pauses new launches. Commits carry `Co-Authored-By: opencode <noreply@opencode.ai>`.
 
 ## Language
 

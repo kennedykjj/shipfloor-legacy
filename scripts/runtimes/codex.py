@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # `python -I` l
 
 from inbox_hook import INTRO
 from runtimes import TOKEN_KINDS
+from runtimes import provider as provider_mod
 from shipfloor_core.defaults import CODEX_TRAILER
 
 NAME = "codex"
@@ -29,7 +30,7 @@ LAST_SUFFIX = ".last"  # beside the run's log: the agent's final message, which 
 
 # What Codex says when the account cannot run: the curly apostrophe, or its JSON escape in a --json line.
 LIMIT = re.compile(r"You(?:’|\\u2019|')ve hit your usage limit|out of credits|hit your spend cap|Quota exceeded|"
-                   r"upgrade to Plus|exceeded retry limit, last status: 429")
+                   r"upgrade to Plus|exceeded retry limit, last status: 429|(?i:rate limit exceeded)")
 STAGE = re.compile(r"<!-- sf:stage=([a-z]+) -->")
 CARD = re.compile(r"Card: #(\d+)")
 COMMAND = re.compile(r"<!-- sf:stage=([a-z]+) -->(?s:.*?)Card: #(\d+)")  # the stage prompt the factory generates
@@ -59,6 +60,9 @@ def command(run):
         argv += ["-m", run["model"]]
     for d in run["write"]:
         argv += ["--add-dir", d]
+    provider = run.get("provider")
+    if provider:  # runtime.provider: a self-hosted endpoint; its key reaches codex through the inherited environment only
+        argv += provider_mod.codex_args(provider["base_url"], provider.get("key_env") or "")
     argv += ["--skip-git-repo-check", "--json"]
     if run.get("last"):
         argv += ["-o", run["last"]]
@@ -120,6 +124,44 @@ def doctor():
     made = (home / "config.toml").is_file() and any((home / "agents").glob("*.toml"))
     out.append((made, "%s: CODEX_HOME %s" % (NAME, home), "%s: CODEX_HOME %s is not generated; run shipfloor install"
                 % (NAME, home)))
+    return out + _provider_doctor()
+
+
+def _provider_models(provider):
+    """The model names a provider's config uses, in order: its stages' (every weight), its agents', its ladder."""
+    models = provider.get("models") if isinstance(provider.get("models"), dict) else {}
+    names = []
+    for group in ("stages", "agents"):
+        for v in (models.get(group) or {}).values():
+            names += list(v.values()) if isinstance(v, dict) else [v]
+    names += provider.get("ladder") or []
+    return list(dict.fromkeys(n for n in names if isinstance(n, str) and n))
+
+
+def _provider_doctor():
+    """The doctor lines of the machine's runtime.provider (nothing without one): (True, text) is `ok`, (False, text, text)
+    a FAIL, ("WARN", text) a warning. runtime.models and runtime.ladder are ignored beside a provider."""
+    try:
+        import yaml
+        import shipfloor_config
+        from shipfloor_core import project
+        with open(os.path.join(project.shipfloor_home(), "config.yml"), encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+        if not isinstance(raw, dict) or shipfloor_config.runtime_problems(raw.get("runtime")):
+            return []
+        provider = shipfloor_config.runtime_setting(raw, None, "provider")
+    except Exception:  # no config, or one `doctor` reports on its own
+        return []
+    if not isinstance(provider, dict) or not provider.get("base_url"):
+        return []
+    out = []
+    for kind, text in provider_mod.check(provider["base_url"], _provider_models(provider), provider.get("api_key_env") or ""):
+        out.append((True, text) if kind == "ok" else (False, text, text))
+    runtime = raw.get("runtime") if isinstance(raw.get("runtime"), dict) else {}
+    ignored = [k for k in ("models", "ladder") if runtime.get(k)]
+    if ignored:
+        out.append(("WARN", "runtime.%s ignored: there is a runtime.provider (its own models and ladder count)"
+                    % "/runtime.".join(ignored)))
     return out
 
 

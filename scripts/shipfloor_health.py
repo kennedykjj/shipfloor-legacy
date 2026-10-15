@@ -1,7 +1,7 @@
 """Health history: one JSON line per dispatcher cycle in <home>/logs/health-<YYYY-MM>.jsonl (the board,
 runs against their limits, the machine), and the alerts read back from its last lines.
   record --home H --seconds N --exit N [--overlap]    alerts --home H"""
-import argparse, json, os, re, shutil, sys, time
+import argparse, json, os, re, shlex, shutil, subprocess, sys, time
 from datetime import datetime
 from pathlib import Path
 
@@ -124,8 +124,8 @@ def snapshot(home, seconds, code, overlap):
             r = record.get(str(n))
             return isinstance(r, dict) and (not r.get("read", True) or bool(deps.open_numbers(r.get("deps"))))
 
-        def waiting(col):
-            return sum(c == col and n not in blocked and n not in busy and not held(n) for n, c in columns.items())
+        def waiting(col):  # a card the dispatcher holds after two stopped runs (stopped/<n>) waits for the owner, not a slot
+            return sum(c == col and n not in blocked and n not in busy and not held(n) and not f.stop_hold(p, n, c) for n, c in columns.items())
         stages = {}
         for st, (queue, resumes, wip_cols) in STAGES.items():
             running, cap, wip = sum(r["stage"] == st for r in runs), (1 if st == "deploy" else 0), limits[st]["wip"]  # cap: deploy is serial per project
@@ -157,8 +157,67 @@ def snapshot(home, seconds, code, overlap):
             "projects": projects, "idle": idle, "over": over}
 
 
-def silence(home):
-    """{"min", "every"} when the newest health line is older than 3x the dispatcher pace, else None."""
+def installer():
+    """install-dispatcher.sh of the checkout the installed copy came from (recorded in .source), else of this checkout."""
+    here = Path(__file__).resolve().parent
+    try:
+        source = (here / ".source").read_text(encoding="utf-8").strip() or str(here.parent)
+    except OSError:
+        source = str(here.parent)
+    return Path(source) / "installer" / "install-dispatcher.sh"
+
+
+def registration(bash=None):
+    """What the installed registration of the dispatcher says (install-dispatcher.sh --status): {"kind", "pace_s", "limits"},
+    kind None when nothing is registered; None where it cannot be read (Windows, no installer, no bash).
+    SHIPFLOOR_INSTALLER_STATUS (split like a command line) replaces that command; "none" says there is nothing to read."""
+    given = os.environ.get("SHIPFLOOR_INSTALLER_STATUS")
+    if given is not None:
+        try:
+            cmd = None if given.strip() == "none" else shlex.split(given) or None
+        except ValueError:
+            cmd = None
+    elif os.name == "nt":
+        cmd = None
+    else:
+        sh, script = bash or os.environ.get("SHIPFLOOR_BASH") or shutil.which("bash"), installer()
+        cmd = [sh, str(script), "--status"] if sh and script.is_file() else None
+    if not cmd:
+        return None
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode not in (0, 1):  # 1: not registered; anything else is a status it could not give
+        return None
+    out = {"kind": None, "pace_s": None, "limits": None}
+    for line in (l.strip() for l in r.stdout.splitlines()):
+        pace = re.fullmatch(r"pace: every (\d+) seconds", line)
+        if line.startswith("registered:"):
+            out["kind"] = line.split(":", 1)[1].strip() or None
+        elif line.startswith("limits:"):
+            out["limits"] = line
+        elif pace and int(pace.group(1)) > 0:
+            out["pace_s"] = int(pace.group(1))
+    return out
+
+
+def registered_every(reg):
+    """The minutes between cycles a registration runs at (0.5 for 30 seconds), or None when it does not say."""
+    s = (reg or {}).get("pace_s") if (reg or {}).get("kind") else None
+    return None if not s else s // 60 if s % 60 == 0 else round(s / 60, 2)
+
+
+def config_every(home):
+    try:
+        return shipfloor_config.dispatcher_every(shipfloor_config.yaml.safe_load((Path(home) / "config.yml").read_text(encoding="utf-8")))
+    except (OSError, ValueError, shipfloor_config.yaml.YAMLError):  # no config, or one the dispatcher itself refuses
+        return shipfloor_config.dispatcher_every(None)
+
+
+def silence(home, every=None):
+    """{"min", "every"} when the newest health line is older than 3x the dispatcher pace, else None. The pace is `every`,
+    else the one the installed registration runs at, else dispatcher.every_min of config.yml."""
     logs = sorted((Path(home) / "logs").glob("health-*.jsonl"))
     if not logs:
         return None
@@ -177,15 +236,19 @@ def silence(home):
         late = (datetime.now().astimezone() - datetime.fromisoformat(ts)).total_seconds() / 60
     except (ValueError, TypeError):
         return None  # no health line yet, or an unreadable timestamp: nothing to be late
-    try:
-        every = shipfloor_config.dispatcher_every(shipfloor_config.yaml.safe_load((Path(home) / "config.yml").read_text(encoding="utf-8")))
-    except (OSError, ValueError, shipfloor_config.yaml.YAMLError):  # no config, or one the dispatcher itself refuses
-        every = shipfloor_config.dispatcher_every(None)
+    if every is None:
+        every = registered_every(registration()) or config_every(home)
     return {"min": late, "every": every} if late > max(3 * every, 3) else None  # 30 s: still 3 min, not 90 s
 
 
-def alerts(home, skip_silence=False):
-    """What the last cycles say is wrong, as lines for the owner; [] when nothing is."""
+OVER = re.compile(r"(?:(?P<project>[^/\s]+)/)?(?P<what>[\w-]+) (?P<used>\d+)/(?P<limit>\d+)(?: MB)?")
+
+
+def findings(home, skip_silence=False, every=None):
+    """What the last cycles say is wrong, one dict each, the page words them by key (lang/dashboard.<code>.json, health.*):
+    {key: idle, project, stage, cycles}, {key: over_pool | over_memory | over_stage | over_project, used, limit[, stage,
+    project]}, {key: over, what} (a limit line this reader does not know), {key: overlap}, {key: silence, min, every}.
+    Each also carries `line`, the over limit as the health line wrote it. [] when nothing is wrong."""
     logs = sorted((Path(home) / "logs").glob("health-*.jsonl"))
     if not logs:
         return []
@@ -199,15 +262,43 @@ def alerts(home, skip_silence=False):
     if len(last) == CYCLES:
         for key in last[0]["idle"]:
             if all(key in c["idle"] for c in last):
-                out.append(f"{key}: a free slot and cards waiting for {CYCLES} cycles in a row")
+                project, _, stage = key.rpartition("/")
+                out.append({"key": "idle", "project": project, "stage": stage, "cycles": CYCLES, "line": key})
     for key in dict.fromkeys(k for c in last for k in c["over"]):
-        out.append(f"{key}: more runs than the limit")
+        m = OVER.fullmatch(key)
+        if not m:
+            out.append({"key": "over", "what": key, "line": key})
+            continue
+        f = {"used": int(m["used"]), "limit": int(m["limit"]), "line": key}
+        if m["project"]:
+            f.update(key="over_project", project=m["project"], stage=m["what"])
+        elif m["what"] in ("pool", "memory"):
+            f.update(key="over_" + m["what"])
+        else:
+            f.update(key="over_stage", stage=m["what"])
+        out.append(f)
     if any(c["cycle"]["overlap"] for c in last):
-        out.append("two dispatcher cycles ran at once")
-    s = None if skip_silence else silence(home)
+        out.append({"key": "overlap"})
+    s = None if skip_silence else silence(home, every)
     if s:
-        out.append(f"no dispatcher cycle for {round(s['min'])} min (it runs every {s['every']})")
+        out.append({"key": "silence", "min": round(s["min"]), "every": s["every"]})
     return out
+
+
+def text(f):
+    """A finding as the English line `shipfloor doctor` prints."""
+    if f["key"] == "idle":
+        return f"{f['line']}: a free slot and cards waiting for {f['cycles']} cycles in a row"
+    if f["key"] == "overlap":
+        return "two dispatcher cycles ran at once"
+    if f["key"] == "silence":
+        return f"no dispatcher cycle for {f['min']} min (it runs every {f['every']})"
+    return f"{f['line']}: more runs than the limit"
+
+
+def alerts(home, skip_silence=False):
+    """What the last cycles say is wrong, as English lines for the owner; [] when nothing is."""
+    return [text(f) for f in findings(home, skip_silence)]
 
 
 def main():

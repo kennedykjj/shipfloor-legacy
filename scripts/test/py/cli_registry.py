@@ -288,6 +288,73 @@ class Accept(CliCase):
         self.assertEqual(self.gate("-C", self.w, "acceptance-intact", newest), 0)
         self.assertTrue(first)
 
+    def two_files(self):
+        """A card with two acceptance files changed after the QA commit: returns (qa commit, [paths])."""
+        def edit(p):
+            self.write_file(os.path.join(self.w, p), "resolved\n")
+        self.write_file(os.path.join(self.w, "api/src/test/ATest.kt"), "a\n")
+        self.write_file(os.path.join(self.w, "api/src/test/BTest.kt"), "b\n")
+        git("-C", self.w, "add", "-A")
+        git("-C", self.w, "commit", "-qm", "test(x): acceptance tests for #9")
+        qa = git("-C", self.w, "rev-parse", "HEAD")
+        edit("api/src/test/ATest.kt")
+        git("-C", self.w, "rm", "-q", "api/src/test/BTest.kt")
+        git("-C", self.w, "commit", "-qam", "hand merge")
+        return qa, ["api/src/test/ATest.kt", "api/src/test/BTest.kt"]
+
+    def comments(self):
+        return sorted(f for f in os.listdir(self.g) if f.startswith("comment-") and f != "comment-fails") if os.path.isdir(self.g) else []
+
+    def test_AC1_AC2_AC6_accept_posts_one_rest_comment_with_a_line_per_file(self):
+        "AC-1 one REST comment on issue #9; AC-2 a line per file with path, key and QA commit, reason, date; AC-6 deleted key"
+        qa, paths = self.two_files()
+        self.ok("accept", "shop", "9", "hand", "merged")
+        self.assertEqual(self.comments(), ["comment-1"])
+        posts = [l for l in self.gh_calls().splitlines() if "/comments" in l]
+        self.assertEqual(len(posts), 1)
+        self.assertRegex(posts[0], r"api -X POST repos/[^/\s]+/[^/\s]+/issues/9/comments")
+        self.assertNotIn("graphql", self.gh_calls())
+        self.assertNotIn("issue comment", self.gh_calls())
+        body = self.read(os.path.join(self.g, "comment-1"))
+        rows = {l.split("\t")[0]: l.split("\t") for l in self.read(self.accepted).splitlines()}
+        self.assertEqual(sorted(rows), paths)
+        for p in paths:
+            self.assertRegex(body, r"(?m)^- `%s` → `%s` \(QA `%s`\)$" % (re.escape(p), re.escape(rows[p][1]), qa[:12]))
+        self.assertRegex(body, r"(?m)^- `api/src/test/BTest\.kt` → `deleted` \(QA ")
+        self.assertIn("#9", body.splitlines()[0])
+        self.assertIn("Reason: hand merged", body)
+        self.assertIn("Date: " + rows[paths[0]][3], body)
+
+    def test_AC3_accept_tsv_is_unchanged_by_the_comment(self):
+        "AC-3 accepted.tsv has one line per file in the same format"
+        _, paths = self.two_files()
+        self.ok("accept", "shop", "9", "why")
+        self.assertEqual(self.comments(), ["comment-1"])
+        lines = self.read(self.accepted).splitlines()
+        self.assertEqual(len(lines), 2)
+        for l, p in zip(lines, paths):
+            self.assertRegex(l, r"^%s\t[^\t]+\t#9\t\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d\twhy$" % re.escape(p))
+
+    def test_AC4_nothing_to_accept_posts_no_comment(self):
+        "AC-4 nothing to accept: no comment and the same message"
+        self.two_files()
+        self.ok("accept", "shop", "9", "first")
+        for f in self.comments():
+            os.remove(os.path.join(self.g, f))
+        self.assertEqual(self.ok("accept", "shop", "9", "again"), "nothing to accept: acceptance-intact already passes for card 9\n")
+        self.assertEqual(self.comments(), [])
+        self.assertEqual(len([l for l in self.gh_calls().splitlines() if "/comments" in l]), 1)
+
+    def test_AC5_failed_comment_keeps_the_local_accept(self):
+        "AC-5 gh failing on the comment: accepted.tsv written, stderr warns, exit 0"
+        qa, paths = self.two_files()
+        self.write_file(os.path.join(self.g, "comment-fails"), "")
+        self.ok("accept", "shop", "9", "why", want=0)
+        self.assertEqual(len(self.read(self.accepted).splitlines()), 2)
+        self.assertIn("accepted locally; the copy on issue #9 was not posted", self.err)
+        self.assertEqual(self.comments(), [])
+        self.assertEqual(self.gate("-C", self.w, "acceptance-intact", qa), 0)
+
     def test_accept_refusals(self):
         "accept without a worktree or a QA commit says so, exit 1"
         self.ok("accept", "shop", "8", "why", want=1)
