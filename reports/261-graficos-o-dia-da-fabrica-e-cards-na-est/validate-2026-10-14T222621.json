@@ -1,0 +1,1 @@
+{"issue": 261, "pipeline": "validate", "outcome": "staged", "head": "0f5c66b2a022fe42597e6e303a531f300cd408b7", "pr": 283, "rounds": 3, "agents": ["sf:engineer x3"], "failed_gates": ["build (post-merge, 3 tests)", "CI end-to-end (AC-4 near midnight)", "PR conflicts (2 merges with main)"], "amendments": [], "flaky": [], "gates_reused": []}
