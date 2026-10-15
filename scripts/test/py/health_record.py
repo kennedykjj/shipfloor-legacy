@@ -91,6 +91,45 @@ class Record(HealthCase):
         self.assertEqual(d["stacks"], {"busy": 0, "total": 0, "queue": 0})
         self.assertFalse(d["paused"] or d["usage_limited"] or d["github_limited"] or d["cost_stop"] or d["outside_hours"])
 
+    def run_record(self, *extra):
+        """shipfloor_health.py record, as the cycle runs it (its main, in process), with the database in this home"""
+        import sys
+        from unittest import mock
+        os.environ["SHIPFLOOR_HOME"] = self.H
+        argv = ["shipfloor_health", "record", "--home", self.H, "--seconds", "9", "--exit", "1"] + list(extra)
+        with mock.patch.object(sys, "argv", argv):
+            shipfloor_health.main()
+
+    def health_files(self):
+        return [os.path.join(self.H, "logs", f) for f in sorted(os.listdir(os.path.join(self.H, "logs")))
+                if f.startswith("health-")]
+
+    def test_AC4_cycle_goes_to_the_file_and_the_database(self):
+        "AC-4 a recorded cycle is a line of health-<month>.jsonl and a row of cycles with the same line; a broken database keeps the file"
+        import sqlite3
+        self.board((26, "Ready for Dev"))
+        self.run_record("--overlap")
+        files = self.health_files()
+        self.assertEqual(len(files), 1)
+        with open(files[0]) as f:
+            line = json.loads(f.read().splitlines()[-1])
+        conn = sqlite3.connect(os.path.join(self.H, "state.db"))
+        try:
+            row = conn.execute("SELECT ts, seconds, exit, overlap, data FROM cycles").fetchall()
+        finally:
+            conn.close()
+        self.assertEqual(len(row), 1)
+        self.assertEqual(row[0][:4], (line["ts"], 9, 1, 1))
+        self.assertEqual(json.loads(row[0][4]), line)
+        for f in os.listdir(self.H):
+            if f.startswith("state.db"):
+                os.remove(os.path.join(self.H, f))
+        with open(os.path.join(self.H, "state.db"), "wb") as f:
+            f.write(b"not a database" * 200)
+        self.run_record()
+        with open(files[0]) as f:
+            self.assertEqual(len(f.read().splitlines()), 2, "the file is written whatever the database does")
+
     def cgroup(self, current_mb, max_text):
         """a fake cgroup root holding this process's own cgroup path, as snapshot() resolves it through /proc/self/cgroup"""
         with open("/proc/self/cgroup") as f:

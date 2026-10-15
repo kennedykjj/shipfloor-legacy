@@ -106,6 +106,51 @@ class Agent(Base):
         self.cycle()
         self.assertRegex(self.log("validate", 60).splitlines()[-1], r"^== end /sf:validate 60 exit=3 ")
 
+    def state_runs(self):
+        import sqlite3
+        conn = sqlite3.connect(os.path.join(self.shome, "state.db"))
+        try:
+            return conn.execute("SELECT project, card, stage, started, ended, exit, outcome, model, weight, runtime, log "
+                                "FROM runs").fetchall()
+        finally:
+            conn.close()
+
+    def test_AC4_run_lands_in_the_database_and_the_log(self):
+        "AC-4 a run is a row of runs, started and ended, and the log keeps its == start and == end lines as before"
+        self.board(queues={"Ready for Dev": 54})
+        self.assertEqual(self.cycle(), 0)
+        rows = self.state_runs()
+        self.assertEqual(len(rows), 1)
+        project, card, stage, started, ended, code, outcome, model, weight, runtime, log = rows[0]
+        self.assertEqual((project, card, stage, code, outcome, model, weight, runtime),
+                         ("shop", 54, "develop", 0, "ok", "sonnet", "standard", "claude-code"))
+        self.assertTrue(started and ended)
+        text = self.log("develop", 54)
+        self.assertIn("== start /sf:develop 54 %s " % started, text)
+        self.assertIn("== end /sf:develop 54 exit=0 %s " % ended, text)
+        self.assertEqual(os.path.basename(log), "%s-54-develop.log" % today())
+
+    def test_AC4_run_with_no_control_checkout_is_ended_in_the_database(self):
+        "AC-4 the run that cannot enter the control checkout is a finished row with exit 1"
+        os.rmdir(os.path.join(self.home, "control"))
+        self.board(queues={"Ready for Dev": 26})
+        self.cycle()
+        rows = self.state_runs()
+        self.assertEqual([(r[1], r[5], r[6]) for r in rows], [(26, 1, "fail")])
+        self.assertTrue(rows[0][4])
+
+    def test_AC4_a_broken_database_never_fails_the_run(self):
+        "AC-4 with a corrupt state.db the log is written, the agent runs, the cycle exits 0 and the lock goes"
+        with open(os.path.join(self.shome, "state.db"), "wb") as f:
+            f.write(b"this is not a sqlite database" * 100)
+        self.board(queues={"Ready for Dev": 54})
+        self.assertEqual(self.cycle(), 0)
+        self.assertEqual(self.prompts(), ["/sf:develop 54"])
+        lines = self.log("develop", 54).splitlines()
+        self.assertTrue(lines[0].startswith("== start /sf:develop 54 "))
+        self.assertTrue(lines[-1].startswith("== end /sf:develop 54 exit=0 "))
+        self.assertFalse(os.path.exists(self.home + "/locks/develop-54.lock"))
+
     def test_language_read_at_launch(self):
         "a run starts with the language the project writes in, read when it is launched (overrides.yml beside the config)"
         cfg = self.project_cfg()

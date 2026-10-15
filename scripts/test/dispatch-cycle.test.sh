@@ -5,4 +5,6 @@
 source "$(dirname "$0")/lib.sh"
 py_suite dispatch_cycle
 py_suite board_history
+# The state database (#262): schema, import of the logs, retention, backup (py/state_db.py).
+py_suite state_db
 finish
