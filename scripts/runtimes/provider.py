@@ -52,9 +52,10 @@ def _request(url, key, body=None):
         return status, None
 
 
-def check(base_url, models, key_env=""):
+def check(base_url, models, key_env="", wire="responses"):
     """[("ok" | "FAIL", text)]: the key's variable is set, GET <base_url>/models answers and lists every configured
-    model, POST <base_url>/responses exists (404 or 405 = an endpoint with chat completions only)."""
+    model, POST <base_url>/responses exists (404 or 405 = an endpoint with chat completions only); with wire="chat",
+    POST <base_url>/chat/completions answers a one-token request instead."""
     host, base, out = _host(base_url), base_url.rstrip("/"), []
     key = os.environ.get(key_env, "") if key_env else ""
     if key_env:
@@ -77,6 +78,16 @@ def check(base_url, models, key_env=""):
         else:
             out.append(("ok", "provider: model %s is served by %s" % (m, host)))
     if not models or missing:  # a 404 for a model nobody serves is not a missing /responses
+        return out
+    if wire == "chat":  # the opencode runtime: chat completions, one token
+        status, _ = _request(base + "/chat/completions", key,
+                             {"model": models[0], "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1})
+        if status in (404, 405):
+            out.append(("FAIL", "provider: %s has no /chat/completions (HTTP %d): the opencode runtime needs it" % (host, status)))
+        elif status is None or status >= 500:
+            out.append(("FAIL", "provider: POST /chat/completions at %s %s" % (host, "did not answer" if status is None else "answered HTTP %d" % status)))
+        else:
+            out.append(("ok", "provider: %s answers /chat/completions" % host))
         return out
     status, _ = _request(base + "/responses", key, {"model": models[0], "input": "ping", "max_output_tokens": 1})
     if status in (404, 405):
