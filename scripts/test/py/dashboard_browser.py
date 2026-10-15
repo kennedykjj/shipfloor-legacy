@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import dashboard_support
 import support
@@ -68,9 +68,9 @@ class Browser(support.Case):
         self.dash.Handler.token = TOKEN
 
     # ---- the page
-    def open_page(self, token=TOKEN, width=1400, height=900, clock=False):
+    def open_page(self, token=TOKEN, width=1400, height=900, clock=False, **context):
         """a new context and its page on the dashboard; clock: Playwright's clock in charge of the page's timers"""
-        ctx = self.browser.new_context(viewport={"width": width, "height": height})
+        ctx = self.browser.new_context(viewport={"width": width, "height": height}, **context)
         self.addCleanup(ctx.close)
         page = ctx.new_page()
         if clock:
@@ -276,6 +276,198 @@ class Browser(support.Case):
         page.click('[data-set="save"]')
         self.until("the model saved", lambda: "gpt-6-sol" in self.machine_config())
         self.assertIn("models:", self.machine_config().split("runtime:")[1])
+
+    # ---- #261: the Logbook's two day charts, on the demo's atlas. Hooks the page offers (the spec names no ids): the day chart is
+    # svg[data-fd="day"][data-date], the belt svg[data-fd="belt"][data-date]; a cycle is [data-cycle], a limit stripe [data-limit]
+    # (github | usage), the pool line [data-pool], a stage's area [data-area=<stage>], the now line [data-now]; a PR mark is
+    # [data-pr="<n> <n>"][data-kind]; a belt row [data-row=<issue>], a bar [data-run][data-stage][data-exit] (+ data-running,
+    # data-open, data-log); each chart's readout is a .cap[aria-live=polite] next to its svg's section.
+    def factory_day(self, page, date=None):
+        return page.evaluate("async ([t, q]) => (await fetch('/api/factory-day/atlas' + q, {headers: {'X-Shipfloor-Token': t}})).json()",
+                             [TOKEN, "?date=" + date if date else ""])
+
+    def logbook(self, page):
+        self.ready(page)
+        page.select_option("#proj", "atlas")
+        page.click('[data-view="feed"]')
+        expect(page.locator('svg[data-fd="day"]')).to_be_visible(timeout=SLOW)
+        expect(page.locator('svg[data-fd="belt"]')).to_be_visible(timeout=SLOW)
+
+    def readout(self, page, kind):
+        return page.locator('svg[data-fd="%s"]' % kind).locator("xpath=ancestor::*[.//*[@aria-live='polite']][1]").locator("[aria-live='polite']")
+
+    def token_color(self, page, token):
+        return page.evaluate("t => { const e = document.createElement('i'); e.style.color = 'var(--' + t + ')'; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c }", token)
+
+    def test_261_ac2_the_charts_show_today_and_the_period_controls_move_them(self):
+        "#261 AC-2 today by default; Previous redraws both charts for the day before; a many-day period has neither chart"
+        page = self.open_page()
+        self.logbook(page)
+        today = self.factory_day(page)
+        self.assertTrue(today["present"] and today["cycles"] and today["runs"], "the demo has a day to draw")
+        expect(page.locator('svg[data-fd="day"]')).to_have_attribute("data-date", today["date"])
+        expect(page.locator('svg[data-fd="belt"]')).to_have_attribute("data-date", today["date"])
+        expect(page.locator("svg[data-fd=day] [data-cycle]")).to_have_count(len(today["cycles"]))
+        expect(page.locator("svg[data-fd=belt] [data-run]")).to_have_count(len(today["runs"]))
+        before = (datetime.fromisoformat(today["date"]) - timedelta(days=1)).strftime("%Y-%m-%d")
+        page.click('[data-hstep="prev"]')
+        prev = self.factory_day(page, before)
+        for kind in ("day", "belt"):
+            expect(page.locator('svg[data-fd="%s"]' % kind)).to_have_attribute("data-date", before)
+        expect(page.locator("svg[data-fd=day] [data-cycle]")).to_have_count(len(prev["cycles"]))
+        expect(page.locator("svg[data-fd=belt] [data-run]")).to_have_count(len(prev["runs"]))
+        page.click('[data-hp="7"]')
+        expect(page.locator("svg[data-fd]")).to_have_count(0)
+
+    def test_261_ac3_cycles_stack_by_stage_with_the_pool_line_and_limit_stripes(self):
+        "#261 AC-3 a step per cycle, an area per stage that ran, a dashed pool line, a stripe for each limited cycle"
+        page = self.open_page()
+        self.logbook(page)
+        day = self.factory_day(page)
+        cycles = day["cycles"]
+        expect(page.locator("svg[data-fd=day] [data-cycle]")).to_have_count(len(cycles))
+        ran = sorted({s for c in cycles for s, n in c["running"].items() if n})
+        self.assertEqual(sorted(page.eval_on_selector_all("svg[data-fd=day] [data-area]", "els => [...new Set(els.map(e => e.dataset.area))]")), ran)
+        self.assertIn("4", (page.locator("svg[data-fd=day] [data-pool]").first.get_attribute("stroke-dasharray") or "").split())
+        self.assertEqual(sum(1 for c in cycles if c["github_limited"]) + sum(1 for c in cycles if c["usage_limited"]) > 1, True, "the fixture has both limits")
+        for kind, flag in (("github", "github_limited"), ("usage", "usage_limited")):
+            expect(page.locator('svg[data-fd=day] [data-limit="%s"]' % kind)).to_have_count(sum(1 for c in cycles if c[flag]))
+        stripe = page.locator("svg[data-fd=day] [data-limit]").first
+        self.assertIn("var(--warn)", (stripe.get_attribute("fill") or "") + (stripe.get_attribute("style") or ""))
+
+    def test_261_ac4_pr_marks_by_kind_and_the_readouts_of_pr_and_cycle(self):
+        "#261 AC-4 every merged PR is on a mark of its kind; pointing at a mark names the PR; pointing at a cycle gives its counts and pool"
+        page = self.open_page()
+        self.logbook(page)
+        day = self.factory_day(page)
+        self.assertTrue(day["prs"] and not day["prs_error"], "the demo's gh answers with merged PRs")
+        marks = page.eval_on_selector_all("svg[data-fd=day] [data-pr]", "els => els.map(e => [e.dataset.pr.split(' ').map(Number), e.dataset.kind])")
+        self.assertEqual(sorted(n for ns, _ in marks for n in ns), sorted(p["number"] for p in day["prs"]))
+        kinds = {p["number"]: p["kind"] for p in day["prs"]}
+        for ns, kind in marks:
+            if len(ns) == 1:
+                self.assertEqual(kind, kinds[ns[0]])
+        one = next(p for p in day["prs"] if any(ns == [p["number"]] for ns, _ in marks))
+        page.locator('svg[data-fd=day] [data-pr="%d"]' % one["number"]).hover()
+        text = self.readout(page, "day").inner_text()
+        self.assertIn("PR #%d" % one["number"], text)
+        self.assertIn(one["title"], text)
+        page.locator("svg[data-fd=day] [data-cycle]").nth(len(day["cycles"]) // 2).hover()
+        self.assertRegex(self.readout(page, "day").inner_text(), r"Refine \d+ · Develop \d+ · Validate \d+ · Deploy \d+ · pool \d+ of \d+")
+
+    def test_261_ac5_the_belt_has_a_row_per_card_a_bar_per_run_and_a_readout_per_bar(self):
+        "#261 AC-5 rows per card, bars per run, failed ones outlined in the bad token, the running one reaching now, the readout names the run"
+        page = self.open_page()
+        self.logbook(page)
+        day = self.factory_day(page)
+        runs = day["runs"]
+        expect(page.locator("svg[data-fd=belt] [data-row]")).to_have_count(len({r["issue"] for r in runs}))
+        expect(page.locator("svg[data-fd=belt] [data-run]")).to_have_count(len(runs))
+        bad = self.token_color(page, "bad")
+        failed = page.locator("svg[data-fd=belt] [data-run]:not([data-exit='0']):not([data-running])")
+        self.assertTrue(any(r["exit"] not in (0, None) for r in runs))
+        self.assertEqual(failed.first.evaluate("e => getComputedStyle(e).stroke"), bad)
+        ok = page.locator("svg[data-fd=belt] [data-run][data-exit='0']").first
+        self.assertNotEqual(ok.evaluate("e => getComputedStyle(e).stroke"), bad)
+        running = [r for r in runs if r["running"]]
+        self.assertTrue(running)
+        live = page.locator("svg[data-fd=belt] [data-run][data-running]")
+        expect(live).to_have_count(len(running))
+        edge = live.first.evaluate("e => e.getBoundingClientRect().right")
+        now = page.locator("svg[data-fd=day] [data-now]").first.evaluate("e => e.getBoundingClientRect().left")
+        self.assertLess(abs(edge - now), 3)
+        bad_run = next(r for r in runs if r["exit"] not in (0, None))
+        page.locator('svg[data-fd=belt] [data-run][data-log="%s"]' % bad_run["log"]).first.hover()
+        text = self.readout(page, "belt").inner_text()
+        self.assertIn(bad_run["stage"].capitalize(), text)
+        self.assertIn("exit %d" % bad_run["exit"], text)
+        if bad_run["model"]:
+            self.assertIn(bad_run["model"], text)
+        live.first.hover()
+        self.assertIn("running", self.readout(page, "belt").inner_text())
+
+    def test_261_ac6_the_stage_filter_leaves_only_that_stage(self):
+        "#261 AC-6 choosing a stage hides the other stages' bars; All brings them back; an empty stage says so"
+        page = self.open_page()
+        self.logbook(page)
+        runs = self.factory_day(page)["runs"]
+        group = page.locator('[role="group"][aria-label="Stage"]')
+        expect(group).to_be_visible()
+        self.assertEqual([b.inner_text() for b in group.locator("button").all()], ["All", "Refine", "Develop", "Validate", "Deploy"])
+        stages = sorted({r["stage"] for r in runs})
+        self.assertGreater(len(stages), 1)
+        for st in stages:
+            group.get_by_role("button", name=st.capitalize(), exact=True).click()
+            expect(group.get_by_role("button", name=st.capitalize(), exact=True)).to_have_attribute("aria-pressed", "true")
+            expect(page.locator("svg[data-fd=belt] [data-run]")).to_have_count(sum(1 for r in runs if r["stage"] == st))
+            self.assertEqual(page.eval_on_selector_all("svg[data-fd=belt] [data-run]", "els => els.map(e => e.dataset.stage)"), [st] * sum(1 for r in runs if r["stage"] == st))
+        for st in {"refine", "develop", "validate", "deploy"} - set(stages):
+            group.get_by_role("button", name=st.capitalize(), exact=True).click()
+            expect(page.locator("svg[data-fd=belt] [data-run]")).to_have_count(0)
+            expect(page.get_by_text("No %s run on this day." % st.capitalize())).to_be_visible()
+        group.get_by_role("button", name="All", exact=True).click()
+        expect(page.locator("svg[data-fd=belt] [data-run]")).to_have_count(len(runs))
+
+    def test_261_ac7_a_bar_opens_the_card_on_the_log_of_that_run(self):
+        "#261 AC-7 clicking a bar opens the card maximized on its Log tab, on the clicked run's log file; Escape returns the focus to the bar"
+        page = self.open_page()
+        self.logbook(page)
+        runs = [r for r in self.factory_day(page)["runs"] if r["log"]]
+        again = lambda r: any(x["issue"] == r["issue"] and x["log"] != r["log"] for x in runs)  # prefer a card that ran more than once: the clicked run, not the card's last
+        run = next((r for r in runs if again(r)), runs[0])
+        bar = page.locator('svg[data-fd=belt] [data-run][data-log="%s"]' % run["log"]).first
+        self.assertEqual(bar.get_attribute("data-open"), "atlas/%d" % run["issue"])
+        bar.click()
+        expect(page.locator("#drawer.open")).to_be_visible()
+        expect(page.locator('#d-tabs [role="tab"][aria-selected="true"]')).to_have_attribute("data-tab", "log")
+        expect(page.locator("#drawer.full")).to_be_visible()
+        expect(page.locator("#logsel")).to_have_value(run["log"], timeout=SLOW)
+        page.keyboard.press("Escape")
+        expect(page.locator("#drawer.open")).to_have_count(0)
+        self.assertTrue(page.evaluate("document.activeElement?.closest('svg[data-fd=belt]') !== null"))
+
+    def test_261_ac8_themes_language_narrow_width_and_motion(self):
+        "#261 AC-8 tokens only and recolored by the theme; the legend in pt-BR; 375px without overflow, 12px text and no PR marks overlapping; no animation; no external request"
+        page = self.open_page(reduced_motion="reduce")
+        self.logbook(page)
+        paint = "els => els.flatMap(e => [e.getAttribute('fill'), e.getAttribute('stroke'), e.getAttribute('style')]).filter(Boolean)"
+        for kind in ("day", "belt"):
+            for v in page.eval_on_selector_all('svg[data-fd="%s"] *' % kind, paint):
+                self.assertFalse(re.search(r"#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(", re.sub(r"var\([^)]*\)", "", v)), v)
+        area = page.locator("svg[data-fd=day] [data-area]").first
+        fills = {}
+        for theme in ("paper", "graphite"):
+            page.evaluate("t => { document.documentElement.dataset.theme = t }", theme)
+            fills[theme] = area.evaluate("e => getComputedStyle(e).fill")
+        self.assertNotEqual(fills["paper"], fills["graphite"])
+        self.assertEqual(page.evaluate("document.getAnimations().filter(a => a.effect.target?.closest?.('svg[data-fd]')).length"), 0)
+        self.assertEqual(page.eval_on_selector_all("svg[data-fd] *", "els => els.filter(e => parseFloat(getComputedStyle(e).transitionDuration) > 0).length"), 0)
+        urls = page.evaluate("performance.getEntriesByType('resource').map(e => e.name)")
+        self.assertTrue(all(u.startswith("http://127.0.0.1:%d/" % self.port) or u.startswith("data:") for u in urls), urls)
+
+        narrow = self.open_page(width=375, height=667)
+        self.logbook(narrow)
+        self.assertTrue(narrow.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
+        self.assertTrue(narrow.evaluate("[...document.querySelectorAll('svg[data-fd]')].every(s => s.getBoundingClientRect().right <= innerWidth + 1 && !s.hasAttribute('viewBox'))"))
+        self.assertEqual(set(narrow.eval_on_selector_all("svg[data-fd] text", "els => els.map(e => getComputedStyle(e).fontSize)")), {"12px"})
+        boxes = narrow.eval_on_selector_all("svg[data-fd=day] [data-pr]", "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.left, r.right, r.top, r.bottom] })")
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1:]:
+                self.assertTrue(a[1] <= b[0] + .5 or b[1] <= a[0] + .5 or a[3] <= b[2] or b[3] <= a[2], (a, b))
+
+        pt = self.open_page()
+        self.ready(pt)
+        pt.click('[data-view="settings"]')
+        pt.click('[data-setsec="language"]')
+        pt.select_option("#lang", "pt-BR")
+        pt.click('[data-set="save"]')
+        self.until("the language saved", lambda: "pt-BR" in self.machine_config())
+        pt.reload()
+        expect(pt.locator("html")).to_have_attribute("lang", "pt-BR", timeout=SLOW)
+        self.logbook(pt)
+        expect(pt.get_by_text("O dia da fábrica")).to_be_visible()
+        expect(pt.get_by_text("Cards na esteira")).to_be_visible()
+        self.assertEqual([b.inner_text() for b in pt.locator('[role="group"][aria-label="Etapa"] button').all()], ["Todas", "Refine", "Develop", "Validate", "Deploy"])
 
     def machine_config(self):
         with open(os.path.join(self.home, "config.yml"), encoding="utf-8") as f:
