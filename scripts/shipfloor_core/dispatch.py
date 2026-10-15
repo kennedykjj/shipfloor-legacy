@@ -504,6 +504,8 @@ class Cycle:
                     status = 1
         if self.deps_seen:
             self.save_deps()
+        if not self.finish_closed():
+            status = 1
         # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
         rc, out = self.cfg("get", "deploy.refresh_staged", quiet=True)
         if _t(out).rstrip("\n") == "true" and not self.refresh_staged():
@@ -934,6 +936,22 @@ class Cycle:
         return True
 
     # --- the scripts that keep cards moving without an agent slot
+    def finish_closed(self):
+        """A card in Ready for Prod whose issue is closed (its PR was merged by hand, so the deploy never finishes it)
+        goes to Done: nothing is left to deploy, and the card would wait there for good."""
+        rc, cards = _cap(_board("closed", STAGE_COLUMNS["deploy"][0]))
+        if rc != 0:
+            return False
+        ok = True
+        for n in cards.split():
+            if self.card_busy(n):
+                continue
+            if _run(_board("move", n, "Done"), out=DEVNULL)[0] == 0:
+                self.say("dispatch: #%s is closed and in Ready for Prod; moved to Done" % n)
+            else:
+                ok = False
+        return ok
+
     def refresh_staged(self):
         """Keep approved-to-be PRs on top of main: deploy.sh --refresh, a script, no agent slot."""
         rc, cards = _cap(_board("eligible", "Staged"))

@@ -84,6 +84,7 @@ case "$1" in
   eligible) [ ! -f "$d/eligible/$2" ] || cat "$d/eligible/$2" ;;
   count) if [ -f "$d/count/$2" ]; then cat "$d/count/$2"; else echo 0; fi ;;
   infra) [ ! -f "$d/infra" ] || cat "$d/infra" ;;
+  closed) [ ! -f "$d/closed/$2" ] || cat "$d/closed/$2" ;;
   label) [ ! -f "$d/fail/label" ] || exit 1 ;;
 esac
 exit 0

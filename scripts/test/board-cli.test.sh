@@ -18,7 +18,7 @@ grep -q -- '--project-id PVT_x --id I4 --field-id FLD_x --single-select-option-i
 out="$(bash "$BOARD" move 33 Coding 2>&1 >/dev/null)"; rc=$?
 [ "$rc" = 3 ] && [ "$out" = "move: only the owner moves cards out of 'Spec Review'" ] && pass "owner-only move: exit 3, the reason on stderr" || fail "owner-only: $rc $out"
 out="$(bash "$BOARD" 2>&1 >/dev/null)"; rc=$?
-[ "$rc" = 2 ] && case "$out" in "usage: board.sh items|status <n>|count <status>...|first <status>|move <n> <status>|"*) true ;; *) false ;; esac \
+[ "$rc" = 2 ] && case "$out" in "usage: board.sh items|status <n>|count <status>...|first <status>|closed <status>|move <n> <status>|"*) true ;; *) false ;; esac \
   && [ -z "$(bash "$BOARD" 2>/dev/null)" ] && pass "no subcommand: exit 2, the usage line on stderr only" || fail "usage: $rc $out"
 
 # the GraphQL budget: the read asks only for number and Status; labels by REST; a snapshot spares the board read

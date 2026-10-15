@@ -15,6 +15,7 @@
       "Bash(gh pr checks:*)",
       "Bash(gh run view:*)",
       "Bash(gh pr update-branch:*)",
+      "Bash(gh api repos/*)",
       "Bash(bash ~/.shipfloor/factory/gate.sh:*)",
       "Bash(bash ~/.shipfloor/factory/board.sh:*)",
       "Bash(bash ~/.shipfloor/factory/shipfloor-config.sh:*)",
