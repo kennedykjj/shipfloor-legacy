@@ -74,7 +74,7 @@ class Dash(support.Case):
         self.P = self.pdir("shop")
         self.G = self.path("gh")
         self.T = self.path(TRANSCRIPTS)
-        os.environ.update(FAKE_GH_DIR=self.G, FACTORY_GH=FAKE_GH, FAKE_GH_NO_JQ="1", SHIPFLOOR_BASH=BASH,
+        os.environ.update(FAKE_GH_DIR=self.G, FACTORY_GH=FAKE_GH, FAKE_GH_NO_JQ="1", FAKE_GH_REST="1", SHIPFLOOR_BASH=BASH,
                           CLAUDE_CONFIG_DIR=self.path("claude"))
         self.dashboard, self.port = server()
         del _errors[:]
@@ -192,12 +192,13 @@ class Dash(support.Case):
     def items(self, *rows):
         """the fake board: (n, column) rows, item ids PVTI_<n>"""
         self.gh("items.tsv", "".join("PVTI_%s\t%s\t%s\n" % (n, n, c) for n, c in rows))
+        self.dashboard.Handler.factory._live.clear()  # the board changed on GitHub: the dashboard's own read is old news
 
     def calls(self):
         return self.gh("calls").splitlines()
 
     def edits(self):
-        return [l for l in self.gh("edits").splitlines() if "item-edit" in l]
+        return [l for l in self.gh("edits").splitlines() if "item-edit" in l or "rest-patch" in l]
 
     def line_of(self, needle):
         """the index of the first gh call holding needle, or None"""

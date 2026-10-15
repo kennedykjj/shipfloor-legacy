@@ -14,11 +14,13 @@ sys.path.insert(0, str(HERE))
 import shipfloor_config  # exits with a clear message when PyYAML is missing
 from shipfloor_core.defaults import DEPLOY_DEFAULTS
 import shipfloor_health
-from shipfloor_core import board_history, deps
+from shipfloor_core import board as board_core, board_history, deps, dispatch as dispatch_core
 import dashboard_cost
 import runtimes
 from dashboard_cost import LEGACY_STAGES, cost, parse_transcript, parse_ts, per_card, rounded
 import yaml
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 
 # The steps a run announces with `shipfloor-config.sh step <k>`: the numbered sections of each skill, less its failure rule.
 STEPS = {"refine": {1: "Pick the card", 2: "Worktree", 3: "Product Owner", 4: "UX/UI and architecture", 5: "Cybersec", 6: "Publish for review", 8: "Report"},
@@ -46,6 +48,8 @@ mapfile -t files < <(git -C "$2" -c core.quotePath=false show --name-only --form
 """
 COST_BLOCK = "Cost limit: blocked."  # how the dispatcher opens the note of a block by cost
 BOARD_TTL_S = 10  # while someone watches, the board is read again this often
+BOARD_FRESH_S = 10  # an owner action trusts the dashboard's own read of the board this young, and reads it again past that
+WAKING = ("Ready for Refinement", "Ready for Dev", "Ready for Prod", "Coding")  # the columns the factory acts on at once
 FEED_LINE = re.compile(r"^(\d{4}-\d\d-\d\dT\S+) (.*)")
 RUN_LINE = re.compile(r"^== (start|end) /(?:sf|aghanim|mylos):([a-z]+) (\d+)(?: exit=(\d+))? (\S+)")  # legacy aghanim, legacy mylos
 RUN_MODEL = re.compile(r" model=([a-z0-9.-]+)")  # the start line's model, when the dispatcher passed one
@@ -414,6 +418,7 @@ class Factory:
         self._configs = {}
         self._snap, self._reading, self._retry = {}, set(), {}
         self._entered = {}
+        self._rest, self._live, self._pids, self._tl = {}, {}, {}, threading.local()  # REST boards by project, last real read, timing
 
     def projects(self):
         try:
@@ -574,6 +579,7 @@ class Factory:
                                    capture_output=True, text=True, encoding="utf-8", timeout=30)
                 if r.returncode == 0 and r.stdout.strip():
                     self._snap[p] = (time.time(), r.stdout.splitlines())
+                    self._live[p] = (time.time(), [c for c in (l.split("\t") for l in r.stdout.splitlines()) if len(c) > 2 and number(c[0])])
                 else:
                     self._retry[p] = time.time() + 60  # gh down or out of quota: the dispatcher's snapshot serves meanwhile
             except (OSError, subprocess.SubprocessError):
@@ -818,15 +824,19 @@ class Factory:
                 "pr": self.pull(p, number) if number else None,
                 "report": next((r for r in reversed(reports) if r["pipeline"] == "validate"), None)}
 
-    def unblock(self, p, n):
+    def unblock(self, p, n, wake=True):
         repo = shipfloor_config.dotted(self.config(p), "project.repo")
-        errors = []
-        for label in ("blocked", "blocked:infra"):
-            r = gh("api", "-X", "DELETE", f"repos/{repo}/issues/{n}/labels/{label}")
-            if r.returncode != 0 and "Label does not exist" not in r.stderr and "404" not in r.stderr:
-                errors.append(r.stderr.strip())
+        with self.phase("unblock"):
+            results = self.par(*(lambda label=label: gh("api", "-X", "DELETE", f"repos/{repo}/issues/{n}/labels/{label}")
+                                 for label in ("blocked", "blocked:infra")))
+        errors = [r.stderr.strip() for r in results
+                  if r.returncode != 0 and "Label does not exist" not in r.stderr and "404" not in r.stderr]
         self._blocked.pop(p, None); self._reasons.pop((p, n), None)
-        return (502, {"error": "; ".join(errors)}) if errors else (200, {"unblocked": True})
+        if errors:
+            return 502, {"error": "; ".join(errors)}
+        if wake:
+            self.wake()
+        return 200, {"unblocked": True}
 
     def reports(self, p, n):
         out = []
@@ -1567,14 +1577,96 @@ class Factory:
                          for r in mine[(page - 1) * HISTORY_PAGE:page * HISTORY_PAGE]],
                 "runs_total": len(mine), "page": page, "pages": pages, "cards": cards, "empty": not mine}
 
-    def board_rows(self, p):
-        """(every row of the live board in board order: number, column, item id), or (None, error)."""
-        env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
-        snap = subprocess.run([bash(), (HERE / "board.sh").as_posix(), "snapshot"], env=env,
-                              capture_output=True, text=True, encoding="utf-8")
-        if snap.returncode != 0:
-            return None, "cannot read the board: " + snap.stderr.strip()
-        return [c for c in (l.split("\t") for l in snap.stdout.splitlines()) if len(c) > 2 and number(c[0])], None
+    def rest_board(self, p):
+        """The project's board through shipfloor_core.board, kept between calls: it holds the Status field's numeric id and the
+        column option ids, asked once per project (reset by drop_ids when a write says they are wrong)."""
+        cfg = self.config(p)
+        key = tuple(str(shipfloor_config.dotted(cfg, k)) for k in ("board.owner", "board.number", "project.repo"))
+        have = self._rest.get(p)
+        if have is None or have[0] != key:
+            have = self._rest[p] = (key, board_core.Board(*key))
+        return have[1]
+
+    def drop_ids(self, p):
+        self.rest_board(p)._rest_field = None
+
+    def cached_rows(self, p):
+        """The rows of the dashboard's own read when it is young enough (BOARD_FRESH_S), else None."""
+        at, rows = self._live.get(p, (0, None))
+        return rows if rows and time.time() - at < BOARD_FRESH_S else None
+
+    def board_rows(self, p, fresh=True):
+        """(every row of the board in board order: number, column, item id[, numeric item id]), or (None, error). The dashboard's
+        own read serves when it is young; else the board is read now by REST in this process, and by board.sh (REST, then
+        GraphQL) when that fails."""
+        rows = self.cached_rows(p) if fresh else None
+        if rows is not None:
+            self.note(board_cached=True)
+            return list(rows), None
+        with self.phase("board"):
+            try:
+                found = self.rest_board(p).rest_rows()
+            except Exception:  # a board that answers strangely is the fallback's to read
+                found = None
+            if found is None:
+                self.drop_ids(p)
+                env = dict(os.environ, FACTORY_CONFIG=str(self.pdir(p) / "factory.yml"), FACTORY_HOME=str(self.pdir(p)))
+                snap = subprocess.run([bash(), (HERE / "board.sh").as_posix(), "snapshot"], env=env,
+                                      capture_output=True, text=True, encoding="utf-8")
+                if snap.returncode != 0:
+                    return None, "cannot read the board: " + snap.stderr.strip()
+                found = [l.split("\t") for l in snap.stdout.splitlines()]
+            rows = [c for c in found if len(c) > 2 and number(c[0])]
+        self._live[p] = (time.time(), rows)
+        return list(rows), None
+
+    @contextmanager
+    def phase(self, name):
+        """Adds the time of the block to this request's timing (see timed); nothing when the call is not timed."""
+        t, t0 = getattr(self._tl, "timing", None), time.perf_counter()
+        try:
+            yield
+        finally:
+            if t is not None:
+                t[name + "_ms"] = t.get(name + "_ms", 0) + round((time.perf_counter() - t0) * 1000)
+
+    def note(self, **kw):
+        t = getattr(self._tl, "timing", None)
+        if t is not None:
+            t.update(kw)
+
+    def par(self, *fns):
+        """Runs independent calls at the same time and gives their results in order; the first exception is raised after all end."""
+        t = getattr(self._tl, "timing", None)
+
+        def run(fn):
+            self._tl.timing = t  # the worker's phases count in the request's timing
+            return fn()
+        with ThreadPoolExecutor(max_workers=len(fns)) as pool:
+            futures = [pool.submit(run, fn) for fn in fns]
+        return [f.result() for f in futures]
+
+    def timed(self, fn, *args):
+        """An owner action with what it took in the answer's "timing" (milliseconds per step; no tokens, no card text)."""
+        self._tl.timing, t0 = {}, time.perf_counter()
+        try:
+            code, body = fn(*args)
+            timing = dict(self._tl.timing, total_ms=round((time.perf_counter() - t0) * 1000))
+        finally:
+            self._tl.timing = None
+        return code, (dict(body, timing=timing) if isinstance(body, dict) else body)
+
+    def wake(self):
+        """Asks the dispatcher for a cycle now (dispatcher.wake, as when a run ends), without waiting for it and without ever
+        failing the action: no file, no wake."""
+        def ask():
+            try:
+                proc = dispatch_core.wake_dispatcher(str(self.home))
+                if proc is not None:
+                    proc.wait(timeout=60)
+            except Exception:
+                pass
+        threading.Thread(target=ask, daemon=True).start()
 
     def board_row(self, p, n):
         """(the card's row on the live board: number, column, item id; or None), or (None, error)."""
@@ -1585,6 +1677,7 @@ class Factory:
         """The board as a write of the owner's just left it becomes the dashboard's own read, so the next overview shows it
         without waiting for the dispatcher; board.tsv stays the dispatcher's to write."""
         self._snap[p] = (time.time(), ["\t".join(r) for r in rows])
+        self._live[p] = (self._live.get(p, (time.time(),))[0], [list(r) for r in rows])  # the read's own age stays
 
     def accept(self, p, n, text):
         """The owner takes the card's acceptance test edits as they stand (shipfloor accept), and the block comes off."""
@@ -1610,10 +1703,10 @@ class Factory:
         row, err = self.board_row(p, n)
         if err or not row:
             return (502, {"error": err}) if err else (409, {"error": f"#{n} is not on the board"})
-        r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
-        if r.returncode != 0:
+        r = self.comment_warm(p, n, repo, text, owner, num, False)
+        if r is not None:
             return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip()}
-        err = None if row[1] == "Coding" else self.move(p, owner, num, row[2], "Coding")
+        err = None if row[1] == "Coding" else self.move(p, owner, num, row, "Coding")
         if err:
             return 502, {"error": err, "commented": True}
         code, body = self.unblock(p, n)
@@ -1630,6 +1723,23 @@ class Factory:
         to = next(t for t, note in OWNER_MOVES[seen] if note == (action == "request-changes"))
         return self.owner_move(p, n, seen, to, text, move_only)
 
+    def comment_warm(self, p, n, repo, text, owner, num, placed):
+        """The note on the issue (when there is one) while the ids the move needs are looked up: they do not wait for each
+        other. None when all went well, else the failed gh call of the comment."""
+        def post():
+            return None if text is None else gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
+
+        def warm():
+            try:
+                self.rest_board(p).rest_field()
+                if placed:
+                    self.project_id(p, owner, num)
+            except Exception:
+                pass  # the move itself reads them again and says what is wrong
+        with self.phase("comment"):
+            r, _ = self.par(post, warm)
+        return r if r is not None and r.returncode != 0 else None
+
     def lock(self, p, n):
         """(why the card cannot move now: "run", "infra", "blocked" or None, error). Read now, not from the minute-old cache."""
         if any(r["issue"] == n and not r["orphan"] for r in self.live(p)):
@@ -1645,17 +1755,25 @@ class Factory:
         guardrail), and an owner path there would be open to agents. A note goes on the issue before the move."""
         cfg = self.config(p)
         owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
-        rows, err = self.board_rows(p)
+        pre, cached = None, self.cached_rows(p) is not None
+        if not cached:  # the read and the lock check do not wait for each other
+            (rows, err), pre = self.par(lambda: self.board_rows(p), lambda: self.lock(p, n))
+        else:
+            rows, err = self.board_rows(p)
+        row = next((r for r in rows or [] if r[0] == str(n)), None)
+        if cached and (err or not row or row[1] != seen):  # not what the page saw in a read a few seconds old: read it now
+            rows, err = self.board_rows(p, fresh=False)
+            row = next((r for r in rows or [] if r[0] == str(n)), None)
         if err:
             return 502, {"error": err}
-        row = next((r for r in rows if r[0] == str(n)), None)
         column = row[1] if row else None
         if column != seen:
             return 409, {"error": f"#{n} is in {column or 'no column'} now", "column": column}
         note = dict(OWNER_MOVES.get(column, ())).get(to) if isinstance(to, str) else None
         if note is None:
             return 403, {"error": f"the owner does not move a card from {column} to {to or 'nowhere'}"}
-        locked, err = self.lock(p, n)
+        with self.phase("lock"):
+            locked, err = pre or self.lock(p, n)
         if err:
             return 502, {"error": err}
         if locked:
@@ -1665,22 +1783,25 @@ class Factory:
         if commented:
             if not text.strip():
                 return 400, {"error": "write what should change"}
-            r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
-            if r.returncode != 0:
-                return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip()}
         rest = [r for r in rows if r is not row]
         last = [r for r in rest if r[1] == to][-1:]
-        if to in ORDERED and last:  # a Status change keeps the item's place, which may be the top of the queue: it goes last
+        placed = to in ORDERED and bool(last)
+        r = self.comment_warm(p, n, repo, text if commented else None, owner, num, placed)
+        if r is not None:
+            return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip()}
+        if placed:  # a Status change keeps the item's place, which may be the top of the queue: it goes last
             err = self.place(p, owner, num, row[2], last[0][2])
             if err:
                 return 502, {"error": err, "commented": commented}
             rest.insert(rest.index(last[0]) + 1, row)
         else:
             rest = rows
-        err = self.move(p, owner, num, row[2], to)
+        err = self.move(p, owner, num, row, to)
         if err:
             return 502, {"error": err, "commented": commented}
-        self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
+        self.keep_rows(p, [[r[0], to, *r[2:]] if r is row else r for r in rest])
+        if to in WAKING:
+            self.wake()
         return 200, {"moved_to": to}
 
     def take_back(self, p, n, to, text):
@@ -1690,14 +1811,22 @@ class Factory:
         A card the dispatcher holds after two stopped runs (stop_hold) is taken back the same way, and its marks go."""
         if not isinstance(to, str) or to not in BLOCKED_MOVES["Coding"]:
             return 400, {"error": f"a blocked card goes to {', '.join(BLOCKED_MOVES['Coding'])}, not {to or 'nowhere'}"}
-        rows, err = self.board_rows(p)
+        pre, cached = None, self.cached_rows(p) is not None
+        if not cached:  # the read and the lock check do not wait for each other
+            (rows, err), pre = self.par(lambda: self.board_rows(p), lambda: self.lock(p, n))
+        else:
+            rows, err = self.board_rows(p)
+        row = next((r for r in rows or [] if r[0] == str(n)), None)
+        if cached and (err or not row):  # not in a read a few seconds old: read it now
+            rows, err = self.board_rows(p, fresh=False)
+            row = next((r for r in rows or [] if r[0] == str(n)), None)
         if err:
             return 502, {"error": err}
-        row = next((r for r in rows if r[0] == str(n)), None)
         if not row:
             return 409, {"error": f"#{n} is not on the board", "column": None}
         column = row[1]
-        locked, err = self.lock(p, n)  # read now: a card unblocked a moment ago must not be moved as blocked
+        with self.phase("lock"):
+            locked, err = pre or self.lock(p, n)  # read now: a card unblocked a moment ago must not be moved as blocked
         if err:
             return 502, {"error": err}
         held = None if locked else self.stop_hold(p, n, column)
@@ -1709,13 +1838,22 @@ class Factory:
         cfg = self.config(p)
         owner, num, repo = (shipfloor_config.dotted(cfg, k) for k in ("board.owner", "board.number", "project.repo"))
         commented, closed = False, None
-        if text.strip():
-            r = gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text)
-            if r.returncode != 0:
+        rest = [r for r in rows if r is not row]
+        last = [r for r in rest if r[1] == to][-1:]
+        placed = to in ORDERED and bool(last)
+        listing = (lambda: gh_json("pr", "list", "--repo", str(repo), "--state", "open", "--json", "number,headRefName", "--limit", "200")) \
+            if to == "Inbox" else None
+        if text.strip() or listing:  # the note, the pull request list and the ids do not wait for each other
+            posted = text.strip()
+            with self.phase("comment"):
+                r, _, listed = self.par(lambda: gh("issue", "comment", str(n), "--repo", str(repo), "--body-file", "-", input=text) if posted else None,
+                                        lambda: self.rest_board(p).rest_field() and (self.project_id(p, owner, num) if placed else None),
+                                        lambda: listing() if listing else (None, None))
+            if r is not None and r.returncode != 0:
                 return 502, {"error": "comment failed, nothing moved: " + r.stderr.strip(), "commented": False, "pr_closed": None}
-            commented = True
+            commented = bool(posted)
+            prs, err = listed
         if to == "Inbox":  # the card's pull request, found by its branch feat/<n>-...; none open is not an error
-            prs, err = gh_json("pr", "list", "--repo", str(repo), "--state", "open", "--json", "number,headRefName", "--limit", "200")
             if err:
                 return 502, {"error": "cannot read the pull requests, nothing moved: " + err, "commented": commented, "pr_closed": None}
             for pr in prs or []:
@@ -1725,23 +1863,23 @@ class Factory:
                         return 502, {"error": "closing the pull request failed, nothing moved: " + r.stderr.strip(),
                                      "commented": commented, "pr_closed": closed}
                     closed = closed or pr.get("number")
-        rest = [r for r in rows if r is not row]
-        last = [r for r in rest if r[1] == to][-1:]
-        if to in ORDERED and last:  # as owner_move: a Status change keeps the item's place, which may be the top of the queue
+        if placed:  # as owner_move: a Status change keeps the item's place, which may be the top of the queue
             err = self.place(p, owner, num, row[2], last[0][2])
             if err:
                 return 502, {"error": err, "commented": commented, "pr_closed": closed}
             rest.insert(rest.index(last[0]) + 1, row)
         else:
             rest = rows
-        err = self.move(p, owner, num, row[2], to)
+        err = self.move(p, owner, num, row, to)
         if err:
             return 502, {"error": err, "commented": commented, "pr_closed": closed}
-        self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
+        self.keep_rows(p, [[r[0], to, *r[2:]] if r is row else r for r in rest])
         if held:  # the dispatcher would drop the marks at its next cycle, seeing the new column: gone now, so the page agrees
             (self.pdir(p) / "stopped" / str(n)).unlink(missing_ok=True)
+            if to in WAKING:
+                self.wake()
             return 200, {"moved_to": to, "commented": commented, "pr_closed": closed, "unblocked": False}
-        code, body = self.unblock(p, n)
+        code, body = self.unblock(p, n, wake=to in WAKING)
         if code != 200:
             return 502, {"error": "moved, but the block did not come off: " + body.get("error", ""), "commented": commented,
                          "pr_closed": closed, "moved_to": to}
@@ -1789,6 +1927,10 @@ class Factory:
 
     def place(self, p, owner, num, item, after):
         """Puts the item right after another one in the project's order, or first without `after`."""
+        with self.phase("place"):
+            return self.place_at(p, owner, num, item, after)
+
+    def place_at(self, p, owner, num, item, after):
         project_id, err = self.project_id(p, owner, num)
         if err:
             return err
@@ -1799,11 +1941,20 @@ class Factory:
         return None if r.returncode == 0 else "reorder failed, nothing moved: " + r.stderr.strip()
 
     def project_id(self, p, owner, num):
+        """(the project's node id, None) or (None, error): from board-ids, else asked once of gh and kept."""
         try:
             return (self.pdir(p) / "board-ids").read_text().split()[0], None
         except (OSError, IndexError):
-            project, err = gh_json("project", "view", str(num), "--owner", owner, "--format", "json")
-            return (None, "cannot read the board ids: " + err) if err else ((project or {}).get("id", ""), None)
+            pass
+        if (p, owner, num) in self._pids:
+            return self._pids[(p, owner, num)], None
+        project, err = gh_json("project", "view", str(num), "--owner", owner, "--format", "json")
+        if err:
+            return None, "cannot read the board ids: " + err
+        pid = (project or {}).get("id", "")
+        if pid:
+            self._pids[(p, owner, num)] = pid
+        return pid, None
 
     def comment(self, p, n, text):
         """A comment on the issue after a move already left (the toast's Comment); it moves nothing."""
@@ -1815,7 +1966,41 @@ class Factory:
             return 502, {"error": "comment failed: " + r.stderr.strip()}
         return 200, {"commented": True}
 
-    def move(self, p, owner, num, item, target):
+    def move(self, p, owner, num, row, target):
+        """The card's Status to `target`: one REST PATCH on the item's numeric id with the cached ids (move_rest), or, when REST
+        cannot, project field-list and item-edit by GraphQL as before. None when it moved, else why not."""
+        with self.phase("move"):
+            if self.move_rest(p, row, target):
+                self.note(path="rest")
+                return None
+            self.note(path="graphql")
+            return self.move_graphql(p, owner, num, row[2], target)
+
+    def move_rest(self, p, row, target):
+        """True when the PATCH went. A PATCH that fails or an option the cached ids do not know throws the ids away, reads the
+        board now (the item may have a new id) and tries once more; False leaves the move to GraphQL."""
+        try:
+            board = self.rest_board(p)
+            numeric = row[3] if len(row) > 3 and number(row[3]) else None
+            for attempt in (0, 1):
+                field = board.rest_field() if numeric else None
+                opt = field[1].get(target) if field else None
+                if opt and board._patch(numeric, field[0], opt):
+                    return True
+                if attempt:
+                    break
+                self.drop_ids(p)
+                rows, err = self.board_rows(p, fresh=False)
+                fresh = next((r for r in rows or [] if r[0] == row[0]), None)
+                numeric = fresh[3] if fresh and len(fresh) > 3 and number(fresh[3]) else None
+                if not numeric:
+                    break
+        except Exception:
+            pass
+        self.drop_ids(p)
+        return False
+
+    def move_graphql(self, p, owner, num, item, target):
         fields, err = gh_json("project", "field-list", str(num), "--owner", owner, "--format", "json")
         if err:
             return "cannot read the board columns: " + err
@@ -2081,24 +2266,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(*self.factory.message(parts[2], int(parts[3]), str(body.get("text", ""))))
             if parts[4] in ("accept", "send-back"):
                 fn = self.factory.accept if parts[4] == "accept" else self.factory.send_back
-                return self.send(*fn(parts[2], int(parts[3]), str(body.get("text", ""))))
+                return self.send(*self.factory.timed(fn, parts[2], int(parts[3]), str(body.get("text", ""))))
             if parts[4] == "unblock":
-                return self.send(*self.factory.unblock(parts[2], int(parts[3])))
+                return self.send(*self.factory.timed(self.factory.unblock, parts[2], int(parts[3])))
             if parts[4] == "approve-amend":
-                return self.send(*self.factory.approve_amend(parts[2], int(parts[3])))
+                return self.send(*self.factory.timed(self.factory.approve_amend, parts[2], int(parts[3])))
             if parts[4] == "weight":
                 return self.send(*self.factory.set_weight(parts[2], int(parts[3]), body.get("weight")))
             if parts[4] == "move":
-                return self.send(*self.factory.owner_move(parts[2], int(parts[3]), body.get("column"), body.get("to"),
-                                                          str(body.get("text") or ""), bool(body.get("move_only"))))
+                return self.send(*self.factory.timed(self.factory.owner_move, parts[2], int(parts[3]), body.get("column"), body.get("to"),
+                                                     str(body.get("text") or ""), bool(body.get("move_only"))))
             if parts[4] == "reorder":
-                return self.send(*self.factory.owner_reorder(parts[2], int(parts[3]), body.get("column"), body.get("before")))
+                return self.send(*self.factory.timed(self.factory.owner_reorder, parts[2], int(parts[3]), body.get("column"), body.get("before")))
             if parts[4] == "take-back":
-                return self.send(*self.factory.take_back(parts[2], int(parts[3]), body.get("to"), str(body.get("text") or "")))
+                return self.send(*self.factory.timed(self.factory.take_back, parts[2], int(parts[3]), body.get("to"), str(body.get("text") or "")))
             if parts[4] == "comment":
                 return self.send(*self.factory.comment(parts[2], int(parts[3]), str(body.get("text") or "")))
-            self.send(*self.factory.act(parts[2], int(parts[3]), parts[4], body.get("column"),
-                                        str(body.get("text", "")), bool(body.get("move_only"))))
+            self.send(*self.factory.timed(self.factory.act, parts[2], int(parts[3]), parts[4], body.get("column"),
+                                          str(body.get("text", "")), bool(body.get("move_only"))))
         except Exception as e:
             self.send(500, {"error": f"{type(e).__name__}: {e}"})
 

@@ -1,7 +1,7 @@
 """The dashboard's JavaScript in a real browser (Playwright, headless Chromium) on the demo's sample factory: one dashboard.py
 server in a thread (as dashboard_support does) whose Factory each test swaps for a fresh sample home (demo_home.py), with the
 demo's gh stand-in as gh. The owner's flows are asserted on what they leave behind: the page's state, localStorage, the gh
-stand-in's board and comments. Playwright's clock stands in for the 5 s a move waits, so nothing here sleeps for it.
+stand-in's board and comments. A move leaves as soon as it is made (no hold, no Undo).
 
 Playwright absent (or no Chromium): every test is skipped, unless BROWSER_TESTS=required, which is one FAIL line."""
 import json
@@ -170,66 +170,50 @@ class Browser(support.Case):
         expect(page.locator('#d-tabs [data-tab="gates"]')).to_have_attribute("aria-selected", "true")
 
     # ---- AC-3
-    def test_ac3_keyboard_move_commits_after_the_delay(self):
-        """AC-3 a move by keyboard commits after the 5 s delay, not before"""
-        page = self.open_page(clock=True)
+    def test_ac3_keyboard_move_leaves_at_once(self):
+        """AC-3 a move by keyboard is sent as soon as the digit is pressed: no hold, no Undo, the toast confirms it"""
+        page = self.open_page()
         self.open_lanes(page)
         self.assertEqual(self.column(120), "Staged")
         self.pick_up_and_press(page, "atlas/120", "2")  # Staged takes Coding (1) and Ready for Prod (2), in board order
-        expect(page.locator('#ltoast [data-lt="undo"]')).to_be_visible()
-        self.assertEqual(self.column(120), "Staged")  # nothing has left yet
-        page.clock.fast_forward(5000)
+        expect(page.locator("#ltoast")).to_contain_text("#120 moved to")
+        self.until("the move to reach the board", lambda: self.column(120) == "Ready for Prod")
+        self.assertEqual(page.locator('[data-lt="undo"], [data-f="undo"], [data-w="undo"]').count(), 0, "no Undo anywhere")
+        self.assertEqual(page.evaluate("typeof S.pending"), "undefined", "no pending moves held by the page")
+
+    def test_ac3_drag_move_leaves_at_once_and_the_card_shows_in_its_column(self):
+        """AC-3 a move by drag is sent on the drop: the card is in the new column at once and nothing offers Undo"""
+        page = self.open_page()
+        self.open_lanes(page)
+        self.chip(page, "atlas/120").drag_to(page.locator('#lanes .lcol[data-col="Ready for Prod"]'))
+        expect(page.locator('#lanes .lcol[data-col="Ready for Prod"] .chip[data-key="atlas/120"]')).to_be_visible()
+        self.assertEqual(page.locator('#ltoast [data-lt="undo"]').count(), 0)
         self.until("the move to reach the board", lambda: self.column(120) == "Ready for Prod")
 
-    def test_ac3_drag_move_undone_within_the_delay_never_leaves(self):
-        """AC-3 a move by drag can be undone within the delay, and then nothing is sent"""
-        page = self.open_page(clock=True)
-        self.open_lanes(page)
-        before = self.state()["projects"]
-        self.chip(page, "atlas/120").drag_to(page.locator('#lanes .lcol[data-col="Ready for Prod"]'))
-        expect(page.locator('#ltoast [data-lt="undo"]')).to_be_visible()
-        page.click('#ltoast [data-lt="undo"]')
-        expect(page.locator('#ltoast [data-lt="undo"]')).to_have_count(0)
-        page.clock.fast_forward(6000)
-        page.wait_for_timeout(1000)  # a request the undo failed to stop would have landed by now
-        self.assertEqual(self.state()["projects"], before)  # no card moved or reordered
-
-    def test_ac3_a_refused_move_shows_its_reason(self):
-        """AC-3 a move the board refuses shows the reason on the page"""
-        page = self.open_page(clock=True)
+    def test_ac3_a_refused_move_is_rolled_back_with_its_reason(self):
+        """AC-3 a move the board refuses puts the card back and shows the reason on the page"""
+        page = self.open_page()
         self.open_lanes(page, project="beacon")  # its board cannot be read now: the stand-in answers HTTP 502
         self.pick_up_and_press(page, "beacon/8", "1")  # an Inbox card goes to Ready for Refinement
-        expect(page.locator('#ltoast [data-lt="undo"]')).to_be_visible()
-        page.clock.fast_forward(5000)
         expect(page.locator("#lnote")).to_contain_text("board cannot be read now", timeout=SLOW)
+        expect(page.locator('#lanes .lcol[data-col="Inbox"] .chip[data-key="beacon/8"]')).to_be_visible()  # back where it was
+        expect(page.locator("#ltoast")).to_be_hidden()
         self.assertEqual(self.column(8, project="2"), "Inbox")
 
-    # ---- AC-4
-    def test_ac4_request_changes_reaches_the_api_with_its_note_and_target(self):
-        """AC-4 requesting changes on a spec sends the note and moves the card back to refinement"""
-        page = self.open_page(clock=True)
-        self.pick(page, "atlas/129")
-        page.click("#request")
-        note = "Say which time zone the last sync time is shown in."
-        page.fill("#wk-note", note)
-        page.click("#wk-send")
-        expect(page.locator("#work .itoast")).to_be_visible()  # the 5 s window, with Undo
-        page.clock.fast_forward(5000)
-        self.until("the note on the card", lambda: any(note in c for c in self.comments(129)))
-        self.until("the card back in refinement", lambda: self.column(129) == "Ready for Refinement")
-        self.assertEqual(self.column(127), "Spec Review")  # the other spec stayed
-
-    def test_ac4_approving_a_spec_moves_it_to_ready_for_dev(self):
-        """AC-4 approving a spec moves the card to Ready for Dev, with no note"""
-        page = self.open_page(clock=True)
-        self.pick(page, "atlas/129")
-        expect(page.locator("#approve")).to_be_enabled()
-        page.click("#approve")
-        expect(page.locator("#work .itoast")).to_be_visible()  # the 5 s window, with Undo
-        page.clock.fast_forward(5000)
-        self.until("the card in Ready for Dev", lambda: self.column(129) == "Ready for Dev")
-        self.assertEqual(self.comments(129), [])
-        self.assertEqual(self.column(127), "Spec Review")
+    def test_ac3_a_reorder_leaves_at_once_and_a_refused_one_is_rolled_back(self):
+        """AC-3 a queue's reorder is sent on Enter, not after a hold; the board refusing it puts the order back and says why"""
+        page = self.open_page()
+        self.open_lanes(page, project="beacon")  # its board cannot be read now: the stand-in answers HTTP 502
+        keys = lambda: page.eval_on_selector_all('#lanes .lcol[data-col="Inbox"] .chip', "els => els.map(e => e.dataset.key)")
+        before = keys()
+        self.assertEqual(before[:2], ["beacon/8", "beacon/9"])
+        self.chip(page, "beacon/8").focus()
+        page.keyboard.press("m")
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("Enter")
+        expect(page.locator("#lnote")).to_contain_text("board cannot be read now", timeout=SLOW)
+        self.assertEqual(keys(), before, "the order the board has")
+        self.assertEqual(page.locator('[data-lt="undo"]').count(), 0)
 
     # ---- AC-5
     def test_ac5_theme_and_language_persist_across_a_reload(self):

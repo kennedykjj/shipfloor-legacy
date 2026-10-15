@@ -2,7 +2,7 @@
 selected on the belt), Run for a running card, Card for any other, Calm when nothing waits. The page's own script runs in node
 on a fake DOM (belt_page.py), fed overviews shaped like the real server's (the belt's fixture, dashboard_belt.Scene) and the
 cards' payloads as /api/card/<project>/<n> answers them; the tests read what the work area drew, what the keys did, which POSTs
-left and when (the page's timers are advanced, the 5 s hold never sleeps). Area is AC-1, AC-4, AC-5, AC-6 and AC-7,
+left and when (the page's timers are advanced; a decision leaves at once, nothing holds it). Area is AC-1, AC-4, AC-5, AC-6 and AC-7,
 Keys is AC-2, Quick is AC-3 and Design is AC-8; dashboard-views.test.sh runs them all."""
 import copy
 import json
@@ -320,9 +320,9 @@ class Keys(WorkScene):
         self.assertIn("Only #50 waits.", ptext(one))
 
     def test_ac2_a_approves_and_r_opens_request_changes(self):
-        "AC-2: A approves (the 5 s hold starts); R opens Request changes with the note focused and Send disabled while it is empty"
+        "AC-2: A approves (the decision leaves at once); R opens Request changes with the note focused and Send disabled while it is empty"
         a = self.page(key("a"))[1]
-        self.assertIn("Approving #22 in 5 s", ptext(a))
+        self.assertEqual(len(posts(a, "/api/card/shop/22/approve")), 1)
         r = self.page(key("r"))[1]
         areas = nodes(r, "textarea")
         self.assertTrue(areas, "AC-2 R unfolds the note")
@@ -347,9 +347,9 @@ class Keys(WorkScene):
     def test_ac2_enter_sends_the_note_and_shift_enter_is_a_new_line(self):
         "AC-2: in the note Enter sends (not while it is empty), Shift+Enter makes a new line"
         w = self.page(key("r"), key("Enter"), {"op": "typex", "value": "fix the header"}, key("Enter", shift=True), key("Enter"))
-        self.assertNotIn("Sending changes", ptext(w[2]), "AC-2 an empty note sends nothing")
-        self.assertNotIn("Sending changes", ptext(w[4]), "AC-2 Shift+Enter is a new line")
-        self.assertIn("Sending changes for #22 in 5 s", ptext(w[5]), "AC-2 Enter sends the note")
+        self.assertEqual(posts(w[2], "/api/card/shop/22/request-changes"), [], "AC-2 an empty note sends nothing")
+        self.assertEqual(posts(w[4], "/api/card/shop/22/request-changes"), [], "AC-2 Shift+Enter is a new line")
+        self.assertEqual(len(posts(w[5], "/api/card/shop/22/request-changes")), 1, "AC-2 Enter sends the note")
 
     def test_ac2_esc_folds_then_closes_the_view_then_clears_the_selection(self):
         "AC-2: Esc, in order: the note (kept for the card), the maximized view, the selection; the selected token clicked again clears it too"
@@ -397,25 +397,22 @@ class Quick(WorkScene):
             c.update(column={"Spec Review": "Ready for Dev", "Staged": "Ready for Prod"}[c["column"]], awaiting=False, since=stamp(0))
         return ov
 
-    def test_ac3_approve_is_sent_after_the_5_s_window_and_the_next_card_slides_in(self):
-        "AC-3: Approve holds 5 s with Undo, then the decision is sent and the next waiting card comes in with the focus on its title"
-        h = self.hold({"op": "advancew", "ms": 4900}, {"op": "advancew", "ms": 200}, {"op": "readw", "overview": self.after(22)}, {"op": "find", "needle": "#51 waits for you"})
-        started, early, sent, next_card, status = h[1:]
-        self.assertIn("Approving #22 in 5 s", ptext(started))
-        self.assertTrue(has_label(started, "Undo"), "AC-3 Undo is available during the window")
-        self.assertEqual((started["posts"], early["posts"]), ([], []), "AC-3 nothing leaves before the window ends")
-        self.assertEqual([(p["body"]["column"], p["keepalive"]) for p in posts(sent, "/api/card/shop/22/approve")], [("Spec Review", False)], "AC-3 sent as today when the window ends")
+    def test_ac3_approve_is_sent_at_once_and_the_next_card_slides_in(self):
+        "AC-3: Approve sends the decision at once, with no hold and no Undo; the next waiting card comes in with the focus on its title"
+        h = self.hold({"op": "readw", "overview": self.after(22)}, {"op": "find", "needle": "#51 waits for you"})
+        started, next_card, status = h[1:]
+        self.assertEqual([(p["body"]["column"], p["keepalive"]) for p in posts(started, "/api/card/shop/22/approve")], [("Spec Review", False)], "AC-3 sent on the click")
+        self.assertFalse(has_label(started, "Undo"), "AC-3 there is no Undo")
         self.assertIn("Title 51", wtext(next_card), "AC-3 the next waiting card slides in")
         self.assertNotIn("Title 22", wtext(next_card))
         self.assertTrue((next_card["active"] or {}).get("inWork") and "Title 51" in next_card["active"]["text"], "AC-3 focus moves to its title: %s" % next_card["active"])
         self.assertTrue(status and any(c["attrs"].get("role") == "status" or c["attrs"].get("aria-live") == "polite" for c in status[0]["chain"]), "AC-3 a polite status announces '#51 waits for you, i of k'")
 
-    def test_ac3_undo_within_the_window_sends_nothing(self):
-        "AC-3: Undo within the 5 s window sends nothing and the card stays"
-        h = self.hold(click("Undo", within=None), {"op": "advancew", "ms": 6000})
-        self.assertEqual(h[-1]["posts"], [])
-        self.assertNotIn("Approving", ptext(h[-1]))
-        self.assertIn("Title 22", wtext(h[-1]))
+    def test_ac3_nothing_is_held_and_nothing_is_sent_twice(self):
+        "AC-3: time passing sends nothing more: the decision left once, and no timer of the page holds a move"
+        h = self.hold({"op": "advancew", "ms": 6000})
+        self.assertEqual(len(posts(h[-1], "/api/card/shop/22/approve")), 1)
+        self.assertEqual(h[-1]["posts"], h[1]["posts"])
 
     def test_ac3_unreviewed_items_ask_twice(self):
         "AC-3: with unreviewed items the first A arms Approve in place and sends nothing; the second sends; the arming lapses after 4 s"
@@ -428,35 +425,27 @@ class Quick(WorkScene):
         self.assertTrue(has_label(later, "Approve", prefix=True) and not has_label(later, "Approve with", prefix=True), "AC-3 the arming lapses after 4 s: %s" % labels(later))
         self.assertEqual(later["posts"], [])
         twice = self.page(arm, key("a"), key("a"), {"op": "advancew", "ms": 5000})
-        self.assertIn("Approving #22 in 5 s", ptext(twice[3]), "AC-3 the second press confirms")
+        self.assertEqual(posts(twice[2], "/api/card/shop/22/approve"), [], "AC-3 the first press only arms")
+        self.assertEqual(len(posts(twice[3], "/api/card/shop/22/approve")), 1, "AC-3 the second press confirms and sends")
         self.assertEqual(len(posts(twice[4], "/api/card/shop/22/approve")), 1)
 
-    def test_ac3_request_changes_is_sent_after_the_window(self):
-        "AC-3: Request changes holds 5 s, then sends the note and moves the card back"
-        h = self.page(key("r"), {"op": "typex", "value": "fix the header"}, click("Send"), {"op": "advancew", "ms": 4900}, {"op": "advancew", "ms": 200})
-        self.assertIn("Sending changes for #22 in 5 s", ptext(h[3]))
-        self.assertTrue(has_label(h[3], "Undo"))
-        self.assertEqual(h[4]["posts"], [])
-        self.assertEqual([p["body"] for p in posts(h[5], "/api/card/shop/22/request-changes")],
+    def test_ac3_request_changes_is_sent_at_once(self):
+        "AC-3: Request changes sends the note and moves the card back as soon as Send is clicked"
+        h = self.page(key("r"), {"op": "typex", "value": "fix the header"}, click("Send"))
+        self.assertFalse(has_label(h[3], "Undo"))
+        self.assertEqual([p["body"] for p in posts(h[3], "/api/card/shop/22/request-changes")],
                          [{"column": "Spec Review", "text": "fix the header", "move_only": False}], "AC-3 the note and the column, as today")
-
-    def test_ac3_the_decision_is_sent_if_the_page_closes(self):
-        "AC-3: if the page closes inside the window the decision is sent then (keepalive), once"
-        h = self.hold({"op": "pagehide"}, {"op": "advancew", "ms": 6000})
-        sent = posts(h[2], "/api/card/shop/22/approve")
-        self.assertEqual([p["keepalive"] for p in sent], [True], "AC-3 sent on pagehide with keepalive")
-        self.assertEqual(len(posts(h[3], "/api/card/shop/22/approve")), 1, "AC-3 and only once")
 
     def test_ac3_a_failed_send_brings_the_card_back(self):
         "AC-3: a send that fails brings the card back as current with '#22 was not approved: <reason>'"
-        h = self.hold({"op": "route", "post": {"status": 409, "body": {"error": "the card moved"}}}, {"op": "advancew", "ms": 5000})
+        h = self.page({"op": "route", "post": {"status": 409, "body": {"error": "the card moved"}}}, key("a"), {"op": "advancew", "ms": 100})
         self.assertIn("#22 was not approved: the card moved", ptext(h[-1]))
         self.assertIn("Title 22", wtext(h[-1]))
 
     def test_ac3_after_the_last_decision_calm_appears(self):
         "AC-3: after the last waiting card is decided the Calm mode appears"
         only = self.waiting_only(50)
-        h = self.page(key("a"), {"op": "advancew", "ms": 5000}, {"op": "readw", "overview": self.nothing_waits()}, ov=only)
+        h = self.page(key("a"), {"op": "advancew", "ms": 100}, {"op": "readw", "overview": self.nothing_waits()}, ov=only)
         self.assertEqual(len(posts(h[2], "/api/card/shop/50/approve")), 1)
         self.assertIn("Nothing waits for you", wtext(h[3]))
 

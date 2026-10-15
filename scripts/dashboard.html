@@ -797,7 +797,7 @@ const token = (() => {
   return given;
 })();
 const S = { view: "board", overview: null, project: null, open: null, full: false, card: null, tab: "sessions", log: null, logNext: -1, logText: "", moving: {}, offline: false, error: "", refused: false,
-  expanded: {}, briefOpen: {}, review: {}, notice: {}, armed: null, pending: {}, note: {}, work: { key: null, skipped: new Set() }, resuming: null, resumeErr: null,
+  expanded: {}, briefOpen: {}, review: {}, notice: {}, armed: null, note: {}, work: { key: null, skipped: new Set() }, resuming: null, resumeErr: null,
   show: { band: true, history: true } };  // what the owner left open on the Factory view: in memory only, open at every load
 // Replay (#184): R.at is the moment the needle shows (ms, null while live), R.lines the day's board history. While it is set the
 // belt is drawn from the last line at or before it, and deciding() is false: every control that decides asks it.
@@ -1358,7 +1358,8 @@ $("cells").addEventListener("keydown", (e) => {
 });
 // The line maximized: upstream over downstream, each column listing its cards by name. The owner moves their cards here
 // (#125: M1 to M7, the table the overview's moves carry) and orders the three queues (#128) by drag, M + a digit or the
-// arrows, or the Move button on a touch screen. Nothing leaves for 5 s, so Undo leaves the board as it was.
+// arrows, or the Move button on a touch screen. A move or a reorder leaves as soon as it is made; the page shows it at once
+// and puts it back, with the reason, when the server refuses.
 const L = { hold: null, only: false, toast: null, note: "", status: "", box: null, order: {} };
 const MEANING = { "Inbox>Ready for Refinement": "move.to_refine", "Ready for Refinement>Inbox": "move.unqueue", "Spec Review>Ready for Dev": "move.approve_spec",
   "Spec Review>Ready for Refinement": "move.changes", "Ready for Dev>Ready for Refinement": "move.refine_again", "Staged>Ready for Prod": "move.ship", "Staged>Coding": "move.changes" };
@@ -1379,20 +1380,19 @@ const queue = (h) => !h.take && ordered(h.from);  // the held card can be reorde
 const numOf = (k) => +k.split("/")[1];
 // a card the owner can pick up: a From column of the table and no lock, or blocked for the owner and taken back (#127); no
 // move of its own on the way (a reorder may go on)
-const movable = (slug, c) => { const k = `${slug}/${c.issue}`, e = S.pending[k];
-  return (heldForOwner(c) ? takeOf(c).length > 0 : movesOf(c.column).length > 0 && !c.lock) && !(k in S.moving) && !(e && !e.reorder); };
+const movable = (slug, c) => { const k = `${slug}/${c.issue}`;
+  return (heldForOwner(c) ? takeOf(c).length > 0 : movesOf(c.column).length > 0 && !c.lock) && !(k in S.moving); };
 // the columns a held card may go to, numbered left to right in board order
 const targets = (h) => (h.take ? h.take.map((to) => ({ to, take: true })) : movesOf(h.from).map((m) => ({ ...m }))).sort((a, b) => COLUMNS.indexOf(a.to) - COLUMNS.indexOf(b.to)).map((m, i) => ({ ...m, n: i + 1 }));
-function orderFor(slug, col) {  // the order the page shows in a queue until the board agrees: the held card's, a pending reorder's, a sent one's
+function orderFor(slug, col) {  // the order the page shows in a queue until the board agrees: the held card's, a sent one's
   const h = L.hold; if (h?.order && h.slug === slug && h.from === col) return h.order;
-  const e = Object.values(S.pending).find((v) => v.reorder && v.slug === slug && v.column === col);
-  return e ? e.order : L.order[`${slug}|${col}`]?.order || null;
+  return L.order[`${slug}|${col}`]?.order || null;
 }
 // The columns as the page shows them: a card on its way sits last in its To column, a queue in the order the owner set.
 function laneCards(p, by, key) {
   const out = Object.fromEntries(COLS.map((c) => [c.name, []])), away = [];
   for (const col of COLS) for (const c of by[col.name]) {
-    const k = key(c), e = S.pending[k], to = e && !e.reorder ? e.to : S.moving[k] && S.moving[k] !== c.column ? S.moving[k] : null;
+    const k = key(c), to = S.moving[k] && S.moving[k] !== c.column ? S.moving[k] : null;
     if (to && out[to]) away.push({ ...c, column: to, from: c.column, moving: true }); else out[col.name].push(c);
   }
   for (const c of away) out[c.column].push(c);
@@ -1433,7 +1433,7 @@ function renderLanes(p, by, key, labels) {
   $("mvonly").checked = L.only; $("lempty").hidden = !(L.only && !any);
   const toast = L.toast;
   $("ltoast").hidden = !toast;
-  if (toast) setHTML($("ltoast"), `<span>${toast.html}</span><span class="ta">${toast.comment ? `<button data-lt="comment">${t("toast.comment")}</button>` : ""}${S.pending[toast.key] && toast.undo ? `<button data-lt="undo">${t("act.undo")}</button>` : ""}</span>`);
+  if (toast) setHTML($("ltoast"), `<span>${toast.html}</span><span class="ta">${toast.comment ? `<button data-lt="comment">${t("toast.comment")}</button>` : ""}</span>`);
   setHTML($("lnote"), L.note);
   setHTML($("lstat"), L.status);
   paintHold();
@@ -1473,10 +1473,8 @@ function tryHold(k, via) {
     return false;
   }
   if (L.hold) {  // another card was held: let go of it without drawing, a drag may be starting
-    const old = L.hold, pe = S.pending[old.key]; L.hold = null;
-    if (pe?.reorder) pe.timer = setTimeout(() => sendPending(old.key), 5000);
+    L.hold = null;
   }
-  const e = S.pending[k]; if (e?.reorder) clearTimeout(e.timer);  // holding it again continues its reorder: the 5 s start over when it lands
   L.hold = { key: k, slug, n: +n, from: c.column, via, base: shownKeys(c.column), order: null, take: heldForOwner(c) ? takeOf(c) : null };
   tell(holdLine(L.hold));
   if (via === "drag") paintHold(); else renderBoard();
@@ -1486,7 +1484,6 @@ function tryHold(k, via) {
 }
 function letGo(quiet) {
   const h = L.hold; if (!h) return; L.hold = null;
-  const e = S.pending[h.key]; if (e?.reorder) e.timer = setTimeout(() => sendPending(h.key), 5000);
   L.status = quiet ? "" : t("hold.let_go", { n: h.n });
   renderBoard(); paintHold(); focusChip(h.key);
 }
@@ -1497,7 +1494,7 @@ function lookFirst(k, doubt) {
   if (doubt) S.armTimer = setTimeout(() => { if (S.armed === k) { S.armed = null; renderWork(); } }, 4000);
   renderBoard(); addrSync();
 }
-// A drop on a column that takes the card: at once (5 s to undo), the note box first, or the work area's confirmation (#50).
+// A drop on a column that takes the card: sent at once, the note box first, or the work area's confirmation (#50).
 function drop(to) {
   const h = L.hold, t = h && targets(h).find((x) => x.to === to); if (!t) return letGo();
   L.hold = null; L.status = "";
@@ -1507,14 +1504,13 @@ function drop(to) {
     if (doubt || unseen) { renderBoard(); return lookFirst(h.key, doubt); }
   }
   if (t.note) { renderBoard(); return openBox({ key: h.key, from: h.from, to, need: true }); }
-  pendMove(h.key, h.from, to, "", true);
+  startMove(h.key, h.from, to, "", true);
 }
-function flushToast(k) { const t = L.toast; if (t && t.key !== k && S.pending[t.key]) sendPending(t.key); }  // a new move sends the one before it
-function pendMove(k, from, to, text, comment) {
-  flushToast(k);
-  S.pending[k] = { move: true, from, to, text, timer: setTimeout(() => sendPending(k), 5000) };
-  L.toast = { key: k, from, html: t("toast.moved", { n: numOf(k), column: cn(to) }), undo: true, comment };
+function startMove(k, from, to, text, comment) {  // the card shows in its new column at once and the move leaves; a refusal puts it back
+  S.moving[k] = to;
+  L.toast = { key: k, from, html: t("toast.moved", { n: numOf(k), column: cn(to) }), comment };
   L.note = ""; renderBoard(); focusChip(k);
+  return sendMove(k, { from, to, text });
 }
 function reorderTo(h, before) {  // before: the key of the card it goes before, or null for the end of the column
   const order = h.base.filter((k) => k !== h.key); order.splice(before ? order.indexOf(before) : order.length, 0, h.key);
@@ -1522,12 +1518,12 @@ function reorderTo(h, before) {  // before: the key of the card it goes before, 
   commitReorder(h, order);
 }
 function commitReorder(h, order) {
-  const k = h.key, i = order.indexOf(k), prev = S.pending[k]?.reorder ? S.pending[k] : null;
-  if (prev) clearTimeout(prev.timer); else flushToast(k);
-  S.pending[k] = { reorder: true, slug: h.slug, column: h.from, before: order[i + 1] ? numOf(order[i + 1]) : null, order, orig: prev ? prev.orig : h.base, timer: setTimeout(() => sendPending(k), 5000) };
+  const k = h.key, i = order.indexOf(k);
   L.hold = null; L.status = ""; L.note = "";
-  L.toast = { key: k, html: t("toast.reordered", { n: h.n, i: i + 1, of: order.length, column: cn(h.from) }), undo: true };
-  renderBoard(); focusChip(k);
+  L.toast = { key: k, html: t("toast.reordered", { n: h.n, i: i + 1, of: order.length, column: cn(h.from) }) };
+  const sent = sendReorder(k, { slug: h.slug, column: h.from, before: order[i + 1] ? numOf(order[i + 1]) : null, order });
+  focusChip(k);
+  return sent;
 }
 function step(d) {  // an arrow: the held card one place up or down, on the page only
   const h = L.hold, ks = h.order || h.base, i = ks.indexOf(h.key), j = i + d; if (j < 0 || j >= ks.length) return;
@@ -1535,29 +1531,23 @@ function step(d) {  // an arrow: the held card one place up or down, on the page
   L.status = t("hold.step", { n: h.n, i: j + 1, of: ks.length }); renderBoard(); focusChip(h.key);
 }
 function placeHeld() { const h = L.hold, ks = h.order || h.base; if (ks.join() === h.base.join()) return letGo(); commitReorder(h, ks); }
-function undoLane() {
-  const toast = L.toast, e = toast && S.pending[toast.key]; if (!e) return;
-  clearTimeout(e.timer); delete S.pending[toast.key];
-  L.toast = { key: toast.key, html: e.reorder ? t("toast.back_at", { n: numOf(toast.key), i: e.orig.indexOf(toast.key) + 1, of: e.orig.length, column: cn(e.column) }) : t("toast.back_in", { n: numOf(toast.key), column: cn(e.from) }), done: true };
-  if (e.reorder && e.orig) L.order[`${e.slug}|${e.column}`] = { order: e.orig, at: Date.now() };  // its old place, until the board says it
-  renderBoard(); focusChip(toast.key);
-}
-async function sendMove(k, e, keep) {
+async function sendMove(k, e) {
   const [p, n] = k.split("/");
-  if (!keep) renderBoard();
-  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/move`, { method: "POST", keepalive: !!keep, body: JSON.stringify({ column: e.from, to: e.to, text: e.text, move_only: false }) });
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/move`, { method: "POST", body: JSON.stringify({ column: e.from, to: e.to, text: e.text, move_only: false }) });
   if (status === 200) { S.moving[k] = body.moved_to; if (L.toast?.key === k) L.toast.sent = true; return loadOverview(); }
+  delete S.moving[k];  // refused: the card is back where the board has it
   if (L.toast?.key === k) L.toast = null;
   L.note = t("move.failed", { n, why: status === 409 ? t("move.gone", { column: cn(e.from) }) : esc(told(body, "move.failed.why")) });
-  renderBoard();
+  renderBoard(); focusChip(k);
 }
-async function sendReorder(k, e, keep) {
-  const [p, n] = k.split("/"), ck = `${e.slug}|${e.column}`;
-  L.order[ck] = { order: e.order, at: Date.now() };  // the page keeps the new order until the overview agrees
-  if (!keep) renderBoard();
-  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/reorder`, { method: "POST", keepalive: !!keep, body: JSON.stringify({ column: e.column, before: e.before }) });
-  if (status === 200) { L.order[ck].at = Date.now(); if (L.toast?.key === k) Object.assign(L.toast, { sent: true, ck }); return loadOverview(); }
-  delete L.order[ck]; if (L.toast?.key === k) L.toast = null;
+async function sendReorder(k, e) {
+  const [p, n] = k.split("/"), ck = `${e.slug}|${e.column}`, mine = { order: e.order, at: Date.now() };
+  L.order[ck] = mine;  // the page shows the new order at once and keeps it until the overview agrees
+  renderBoard();
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/reorder`, { method: "POST", body: JSON.stringify({ column: e.column, before: e.before }) });
+  if (status === 200) { mine.at = Date.now(); if (L.toast?.key === k) Object.assign(L.toast, { sent: true, ck }); return loadOverview(); }
+  if (L.order[ck] === mine) delete L.order[ck];  // refused: the order the board has; a later reorder of the column stays
+  if (L.toast?.key === k) L.toast = null;
   const why = status === 409 && body.gone === +n ? t("move.gone", { column: cn(e.column) })
     : status === 409 && body.gone ? t("move.other_gone", { other: +body.gone, column: cn(e.column) }) : esc(told(body, "reorder.failed.why"));
   L.note = t("reorder.failed", { n, why });
@@ -1574,7 +1564,7 @@ function settleLanes() {
   const h = L.hold, c = h && cardOf(h.slug, h.n); if (h && (!c || c.column !== h.from)) { L.hold = null; L.status = ""; }  // it moved on the board meanwhile
 }
 // The note box: required for M4, M5 and M7; optional for the toast's Comment and for a blocked card taken back (#127),
-// whose "Move" is the confirmation: it is never disabled and no Undo follows.
+// whose "Move" is the confirmation: it is never disabled.
 function openBox(b) {
   L.box = b; const n = numOf(b.key), m = `${b.from}>${b.to}`, el = $("mbox");
   if (b.take) $("mbox-h").innerHTML = t("box.take", { n, column: cn(b.to) });
@@ -1588,14 +1578,13 @@ function openBox(b) {
 }
 function boxHint() {
   if (L.box?.take) { $("mgo").disabled = false; $("mhint").textContent = L.box.to === "Inbox" ? t("box.take.inbox") : ""; return; }
-  const empty = !$("mnote").value.trim(); $("mgo").disabled = empty; $("mhint").textContent = t(L.box?.optional ? "box.optional" : empty ? "hint.note_first" : "hint.undo"); }
+  const empty = !$("mnote").value.trim(); $("mgo").disabled = empty; $("mhint").textContent = L.box?.optional ? t("box.optional") : empty ? t("hint.note_first") : ""; }
 function closeBox() { const b = L.box; L.box = null; $("mbox").hidden = true; if (b) focusChip(b.key); }
 async function sendBox() {
   const b = L.box, text = $("mnote").value.trim(); if (!b || !text && !b.take) return;
   if (b.take) { L.box = null; $("mbox").hidden = true; return takeBack(b, text); }
   closeBox();
-  if (!b.optional) return pendMove(b.key, b.from, b.to, text, false);
-  const e = S.pending[b.key]; if (e?.move) { e.text = text; return; }  // the move has not left: the comment goes with it, and Undo drops both
+  if (!b.optional) return startMove(b.key, b.from, b.to, text, false);
   const [p, n] = b.key.split("/"), { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/comment`, { method: "POST", body: JSON.stringify({ text }) });
   if (status === 200) L.toast = { key: b.key, html: t("toast.commented", { n }), done: true }; else L.note = esc(told(body, "comment.failed"));
 
@@ -1680,7 +1669,7 @@ function whyWaits(p, c) {
 // The work area (#182): below the belt, one panel for one thing at a time. Decide shows the oldest card that waits for the owner
 // (or the one picked on the belt) and settles it in place; Run shows a card that runs; Card, any other; Calm, when nothing waits,
 // what comes next. The queue and "Skip for now" are this page's memory (S.work) and are never stored: the board is the only truth.
-const W = { cur: null, shown: null, card: {}, at: {}, loading: {}, decided: 0, hold: null, flight: null, req: null, notes: {}, bnotes: {}, hint: {}, msg: null, moved: false, tool: {} };
+const W = { cur: null, shown: null, card: {}, at: {}, loading: {}, decided: 0, flight: null, req: null, notes: {}, bnotes: {}, hint: {}, msg: null, moved: false, tool: {} };
 const WSTEPS = { refine: ["Pick the card", "Worktree", "Product Owner", "UX/UI and architecture", "Cybersec", "Publish for review", "Report"],
   develop: ["Pick the card", "Plan", "Acceptance tests", "Implementation", "Last gates", "Hand over to validation", "Report"], validate: ["Pick the card", "Gates", "Review", "Pull request", "Report"] };
 const DEST = { "Spec Review": ["work.to_dev", "work.back_refine"], "Staged": ["work.to_prod", "work.back_develop"] };  // where Approve and Request changes send a card, in words
@@ -1734,7 +1723,7 @@ function renderWork() {
   if (S.refused) return;
   const v = workView(); if (!v) return;
   for (const k of [...S.work.skipped]) if (!v.queue.some((c) => c.key === k)) S.work.skipped.delete(k);
-  if (!v.queue.length && !W.hold && !W.flight) W.decided = 0;
+  if (!v.queue.length && !W.flight) W.decided = 0;
   W.cur = v.cur?.key || null;
   const sk = v.cur ? v.cur.key : "calm", changed = W.shown !== null && W.shown !== sk, swap = $("wk-swap");
   const at = document.activeElement, keep = swap.contains(at) ? at.dataset.f : "";
@@ -1776,11 +1765,11 @@ function wkHead(c, state, right = "") {
 // The links of a card: each opens the maximized card view on its tab (data-full); GitHub is the issue. `off`: the card is not read yet.
 const ALL_TABS = ["sessions", "log", "gates"];
 const linkRow = (c, tabs, off) => `<div class="wk-links">${tabs.map((go) => `<button class="lnk" data-full="${esc(c.key)}" data-go="${go}"${off ? " disabled" : ""}>${t(go === "review" ? "work.full" : `tab.${go}`)}</button>`).join("")}${off ? "" : gh(c.key.split("/")[0], c.issue)}</div>`;
-const toastHtml = () => {  // the decision in its five seconds, and after it while it is on its way
-  const h = W.hold || W.flight; if (!h) return "";
-  return `<div class="itoast" role="status"><span>${t(h.action === "approve" ? "work.approving" : "work.sending", { n: h.key.split("/")[1] })}</span>${W.hold ? `<button data-w="undo" data-f="undo">${t("act.undo")}</button>` : ""}</div>`;
+const toastHtml = () => {  // the decision while it is on its way
+  const h = W.flight; if (!h) return "";
+  return `<div class="itoast" role="status"><span>${t(h.action === "approve" ? "work.approving" : "work.sending", { n: h.key.split("/")[1] })}</span></div>`;
 };
-const elseToast = (key) => { const h = W.hold || W.flight; return h && h.key !== key ? toastHtml() : ""; };  // a decision of another card is still undoable
+const elseToast = (key) => { const h = W.flight; return h && h.key !== key ? toastHtml() : ""; };
 function paintDecide(v) {
   if (!waitingCard(v.cur)) return paintHeld(v);
   const c = v.cur, key = c.key, [slug, n] = key.split("/"), data = W.card[key], i = W.decided + 1, k = W.decided + v.queue.length, next = v.queue.find((x) => x.key !== key);
@@ -1796,7 +1785,7 @@ function paintDecide(v) {
 }
 function decideHtml(v) {
   const c = v.cur, key = c.key, data = W.card[key], dest = DEST[c.column] || [], pr = v.p;
-  const r = S.review[key], doubt = reviewDoubt(r), armed = S.armed === key && !!doubt, mine = (W.hold || W.flight)?.key === key;
+  const r = S.review[key], doubt = reviewDoubt(r), armed = S.armed === key && !!doubt, mine = W.flight?.key === key;
   const saving = S.weightSaving?.key === key, unseen = S.unseen === key && !r, note = S.notice[key];
   const hint = armed ? t("rv.again") : doubt ? (r.done < r.total ? t("rv.items_left", { n: r.total - r.done }) : t("rv.asks", { n: r.changes.length }))
     : unseen ? `${t("rv.look_first")} <button class="lnk" data-full="${esc(key)}" data-go="review">${t("work.full")}</button>` : "";
@@ -1813,7 +1802,7 @@ function decideHtml(v) {
     ${pr.skipped ? `<p class="stale skipped">${t("decide.skipped", { project: esc(pr.slug), since: when(pr.skipped.since), reason: esc(pr.skipped.reason) })}</p>` : ""}${stale(pr) ? `<p class="stale">${t("decide.stale", { m: Math.round(pr.board_age_s / 60) })}</p>` : ""}
     ${buttons}${S.note[key] ? `<p class="pnote" role="status">${esc(S.note[key])}</p>` : ""}${weightLine(key, c.column)}${note ? `<p class="notice ${note.cls}" role="status">${note.html}</p>` : ""}${linkRow(c, ["review", ...ALL_TABS])}`;
 }
-// The decision. Approve and Request changes wait five seconds with Undo, then go as the Your list sent them; a page that closes sends at once.
+// The decision. Approve and Request changes go as soon as they are confirmed.
 function approveStart(c) {
   const key = c.key, r = S.review[key], doubt = reviewDoubt(r), data = W.card[key];
   if (S.weightSaving?.key === key) return;
@@ -1826,21 +1815,15 @@ function approveStart(c) {
     S.armTimer = setTimeout(() => { if (S.armed === key) { S.armed = null; renderWork(); } }, 4000);
     renderWork(); $("approve")?.focus({ preventScroll: true }); return;
   }
-  holdStart(c, "approve", "");
+  decideStart(c, "approve", "");
 }
-function holdStart(c, action, text) {
-  if (W.hold) holdSend();
+function decideStart(c, action, text) {
   S.armed = null; S.unseen = null; delete S.note[c.key]; W.msg = null;
-  W.hold = { key: c.key, action, text, column: c.column, timer: setTimeout(() => holdSend(), 5000) };
-  renderWork(); $("wk-swap").querySelector('[data-f="undo"]')?.focus({ preventScroll: true });
+  return decideSend({ key: c.key, action, text, column: c.column });
 }
-function holdUndo() {
-  const h = W.hold; if (!h) return; clearTimeout(h.timer); W.hold = null; renderWork();
-  $("wk-swap").querySelector('[data-f="approve"], [data-f="note"]')?.focus({ preventScroll: true });
-}
-async function holdSend(keep) {
-  const h = W.hold; if (!h) return; clearTimeout(h.timer); W.hold = null; W.flight = h; const [p, n] = h.key.split("/");
-  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${h.action}`, { method: "POST", keepalive: keep === true, body: JSON.stringify({ column: h.column, text: h.text, move_only: !!h.moveOnly }) });
+async function decideSend(h) {
+  W.flight = h; renderWork(); const [p, n] = h.key.split("/");
+  const { status, body } = await api(`/api/card/${encodeURIComponent(p)}/${n}/${h.action}`, { method: "POST", body: JSON.stringify({ column: h.column, text: h.text, move_only: !!h.moveOnly }) });
   if (W.flight === h) W.flight = null;
   if (status === 200) {
     if (body.moved_to) S.moving[h.key] = body.moved_to;
@@ -1855,10 +1838,9 @@ async function holdSend(keep) {
   renderBoard();
 }
 function retryMove(c, action) {  // sent at once, without the note: it is already on the issue
-  if (W.hold) holdSend();
-  delete S.notice[c.key]; W.hold = { key: c.key, action, text: "", column: c.column, moveOnly: true }; holdSend();
+  delete S.notice[c.key]; decideSend({ key: c.key, action, text: "", column: c.column, moveOnly: true });
 }
-const sendRequest = (c) => { const text = (W.notes[c.key] || "").trim(); if (!text) return $("wk-note")?.focus(); holdStart(c, "request-changes", text); };
+const sendRequest = (c) => { const text = (W.notes[c.key] || "").trim(); if (!text) return $("wk-note")?.focus(); decideStart(c, "request-changes", text); };
 function openRequest(c) { W.msg = null; W.req = c.key; renderWork(); $("wk-note")?.focus({ preventScroll: true }); }
 function closeRequest() { delete W.hint[W.req]; W.req = null; renderWork(); $("request")?.focus({ preventScroll: true }); }
 function fillNote(c, text) {  // a brief's suggestion, or the review's changes, fills the note; nothing is sent
@@ -1871,10 +1853,9 @@ function skip(v) {  // to the end of this page's queue; the one card that waits 
 }
 function workAct(a, ds) {
   if (!deciding() && ["approve", "send", "retry", "baccept", "bsend"].includes(a)) return;  // replay: the decisions wait for the way back to live
-  if (a === "undo") return holdUndo();
   if (a === "baccept") return ownerSend("accept");
   if (a === "bsend") return ownerSend("send-back");
-  const v = workView(); if (!v || v.mode !== "decide" || W.hold) return;
+  const v = workView(); if (!v || v.mode !== "decide" || W.flight) return;
   if (!waitingCard(v.cur) && a !== "skip") return;  // a blocked or held card is decided with its own buttons
   if (a === "retry") retryMove(v.cur, ds.act);
   else if (a === "approve") approveStart(v.cur);
@@ -1884,7 +1865,7 @@ function workAct(a, ds) {
   else if (a === "fill") fillNote(v.cur, (S.review[v.cur.key]?.changes || []).join("\n"));
 }
 function workKey(e) {  // A, R and N, with the focus outside any field and no wide view open
-  if (S.view !== "board" || S.open || maxed() || W.hold) return;
+  if (S.view !== "board" || S.open || maxed() || W.flight) return;
   const v = workView(), k = e.key.toLowerCase(); if (!v || v.mode !== "decide" || !["a", "r", "n"].includes(k) || (k !== "n" && !waitingCard(v.cur))) return;
   e.preventDefault();
   if (k === "a" && !deciding()) return;
@@ -2009,12 +1990,12 @@ function paintCard(v) {
   setHTML($("wk-top"), elseToast(key) + wkHead(c, ""));
   const cost = c.cost == null || c.cost > 0 ? `<p class="wk-cost">${t("work.cost_since", { cost: c.cost == null ? money(null) : usd(c.cost) })} ${flag(c)}</p>` : "";
   const block = c.blocked && data ? blockNote({ ...data, blocked: c.blocked, project: v.p.slug, issue: c.issue }) : "";
-  const mine = (W.hold || W.flight)?.key === key ? toastHtml() : "";
+  const mine = W.flight?.key === key ? toastHtml() : "";
   const line = c.block_line ? `<p class="bn-lead">${esc(c.block_line)}</p>` : "";
   setHTML($("wk-card"), !data ? `<p class="wk-state">${stateWords(v, c)}</p>${line}${linkRow(c, ALL_TABS, true)}` : `<p class="wk-state">${stateWords(v, c)}</p>${line}${cost}${block}${c.blocked === "owner" ? ownerBlockHtml(c) : ""}${mine}${linkRow(c, ALL_TABS)}`);
 }
 // A card blocked for the owner: besides Unblock and retry (in the block note), send it back to Coding with a note, or, when the
-// acceptance-intact gate stopped it, accept the edited tests with the reason. Both need the note and wait 5 s with Undo.
+// acceptance-intact gate stopped it, accept the edited tests with the reason. Both need the note and go at once.
 function ownerBlockHtml(c) {
   if (!INB.data[c.key]) loadDecide(c.key);
   const accept = INB.data[c.key]?.block?.gate === "acceptance-intact", back = c.column !== "Coding";  // in Coding, back to Coding moves nothing
@@ -2032,7 +2013,7 @@ function paintHeld(v) {
   const dash = Array.from({ length: k }, (_, j) => `<i class="${j < i - 1 ? "ok" : j === i - 1 ? "cur" : ""}"></i>`).join("");
   setHTML($("wk-top"), elseToast(key) + wkHead(c, c.since ? `<span class="wk-wait" data-waits="${esc(c.since)}"></span>` : "",
     `<div class="wk-q"><span>${t("work.count", { i, n: k })}</span> <span class="wk-dash" aria-hidden="true">${dash}</span> ${next ? `<span>${t("work.next", { n: next.issue })}</span>` : ""}</div>`));
-  const owner = c.blocked === "owner", mine = (W.hold || W.flight)?.key === key;
+  const owner = c.blocked === "owner", mine = W.flight?.key === key;
   setHTML($("wk-read"), `<p class="wk-state">${stateWords(v, c)}</p>${c.block_line ? `<p class="bn-lead">${esc(c.block_line)}</p>` : ""}${owner && data ? blockNote({ ...data, blocked: c.blocked, project: v.p.slug, issue: c.issue }) : ""}`);
   const ways = owner ? ownerBlockHtml(c) : `<p class="hint">${t("stop.what")}</p>${takeOf(c).slice().reverse().map((to) => `<button class="btn wk-b" data-stopmv="${esc(to)}"${S.moving[key] ? " disabled" : ""}><span>${esc(cap1(t(TAKE[to])))}</span><small>${esc(colName(to))}</small></button>`).join("")}`;
   setHTML($("wk-dec"), `<h3 class="g" id="wk-dh">${t("decide.h")}</h3>${mine ? toastHtml() : ways}${W.stopErr?.[key] ? `<p class="pnote" role="status">${W.stopErr[key]}</p>` : ""}
@@ -2065,7 +2046,7 @@ function goNeed() {
 function ownerSend(action) {
   const c = workView()?.cur; if (!c || c.blocked !== "owner") return;
   const text = (W.bnotes[c.key] || "").trim(); if (!text) return $("wk-bnote")?.focus();
-  holdStart(c, action, text);
+  decideStart(c, action, text);
 }
 function paintCalm(v) {
   setHTML($("wk-swap"), SKEL.calm);
@@ -2264,12 +2245,6 @@ $("telem").addEventListener("keydown", (e) => {  // a chart by day is one tab st
   all.forEach((x, k) => { x.tabIndex = k === j ? 0 : -1; }); all[j].focus();
 });
 $("hcus").addEventListener("change", histDates);
-// An entry leaves S.pending before it is sent, by the timer or by leaving the page, so it goes out once.
-function sendPending(k, keep) {
-  const e = S.pending[k]; if (!e) return; clearTimeout(e.timer); delete S.pending[k];
-  return e.move ? sendMove(k, e, keep) : sendReorder(k, e, keep);
-}
-
 /* the wide card view: Sessions, Log, Gates, Review and Live of one card, over the page */
 // The tab a card opens on when none is asked for (or Review is, and the card has no page): a card waiting for the owner
 // opens on Review, or on Gates when it has no review page; loadCard() moves an automatic Gates to Sessions when there is no report.
@@ -2986,8 +2961,7 @@ document.addEventListener("click", (e) => {
   else if (t.dataset.mv) { if (L.hold?.key !== t.dataset.mv) tryHold(t.dataset.mv, "touch"); }
   else if (t.dataset.acc) drop(t.dataset.acc);
   else if (t.dataset.rord) { if (t.dataset.rord === "place") placeHeld(); else step(t.dataset.rord === "up" ? -1 : 1); }
-  else if (t.dataset.lt === "undo") undoLane();
-  else if (t.dataset.lt === "comment") openBox({ key: L.toast.key, from: L.toast.from, to: S.pending[L.toast.key]?.to || S.moving[L.toast.key] || L.toast.from, optional: true });
+  else if (t.dataset.lt === "comment") openBox({ key: L.toast.key, from: L.toast.from, to: S.moving[L.toast.key] || L.toast.from, optional: true });
   else if (t.id === "mgo") sendBox();
   else if (t.id === "mcancel") closeBox();
   else if (t.hasAttribute("data-resume")) resume(t.dataset.resume);
@@ -3133,7 +3107,7 @@ function palPageCards() {  // the project on screen, in board order
 function palActions() {  // what the page's buttons offer right now
   const o = S.overview, out = [], v = o && project() ? workView() : null;
   if (R.at) out.push({ id: "live", label: t("pal.live") });
-  if (v && v.mode === "decide" && deciding() && !W.hold) out.push({ id: "next", label: t("pal.next") });
+  if (v && v.mode === "decide" && deciding() && !W.flight) out.push({ id: "next", label: t("pal.next") });
   if (o && !o.paused && !o.silent) out.push({ id: "pause", label: t("pal.pause") });
   if (o?.paused && S.resuming === null) out.push({ id: "resume", label: t("pal.resume") });
   if (o) out.push({ id: "at", label: t("pal.at", { time: "" }) });
@@ -3232,7 +3206,6 @@ staticText();
 document.querySelectorAll("[data-maxable]").forEach((el) => el.insertAdjacentHTML("afterbegin", `<button class="max" data-max aria-label="${ta(`panel.${el.dataset.maxable}.max`)}" title="${ta("btn.maximize")}">${MAX}</button>`));
 $("dim").addEventListener("click", () => { if (maxed()) maximize(maxed(), false); else closeCard(); });
 // leaving the page sends what still waits its five seconds; switching tabs does not
-window.addEventListener("pagehide", () => { Object.keys(S.pending).forEach((k) => sendPending(k, true)); if (W.hold) holdSend(true); });  // true: fetch keepalive, which outlives the page
 window.addEventListener("pagehide", flushMarks);  // the review marks too; flushMarks sends with keepalive
 window.addEventListener("pageshow", (e) => { if (e.persisted) loadOverview(); });
 loadOverview();

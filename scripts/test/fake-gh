@@ -4,6 +4,8 @@ d="$FAKE_GH_DIR"
 [ -e "$d/fail" ] && { echo "gh: network error" >&2; exit 1; }
 args="$*"
 echo "$args" >> "$d/calls"
+# FAKE_GH_DELAY=<seconds>: every call takes that long, as a real gh does (the dashboard's latency checks).
+[ -n "${FAKE_GH_DELAY:-}" ] && sleep "$FAKE_GH_DELAY"
 # Failure injection (#173): FAKE_GH_FAIL_AT=<n> fails the n-th call (counted in $d/fail-count);
 # FAKE_GH_FAIL_CMD=<ERE> fails every call whose argv line matches. Both unset: no effect.
 if [ -n "${FAKE_GH_FAIL_AT:-}" ]; then
@@ -39,6 +41,31 @@ case "$args" in *updateProjectV2ItemPosition*)
     END { if (a == "") print row; for (k = 1; k <= n; k++) { print rows[k]; if (ids[k] == a) print row } }' "$d/items.tsv" > "$d/items.tsv.new" \
     && mv "$d/items.tsv.new" "$d/items.tsv"
   echo '{"data":{"updateProjectV2ItemPosition":{"clientMutationId":null}}}'; exit 0 ;;
+esac
+# The REST Projects API (what the dashboard's move uses; only with FAKE_GH_REST set, else it is not there and a REST read fails): the Status field with its numeric id 4242 and the options opt<i>,
+# the items in items.tsv's order (numeric id 1000000 + the card's number), and the PATCH of one item, recorded in $d/edits
+# in the form the GraphQL item-edit has ("rest-patch --id PVTI_<n> --field-id FLD_x --single-select-option-id opt<i>") and
+# its raw body in $d/patches. $d/fail-rest fails every projectsV2 call, $d/fail-patch only the PATCH.
+case "${FAKE_GH_REST:+$args}" in *projectsV2*)
+  [ -e "$d/fail-rest" ] && { echo "gh: HTTP 403: rate limit" >&2; exit 1; }
+  case "$args" in
+    "api -X PATCH "*)
+      [ -e "$d/fail-patch" ] && { echo "gh: HTTP 500" >&2; exit 1; }
+      file="${args##*--input }"; item="${args#*/items/}"; item="${item%% *}"
+      body="$(cat "$file")"; echo "$item $body" >> "$d/patches"
+      opt="$(printf '%s' "$body" | sed -n 's/.*"value": *"\([^"]*\)".*/\1/p')"
+      echo "rest-patch --id PVTI_$((item - 1000000)) --field-id FLD_x --single-select-option-id $opt" >> "$d/edits"
+      echo '{}'; exit 0 ;;
+    *"/fields"*)
+      printf '[{"id":1,"name":"Title","data_type":"title"},{"id":4242,"name":"Status","data_type":"single_select","options":['
+      i=0; sep=""; for s in "👤 Inbox" "👤 Ready for Refinement" "🤖 Technical Refinement" "👤 Spec Review" "👤 Ready for Dev" "🤖 Coding" "🤖 Validation" "👤 Staged" "👤 Ready for Prod" "🤖 Done"; do
+        i=$((i+1)); printf '%s{"id":"opt%s","name":{"raw":"%s","html":"%s"}}' "$sep" "$i" "$s" "$s"; sep=","; done
+      printf ']}]\n'; exit 0 ;;
+    *"/items"*)
+      case "$args" in "api -i "*) printf 'HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n' ;; esac
+      awk -F'\t' 'BEGIN { printf "[" } { n = $2; c = $3; printf "%s{\"id\":%d,\"node_id\":\"%s\",\"content\":{\"number\":%d},\"fields\":[{\"name\":\"Status\",\"value\":{\"name\":{\"raw\":\"%s\"}}}]}", (NR > 1 ? "," : ""), 1000000 + n, $1, n, c } END { print "]" }' "$d/items.tsv"
+      exit 0 ;;
+  esac ;;
 esac
 # The dispatcher's dependency read (#202): the issues a card is "Blocked by", a JSON array from $d/blocked-by-<n>
 # (default []). $d/fail-deps makes it fail. Every call is logged in $d/dep-calls.
