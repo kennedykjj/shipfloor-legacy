@@ -433,3 +433,73 @@ class CodexUsageLimit(ds.CodexCase):
                 self.assertEqual(outcome(rc, "work\n" + text + "\nmore\n"), "usage_limit", (rc, text))
         self.assertEqual(outcome(1, ("x\n" + "You’ve hit your usage limit").encode("utf-8")), "usage_limit", "a block as bytes")
         self.assertEqual((outcome(0, "all fine\n"), outcome(2, "boom\n")), ("ok", "fail"))
+
+
+class OpencodePipeline(ds.OpencodeCase):
+    """`runtime: opencode` over a fake `opencode`: the dispatcher runs each stage on it."""
+
+    def test_AC1_a_card_goes_through_the_stages_on_opencode(self):
+        "AC-1 runtime: opencode with a fake opencode: refine, develop and validate each run `opencode run --standalone --auto --agent sf-<stage> --format json` in control with `Card: #<n>` on stdin, and end on outcome=ok; claude is never started"
+        self.board(queues={"Ready for Refinement": 70, "Ready for Dev": 54, "Validation": 60})
+        self.assertEqual(self.cycle(), 0, self.err)
+        self.assertEqual(self.claude_calls(), [], "no fallback to Claude Code")
+        calls = {c["stdin"].split("Card: #")[-1].strip(): c for c in self.opencode_calls()}
+        self.assertEqual(sorted(calls), ["54", "60", "70"])
+        control = os.path.realpath(self.home + "/control")
+        for n, stage in (("70", "refine"), ("54", "develop"), ("60", "validate")):
+            call = calls[n]
+            self.assertEqual(call["argv"], ["run", "--standalone", "--auto", "--agent", "sf-" + stage, "--format", "json"])
+            self.assertEqual(call["stdin"], "Card: #%s\n" % n)
+            self.assertEqual(os.path.realpath(call["cwd"]), control)
+            self.assertEqual(os.path.realpath(call["pwd"]), control)
+            self.assertEqual(call["env"]["SHIPFLOOR_TRAILER"], "Co-Authored-By: opencode <noreply@opencode.ai>")
+            self.assertEqual((call["env"]["SHIPFLOOR_FACTORY"], call["env"]["SHIPFLOOR_RUN_LOCK"]),
+                             ("1", "%s/locks/%s-%s.lock" % (self.home, stage, n)))
+            log = self.log(stage, n).splitlines()
+            self.assertRegex(log[0], r"^== start /sf:%s %s %s pid=\d+ .*runtime=opencode$" % (stage, n, ISO))
+            self.assertRegex(log[-1], r"^== end /sf:%s %s exit=0 %s outcome=ok$" % (stage, n, ISO))
+
+
+class OpencodeUsageLimit(ds.OpencodeCase):
+    def run_stream(self, card, stream, exit_code):
+        """One develop run on the card whose stdout is the events; the last line of its log. Earlier logs are cleared."""
+        for f in os.listdir(os.path.join(self.home, "logs")):
+            os.unlink(os.path.join(self.home, "logs", f))
+        self.board(queues={"Ready for Dev": card})
+        self.set_fake(opencode={"stream": stream, "exit": exit_code})
+        self.assertEqual(self.cycle(), 0, self.err)
+        return self.log("develop", card).splitlines()[-1]
+
+    def test_AC6_an_error_event_of_the_provider_limit_is_the_outcome_and_the_next_cycle_waits(self):
+        "AC-6 a run whose log has an error event of type provider.quota or provider.rate-limit ends on outcome=usage_limit, and new runs wait as for the current limit; another error with exit 1 is outcome=fail"
+        last = self.run_stream(54, [{"type": "error", "error": {"type": "provider.auth", "message": "bad key"}}], 1)
+        self.assertRegex(last, r"^== end /sf:develop 54 exit=1 %s outcome=fail$" % ISO)
+        last = self.run_stream(56, [{"type": "text", "text": "working"},
+                                    {"type": "error", "error": {"type": "provider.rate-limit", "message": "slow down"}}], 1)
+        self.assertRegex(last, r"^== end /sf:develop 56 exit=1 %s outcome=usage_limit$" % ISO)
+        last = self.run_stream(57, [{"type": "error", "error": {"type": "provider.quota", "message": "limit reached"}}], 1)
+        self.assertRegex(last, r"^== end /sf:develop 57 exit=1 %s outcome=usage_limit$" % ISO)
+        self.board(queues={"Ready for Dev": 55})
+        self.launches = []
+        self.cycle(runs=False)
+        self.assertEqual(self.launches, [], "new runs wait")
+        self.assertRegex(self.out, r"(?i)opencode usage limit hit recently; waiting")
+
+    def test_AC6_outcome_of_the_adapter(self):
+        "AC-6 the adapter's outcome reads the JSON lines: usage_limit for an error event of the two limit types (whatever the exit code, bytes too), fail for another error or a nonzero exit, ok on exit 0, and a text that merely says the type is not an error event"
+        import runtimes
+        outcome = runtimes.get("opencode").outcome
+
+        def block(*events):
+            return "\n".join(e if isinstance(e, str) else json.dumps(e) for e in events) + "\n"
+
+        for kind in ("provider.quota", "provider.rate-limit"):
+            b = block({"type": "text", "text": "hi"}, {"type": "error", "error": {"type": kind}}, "not json at all")
+            for rc in (0, 1):
+                self.assertEqual(outcome(rc, b), "usage_limit", (kind, rc))
+            self.assertEqual(outcome(1, b.encode("utf-8")), "usage_limit", "a block as bytes")
+        says = block({"type": "text", "text": 'the error type is "provider.quota"'},
+                     {"type": "tool", "output": {"type": "error", "error": {"type": "provider.quota"}}})
+        self.assertEqual(outcome(0, says), "ok", "what the agent says or reads is not the CLI speaking")
+        other = block({"type": "error", "error": {"type": "provider.auth"}})
+        self.assertEqual((outcome(1, other), outcome(0, "all fine\n"), outcome(2, "boom\n")), ("fail", "ok", "fail"))
