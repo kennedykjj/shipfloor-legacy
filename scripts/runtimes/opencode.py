@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 from collections import deque
 from datetime import datetime, timezone
@@ -19,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # `python -I` l
 
 from inbox_hook import INTRO
 from runtimes import TOKEN_KINDS
+from runtimes import provider as provider_mod
 from shipfloor_core.defaults import OPENCODE_TRAILER
 
 NAME = "opencode"
@@ -102,9 +104,87 @@ def outcome(rc, block):
     return "ok" if rc == 0 else "fail"
 
 
+def _version(binary):
+    try:
+        r = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.search(r"(\d+)\.(\d+)\.(\d+)", r.stdout)
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def _machine_runtime():
+    """(runtime mapping, its provider mapping or None) of the machine config; ({}, None) when there is none or doctor
+    reports on it elsewhere."""
+    try:
+        import yaml
+        import shipfloor_config
+        from shipfloor_core import project
+        with open(os.path.join(project.shipfloor_home(), "config.yml"), encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+        if not isinstance(raw, dict) or shipfloor_config.runtime_problems(raw.get("runtime")):
+            return {}, None
+        provider = shipfloor_config.runtime_setting(raw, None, "provider")
+        runtime = raw.get("runtime") if isinstance(raw.get("runtime"), dict) else {}
+        return runtime, provider if isinstance(provider, dict) and provider.get("base_url") else None
+    except Exception:
+        return {}, None
+
+
+def _model_names(cfg):
+    """The model names a runtime/provider mapping uses, in order: its stages' (every weight), its agents', its ladder."""
+    models = cfg.get("models") if isinstance(cfg.get("models"), dict) else {}
+    names = []
+    for group in ("stages", "agents"):
+        for v in (models.get(group) or {}).values():
+            names += list(v.values()) if isinstance(v, dict) else [v]
+    names += cfg.get("ladder") or []
+    return list(dict.fromkeys(n for n in names if isinstance(n, str) and n))
+
+
+def _auth_providers(binary):
+    """The provider ids `opencode auth list` shows a credential for (the first word of each line); None when it fails."""
+    try:
+        r = subprocess.run([binary, "auth", "list"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    return {line.split()[0].lower() for line in r.stdout.splitlines() if line.split()}
+
+
 def doctor():
-    """[(found, "opencode: opencode")]: the binary (more checks come with the readers)."""
-    return [(shutil.which(BINARY) is not None, "%s: opencode" % NAME)]
+    """[(found, "opencode: opencode"[, what to say when not found])]: the binary and its version (2.x; 1.x is told how to
+    move), the generated OPENCODE_CONFIG_DIR, and either the runtime.provider's endpoint (chat completions) or the
+    credentials `opencode auth list` shows for the providers of the configured models."""
+    binary, home = shutil.which(BINARY), data_dir()
+    out = [(binary is not None, "%s: opencode" % NAME)]
+    if binary is None:
+        return out
+    version = _version(binary)
+    if version is not None and version[0] < 2:
+        out.append((False, "%s: opencode version" % NAME, "%s: opencode %s is 1.x, which is not supported; migrate to opencode 2.x "
+                    "(install the 2.x CLI, see docs/install.md)" % (NAME, ".".join(map(str, version)))))
+    made = (home / "opencode.json").is_file() and any((home / "agents").glob("sf-*.md"))
+    out.append((made, "%s: generated config in OPENCODE_CONFIG_DIR %s" % (NAME, home),
+                "%s: OPENCODE_CONFIG_DIR %s is not generated; run shipfloor install" % (NAME, home)))
+    runtime, provider = _machine_runtime()
+    if provider:
+        names = [n[len(PROVIDER_ID) + 1:] if n.startswith(PROVIDER_ID + "/") else n for n in _model_names(provider)]
+        for kind, text in provider_mod.check(provider["base_url"], names, provider.get("api_key_env") or "", wire="chat"):
+            out.append((True, text) if kind == "ok" else (False, text, text))
+        ignored = [k for k in ("models", "ladder") if runtime.get(k)]
+        if ignored:
+            out.append(("WARN", "runtime.%s ignored: there is a runtime.provider (its own models and ladder count)"
+                        % "/runtime.".join(ignored)))
+    else:
+        wanted = list(dict.fromkeys(n.split("/", 1)[0].lower() for n in _model_names(runtime) if "/" in n))
+        if wanted:
+            have = _auth_providers(binary)
+            for p in wanted:
+                out.append((have is not None and p in have, "%s: credential for provider %s" % (NAME, p),
+                            "%s: no credential for provider %s; run opencode auth login" % (NAME, p)))
+    return out
 
 
 # --- cost and sessions: read from opencode's own database --------------------------------------------------------------
