@@ -38,7 +38,7 @@ def jq(filt, text):
 
 class FakeGh:
     """gh as the board sees it. items: [(number, marked status)] in board order ("draft" is a draft issue); flags:
-    rest-fail, gql-fail, patch-fail, fail (every call), fail-delete, fail-labels-<n>, empty-user, no-pageinfo (a
+    rest-fail, gql-fail, patch-fail, fail (every call), fail-delete, fail-labels-<n>, closed-<n> (the issue is closed), empty-user, no-pageinfo (a
     GraphQL answer without pageInfo, at most first: N items), no-status-field; files: labels-<n>, issue-<n>.json,
     infra, drop-option (a column the board has no option for)."""
 
@@ -109,7 +109,8 @@ class FakeGh:
             if "fail-labels-" + m.group(1) in self.flags or "fail-labels" in self.flags:
                 return 1, "", "gh: HTTP 502\n"
             labels = [l.rstrip("\r") for l in self.files.get("labels-" + m.group(1), "").split("\n") if l]
-            return emit(json.dumps({"number": int(m.group(1)), "labels": [{"name": l} for l in labels]}))
+            state = "closed" if "closed-" + m.group(1) in self.flags else "open"
+            return emit(json.dumps({"number": int(m.group(1)), "state": state, "labels": [{"name": l} for l in labels]}))
         if argv[:2] == ["issue", "view"]:
             return 0, self.files.get("issue-%s.json" % argv[2], ""), ""
         return 9, "", "fake gh: unexpected: %s\n" % joined

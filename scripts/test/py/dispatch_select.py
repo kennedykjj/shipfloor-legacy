@@ -629,6 +629,37 @@ class RefreshStaged(Base):
         self.assertIn("refresh ran for 35", open(log).read())
 
 
+class FinishClosed(Base):
+    def closed(self, text):
+        d = os.path.join(self.tmp, "board", "closed")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "Ready for Prod"), "w") as f:
+            f.write(text)
+
+    def moves(self):
+        return [c for c in self.board_calls() if c.startswith("move ")]
+
+    def test_closed_card_goes_to_done(self):
+        "a Ready for Prod card whose issue is closed (its PR merged by hand) is moved to Done and says so"
+        self.closed("35\n")  # the deploy's own queue skips a card labelled blocked: nothing else would take it
+        self.cycle(runs=False)
+        self.assertEqual(self.moves(), ["move 35 Done"])
+        self.assertIn("dispatch: #35 is closed and in Ready for Prod; moved to Done", self.out)
+
+    def test_busy_card_is_left(self):
+        "a card with a live run is not moved"
+        self.lock("deploy-35")
+        self.closed("35\n")
+        self.cycle(runs=False)
+        self.assertEqual(self.moves(), [])
+
+    def test_read_failure_fails_the_cycle(self):
+        "a failed read of the closed cards fails the cycle and moves nothing"
+        self.board(fail={"closed Ready for Prod": "gh: HTTP 502"})
+        self.assertEqual(self.cycle(runs=False), 1)
+        self.assertEqual(self.moves(), [])
+
+
 class Exits(Base):
     def test_invalid_project_config(self):
         "an invalid project config: exit 2, on stderr, nothing on stdout, the board never read"
