@@ -6,7 +6,7 @@ project:
   name: shipfloor
   repo: kennedykjj/shipfloor
 board: {owner: kennedykjj, number: 3}
-context: [PRODUCT.md, DESIGN.md, README.md]
+context: [PRODUCT.md, README.md]   # DESIGN.md (37 KB) is the ux-designer's, read by section; the other agents never needed it
 # acceptance-intact lets through an edit to an acceptance test that adds or removes none of these lines.
 acceptance_assertions: 'assert_|pass "|fail "'
 limits:

@@ -197,7 +197,7 @@ def _resolve(v, tok, depth=0):
 
 
 def surface_problems(h):
-    """#120: the decision column's well (.idec, blended over the panel) and the Approve pill's hover keep their text at 4.5:1"""
+    """#120, #182: the work area's Your decision panel (.wk-dec, blended over the panel) keeps its text at 4.5:1 in every theme"""
     blocks = themes(h)
     base = blocks["charcoal"]
     css = re.sub(r"/\*.*?\*/", "", h[h.index("<style>") + 7:h.index("</style>")], flags=re.S)
@@ -211,8 +211,7 @@ def surface_problems(h):
                 if m:
                     return m.group(1).replace("!important", "").strip()
         return ""
-    idec_bg, hov_bg = decl(lambda s: s == ".idec", "background"), decl(lambda s: ".pill:hover" in s, "background")
-    pill_fg = decl(lambda s: s == ".stub .pill, .edit .pill", "color")
+    idec_bg = decl(lambda s: s == ".wk-dec", "background")
     bad = []
     for name, t in sorted(blocks.items()):
         tok = lambda k: t.get(k, base.get(k, "")).strip()  # a theme that omits a token inherits the base one
@@ -223,15 +222,9 @@ def surface_problems(h):
             for fg in ("text", "soft", "muted"):
                 r = ratio_l(lum_rgb(_resolve(tok(fg), tok)[:3]), lum_rgb(under))
                 if r < 4.5:
-                    bad.append("%s: %s on the .idec background is %.2f:1" % (name, fg, r))
+                    bad.append("%s: %s on the .wk-dec background is %.2f:1" % (name, fg, r))
         except ValueError:
-            bad.append("%s: cannot resolve the .idec background %r" % (name, idec_bg))
-        try:
-            r = ratio_l(lum_rgb(_resolve(pill_fg, tok)[:3]), lum_rgb(_resolve(hov_bg, tok)[:3]))
-            if r < 4.5:
-                bad.append("%s: the pill's text on its hover background is %.2f:1" % (name, r))
-        except ValueError:
-            bad.append("%s: cannot resolve the pill's hover colors (%r on %r)" % (name, pill_fg, hov_bg))
+            bad.append("%s: cannot resolve the .wk-dec background %r" % (name, idec_bg))
     return bad
 
 

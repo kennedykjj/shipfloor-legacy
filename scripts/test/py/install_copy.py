@@ -561,3 +561,76 @@ class Doctor(InstallCase):
         self.assertIn("WARN health: develop: more runs than the limit (~/.shipfloor/logs/health-*.jsonl)", out)
         self.assertIn("WARN models: models.stages.nosuch: not a stage or an agent here", out)
         self.assertNotIn("ok   models", out)
+
+
+class OpencodeHome(InstallCase):
+    """The factory's opencode config folder (SHIPFLOOR_OPENCODE_HOME), generated at install from skills/ and agents/."""
+    STAGES = ("refine", "develop", "validate", "deploy")
+
+    def plugin(self):
+        src = self.v1()
+        real = os.path.join(SCRIPTS, "runtimes")
+        shutil.copytree(real, os.path.join(src, "scripts", "runtimes"), ignore=shutil.ignore_patterns("__pycache__"))
+        for stage in self.STAGES:
+            self.put(os.path.join(src, "skills", stage, "SKILL.md"),
+                     "---\nname: %s\ndescription: Stage %s of the factory\nargument-hint: <n>\n---\n\nStep 1. Do the %s work.\n"
+                     "<!-- rt:claude-code -->CLAUDE-ONLY<!-- /rt --><!-- rt:opencode -->OC-ONLY-%s<!-- /rt -->"
+                     "<!-- rt:codex -->CODEX-ONLY<!-- /rt -->\n" % (stage, stage, stage, stage))
+        for name in ("architect", "reviewer"):
+            self.put(os.path.join(src, "agents", name + ".md"),
+                     "---\nname: %s\ndescription: The %s\ntools: Read, Grep\nmodel: sonnet\n---\n\nYou are the %s.\n"
+                     "<!-- rt:opencode -->OC-AGENT-%s<!-- /rt -->\n" % (name, name, name, name))
+        self.put(os.path.join(src, "templates", "opencode", "sf-inbox.ts"), "// the inbox plugin\nexport default {}\n")
+        return src
+
+    @staticmethod
+    def split(text):
+        """(frontmatter mapping, body) of a generated agent file."""
+        import yaml
+        head, front, body = text.split("---\n", 2)
+        return yaml.safe_load(front), body
+
+    def files(self, home):
+        out = {}
+        for d, _, names in os.walk(home):
+            for f in names:
+                p = os.path.join(d, f)
+                st = os.stat(p)
+                out[os.path.relpath(p, home)] = (self.read(p), st.st_mtime_ns, st.st_ino)
+        return out
+
+    def test_AC3_install_generates_the_opencode_home_and_a_second_install_changes_nothing(self):
+        "AC-3 with runtime.models.agents set, install writes opencode.json (update disabled), one primary agent sf-<stage> per stage from skills/ (this runtime's blocks only, no Claude frontmatter), a subagent per agents/ file with its configured model, and the inbox plugin; the second install rewrites nothing"
+        home = os.environ["SHIPFLOOR_OPENCODE_HOME"] = self.path("opencode-home")
+        self.put(os.path.join(self.home, "config.yml"), "runtime:\n  default: opencode\n  models:\n    agents: {architect: acme/big}\n")
+        src = self.plugin()
+        self.assertEqual(self.sf(src, "install"), 0, self.err)
+        self.assertTrue(os.path.isfile(os.path.join(home, "opencode.json")), "the opencode home is generated at install")
+        self.assertEqual(json.loads(self.read(os.path.join(home, "opencode.json")))["update"], "disable")
+        for stage in self.STAGES:
+            front, body = self.split(self.read(os.path.join(home, "agents", "sf-%s.md" % stage)))
+            self.assertEqual(front["mode"], "primary", stage)
+            self.assertTrue(front["description"], stage)
+            self.assertIn("OC-ONLY-" + stage, body)
+            self.assertIn("Do the %s work" % stage, body)
+            for left in ("CLAUDE-ONLY", "CODEX-ONLY", "argument-hint", "rt:opencode"):
+                self.assertNotIn(left, body, stage)
+            for what in ("CLAUDE.md", "AGENTS.md", "inbox"):
+                self.assertIn(what, body, "the stage reads the project's files and the owner's inbox itself: " + stage)
+        arch, _ = self.split(self.read(os.path.join(home, "agents", "architect.md")))
+        rev, rbody = self.split(self.read(os.path.join(home, "agents", "reviewer.md")))
+        self.assertEqual((arch["mode"], arch["model"]), ("subagent", "acme/big"))
+        self.assertEqual(rev["mode"], "subagent")
+        self.assertNotIn("model", rev, "an agent with no configured model keeps none (the frontmatter's is Claude Code's alias)")
+        self.assertIn("OC-AGENT-reviewer", rbody)
+        self.assertEqual(self.read(os.path.join(home, "plugins", "sf-inbox.ts")), self.read(os.path.join(src, "templates", "opencode", "sf-inbox.ts")))
+        first = self.files(home)
+        self.assertEqual(self.sf(src, "install"), 0, self.err)
+        self.assertEqual(self.files(home), first)
+
+    def test_AC3_no_opencode_runtime_no_opencode_home(self):
+        "AC-3 without runtime: opencode nothing is generated"
+        home = os.environ["SHIPFLOOR_OPENCODE_HOME"] = self.path("opencode-home")
+        src = self.plugin()
+        self.assertEqual(self.sf(src, "install"), 0, self.err)
+        self.assertEqual(os.listdir(home), [])

@@ -104,8 +104,7 @@ for code in cats:
         if tags(m) != tags(en[k]): bad.append(f"{k}: markup {tags(m)}, English has {tags(en[k])}")
     check(f"{code}: every message keeps the English one's values, plural forms and markup", not bad, bad)
 
-# the decision brief (#179, AC-8): its labels are catalog keys (brief.*, pass.verdict.*) with the spec's English text;
-# the languages not translated yet carry that English text, so they read in English
+# the decision brief (#179, AC-8): its labels are catalog keys (brief.*, pass.verdict.*) with the spec's English text
 want = {
     "What you approve": "caption", "Needs your eyes": "caption", "Since your request": "caption", "What the gates proved": "caption",
     "The rest ({n})": "caption", "routine": "pill", "written by the product owner": "chip", "written by the review agent": "chip",
@@ -119,11 +118,28 @@ points = [v for v in ours.values() if "point" in v]
 check("AC-8 the verdict point count is one message with a plural: '1 point' / '{n} points'",
       any("plural" in v and re.search(r"one\s*\{[^}]*\bpoint\}", v) and re.search(r"other\s*\{[^}]*\bpoints\}", v) for v in points)
       or ({"1 point", "{n} points"} <= set(ours.values())), points)
+
+# English left in another language: a value equal to the English one is a string nobody translated, unless every word of
+# it is a name or a code the languages share (TERMS), or the word is that language's own too (SAME). pt-BR, the owner's
+# language, is checked on every key; every language on the namespaces that are translated in all of them (STRICT).
+TERMS = {"shipfloor", "deploy", "worktree", "product", "owner", "cybersec", "gates", "pull", "request", "pr", "dispatcher", "log",
+         "offline", "ok", "kraft", "terminal", "paper", "graphite", "cobalt", "card", "cards", "cache", "stack", "build",
+         "est", "min", "h", "m", "d", "s", "us", "exit", "sub"}
+SAME = {"fr": {"pass.verdict.routine", "pass.verdict.one", "pass.verdict.n", "outcome.infra"}}
+STRICT = ("brief.", "pass.verdict.", "health.", "pal.", "outcome.", "gates.")
+ALL_KEYS = {"pt-BR"}
+words = lambda v: re.findall(r"[^\W\d_]+", re.sub(r"<[^>]+>", "", re.sub(r"\{[^{}]*\}", "", v)).lower())
 for code in cats:
     if code == "en": continue
     msgs = load(code)["messages"]
-    diff = sorted(k for k in ours if msgs.get(k) != ours[k])
-    check(f"AC-8 {code}: the brief's keys carry the English text until translated", bool(ours) and not diff, diff or "no brief.* or pass.verdict.* keys in English")
+    scope = [k for k in en if code in ALL_KEYS or k.startswith(STRICT)]
+    same = sorted(k for k in scope if msgs.get(k) == en[k] and k not in SAME.get(code, set()) and not set(words(en[k])) <= TERMS)
+    check(f"{code}: no English left in {'any key' if code in ALL_KEYS else ', '.join(s + '*' for s in STRICT)}", not same, same)
+check("AC-8 the brief's keys are in every catalog's strict scope", all(k.startswith(STRICT) for k in ours) and bool(ours), sorted(ours))
+# the check bites: an English value copied into pt-BR is found, a shared name is not
+pt = load("pt-BR")["messages"]
+check("the English-left check finds a copied sentence and lets a shared name through",
+      not set(words(en["brief.what"])) <= TERMS and set(words(en["theme.paper"])) <= TERMS and set(words(en["work.pr"])) <= TERMS, "")
 print("\n".join(res))
 PY
 )"

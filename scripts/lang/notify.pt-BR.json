@@ -17,7 +17,7 @@
     "deploy": "deploy",
     "Shipfloor · the factory is stuck": "Shipfloor · a fábrica travou",
     "{project} · the factory is stuck": "{project} · a fábrica travou",
-    "The Claude usage limit was hit. New runs wait for it to reset.": "O limite de uso do Claude foi atingido. Novas execuções esperam ele voltar.",
+    "The {runtime} usage limit was hit. New runs wait for it to reset.": "O limite de uso do {runtime} foi atingido. Novas execuções esperam ele voltar.",
     "The dispatcher skips this project. The dashboard says why.": "O dispatcher está pulando este projeto. O dashboard diz por quê.",
     "No card moved for an hour and nothing is paused.": "Nenhum card andou em uma hora e nada está pausado.",
     "usage limit hit": "limite de uso atingido",

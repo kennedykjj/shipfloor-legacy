@@ -26,6 +26,14 @@ assert_contains "$(last 'sorted(d["stacks"])')" "['busy', 'queue', 'total']"
 assert_contains "$(health alerts)" "two dispatcher cycles ran at once"
 assert_exit 2 health bogus
 
+# today's runs that ended with stopped=<why> are counted by why, per project (a run that did its stage is not)
+day="$(date +%Y-%m-%d)"
+printf '== start /sf:develop 26\n== end /sf:develop 26 exit=0 %sT10:00:00-03:00 stopped=no-report outcome=ok\n' "$day" > "$P/logs/$day-26-develop.log"
+printf '== end /sf:develop 27 exit=0 %sT10:05:00-03:00 stopped=no-report outcome=ok\n' "$day" > "$P/logs/$day-27-develop.log"
+printf '== end /sf:develop 28 exit=0 %sT10:09:00-03:00 outcome=ok\n' "$day" > "$P/logs/$day-28-develop.log"
+health record --seconds 1 --exit 0
+assert_contains "$(last 'd["projects"]["shop"]["stopped_runs"]')" "{'no-report': 2}"
+
 # the dispatcher writes the line at the end of every cycle, and a cycle that finds another one running says so
 export SHIPFLOOR_HOME="$H"; : > "$P/board.tsv"; printf '#!/usr/bin/env bash\nexit 0\n' > "$H/fake-dispatch"
 r="$(new_repo)"; mkdir -p "$r/.shipfloor"; cp "$FACTORY_DIR/test/fixture/factory.yml" "$r/.shipfloor/factory.yml"

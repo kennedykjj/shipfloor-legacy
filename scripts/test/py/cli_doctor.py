@@ -2,10 +2,12 @@
 dispatcher (through the real installer/install-dispatcher.sh --status, the machine faked by stand-ins), every project's
 config, language, tmp dirs, SKIPPED, control checkout and branch protection, and the models line; its exit code."""
 import os
+import shutil
 import sys
 from unittest import mock
 
-from cli_support import CliCase, ROOT, git, plugin_copy
+import fake_llm
+from cli_support import CliCase, ROOT, git, plugin_copy, script
 from shipfloor_core import cli
 
 SCRIPTS_HERE = cli.HERE
@@ -54,6 +56,215 @@ class Doctor(CliCase):
         out = self.doctor()
         self.assertEqual(out.count("claude-code: claude"), 1, out)
 
+    def fake_codex(self):
+        """A `codex` first on PATH: --version prints one, `login status` fails while $SF_ST/codex-logged-out exists."""
+        script(os.path.join(self.path("bin"), "codex"), '#!/usr/bin/env bash\ncase "$*" in\n'
+               '  --version) echo "codex-cli 0.200.0" ;;\n'
+               '  "login status") [ -e "$SF_ST/codex-logged-out" ] && { echo "Not logged in" >&2; exit 1; }; echo "Logged in using ChatGPT" ;;\n'
+               'esac\n')
+
+    def test_AC8_codex_lines(self):
+        "AC-8 with runtime: codex doctor says ok or FAIL for the codex binary, its login (or CODEX_API_KEY) and the generated CODEX_HOME; claude-code alone says nothing of codex"
+        self.fake_codex()
+        os.environ.pop("CODEX_API_KEY", None)
+        home = os.environ["SHIPFLOOR_CODEX_HOME"] = os.path.join(self.st, "codex-home")
+        self.write_file(os.path.join(self.sh, "config.yml"), "runtime: codex\n")
+        out = self.doctor()
+        self.assertIn("ok   codex: codex", out)
+        self.assertRegex(out, r"(?mi)^ok   .*(login|logged in)")
+        self.assertRegex(out, r"(?m)^FAIL .*CODEX_HOME", "nothing generated yet")
+        self.assertEqual(self.rc, 1)
+        self.write_file(os.path.join(home, "config.toml"), "# generated\n")
+        self.write_file(os.path.join(home, "agents", "architect.toml"), "name = 'architect'\n")
+        out = self.doctor()
+        self.assertRegex(out, r"(?m)^ok   .*CODEX_HOME")
+        self.assertNotRegex(out, r"(?m)^FAIL .*CODEX_HOME")
+        self.write_file(os.path.join(self.st, "codex-logged-out"), "")
+        self.assertRegex(self.doctor(), r"(?mi)^FAIL .*(login|logged in)")
+        os.environ["CODEX_API_KEY"] = "sk-test"
+        self.assertRegex(self.doctor(), r"(?mi)^ok   .*(login|logged in)")
+        real = shutil.which
+        with mock.patch.object(shutil, "which", lambda name, *a, **k: None if name == "codex" else real(name, *a, **k)):
+            self.assertIn("FAIL codex: codex", self.doctor())
+        self.write_file(os.path.join(self.sh, "config.yml"), "runtime: claude-code\n")
+        out = self.doctor()
+        self.assertIn("ok   claude-code: claude", out)
+        self.assertNotIn("codex", out.lower())
+
+    def test_AC3_models_stages_warns_off_claude_code(self):
+        "AC-3 models.stages.<stage> set while that stage runs on another runtime is a WARN naming the key; on claude-code it is not"
+        self.fake_codex()
+        os.environ["SHIPFLOOR_CODEX_HOME"] = os.path.join(self.st, "codex-home")
+        self.write_file(os.path.join(self.sh, "config.yml"), "runtime: {stages: {develop: codex}}\nmodels:\n  stages: {develop: opus}\n")
+        self.assertRegex(self.doctor(), r"(?m)^WARN .*models\.stages\.develop")
+        self.write_file(os.path.join(self.sh, "config.yml"), "models:\n  stages: {develop: opus}\n")
+        self.assertNotRegex(self.doctor(), r"(?m)^WARN .*models\.stages\.develop")
+
+    KEY = "SF_LLM_KEY"
+    SECRET = "sk-doctor-151-c41e8b"
+
+    def provider_doctor(self, mode="ok", models=("qwen3-coder",), model="qwen3-coder", key=True, runtime_extra=""):
+        """doctor with runtime.provider on a fake endpoint (mode, the models it serves), the model the config names and the key
+        variable set or not. Returns (output, endpoint)."""
+        llm = fake_llm.FakeLLM(mode, models)
+        self.addCleanup(llm.stop)
+        self.fake_codex()
+        home = os.environ["SHIPFLOOR_CODEX_HOME"] = os.path.join(self.st, "codex-home")
+        self.write_file(os.path.join(home, "config.toml"), "# generated\n")
+        self.write_file(os.path.join(home, "agents", "architect.toml"), "name = 'architect'\n")
+        if key:
+            os.environ[self.KEY] = self.SECRET
+        else:
+            os.environ.pop(self.KEY, None)
+        self.write_file(os.path.join(self.sh, "config.yml"),
+                        "runtime:\n  default: codex\n%s  provider:\n    base_url: %s\n    api_key_env: %s\n"
+                        "    models: {stages: {develop: %s}}\n" % (runtime_extra, llm.base_url, self.KEY, model))
+        return self.doctor(), llm
+
+    @staticmethod
+    def fails(out):
+        return {l for l in out.splitlines() if l.startswith("FAIL")}
+
+    def test_AC7_provider_lines_ok(self):
+        "AC-7 with a provider that is up, serves the model, has its key variable and /responses doctor says ok for each and prints no provider FAIL"
+        out, llm = self.provider_doctor()
+        for what in (self.KEY, "qwen3-coder", llm.host):
+            self.assertRegex(out, r"(?m)^ok   .*%s" % what.replace(".", r"\."), "an ok line for %s" % what)
+        self.assertFalse([l for l in self.fails(out) if self.KEY in l or "qwen3-coder" in l or llm.host in l or "opencode" in l], out)
+        self.assertNotRegex(out, r"(?m)^WARN .*runtime\.models", "nothing is ignored")
+
+    def test_AC7_each_provider_failure_has_its_own_line(self):
+        "AC-7 an endpoint that is down, a model the endpoint does not serve, a missing key variable and an endpoint without /responses (naming opencode) are four different FAIL lines, and doctor exits 1"
+        base = self.fails(self.provider_doctor()[0])
+        down, llm_down = self.provider_doctor("down")
+        absent, _ = self.provider_doctor(model="missing-model")
+        nokey, _ = self.provider_doctor(key=False)
+        noresp, _ = self.provider_doctor("no-responses")
+        new = {n: self.fails(o) - base for n, o in (("down", down), ("model", absent), ("key", nokey), ("responses", noresp))}
+        for name, lines in new.items():
+            self.assertTrue(lines, "%s: a FAIL line of its own: %s" % (name, new))
+        self.assertTrue([l for l in new["down"] if llm_down.host in l], new["down"])
+        self.assertTrue([l for l in new["model"] if "missing-model" in l], new["model"])
+        self.assertTrue([l for l in new["key"] if self.KEY in l], new["key"])
+        self.assertTrue([l for l in new["responses"] if "opencode" in l and "responses" in l], new["responses"])
+        for name in ("down", "model", "key"):
+            self.assertFalse([l for l in new[name] if "opencode" in l], "only the missing /responses suggests opencode: %s" % name)
+        self.assertFalse([l for l in new["model"] if self.KEY in l] + [l for l in new["key"] if "missing-model" in l])
+        names = list(new)
+        for i, a in enumerate(names):
+            for b in names[i + 1:]:
+                self.assertNotEqual(new[a], new[b], "%s and %s say the same" % (a, b))
+        self.assertEqual(self.rc, 1)
+
+    def test_AC7_runtime_models_beside_a_provider_is_a_warning(self):
+        "AC-7 runtime.models set beside a provider: a WARN that it is ignored (and no WARN without it)"
+        out, _ = self.provider_doctor(runtime_extra="  models: {stages: {develop: gpt-6-mini}}\n")
+        self.assertRegex(out, r"(?m)^WARN .*runtime\.models.*ignor")
+
+    def test_AC8_the_key_is_not_in_the_output_nor_in_a_file(self):
+        "AC-8 the key's value is in no doctor line, even when the endpoint fails, and in no file under the Shipfloor home or the CODEX_HOME"
+        outs = [self.provider_doctor()[0], self.provider_doctor("no-responses")[0], self.provider_doctor(model="missing-model")[0]]
+        for out in outs:
+            self.assertNotIn(self.SECRET, out)
+        self.assertIn("qwen3-coder", outs[0], "the doctor said something about the provider")
+        for root in (self.sh, os.environ["SHIPFLOOR_CODEX_HOME"]):
+            for d, _, files in os.walk(root):
+                for f in files:
+                    with open(os.path.join(d, f), "rb") as fh:
+                        self.assertNotIn(self.SECRET.encode(), fh.read(), os.path.join(d, f))
+
+    def fake_opencode(self, version="2.0.3"):
+        """An `opencode` first on PATH: --version prints <version>; `auth list` names the provider `acme` unless
+        $SF_ST/opencode-no-auth exists."""
+        os.environ["SF_OC_VERSION"] = version
+        script(os.path.join(self.path("bin"), "opencode"), '#!/usr/bin/env bash\ncase "$*" in\n'
+               '  --version) echo "$SF_OC_VERSION" ;;\n'
+               '  "auth list") [ -e "$SF_ST/opencode-no-auth" ] || echo "acme  api" ;;\n'
+               'esac\n')
+
+    def generate_opencode(self, home):
+        self.write_file(os.path.join(home, "opencode.json"), '{"update": "disable"}\n')
+        self.write_file(os.path.join(home, "agents", "sf-develop.md"), "---\nmode: primary\n---\nbody\n")
+
+    def test_AC8_opencode_lines(self):
+        "AC-8 with runtime: opencode doctor says FAIL with the migration instruction for opencode 1.x, FAIL for a config not generated and ok for each once opencode 2.x and the generated config are there; claude-code alone says nothing of opencode"
+        self.fake_opencode("1.4.2")
+        home = os.environ["SHIPFLOOR_OPENCODE_HOME"] = os.path.join(self.st, "opencode-home")
+        self.write_file(os.path.join(self.sh, "config.yml"), "runtime:\n  default: opencode\n  models:\n    stages: {develop: acme/mini}\n")
+        out = self.doctor()
+        self.assertRegex(out, r"(?m)^FAIL opencode:.*1\.x.*2\.x", "the instruction to move to opencode 2.x")
+        self.assertRegex(out, r"(?m)^FAIL .*opencode.*(generated|install)", "nothing generated yet")
+        self.assertEqual(self.rc, 1)
+        self.fake_opencode("2.0.3")
+        out = self.doctor()
+        self.assertIn("ok   opencode: opencode", out)
+        self.assertNotRegex(out, r"(?m)^FAIL opencode:.*1\.x")
+        self.assertRegex(out, r"(?m)^FAIL .*opencode.*(generated|install)")
+        self.generate_opencode(home)
+        out = self.doctor()
+        self.assertFalse([l for l in self.fails(out) if "opencode" in l.lower()], out)
+        self.assertRegex(out, r"(?m)^ok   .*opencode.*(generated|%s)" % "opencode-home")
+        os.remove(os.path.join(home, "agents", "sf-develop.md"))
+        self.assertRegex(self.doctor(), r"(?m)^FAIL .*opencode.*(generated|install)", "no stage agent")
+        real = shutil.which
+        with mock.patch.object(shutil, "which", lambda name, *a, **k: None if name == "opencode" else real(name, *a, **k)):
+            self.assertIn("FAIL opencode: opencode", self.doctor())
+        self.write_file(os.path.join(self.sh, "config.yml"), "runtime: claude-code\n")
+        out = self.doctor()
+        self.assertIn("ok   claude-code: claude", out)
+        self.assertNotIn("opencode", out.lower())
+
+    OC_KEY = "SF_LLM_KEY"
+    OC_SECRET = "sk-doctor-152-77ab31"
+
+    def opencode_provider_doctor(self, mode="chat-only", models=("qwen3-coder",), model="sf/qwen3-coder", key=True):
+        """doctor with runtime opencode and runtime.provider on a fake endpoint (mode, the models it serves), the model
+        the config names (`sf/` is the provider, the endpoint serves the rest) and the key variable set or not."""
+        llm = fake_llm.FakeLLM(mode, models)
+        self.addCleanup(llm.stop)
+        self.fake_opencode()
+        self.generate_opencode(os.environ.setdefault("SHIPFLOOR_OPENCODE_HOME", os.path.join(self.st, "opencode-home")))
+        if key:
+            os.environ[self.OC_KEY] = self.OC_SECRET
+        else:
+            os.environ.pop(self.OC_KEY, None)
+        self.write_file(os.path.join(self.sh, "config.yml"),
+                        "runtime:\n  default: opencode\n  provider:\n    base_url: %s\n    api_key_env: %s\n"
+                        "    models: {stages: {develop: %s}}\n" % (llm.base_url, self.OC_KEY, model))
+        return self.doctor(), llm
+
+    def test_AC8_opencode_provider_lines_ok(self):
+        "AC-8 with runtime.provider on an endpoint that serves chat completions only, doctor says ok for the key variable, the model and the endpoint, asks it a one-token chat completion, never asks for /responses, and prints no FAIL"
+        out, llm = self.opencode_provider_doctor()
+        for what in (self.OC_KEY, "qwen3-coder", llm.host):
+            self.assertRegex(out, r"(?m)^ok   .*%s" % what.replace(".", r"\."), "an ok line for %s" % what)
+        self.assertEqual([l for l in self.fails(out) if "opencode" in l.lower() or "provider" in l.lower()], [], out)
+        self.assertIn("POST /v1/chat/completions", llm.paths)
+        self.assertEqual([b.get("max_tokens") for b in llm.bodies if b][:1], [1])
+        self.assertFalse([p for p in llm.paths if "/responses" in p], llm.paths)
+        self.assertNotIn(self.OC_SECRET, out)
+
+    def test_AC8_opencode_each_provider_failure_has_its_own_line(self):
+        "AC-8 an endpoint without /v1/chat/completions, one that is down, a model it does not serve and a missing key variable are four different FAIL lines, and doctor exits 1"
+        base = self.fails(self.opencode_provider_doctor()[0])
+        nochat, llm_nochat = self.opencode_provider_doctor("ok")  # serves /responses, not chat completions
+        down, llm_down = self.opencode_provider_doctor("down")
+        absent, _ = self.opencode_provider_doctor(model="sf/missing-model")
+        nokey, _ = self.opencode_provider_doctor(key=False)
+        new = {n: self.fails(o) - base for n, o in (("chat", nochat), ("down", down), ("model", absent), ("key", nokey))}
+        for name, lines in new.items():
+            self.assertTrue(lines, "%s: a FAIL line of its own: %s" % (name, new))
+        self.assertTrue([l for l in new["chat"] if "chat/completions" in l], new["chat"])
+        self.assertTrue([l for l in new["down"] if llm_down.host in l], new["down"])
+        self.assertTrue([l for l in new["model"] if "missing-model" in l], new["model"])
+        self.assertTrue([l for l in new["key"] if self.OC_KEY in l], new["key"])
+        names = list(new)
+        for i, a in enumerate(names):
+            for b in names[i + 1:]:
+                self.assertNotEqual(new[a], new[b], "%s and %s say the same" % (a, b))
+        self.assertEqual(self.rc, 1)
+        self.assertNotIn(self.OC_SECRET, nochat + down + absent + nokey)
+
     def test_dispatcher_line(self):
         "doctor says whether a dispatcher is registered (cron here); a missing one is a WARN that leaves the exit code alone; none on Windows"
         out = self.doctor()
@@ -66,6 +277,15 @@ class Doctor(CliCase):
         self.assertEqual(self.rc, without)
         os.environ["SF_UNAME"] = "MINGW64_NT-10.0"
         self.assertNotIn("dispatcher registered", self.doctor())
+
+    def test_dispatcher_pace(self):
+        "doctor shows the pace the registration runs at (installer --status), in words; 30 seconds stays seconds"
+        self.assertNotIn("dispatcher pace", self.doctor(), "no dispatcher, no pace line")
+        for line, want in (("*/3", "every 3 minutes"), ("*/1", "every 1 minute")):
+            self.write_file(self.table, "%s * * * * /usr/bin/bash -l %s/factory/run-dispatcher.sh # shipfloor-dispatcher\n" % (line, self.sh))
+            self.assertIn("ok   dispatcher pace: " + want, self.doctor())
+        self.assertEqual([cli._pace_words(p) for p in ("every 30 seconds", "every 600 seconds", "every 90 seconds", "odd")],
+                         ["every 30 seconds", "every 10 minutes", "every 90 seconds", "odd"])
 
     def test_AC6_dispatcher_limits(self):
         "AC-6 doctor shows the limits in effect on the installed dispatcher: none when unlimited, not supported on a scheduler without cgroups"

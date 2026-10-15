@@ -14,6 +14,7 @@ from datetime import datetime
 
 import belt_page as bp
 import dashboard_belt as db
+import dashboard_work as dw
 import support
 
 CLOCK = datetime.now().astimezone().replace(hour=14, minute=0, second=0, microsecond=0)
@@ -28,9 +29,9 @@ def hm(h, m=0):
     return CLOCK.replace(hour=h, minute=m).isoformat(timespec="seconds")
 
 
-# the board at three moments of the day: card 12 appears at 09:30, card 40 reaches the Staged gate at 10:15
-EARLY = {"11": "Inbox", "21": "Spec Review", "40": "Validation", "70": "Done"}
-MID = dict(EARLY, **{"12": "Inbox"})
+# the board at three moments of the day: card 12 appears and card 70 is done at 09:30, card 40 reaches the Staged gate at 10:15
+EARLY = {"11": "Inbox", "21": "Spec Review", "40": "Validation", "70": "Ready for Prod"}
+MID = dict(EARLY, **{"12": "Inbox", "70": "Done"})
 LATE = dict(MID, **{"40": "Staged", "71": "Done"})
 LINES = [{"t": hm(8), "cards": EARLY}, {"t": hm(9, 30), "cards": MID}, {"t": hm(10, 15), "cards": LATE}]
 
@@ -51,11 +52,16 @@ TO_1010 = press("Home") + press("PageUp", 2) + press("ArrowRight", 2)
 class Replay(db.Scene):
     def page(self, ops, shown=None, **kw):
         """(the live belt, the results of ops): the overview read, the day made available, then ops"""
-        pre = [{"op": "day", "day": day() if shown is None else (None if shown is False else shown)},
-               {"op": "read", "overview": self.ov}, {"op": "settle"}]
+        pre = self.card_routes() + [{"op": "day", "day": day() if shown is None else (None if shown is False else shown)},
+                                    {"op": "read", "overview": self.ov}, {"op": "settle"}]
         r = bp.run(pre + list(ops), now=NOW_MS, **kw)
         self.assertEqual(r["errors"], [], "the page threw")
-        return r["results"][2], r["results"][3:]
+        return r["results"][len(pre) - 1], r["results"][len(pre):]
+
+    def card_routes(self):
+        """what the work area reads of the card it decides (the oldest that waits, #22): its page, and what blocks it (nothing)"""
+        return [{"op": "route", "path": "/api/card/shop/22", "body": dw.payload(22, "Spec Review", brief=dw.BRIEF, review=False)},
+                {"op": "route", "path": "/api/decide/shop/22", "body": {"spec": None, "block": None, "pr": None, "report": None}}]
 
     def slider(self, found):
         self.assertTrue(found, "no role=slider")
@@ -131,40 +137,40 @@ class Replay(db.Scene):
         self.assertIn("paused", db.anim_css(db.rail_of(snap)), "the rail is paused")
 
     def test_ac4_every_decide_control_is_off_while_replaying(self):
-        "AC-4 in replay quick approve, request changes, the maximize that opens moves and the key A are aria-disabled, titled and send nothing"
-        ctl = '.pass[data-key="shop/50"]'
-        _, res = self.page([{"op": "focussel", "sel": ctl + " .ptitle"}, {"op": "keysel", "sel": ctl + " .ptitle", "key": "a"},
-                            {"op": "advance_settle", "ms": 6000}, {"op": "fetches"}]
+        "AC-4 in replay the work area's Approve, the maximize that opens moves and the key A are aria-disabled, titled and send nothing"
+        _, res = self.page([{"op": "keyx", "key": "a"}, {"op": "advance_settle", "ms": 6000}, {"op": "fetches"}]
                            + TO_0940
-                           + [{"op": "query", "sel": '[data-q="approve"], [data-q="changes"], #band > button[data-max]'},
-                              {"op": "focussel", "sel": '.pass[data-key="shop/51"] .ptitle'},
-                              {"op": "keysel", "sel": '.pass[data-key="shop/51"] .ptitle', "key": "a"},
-                              {"op": "clicksel", "sel": '.pass[data-key="shop/51"] [data-q="approve"]'},
-                              {"op": "clicksel", "sel": '.pass[data-key="shop/51"] [data-q="changes"]'},
+                           + [{"op": "query", "sel": '[data-w="approve"], #band > button[data-max]'},
+                              {"op": "keyx", "key": "a"},
+                              {"op": "clicksel", "sel": '[data-w="approve"]'},
                               {"op": "clicksel", "sel": "#band > button[data-max]"},
-                              {"op": "advance_settle", "ms": 6000}, {"op": "fetches"}, {"op": "eval", "code": "return Object.keys(S.pending)"}])
-        self.assertTrue(self.posts(res[3], "/api/card/shop/50/approve"), "live, key A on a Staged card approves it after its moment (control)")
-        n = 4 + len(TO_0940)
+                              {"op": "advance_settle", "ms": 6000}, {"op": "fetches"}, {"op": "eval", "code": "return !!(W.hold || W.flight)"}])
+        self.assertTrue(self.posts(res[2], "/api/card/shop/22/approve"), "live, key A approves the card in the work area after its moment (control)")
+        n = 3 + len(TO_0940)
         controls = res[n]
-        self.assertTrue([c for c in controls if c["attrs"].get("data-q") == "approve"], "the waiting list has quick approve buttons")
+        self.assertTrue([c for c in controls if c["attrs"].get("data-w") == "approve"], "the work area has its Approve button")
         self.assertTrue([c for c in controls if c["attrs"].get("data-max") is not None], "the belt panel has its maximize button")
         for c in controls:
             self.assertEqual(c["attrs"].get("aria-disabled"), "true", c["attrs"])
             self.assertEqual(c["attrs"].get("title"), DENIED)
             self.assertNotIn("disabled", c["attrs"], "still focusable")
-        self.assertEqual(self.posts(res[n + 7]), [], "no decision leaves while replaying")
-        self.assertNotIn("shop/51", res[n + 8], "nothing is waiting to be sent")
-        self.assertFalse(res[n + 5]["S"]["full"], "the maximize did not open the moves")
+        self.assertEqual(self.posts(res[n + 5]), [], "no decision leaves while replaying")
+        self.assertFalse(res[n + 6], "nothing is waiting to be sent")
+        self.assertFalse(res[n + 3]["S"]["full"], "the maximize did not open the moves")
 
     # ---------------------------------------------------------------------------------------------------------- AC-5
     def test_ac5_before_the_first_line_there_is_no_history_for_that_hour(self):
-        "AC-5 with the needle before today's first line the belt shows no cards and says there is no history for that hour"
-        _, res = self.page(press("Home") + press("ArrowLeft") + [{"op": "query", "sel": SLIDER},
-                           {"op": "find", "needle": "No history for 07:55. The first record today is at 08:00."}])
+        "AC-5 (UI review m9) before today's first line there is nothing to replay: the lane is hatched up to 08:00 and the needle stops there"
+        _, res = self.page(press("Home") + press("ArrowLeft") + [{"op": "query", "sel": SLIDER}, {"op": "query", "sel": "#pre"},
+                           {"op": "find", "needle": "No history for 07:55."}])
         n = 2
-        self.assertEqual(self.slider(res[n])["aria-valuetext"], "07:55")
-        self.assertEqual(bp.tokens(res[n - 1]), [], "no cards before the first record")
-        self.assertTrue(res[n + 1], "the belt says: No history for 07:55. The first record today is at 08:00.")
+        self.assertEqual(self.slider(res[n])["aria-valuetext"], "08:00", "the needle stops at the first record")
+        self.assertTrue(bp.tokens(res[n - 1]), "the belt shows the first record's cards")
+        pre = res[n + 1]
+        self.assertEqual(len(pre), 1, "one hatch before the first record")
+        self.assertNotIn("hidden", pre[0]["attrs"])
+        self.assertEqual(pre[0]["css"].get("width"), "33.33%", "08:00 is a third of the day")
+        self.assertFalse(res[n + 2], "no 'No history' sentence: the needle never stands before the first record")
 
     def test_ac5_with_no_history_today_the_belt_says_so(self):
         "AC-5 with no line at all today the belt says there is no board history for today yet"
@@ -175,12 +181,10 @@ class Replay(db.Scene):
     # ---------------------------------------------------------------------------------------------------------- AC-6
     def test_ac6_back_to_live_returns_to_the_snapshot_and_decides_again(self):
         "AC-6 Back to live shows the current snapshot, moves the needle to now, clears the address, re-enables decide and focuses the needle"
-        ctl = '.pass[data-key="shop/51"]'
         _, res = self.page(TO_0940 + [{"op": "clicktext", "text": "Back to live"}, {"op": "query", "sel": SLIDER}, {"op": "hash"},
                                       {"op": "find", "needle": db.SENTENCE % ("5 decisions wait for you · ", 3)},
-                                      {"op": "query", "sel": '[data-q="approve"], [data-q="changes"], #band > button[data-max]'}, {"op": "active"},
-                                      {"op": "focussel", "sel": ctl + " .ptitle"}, {"op": "keysel", "sel": ctl + " .ptitle", "key": "a"},
-                                      {"op": "advance_settle", "ms": 6000}, {"op": "fetches"}])
+                                      {"op": "query", "sel": '[data-w="approve"], #band > button[data-max]'}, {"op": "active"},
+                                      {"op": "keyx", "key": "a"}, {"op": "advance_settle", "ms": 6000}, {"op": "fetches"}])
         n = len(TO_0940)
         db.only_one(self, res[n], [db.KEY % c for c, _ in db.CARDS], "AC-6")
         self.assertEqual(self.slider(res[n + 1])["aria-valuetext"], "Now")
@@ -190,7 +194,7 @@ class Replay(db.Scene):
             self.assertNotEqual(c["attrs"].get("aria-disabled"), "true", c["attrs"])
             self.assertNotEqual(c["attrs"].get("title"), DENIED)
         self.assertEqual((res[n + 5] or {}).get("attrs", {}).get("role"), "slider", "focus goes to the playhead")
-        self.assertTrue(self.posts(res[n + 9], "/api/card/shop/51/approve"), "decide works again")
+        self.assertTrue(self.posts(res[n + 8], "/api/card/shop/22/approve"), "decide works again")
 
     # ---------------------------------------------------------------------------------------------------------- AC-7
     def test_ac7_cards_travel_when_the_needle_steps_unless_motion_is_reduced(self):
@@ -246,3 +250,11 @@ class Replay(db.Scene):
         self.assertRegex(contracts, r'"cards"')
         self.assertRegex(operation, r"(?i)replay")
         self.assertRegex(operation, r"(?i)back to live")
+
+    def test_a_time_hash_still_moves_the_replay_from_the_address(self):
+        "#183 fromAddress keeps its `else if` (time hash moves the needle) as code, not inside a // comment"
+        with open(os.path.join(support.SCRIPTS, "dashboard.html"), encoding="utf-8") as f:
+            lines = [l for l in f.read().splitlines() if "if (m == null) { if (R.at" in l]
+        self.assertEqual(len(lines), 1)
+        self.assertNotIn("//", lines[0])
+        self.assertIn("else if (!R.at || atMin() !== m) needle(m, \"key\", true);", lines[0])

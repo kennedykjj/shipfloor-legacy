@@ -18,13 +18,14 @@ parse_transcript = claude_code.parse
 events = claude_code.events
 
 
-def cost(tokens, prices):
-    """US$ for {model: {kind: n}}, or None when a model has no price."""
+def cost(tokens, prices, reported=None):
+    """US$ for {model: {kind: n}} at prices, else the cost the runtime's own CLI reported when it is above zero (an
+    estimate), else None when a model has no price. A reported 0 is not a cost."""
     total = 0.0
     for model, t in tokens.items():
         p = prices.get(model)
         if not p:
-            return None
+            return reported if reported and reported > 0 else None
         total += sum(t[k] * p.get(k, 0) for k in TOKEN_KINDS) / 1e6
     return total
 
@@ -35,7 +36,7 @@ def rounded(usd):
 
 def session_cost(s, prices):
     """US$ of a session and its subagents, or None when any model has no price."""
-    parts = [cost(s["tokens"], prices)] + [cost(a["tokens"], prices) for a in s["subagents"]]
+    parts = [cost(s["tokens"], prices, s.get("cost"))] + [cost(a["tokens"], prices, a.get("cost")) for a in s["subagents"]]
     return None if None in parts else sum(parts)
 
 
@@ -108,13 +109,19 @@ class Transcripts:
         self.dirty = raw is not None and not ok  # an old file is replaced
         self.seen = set()
 
-    def get(self, path):
-        key = f"{self.runtime}:{path}"
-        stamp, hit = runtimes.get(self.runtime).stamp(path), self.cache.get(key)
+    def get(self, path, parse=None):
+        """The parsed transcript at path; parse (a runtime's reader, as runtimes.sessions hands it) names the runtime."""
+        name = next((n for n in runtimes.NAMES if runtimes.get(n).parse is parse), self.runtime)
+        rt = runtimes.get(name)
+        key = f"{name}:{path}"
+        stamp, hit = rt.stamp(path), self.cache.get(key)
         self.seen.add(key)
         if not (isinstance(hit, list) and len(hit) == len(stamp) + 1 and hit[:-1] == stamp):
-            p = runtimes.get(self.runtime).parse(path)
-            hit = self.cache[key] = stamp + [{k: p[k] for k in ("stage", "issue", "start", "tokens")}]
+            p = rt.parse(path)
+            kept = {k: p[k] for k in ("stage", "issue", "start", "tokens")}
+            if p.get("cost"):
+                kept["cost"] = p["cost"]  # what the runtime's CLI reported (opencode); the price table comes first
+            hit = self.cache[key] = stamp + [kept]
             self.dirty = True
         return hit[-1]
 

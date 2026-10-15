@@ -130,6 +130,52 @@ if c.get("scratch"):
 sys.exit(c.get("exit", 0))
 '''
 
+# codex: a stand-in for `codex exec`. One JSON line per call in <tmp>/codex.calls (argv, stdin, cwd, env); the card is the
+# prompt's `Card: #<n>`; then what <tmp>/fake.json's "codex" says (per card under "cards"): print "say" (or the "stream"
+# lines) to stdout, write "last" to the file `-o` names, write a gate verdict to the run's lock, exit with a code.
+CODEX = r'''
+import json, os, re, sys
+fake = json.load(open(%(fake)r)) if os.path.exists(%(fake)r) else {}
+stdin = sys.stdin.read()
+m = re.search(r"Card: #(\d+)", stdin)
+n = m.group(1) if m else ""
+c = dict(fake.get("codex", {}))
+c.update(c.pop("cards", {}).get(n, {}))
+lock = os.environ.get("SHIPFLOOR_RUN_LOCK", "")
+rec = {"argv": sys.argv[1:], "stdin": stdin, "cwd": os.getcwd(), "env": dict(os.environ)}
+with open(%(calls)r, "a") as f:
+    f.write(json.dumps(rec) + "\n")
+for ev in c.get("stream", [c.get("say", "codex says hi")]):
+    print(ev if isinstance(ev, str) else json.dumps(ev), flush=True)
+if "-o" in sys.argv:
+    open(sys.argv[sys.argv.index("-o") + 1], "w").write(c.get("last", "codex final"))
+if c.get("verdict"):
+    open(os.path.join(lock, "last-gate"), "w").write("%%s\t%%s\n" %% (c.get("gate", "build"), c["verdict"]))
+sys.exit(c.get("exit", 0))
+'''
+
+# opencode: a stand-in for `opencode run`. One JSON line per call in <tmp>/opencode.calls (argv, stdin, cwd, PWD, env); the
+# card is the stdin's `Card: #<n>`; then what <tmp>/fake.json's "opencode" says (per card under "cards"): print the
+# "stream" (JSON events, one per line; default one text event of "say"), write a gate verdict to the run's lock, exit with a code.
+OPENCODE = r'''
+import json, os, re, sys
+fake = json.load(open(%(fake)r)) if os.path.exists(%(fake)r) else {}
+stdin = sys.stdin.read()
+m = re.search(r"Card: #(\d+)", stdin)
+n = m.group(1) if m else ""
+c = dict(fake.get("opencode", {}))
+c.update(c.pop("cards", {}).get(n, {}))
+lock = os.environ.get("SHIPFLOOR_RUN_LOCK", "")
+rec = {"argv": sys.argv[1:], "stdin": stdin, "cwd": os.getcwd(), "pwd": os.environ.get("PWD"), "env": dict(os.environ)}
+with open(%(calls)r, "a") as f:
+    f.write(json.dumps(rec) + "\n")
+for ev in c.get("stream", [{"type": "text", "text": c.get("say", "opencode says hi")}]):
+    print(ev if isinstance(ev, str) else json.dumps(ev), flush=True)
+if c.get("verdict"):
+    open(os.path.join(lock, "last-gate"), "w").write("%%s\t%%s\n" %% (c.get("gate", "build"), c["verdict"]))
+sys.exit(c.get("exit", 0))
+'''
+
 # deploy.sh: one JSON line per call in <tmp>/deploy.calls (argv, cwd, env, the project's locks and their info); --refresh exits 0;
 # the other calls exit with fake.json's "deploy_exits", one per call (the last one repeats; default 0).
 DEPLOY = r'''
@@ -396,3 +442,79 @@ class DispatchCase(support.Case):
                 dispatch.supervise(spec)
             finally:
                 os.chdir(here)
+
+
+class CodexCase(DispatchCase):
+    """DispatchCase with `runtime: codex` on the machine and a fake `codex` (CODEX) as the binary. The factory's
+    CODEX_HOME (SHIPFLOOR_CODEX_HOME) holds the generated stage prompts, sf/<stage>.md, which the run's stdin starts with."""
+
+    def setUp(self):
+        super().setUp()
+        self.codex_home = os.environ["SHIPFLOOR_CODEX_HOME"] = self.path("codex-home")
+        for stage in ("refine", "develop", "validate", "deploy"):
+            self.write(os.path.join(self.codex_home, "sf", stage + ".md"), "<!-- sf:stage=%s -->\nPROMPT %s\n" % (stage, stage))
+        names = {"fake": os.path.join(self.tmp, "fake.json")}
+        self.codex_bin = os.environ["FACTORY_CODEX"] = self.script("codex", CODEX % dict(names, calls=self.path("codex.calls")))
+        try:  # the adapter may have read FACTORY_CODEX at import, in an earlier test of this process
+            import runtimes.codex as adapter
+            p = mock.patch.object(adapter, "BINARY", self.codex_bin)
+            p.start()
+            self.addCleanup(p.stop)
+        except (ImportError, AttributeError):
+            pass
+        self.machine_cfg(POOL8 + "\nruntime: codex")
+
+    def codex_calls(self):
+        return self._records("codex")
+
+    def flag(self, call, name):
+        a = call["argv"]
+        return a[a.index(name) + 1] if name in a else None
+
+
+class OpencodeCase(DispatchCase):
+    """DispatchCase with `runtime: opencode` on the machine and a fake `opencode` (OPENCODE) as the binary
+    (SHIPFLOOR_OPENCODE). The factory's own config folder is SHIPFLOOR_OPENCODE_HOME."""
+
+    def setUp(self):
+        super().setUp()
+        self.opencode_home = os.environ["SHIPFLOOR_OPENCODE_HOME"] = self.path("opencode-home")
+        names = {"fake": os.path.join(self.tmp, "fake.json")}
+        self.opencode_bin = os.environ["SHIPFLOOR_OPENCODE"] = self.script(
+            "opencode", OPENCODE % dict(names, calls=self.path("opencode.calls")))
+        try:  # the adapter may have read SHIPFLOOR_OPENCODE at import, in an earlier test of this process
+            import runtimes.opencode as adapter
+            p = mock.patch.object(adapter, "BINARY", self.opencode_bin)
+            p.start()
+            self.addCleanup(p.stop)
+        except (ImportError, AttributeError):
+            pass
+        self.machine_cfg(POOL8 + "\nruntime: opencode")
+
+    def opencode_calls(self):
+        return self._records("opencode")
+
+    def flag(self, call, name):
+        a = call["argv"]
+        return a[a.index(name) + 1] if name in a else None
+
+    @staticmethod
+    def config_of(call):
+        """The JSON of the run's OPENCODE_CONFIG_CONTENT."""
+        return json.loads(call["env"]["OPENCODE_CONFIG_CONTENT"])
+
+    @staticmethod
+    def decide(rules, permission, path):
+        """What a permission rule list (rules of {permission, pattern, action}, the last match wins) says about
+        <permission> on <path>: "allow", "deny", "ask", or None when no rule matches. A pattern `<dir>`, `<dir>/*` or
+        `<dir>/**` covers <dir> and everything under it, `*` everything."""
+        import fnmatch
+        verdict = None
+        for r in rules:
+            if r.get("permission") not in (permission, "*"):
+                continue
+            pat = str(r.get("pattern", "*"))
+            base = pat[:-3] if pat.endswith(("/**",)) else pat[:-2] if pat.endswith("/*") else pat
+            if pat == "*" or path == base or path.startswith(base.rstrip("/") + "/") or fnmatch.fnmatchcase(path, pat):
+                verdict = r.get("action")
+        return verdict
