@@ -124,8 +124,8 @@ def snapshot(home, seconds, code, overlap):
             r = record.get(str(n))
             return isinstance(r, dict) and (not r.get("read", True) or bool(deps.open_numbers(r.get("deps"))))
 
-        def waiting(col):
-            return sum(c == col and n not in blocked and n not in busy and not held(n) for n, c in columns.items())
+        def waiting(col):  # a card the dispatcher holds after two stopped runs (stopped/<n>) waits for the owner, not a slot
+            return sum(c == col and n not in blocked and n not in busy and not held(n) and not f.stop_hold(p, n, c) for n, c in columns.items())
         stages = {}
         for st, (queue, resumes, wip_cols) in STAGES.items():
             running, cap, wip = sum(r["stage"] == st for r in runs), (1 if st == "deploy" else 0), limits[st]["wip"]  # cap: deploy is serial per project
