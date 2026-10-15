@@ -28,7 +28,7 @@ import time
 
 import runtimes
 
-from . import board_history, deps, proc, project, stack, telemetry, text
+from . import board_history, deps, proc, project, stack, state, telemetry, text
 from .defaults import STAGES as STAGE_COLUMNS, TRAILER
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -909,13 +909,19 @@ def supervise(spec):
         offset = os.path.getsize(log)
     except OSError:
         offset = 0
+    started = _iso()
     _append(log, "== start /sf:%s %s %s pid=%d%s weight=%s runtime=%s\n"
-            % (p, n, _iso(), pid, " model=" + model if model else "", spec["weight"], spec["runtime"]))
+            % (p, n, started, pid, " model=" + model if model else "", spec["weight"], spec["runtime"]))
+    try:  # the database gets the same fact; it never fails the run
+        state.run_started(spec.get("project") or os.path.basename(os.path.dirname(os.path.dirname(log))), int(n), p, pid,
+                          started, model, spec["weight"], spec["runtime"], log)
+    except Exception as e:
+        _write(sys.stderr, "dispatch: #%s: state: %s\n" % (n, e))
     if step:
         _say(spec["mlang"], "%s dispatch: #%s runs on %s, one model up after %s failed gate %s"
              % (_iso(), n, step, spec["from"], spec["gate"]))
     if _no_control(control):
-        _append(log, "== end /sf:%s %s exit=1 %s: no %s outcome=fail\n" % (p, n, _iso(), control))
+        _append_end(log, started, "== end /sf:%s %s exit=1 %s: no %s outcome=fail\n" % (p, n, _iso(), control))
         _rmtree(d)  # no lock left to hold the slot
         return 1
     os.chdir(control)  # as the Bash run did: what follows (the step-up, the cleanup) runs from the control checkout
@@ -936,7 +942,7 @@ def supervise(spec):
             return _run(["bash", spec["deploy"], n, *args], out=f, err=STDOUT, cwd=control, env=env)[0]
 
     try:
-        _work(spec, agent, deploy, log, offset)
+        _work(spec, agent, deploy, log, offset, started)
     except Exception as e:  # whatever happens, the cleanup below runs and the lock goes
         _write(sys.stderr, "dispatch: #%s: %s\n" % (n, e))
     # what the run created goes with it, before its lock: its stack slot, its tmp/<n>/, its retry marker stays
@@ -989,7 +995,18 @@ def _end_line(spec, log, offset, rc):
                                                          runtimes.get(spec["runtime"]).outcome(rc, block))
 
 
-def _work(spec, agent, deploy, log, offset=0):
+def _append_end(log, started, line):
+    """The == end line into the log, then the same fact into the database (which never fails the run)."""
+    _append(log, line)
+    try:
+        t = line.split()
+        kv = dict(x.split("=", 1) for x in t if "=" in x)
+        state.run_ended(log, started, int(kv.get("exit", 1)), kv.get("outcome"), t[5].rstrip(":"))
+    except Exception as e:
+        _write(sys.stderr, "dispatch: state: %s\n" % e)
+
+
+def _work(spec, agent, deploy, log, offset=0, started=None):
     """The run itself: the agent, or deploy.sh and its rounds; == end; the step-up. Its exit code."""
     p, n, model = spec["p"], spec["n"], spec["model"]
     if p == "deploy":
@@ -1002,10 +1019,10 @@ def _work(spec, agent, deploy, log, offset=0):
                 break
             agent()
             rc = deploy("--continue")
-        _append(log, _end_line(spec, log, offset, rc))
+        _append_end(log, started, _end_line(spec, log, offset, rc))
     else:
         rc = agent()
-        _append(log, _end_line(spec, log, offset, rc))
+        _append_end(log, started, _end_line(spec, log, offset, rc))
         if p == "develop" and rc == 0:
             step_up(spec, model, log)
     return rc

@@ -8,7 +8,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # no __pycache__ in the installed scripts
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import shipfloor_config
-from shipfloor_core import deps
+from shipfloor_core import deps, state
 from shipfloor_core.defaults import STAGES  # stage: (queue column, columns it resumes, WIP columns), as the dispatcher runs them
 CYCLES = 3  # an alert looks at this many cycles: one cycle with a free slot is the dispatcher's own timing
 
@@ -206,11 +206,13 @@ def main():
     if args.command == "alerts":
         print("\n".join(alerts(args.home)))
         return
-    line = json.dumps(snapshot(args.home, args.seconds, args.exit, args.overlap), ensure_ascii=False)
+    snap = snapshot(args.home, args.seconds, args.exit, args.overlap)
+    line = json.dumps(snap, ensure_ascii=False)
     log = Path(args.home) / "logs" / f"health-{datetime.now():%Y-%m}.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "a", encoding="utf-8", newline="\n") as fh:
         fh.write(line + "\n")
+    state.record_cycle(snap)  # the same line in the database; it never fails the cycle
 
 
 if __name__ == "__main__":

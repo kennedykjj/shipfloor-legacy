@@ -327,6 +327,8 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `~/.shipfloor/logs/dispatcher.log` | the scheduler's output | `run-dispatcher.sh` | people |
 | `~/.shipfloor/logs/stacks.log` | `<ISO> reclaimed slot <k> from <owner> <reason>` | `lib/stack.sh` | people |
 | `~/.shipfloor/logs/health-<YYYY-MM>.jsonl` | one JSON object per cycle | `shipfloor_health.py record` | `shipfloor doctor`, `shipfloor_notify.py`, `dashboard.py` |
+| `~/.shipfloor/state.db` | SQLite (WAL), tables `runs` (one row per run, written at `== start` and `== end`) and `cycles` (the health line as `data`); step 1 of the migration: the files stay, the database gets the same facts (dual write). Never fails its writer: an unreadable database is a line on stderr. Once a day, after a cycle, `state.maintain` imports the existing run logs and `health-*.jsonl`, deletes rows older than 90 days (and the logs of runs ended more than 30 days ago) and backs it up | `shipfloor_core/state.py` (`dispatch.py` supervise, `shipfloor_health.py record`, `cycle.py`) | people, analysis |
+| `~/.shipfloor/backups/state-<YYYY-MM-DD>.db` | the day's copy of `state.db`, one self-contained file; the last 7 are kept | `state.maintain` | people |
 | `<reviews>/<n>.brief.json` | the card's brief: `verdict`, `flags`, `proven`, `facts`, `since_request`, `what`, `rest` (see `brief.sh`) | `brief.sh build`, from the refine and validate skills | `dashboard.py` |
 | `<home>/reports-wt/` | worktree of the `factory-reports` branch | `report.sh` | `metrics.sh`, `dashboard.py` |
 | `~/.shipfloor/cost-cache.json`, `notify.json` | caches | `dashboard_cost.py`, `shipfloor_notify.py` | the same |
