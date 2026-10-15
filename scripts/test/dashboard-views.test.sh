@@ -237,8 +237,8 @@ const at = (rows, needle) => rows.findIndex((r) => txt(r).includes(needle));
 if (!palette) check("AC-6 palette exists", false, "no function palette in the page");
 else {
   const empty = run("", CARDS, ACTIONS);
-  check("AC-6 the empty field lists the actions first, then the waiting cards, oldest first", Array.isArray(empty)
-    && at(empty, "Next decision") === 0 && at(empty, "Pause the factory") === 1 && at(empty, "Login page copy") === 2 && at(empty, "Fix the login flow") === 3
+  check("AC-6 the empty field lists the actions first, then the waiting cards, oldest first, and Pause the factory last", Array.isArray(empty)
+    && at(empty, "Next decision") === 0 && at(empty, "Login page copy") === 1 && at(empty, "Fix the login flow") === 2 && at(empty, "Pause the factory") === empty.length - 1
     && at(empty, "Refactor") === -1 && at(empty, "Rename") === -1, Array.isArray(empty) ? empty.map(txt).join(" | ") : empty);
   for (const q of ["120", "#120"]) {
     const r = run(q, CARDS, ACTIONS);
@@ -256,6 +256,9 @@ else {
   const many = Array.from({ length: 15 }, (_, i) => card(200 + i, `Task number ${i}`, "Coding", { awaiting: true, since: `2026-10-14T0${i % 10}:00:00Z` }));
   const capped = run("task", many, ACTIONS), cappedAll = run("", many, ACTIONS);
   check("AC-6 at most nine results", Array.isArray(capped) && capped.length === 9 && Array.isArray(cappedAll) && cappedAll.length === 9, `${capped?.length}, ${cappedAll?.length}`);
+  check("UI review M6: nine rows of cards still end with Pause the factory, never first under Enter", Array.isArray(cappedAll) && at(cappedAll, "Pause the factory") === 8 && at(cappedAll, "Next decision") === 0, Array.isArray(cappedAll) ? cappedAll.map(txt).join(" | ") : cappedAll);
+  const resumed = run("", CARDS, [NEXT, { id: "resume", label: "Resume the factory" }]);
+  check("UI review M6: Resume the factory is offered when the page passes it, after the cards", Array.isArray(resumed) && at(resumed, "Resume the factory") === resumed.length - 1, Array.isArray(resumed) ? resumed.map(txt).join(" | ") : resumed);
   const none = run("zzzzqq", CARDS, ACTIONS);
   check("AC-6 no match is one 'Nothing matches' row, no card in it", Array.isArray(none) && none.length === 1 && txt(none[0]).includes("Nothing matches") && at(none, "shop/") === -1, Array.isArray(none) ? none.map(txt).join(" | ") : none);
 }

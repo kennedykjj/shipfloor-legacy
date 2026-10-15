@@ -370,6 +370,7 @@ class Cycle:
 
     def __init__(self):
         self.mlang = os.environ.get("MLANG", "")  # ${MLANG:-en} before the machine config names it
+        self.provider = None  # runtime.provider: {base_url, key_env}
         self.started = 0
         self.costfail = False
         self.block_cards = ""
@@ -460,6 +461,12 @@ class Cycle:
         if rc != 0 or len(names) != 4:
             self.die("dispatch: invalid runtime config (known runtimes: %s)" % ", ".join(runtimes.NAMES), 2)
         self.runtime = dict(zip(STAGES, names))
+        # the self-hosted endpoint codex talks to (runtime.provider): base_url and the NAME of the key's variable
+        rc, out = self.machine("provider", proc.native_path(os.environ.get("FACTORY_CONFIG", "")))
+        found = _nul(out)
+        if rc != 0:
+            self.die("dispatch: invalid runtime.provider config", 2)
+        self.provider = {"base_url": found[0], "key_env": found[1] if len(found) > 1 else ""} if found else None
 
         if self.github_limited():
             self.say("dispatch: GitHub API limit hit recently; waiting")
@@ -824,14 +831,17 @@ class Cycle:
             envs.append("SHIPFLOOR_TRAILER=" + rt.TRAILER)
         # the agent's final message, for a runtime that writes it to a file (the dispatcher appends it to the log)
         last = log + rt.LAST_SUFFIX if getattr(rt, "LAST_SUFFIX", None) else ""
+        provider = self.provider if rt.NAME in ("codex", "opencode") else None
         argv, envs, stdin = rt.command({
             "stage": p, "issue": n, "model": model, "plugin": self.plugin, "system_prompt": SYSTEM_PROMPT,
             "write": [self.wt_root, self.home + "/tmp", self.home + "/reviews"],
-            "read": [SCRIPTS, self.home + "/reports-wt"], "envs": envs, "control": self.control, "last": last})
+            "read": [SCRIPTS, self.home + "/reports-wt"], "envs": envs, "control": self.control, "last": last,
+            "provider": provider})
         binary = (os.environ.get("FACTORY_CLAUDE") or rt.BINARY) if rt.NAME == "claude-code" else rt.BINARY
         _detach({"mode": "run", "p": p, "n": n, "dir": d, "log": log, "last": last, "model": model, "weight": weight,
                  "col": self.snapshot_status(n).split("\n")[0],
                  "step": step, "from": frm, "gate": gate, "runtime": rt.NAME, "binary": binary, "argv": argv,
+                 "key_env": (provider or {}).get("key_env") or "",
                  "config": proc.native_path(os.environ.get("FACTORY_CONFIG", "")),
                  "envs": envs, "stdin": stdin,
                  "control": self.control, "wt_root": self.wt_root, "home": self.home, "mlang": self.mlang,
@@ -1069,13 +1079,18 @@ def supervise(spec):
         return judged["r"]
 
     def agent():
+        key_env = spec.get("key_env")
+        if key_env and not os.environ.get(key_env):  # the scheduled dispatcher does not inherit the shell's variables
+            _append(log, "provider: %s is not set\n" % key_env)
+            return 1
         # The prompt goes on stdin: as an argument Git Bash turns "/develop 54" into "C:/Program Files/Git/develop 54".
         # Its stdout is a stream-json read by telemetry: the log gets the text a plain -p printed, the events and a
         # summary go beside it (telemetry.py).
         argv = proc.script_argv(spec["binary"], *spec["argv"])
         last = spec.get("last")
         # a runtime with a final-message file streams its own JSON: the log keeps it as it comes
-        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso(), "raw": bool(last)}
+        meta = {"stage": p, "card": n, "pid": pid, "model": model, "weight": spec["weight"], "start": _iso(),
+                "raw": bool(last) or spec["runtime"] != "claude-code"}  # only Claude's stream is read as Claude's
         _flush()
         # a run with a final-message file is judged once that message is in the log (below), not inside the summary
         rc = telemetry.run_agent(argv, log, control, env, spec["stdin"].encode("utf-8"), meta,

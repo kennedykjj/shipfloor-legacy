@@ -173,6 +173,15 @@ class Validate(ConfigCase):
         for case in cases:
             self.refused(*case)
 
+    def test_AC1_runtime_provider_refusals(self):
+        "AC-1 a runtime.provider with a bad base_url, api_key_env, models, ladder or an unknown key is refused with a line naming each key"
+        self.refused(BOARD + LAYER + "runtime: {provider: {base_url: 'ftp://x/v1', api_key_env: 'A-B'}}\n",
+                     "runtime.provider.base_url", "runtime.provider.api_key_env")
+        self.refused(BOARD + LAYER + "runtime: {provider: {base_url: 'http://x/v1', ladder: 'm', models: {stages: {develop: ''}}, nope: 1}}\n",
+                     "runtime.provider.ladder", "runtime.provider.models", "runtime.provider.nope")
+        ok = self.yml(BOARD + LAYER + "runtime: {provider: {base_url: 'http://x/v1', api_key_env: K, models: {stages: {develop: m}}, ladder: [m]}}\n")
+        self.assertEqual(self.raw("validate", config=ok), (0, "", ""))
+
     def test_not_yaml(self):
         "a file that is not YAML is refused by validate (exit 1) and unusable for a query (exit 2)"
         cfg = self.yml("project: [unclosed\n")

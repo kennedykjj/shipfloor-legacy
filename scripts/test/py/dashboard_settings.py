@@ -474,6 +474,58 @@ class Dispatcher(Settings):
         self.assertEqual(self.config_text(), "pool: 6\n")
 
 
+class Registered(Settings):
+    """UI review M9: the pace Settings shows is the one the installed registration runs at (install-dispatcher.sh --status,
+    a stand-in here through SHIPFLOOR_INSTALLER_STATUS), Linux and macOS set it through the installer, the reasons are keys"""
+    def status(self, out, code=0):
+        f = self.write("status%d.sh" % len(os.listdir(self.tmp)), "#!/usr/bin/env bash\nprintf '%%s' '%s'\nexit %d\n" % (out, code))
+        os.environ["SHIPFLOOR_INSTALLER_STATUS"] = '"%s" "%s"' % (ds.BASH, f)
+
+    def disp(self):
+        return self.settings()["dispatcher"]
+
+    def test_the_pace_is_the_registrations(self):
+        "systemd runs every 30 s while config.yml says 10: Settings shows 30 s, the next cycle is 30 s on and the silence alarm counts 30 s; choosing 10 tells the installer even though config.yml has it"
+        self.config("dispatcher:\n  every_min: 10\n")
+        self.status("registered: systemd\nlimits: none\npace: every 30 seconds\n")
+        d = self.disp()
+        self.assertEqual((d["every_min"], d["configured"], d["registered"], 0.5 in d["choices"]), (0.5, 10, "systemd", True))
+        from datetime import datetime, timedelta, timezone
+        at = datetime.now(timezone.utc) - timedelta(minutes=4)
+        self.write("shome/logs/health-%s.jsonl" % at.strftime("%Y-%m"), json.dumps({"ts": at.isoformat(timespec="seconds"), "cycle": {"s": 10, "exit": 0, "overlap": False}, "idle": [], "over": []}) + "\n")
+        nxt = datetime.fromisoformat(self.settings()["cycle"]["next_at"])
+        self.assertAlmostEqual((nxt - at).total_seconds(), 20, delta=1.5, msg="the last cycle started 10 s before it ended, the next one 30 s after that start")
+        silent = self.overview()["silent"]
+        self.assertEqual((silent or {}).get("every"), 0.5, "4 min of silence at a 30 s pace is past the 3 min floor; at config.yml's 10 it would not be")
+        self.assertEqual(self.machine({"dispatcher": {"every_min": 10}}).code, 200)
+        self.assertEqual(self.sched_calls().strip(), "10", "config.yml already says 10, the registration does not: the installer is told")
+        self.status("registered: cron\nlimits: not supported (cron)\npace: every 180 seconds\n")
+        d = self.disp()
+        self.assertEqual((d["every_min"], d["choices"]), (3, [1, 3, 5, 10]), "cron has no 30 seconds")
+
+    def test_linux_sets_the_pace_through_the_installer(self):
+        "with no SHIPFLOOR_SCHEDULER, Linux and macOS re-register through install-dispatcher.sh --every-min, only one that is registered; nothing registered or no installer is a reason the page translates"
+        dash = ds.server()[0]
+        os.environ.pop("SHIPFLOOR_SCHEDULER")
+        with mock.patch.object(dash.os, "name", "posix"):
+            self.status("registered: systemd\nlimits: none\npace: every 180 seconds\n")
+            command, why = dash.scheduler()
+            self.assertEqual((command[1:], why), ([str(dash.installer_script()), "--every-min"], None))
+            self.assertTrue(self.disp()["can_set"])
+            self.status("not registered; register it with: bash x\n", 1)
+            d = self.disp()
+            self.assertEqual((d["can_set"], d["why_msg"]["key"]), (False, "disp.not_registered"))
+            self.config("pool: 6\n")
+            r = self.machine({"dispatcher": {"every_min": 5}})
+            self.assertEqual((r.code, [e.get("key") for e in r.json["errors"]]), (409, ["disp.not_registered"]))
+            self.assertEqual(self.config_text(), "pool: 6\n")
+            with mock.patch.object(dash, "installer_script", lambda: dash.Path(self.tmp) / "nope.sh"):
+                self.assertEqual(self.disp()["why_msg"]["key"], "disp.no_installer")
+        with mock.patch.object(dash.os, "name", "nt"):
+            os.environ["SHIPFLOOR_SCHEDULER"] = "none"
+            self.assertEqual(dash.scheduler()[1].key, "disp.no_task")
+
+
 class Language(Settings):
     PROJECTS = ("shop", "blog")
 
