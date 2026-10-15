@@ -29,7 +29,7 @@ class Decisions(ds.Dash):
         self.assertIn("--id PVTI_7 --field-id FLD_x --single-select-option-id opt5", self.gh("edits"))
         self.assertEqual(self.card_post(9, "request-changes", {"column": "Staged", "text": "fix the header"}).code, 200)
         self.assertIn("fix the header", self.gh("comments"))
-        c, m = self.line_of("issue comment 9"), next(i for i, l in enumerate(self.calls()) if "item-edit" in l and "PVTI_9" in l and "opt6" in l)
+        c, m = self.line_of("issue comment 9"), next(i for i, l in enumerate(self.calls()) if "-X PATCH" in l and "/items/1000009" in l)
         self.assertLess(c, m, "the comment first, then back to Coding")
 
     def test_approve_with_a_note(self):
@@ -96,7 +96,7 @@ class Decisions(ds.Dash):
         self.assertIn("restore the test", self.gh("comments"))
         calls = self.calls()
         self.assertIn("issue comment 7 --repo acme/shop --body-file -", calls)
-        self.assertTrue(any("--id PVTI_7 --field-id FLD_x --single-select-option-id opt6" in c for c in calls))
+        self.assertIn("--id PVTI_7 --field-id FLD_x --single-select-option-id opt6", self.gh("edits"))
         self.assertIn("api -X DELETE repos/acme/shop/issues/7/labels/blocked", calls)
 
     def test_cost_block_in_the_inbox(self):
@@ -194,7 +194,7 @@ class Move(ds.Dash):
             self.assertEqual(self.move(frm, to, "do it again").code, 200)
             self.assertIn("do it again", self.gh("comments"))
             self.assertIn(opt(to), self.gh("edits"))
-            self.assertLess(self.line_of("issue comment"), self.line_of("item-edit"), "AC-2 the note goes before the move")
+            self.assertLess(self.line_of("issue comment"), self.line_of("-X PATCH"), "AC-2 the note goes before the move")
         self.reset_gh()
         self.memo_board()
         bad = []
@@ -336,7 +336,7 @@ class Reorder(ds.Dash):
             self.items((9, frm), (10, "Inbox"), (11, "Ready for Refinement"), (12, "Ready for Dev"), (13, "Coding"))
             self.assertEqual(self.card_post(9, "move", {"column": frm, "to": to, "text": text}).code, 200, "%s -> %s" % (frm, to))
             self.assertEqual(self.lastpos(), "PVTI_9 after " + last)
-            self.assertLess(self.line_of("updateProjectV2ItemPosition"), self.line_of("item-edit"), "the place is written before the Status")
+            self.assertLess(self.line_of("updateProjectV2ItemPosition"), self.line_of("-X PATCH"), "the place is written before the Status")
         self.assertEqual(self.ov_order("Ready for Refinement"), [(11, 1), (9, 2)])
         self.reset_gh(); self.items((9, "Spec Review"), (12, "Ready for Dev")); self.gh("fail-position", "")
         self.assertEqual(self.card_post(9, "move", {"column": "Spec Review", "to": "Ready for Dev"}).code, 502)
@@ -385,7 +385,7 @@ class TakeBack(ds.Dash):
         r = self.take("Ready for Dev", "the spec was right, the code was not")
         self.assertEqual(r.code, 200)
         self.assertIn("the spec was right", self.gh("comments"))
-        self.assertLess(self.line_of("issue comment"), self.line_of("item-edit"))
+        self.assertLess(self.line_of("issue comment"), self.line_of("-X PATCH"))
         self.assertIs(r.json.get("commented"), True)
         self.reset_gh(); self.blocked("Validation")
         self.assertEqual((self.take("Ready for Dev", "   ").code, self.gh("comments"), len(self.edits())), (200, "", 1))
@@ -402,7 +402,7 @@ class TakeBack(ds.Dash):
         self.assertEqual(len(closed), 1, "another card's pull request stays open")
         self.assertTrue(closed[0].startswith("pr close 42 "))
         self.assertNotIn("--delete-branch", closed[0])
-        self.assertLess(self.line_of("pr close"), self.line_of("item-edit"))
+        self.assertLess(self.line_of("pr close"), self.line_of("-X PATCH"))
         self.assertEqual(r.json.get("pr_closed"), 42)
         self.reset_gh(); self.blocked("Validation"); self.gh("prs", self.PRS); self.gh("fail-pr-close", "")
         self.assertEqual((self.take("Inbox").code, self.edits()), (502, []))
@@ -424,7 +424,7 @@ class TakeBack(ds.Dash):
         r = self.take("Ready for Refinement")
         self.assertEqual(r.code, 200)
         d = next(i for i, l in enumerate(self.calls()) if l.endswith("labels/blocked"))
-        self.assertGreater(d, self.line_of("item-edit"))
+        self.assertGreater(d, self.line_of("-X PATCH"))
         self.assertTrue(any("labels/blocked:infra" in l for l in self.calls()))
         self.gh("label-blocked", "[]")
         c = self.cards()[9]
@@ -882,3 +882,170 @@ class BeltData(ds.Dash):
         self.assertEqual(cards[31]["since"], ended.isoformat(), "in Spec Review on every line: its last run's end")
         self.assertIsNone(cards[32]["since"], "no change on record and no run")
         self.assertIsNone(cards[34]["since"], "the board moved it after the last line: the history does not say when")
+
+
+class Responsive(ds.Dash):
+    """The owner's actions are one REST write on cached ids, with the dashboard's own read of the board when it is young,
+    and the factory is woken when a card enters a column it acts on."""
+
+    def setUp(self):
+        super().setUp()
+        self.wake_script = self.path("wake.sh")
+        self.write("wake.sh", '#!/usr/bin/env bash\necho woke >> "$FAKE_GH_DIR/wakes"\n')
+
+    def wake_with(self, *argv):
+        self.write("shome/dispatcher.wake", "".join(a + "\n" for a in argv))
+
+    def move(self, n, frm, to, text=""):
+        return self.card_post(n, "move", {"column": frm, "to": to, "text": text})
+
+    def wakes(self, expect, secs=5):
+        """whether the stub was run `expect` times (a negative one waits a little to show nothing came)"""
+        end = time.time() + (secs if expect else 0.6)
+        while time.time() < end and len(self.gh("wakes").split()) < expect:
+            time.sleep(0.05)
+        time.sleep(0.2)
+        return len(self.gh("wakes").split()) == expect
+
+    def test_a_move_is_one_patch_on_the_numeric_id(self):
+        "an approve is a PATCH on the item's numeric id: no GraphQL, no project command, no board.sh; the answer carries its timing"
+        self.items((9, "👤 Spec Review"), (10, "👤 Staged"))
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual(r.code, 200)
+        self.assertEqual(r.json.get("moved_to"), "Ready for Dev")
+        self.assertEqual(r.json["timing"].get("path"), "rest")
+        self.assertGreaterEqual(r.json["timing"]["total_ms"], 0)
+        calls = self.calls()
+        self.assertEqual([c for c in calls if "-X PATCH" in c and "projectsV2/7/items/1000009 " in c + " "].__len__(), 1)
+        self.assertEqual([c for c in calls if c.startswith("project ") or "graphql" in c], [], "no GraphQL, no gh project")
+        self.assertIn('"value": "opt5"', self.gh("patches"))
+        # the board is not read again for the next click while the dashboard's own read is young
+        self.gh("calls", "")
+        r = self.card_post(10, "approve", {"column": "Staged"})
+        self.assertEqual(r.code, 200)
+        calls = self.calls()
+        self.assertEqual(len(calls), 2, calls)  # the card's labels (the lock) and the PATCH
+        self.assertIn("-X PATCH", calls[1])
+        self.assertTrue(r.json["timing"].get("board_cached"))
+
+    def test_the_read_is_live_when_the_card_is_not_in_the_dashboards(self):
+        "a card that the dashboard's read lacks, or has in another column than the page saw, is read live before a 409"
+        self.items((9, "👤 Spec Review"))
+        f = self.dashboard.Handler.factory
+        f._live["shop"] = (time.time(), [["8", "Coding", "PVTI_8", "1000008"]])
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 200)
+        self.assertTrue(any("projectsV2/7/items" in c and "-X" not in c for c in self.calls()), "the board was read")
+        self.gh_rm("edits", "patches"); self.items((9, "👤 Staged"))
+        f._live["shop"] = (time.time(), [["9", "Coding", "PVTI_9", "1000009"]])
+        self.assertEqual(self.card_post(9, "approve", {"column": "Staged"}).code, 200, "the live read says Staged")
+        self.items((9, "👤 Ready for Dev"))  # moved on GitHub, and the dashboard's read says so too
+        f._live["shop"] = (time.time(), [["9", "Ready for Dev", "PVTI_9", "1000009"]])
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual((r.code, r.json.get("column")), (409, "Ready for Dev"), "the stale read is checked live before refusing")
+
+    def test_an_old_read_is_read_again(self):
+        "past BOARD_FRESH_S the dashboard's read is not trusted: the click reads the board"
+        self.items((9, "👤 Spec Review"))
+        f = self.dashboard.Handler.factory
+        f._live["shop"] = (time.time() - self.dashboard.BOARD_FRESH_S - 1, [["9", "Spec Review", "PVTI_9", "1000009"]])
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 200)
+        self.assertTrue(any("projectsV2/7/items" in c and "-X" not in c for c in self.calls()))
+
+    def test_the_ids_are_asked_once_and_dropped_when_wrong(self):
+        "the Status field and options are read once per project; an option they lack is read again, then PATCHed"
+        self.items((9, "👤 Spec Review"), (10, "👤 Spec Review"))
+        self.card_post(9, "approve", {"column": "Spec Review"})
+        self.card_post(10, "approve", {"column": "Spec Review"})
+        self.assertEqual(len([c for c in self.calls() if "/fields" in c]), 1, "one read of the fields for two moves")
+        self.dashboard.Handler.factory.rest_board("shop")._rest_field = ("4242", {"Coding": "x"})  # stale: no Ready for Prod
+        self.items((11, "👤 Staged"))
+        r = self.card_post(11, "approve", {"column": "Staged"})
+        self.assertEqual((r.code, r.json["timing"]["path"]), (200, "rest"))
+        self.assertEqual(len([c for c in self.calls() if "/fields" in c]), 2)
+        self.assertIn('11 {"fields": [{"id": 4242, "value": "opt9"}]}'.replace("11 ", "1000011 "), self.gh("patches"))
+
+    def test_rest_down_goes_by_graphql_as_before(self):
+        "REST failing everywhere: the board is read by board.sh and the card moves by project item-edit; the answer says so"
+        self.items((9, "👤 Spec Review"))
+        self.gh("fail-rest", "1")
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual((r.code, r.json["timing"]["path"]), (200, "graphql"))
+        self.assertIn("project item-edit", " ".join(self.calls()))
+        self.assertIn("--id PVTI_9 --field-id FLD_x --single-select-option-id opt5", self.gh("edits"))
+
+    def test_a_failed_patch_reads_the_board_and_falls_back(self):
+        "a PATCH that fails drops the ids, reads the board, tries once more, then moves the card by GraphQL; a refusal is still a 502"
+        self.items((9, "👤 Spec Review"))
+        self.gh("fail-patch", "1")
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual((r.code, r.json["timing"]["path"]), (200, "graphql"))
+        calls = self.calls()
+        self.assertEqual(len([c for c in calls if "-X PATCH" in c]), 2, "the PATCH was tried twice")
+        self.assertTrue(any("project item-edit" in c for c in calls))
+        self.gh_rm("edits"); self.items((9, "👤 Spec Review"))
+        self.gh("fail", "1")
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual(r.code, 502, "gh down: the move is refused, not faked")
+
+    def test_refusals_hold_with_the_dashboards_read(self):
+        "403, 409 and 423 are decided the same with a young read: nothing is written"
+        self.items((9, "👤 Spec Review"))
+        f = self.dashboard.Handler.factory
+        young = lambda col: f._live.__setitem__("shop", (time.time(), [["9", col, "PVTI_9", "1000009"]]))
+        young("Spec Review")
+        self.assertEqual(self.move(9, "Spec Review", "Done").code, 403)
+        self.assertEqual(self.card_post(9, "approve", {"column": "Coding"}).code, 409)
+        self.lock("refine-9", 26)
+        young("Spec Review")
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 423)
+        self.assertEqual((self.edits(), self.gh("patches")), ([], ""))
+
+    def test_the_factory_is_woken_for_the_columns_it_acts_on(self):
+        "a move into Ready for Refinement, Ready for Dev, Ready for Prod or Coding wakes the dispatcher once; Inbox does not"
+        self.wake_with("bash", self.wake_script)
+        self.items((9, "👤 Spec Review"), (10, "👤 Staged"), (11, "👤 Inbox"), (12, "👤 Ready for Refinement"), (13, "👤 Staged"))
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 200)
+        self.assertTrue(self.wakes(1), "Ready for Dev")
+        self.assertEqual(self.card_post(10, "approve", {"column": "Staged"}).code, 200)
+        self.assertTrue(self.wakes(2), "Ready for Prod")
+        self.assertEqual(self.card_post(13, "request-changes", {"column": "Staged", "text": "no"}).code, 200)
+        self.assertTrue(self.wakes(3), "Coding")
+        self.assertEqual(self.move(11, "Inbox", "Ready for Refinement").code, 200)
+        self.assertTrue(self.wakes(4), "Ready for Refinement")
+        self.assertEqual(self.move(12, "Ready for Refinement", "Inbox").code, 200)
+        self.assertTrue(self.wakes(4), "Inbox: the factory ignores it, no wake")
+        self.assertEqual(self.move(12, "Inbox", "Done").code, 403)
+        self.assertTrue(self.wakes(4), "a refused move wakes nothing")
+
+    def test_take_back_send_back_unblock_and_accept_wake_when_the_factory_acts(self):
+        "an unblock, a send-back and a take-back to a column the factory works wake it; a take-back to the Inbox does not"
+        self.wake_with("bash", self.wake_script)
+        self.items((9, "🤖 Coding"))
+        self.gh("labels-9", "blocked\n")
+        self.assertEqual(self.card_post(9, "take-back", {"to": "Inbox"}).code, 200)
+        self.assertTrue(self.wakes(0), "Inbox")
+        self.items((9, "🤖 Coding")); self.gh("labels-9", "blocked\n")
+        self.assertEqual(self.card_post(9, "take-back", {"to": "Ready for Dev"}).code, 200)
+        self.assertTrue(self.wakes(1), "Ready for Dev")
+        self.assertEqual(self.card_post(7, "unblock", {}).code, 200)
+        self.assertTrue(self.wakes(2), "unblock")
+
+    def test_a_failing_wake_does_not_fail_the_move(self):
+        "a wake command that does not exist, or a file with nothing in it, leaves the move a 200"
+        self.items((9, "👤 Spec Review"), (10, "👤 Staged"))
+        self.wake_with("/no/such/command", "x")
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 200)
+        self.wake_with()
+        self.assertEqual(self.card_post(10, "approve", {"column": "Staged"}).code, 200)
+        self.assertEqual(self.server_errors(), [])
+
+    def test_a_move_is_quick_when_gh_is_slow(self):
+        "with every gh call taking 300 ms an approve costs the lock's read and one PATCH, not the five calls of before"
+        self.items((9, "👤 Spec Review"), (10, "👤 Staged"))
+        os.environ["FAKE_GH_DELAY"] = "0.3"
+        self.addCleanup(os.environ.pop, "FAKE_GH_DELAY", None)
+        self.card_post(9, "approve", {"column": "Spec Review"})  # the first click reads the board and the ids
+        t0 = time.time()
+        r = self.card_post(10, "approve", {"column": "Staged"})
+        self.assertEqual(r.code, 200)
+        self.assertLess(time.time() - t0, 1.5, r.json["timing"])
