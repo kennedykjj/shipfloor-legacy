@@ -26,6 +26,7 @@ class Case(unittest.TestCase):
             del os.environ[k]
         os.environ["FACTORY_HOME"] = self.path("home")
         os.environ["SHIPFLOOR_HOME"] = self.path("shome")
+        os.environ["SHIPFLOOR_INSTALLER_STATUS"] = "none"  # never this machine's dispatcher registration (a test sets a stub)
         os.environ["FACTORY_CONFIG"] = os.path.join(FIXTURE, "factory.yml")
         os.environ["FACTORY_PYTHON"] = sys.executable
 

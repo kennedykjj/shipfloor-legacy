@@ -277,6 +277,80 @@ class Browser(support.Case):
         self.until("the model saved", lambda: "gpt-6-sol" in self.machine_config())
         self.assertIn("models:", self.machine_config().split("runtime:")[1])
 
+    # ---- UI review (M6, M7, M9)
+    def test_palette_pause_asks_first_and_resume_is_offered(self):
+        """M6 Ctrl K: Pause the factory comes after the cards and asks before it pauses (Enter twice changes nothing); paused, Resume the factory is offered"""
+        pause = os.path.join(self.home, "PAUSE")
+        page = self.open_page()
+        self.ready(page)
+        page.keyboard.press("Control+k")
+        expect(page.locator("#pal-in")).to_be_focused()
+        rows = page.eval_on_selector_all("#pal-list [data-pal]", "els => els.map(e => e.textContent)")
+        self.assertEqual(rows[-1], "Pause the factory", rows)
+        self.assertNotEqual(page.inner_text("#pal-list [aria-selected=true]"), "Pause the factory")
+        page.keyboard.type("pause")
+        page.keyboard.press("Enter")
+        expect(page.locator("#pal-ask")).to_be_visible()
+        expect(page.locator("#pal-list [aria-selected=true]")).to_have_text("No, keep it running")
+        page.keyboard.press("Enter")
+        expect(page.locator("#pal-ask")).to_be_hidden()
+        self.assertFalse(os.path.exists(pause), "Enter, Enter: nothing paused")
+        page.keyboard.press("Enter")
+        expect(page.locator("#pal-ask")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator("#pal-ask")).to_be_hidden()
+        expect(page.locator("#pal")).to_be_visible()
+        page.keyboard.press("Enter")
+        page.keyboard.press("ArrowDown")
+        expect(page.locator("#pal-list [aria-selected=true]")).to_have_text("Yes, pause the factory")
+        page.keyboard.press("Enter")
+        self.until("the PAUSE file", lambda: os.path.exists(pause))
+        expect(page.locator("#pal")).to_be_hidden()
+        page.wait_for_function("S.overview && S.overview.paused", timeout=SLOW)
+        page.keyboard.press("Control+k")
+        page.keyboard.type("resume")
+        expect(page.locator("#pal-list [aria-selected=true]")).to_have_text("Resume the factory")
+        page.keyboard.press("Enter")
+        self.until("the PAUSE file gone", lambda: not os.path.exists(pause))
+
+    def test_health_banner_in_the_pages_language(self):
+        """M7 a health alert is worded by the catalog: in pt-BR it says what is wrong and what to do, with the stage's name, no English"""
+        with open(os.path.join(self.home, "config.yml"), encoding="utf-8") as f:
+            text = f.read()
+        with open(os.path.join(self.home, "config.yml"), "w", encoding="utf-8") as f:
+            f.write(text.replace("language: en", "language: pt-BR"))
+        log = sorted(os.listdir(os.path.join(self.home, "logs")))
+        log = os.path.join(self.home, "logs", next(n for n in log if n.startswith("health-")))
+        ts = datetime.now().astimezone().isoformat(timespec="seconds")
+        with open(log, "a", encoding="utf-8") as f:
+            for _ in range(3):
+                f.write(json.dumps({"ts": ts, "cycle": {"s": 5, "exit": 0, "overlap": True}, "idle": ["atlas/develop"], "over": ["pool 7/6"]}) + "\n")
+        page = self.open_page()
+        expect(page.locator("html")).to_have_attribute("lang", "pt-BR", timeout=SLOW)
+        alerts = page.locator("#alerts")
+        expect(alerts).to_contain_text("uma vaga livre e cards esperando há 3 ciclos seguidos", timeout=SLOW)
+        text = alerts.inner_text()
+        for want in ("atlas · Desenvolver", "shipfloor doctor", "dois ciclos do dispatcher rodaram ao mesmo tempo", "7 execuções ao mesmo tempo, o pool permite 6"):
+            self.assertIn(want, text)
+        for english in ("a free slot", "more runs than the limit", "ran at once"):
+            self.assertNotIn(english, text)
+
+    def test_settings_shows_the_pace_the_registration_runs_at(self):
+        """M9 Settings shows the pace the installed registration runs at (30 s here, config.yml says 3), no Windows-only reason on Linux"""
+        status = os.path.join(self.tmp, "status.sh")
+        with open(status, "w", encoding="utf-8") as f:
+            f.write("#!/usr/bin/env bash\nprintf 'registered: systemd\\nlimits: none\\npace: every 30 seconds\\n'\n")
+        os.environ["SHIPFLOOR_INSTALLER_STATUS"] = '"%s" "%s"' % (shutil.which("bash"), status)
+        os.environ["SHIPFLOOR_SCHEDULER"] = '"%s" -c "exit 0" stub' % shutil.which("bash")  # never the real installer
+        page = self.open_page()
+        self.ready(page)
+        page.click('[data-view="settings"]')
+        sel = page.locator("#every")
+        expect(sel).to_be_enabled(timeout=SLOW)
+        self.assertEqual(sel.input_value(), "0.5")
+        self.assertEqual(sel.locator("option:checked").inner_text(), "30 seconds")
+        self.assertNotIn("Windows only", page.inner_text("#disp"))
+
     def machine_config(self):
         with open(os.path.join(self.home, "config.yml"), encoding="utf-8") as f:
             return f.read()

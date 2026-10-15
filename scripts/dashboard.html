@@ -60,6 +60,9 @@
 [data-theme="cobalt"] { --raise: #ffffff; --accent-ink: #ffffff; --paper: #fbfdff; --accent-soft: color-mix(in srgb, var(--sand) 14%, transparent); --accent-line: color-mix(in srgb, var(--sand) 45%, transparent); --ground: #e3ebf6; --panel: #eef3fb; --panel-hi: #f9fbff; --edge: #c6d4ea; --edge-hi: #9db2d2; --text: #0b1f44; --soft: #1f355e; --muted: #3f567e; --faint: #4c628a; --sand: #006478; --ok: #2c6e1c; --warn: #854a00; --bad: #b3261e; --glow1a: #f4f8ff; --glow1b: #e9f0fa; --glow2: #d0dcf0; --track: #8ba0c2; --track-on: #1f355e; --refine: #6a3fa8; --validate: #a3277f; --ov: #0b1f44; --well: #ffffff66; --scrim: rgba(30, 48, 84, .55); --shadow: 0 10px 30px rgba(20, 40, 80, .16); color-scheme: light; }
 /* derived from the theme: money is the accent, and the owner's action is the ink on the ground */
 :root { --gold: var(--text); --azure: var(--text); --azure-ink: var(--ground); --azure-soft: color-mix(in srgb, var(--text) 12%, transparent); }
+/* Paper: the accent and ok as small text on their own tints are just under AA (4.5:1); a fifth of the ink brings them over 5:1 */
+[data-theme="paper"] .tok.you:not(.open), [data-theme="paper"] .seg.gate .sname, [data-theme="paper"] .seg.gate .smeta.on { color: color-mix(in srgb, var(--sand) 80%, var(--text)); }
+[data-theme="paper"] .tok.done, [data-theme="paper"] .seg.done .smeta.on { color: color-mix(in srgb, var(--ok) 80%, var(--text)); }
 * { box-sizing: border-box; }
 /* Languages (#122). IBM Plex Sans draws Latin only: Cyrillic falls back to the system's faces after it, and Chinese, Japanese
    and Korean take their own faces, picked by the page's language (<html lang>, set by the server) so a shared character
@@ -181,9 +184,9 @@ main { min-height: 0; display: grid; }
 .bnote { margin: 0; padding: 20px 8px; text-align: center; font-size: 12px; color: var(--faint); }
 /* the scrubber under the belt (#184): today 00:00-24:00, the runs and the owner's decisions as marks, the needle that replays the belt */
 .scrub { margin-top: 4px; }
-.lane { position: relative; height: 38px; cursor: pointer; touch-action: none; user-select: none; }
-.lane::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 1px; background: var(--edge); }
-.fut { position: absolute; right: 0; top: 10px; height: 9px; background-image: repeating-linear-gradient(45deg, var(--track) 0 2px, transparent 2px 6px); pointer-events: none; }
+#lane { position: relative; height: 38px; cursor: pointer; touch-action: none; user-select: none; }
+#lane::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 1px; background: var(--edge); }
+.fut, .pre { position: absolute; right: 0; top: 10px; height: 9px; background-image: repeating-linear-gradient(45deg, var(--track) 0 2px, transparent 2px 6px); pointer-events: none; } .pre { left: 0; right: auto; }
 .hl { position: absolute; top: 22px; font-family: var(--mono); font-size: 12px; line-height: 1; color: var(--faint); font-variant-numeric: tabular-nums; pointer-events: none; }
 .mk { position: absolute; top: 14px; display: block; }
 .mk.ok { width: 2px; height: 10px; margin: -5px 0 0 -1px; background: var(--ok); }
@@ -226,8 +229,8 @@ main { min-height: 0; display: grid; }
 .band.maxed { display: flex; flex-direction: column; overflow: hidden; } .band.maxed > h1 { display: block; }
 .band.maxed .cells, .band.maxed .legend { display: none; }
 .band.maxed .lanes { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr); }
-.lane { margin: 12px 0 0; padding-bottom: 8px; border-bottom: 1px solid var(--edge-hi); font-size: 17px; color: var(--soft); }
-.lane small { font: 400 12px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 8px; }
+h2.lane { margin: 12px 0 0; padding-bottom: 8px; border-bottom: 1px solid var(--edge-hi); font-size: 17px; color: var(--soft); }
+h2.lane small { font: 400 12px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 8px; }
 .lcols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: 0; }
 .lcol { min-width: 0; overflow-y: auto; padding: 8px 12px 8px; border-left: 1px solid color-mix(in srgb, var(--ov) 14.9%, transparent); display: flex; flex-direction: column; gap: 8px; } .lcol:first-child { border-left: 0; padding-left: 0; }
 .lcol .lab { height: auto; padding: 0 0 4px; }
@@ -271,7 +274,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .iconf { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--edge-hi); } .ihint { margin: 0; font-size: 12px; color: var(--muted); }
 .itoast { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45.1%, transparent); border-radius: 8px; padding: 8px; }
 .itoast button { background: none; border: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.feed .telem:not(.maxed) { flex: none; max-height: none; overflow: visible; margin-bottom: 16px; }
+.feed .telem:not(.maxed) { flex: none; max-height: none; overflow: visible; margin-bottom: 16px; padding: 0 0 16px; border: 0; border-bottom: 1px solid var(--hair); border-radius: 0; background: none; }  /* in the Logbook's panel: one panel, not one inside another */
 .telem:not(.maxed).cut { -webkit-mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); mask-image: linear-gradient(var(--ground) calc(100% - 24px), transparent); }
 .pnote { margin: 8px 0 0; font-size: 13px; color: var(--bad); } .ext { width: 10px; height: 10px; margin-left: 4px; fill: none; stroke: currentColor; stroke-width: 1.4; }
 .empty { color: var(--muted); font-size: 14px; padding-top: 4px; max-width: 34ch; }
@@ -467,7 +470,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .sknob small.warn { color: var(--warn); max-width: 40ch; text-align: right; } .set-body > .note.warn { margin: 16px 0 0; font-size: 13px; color: var(--warn); }
 .trio { display: flex; gap: 8px; } .trio label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); } .trio select { min-width: 11ch; }
 @media (max-width: 600px) { .trio { flex-direction: column; align-items: stretch; } .trio label { flex-direction: row; align-items: center; gap: 8px; } .trio label span { min-width: 9ch; } }
-@media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow > .stp { justify-self: start; } .srow .sv { text-align: left; } .nf.topic { width: 100%; } .sknob { align-items: flex-start; } .sknob small.warn { text-align: left; } }
+@media (max-width: 1180px) { .set-cols { grid-template-columns: minmax(0, 1fr); } .set-nav { position: static; flex-direction: row; overflow-x: auto; } .set-nav button { flex: none; white-space: nowrap; hyphens: manual; } .set-nav small { display: none; } .srow { grid-template-columns: minmax(0, 1fr); } .srow > .stp { justify-self: start; } .srow .sv { text-align: left; } .nf.topic { width: 100%; } .sknob { align-items: flex-start; } .sknob small.warn { text-align: left; } }
 /* feed: every project's runs and the dispatcher's own lines, newest first; a run's line opens its card on that run's log */
 .feed { overflow: auto; min-width: 0; min-height: 0; padding: 16px clamp(16px, 2.2vw, 28px) 28px; scrollbar-color: var(--edge-hi) transparent; }
 .ftools { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -510,6 +513,12 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .section-k { font-size: 12px; color: var(--muted); margin: 16px 20px 8px; font-weight: 600; }
 
 table { border-collapse: collapse; width: 100%; font-size: 12px; }
+/* a wide table on a narrow screen scrolls sideways; the edge it hides fades */
+.tscroll { overflow-x: auto; overscroll-behavior-x: contain; } .tscroll > table { min-width: 560px; }
+.tscroll.more-r { -webkit-mask-image: linear-gradient(to right, var(--ground) calc(100% - 40px), transparent); mask-image: linear-gradient(to right, var(--ground) calc(100% - 40px), transparent); }
+.tscroll.more-l { -webkit-mask-image: linear-gradient(to left, var(--ground) calc(100% - 40px), transparent); mask-image: linear-gradient(to left, var(--ground) calc(100% - 40px), transparent); }
+.tscroll.more-l.more-r { -webkit-mask-image: linear-gradient(to right, transparent, var(--ground) 40px, var(--ground) calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, var(--ground) 40px, var(--ground) calc(100% - 40px), transparent); }
+.tscroll:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 th { text-align: right; font-weight: 500; color: var(--muted); font-size: 12px; padding: 8px; border-bottom: 1px solid var(--edge); white-space: nowrap; position: sticky; top: 0; background: var(--panel); }
 td { text-align: right; padding: 8px; border-bottom: 1px solid var(--edge); white-space: nowrap; }
 th:first-child, td:first-child { padding-left: 20px; text-align: left; }
@@ -638,6 +647,8 @@ code, pre, kbd, .log, .did, .ftime, .gate, .iacs b, .idiff, .cin, .cin input, .n
 .pal-row .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pal-row .col { flex: none; font-size: 12px; color: var(--muted); }
 .pal-row.none { color: var(--muted); cursor: default; }
+.pal-ask { margin: 0; padding: 12px 16px 4px; font-size: 14px; line-height: 1.5; color: var(--text); } .pal-ask[hidden] { display: none; }
+.pal-row.yes { color: var(--bad); }
 @media (max-width: 599px) {
   .pal-box { top: 16px; width: calc(100vw - 32px); }
   .pal-row { min-height: 44px; flex-wrap: wrap; align-items: center; } .pal-row .ttl { flex-basis: calc(100% - 64px); } .pal-row .col { flex-basis: 100%; padding-left: 0; order: 3; }
@@ -714,6 +725,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
   <div class="pal-scrim" id="pal-scrim"></div>
   <div class="pal-box" role="dialog" aria-modal="true" aria-label="Commands" data-i-aria="pal.open">
     <input class="pal-in" id="pal-in" type="text" role="combobox" aria-expanded="true" aria-controls="pal-list" aria-autocomplete="list" aria-activedescendant="" autocomplete="off" spellcheck="false" aria-label="Card number, title or action" placeholder="Card number, title or action" data-i-aria="pal.field" data-i-ph="pal.field">
+    <p class="pal-ask" id="pal-ask" hidden></p>
     <ul class="pal-list" id="pal-list" role="listbox" aria-label="Commands" data-i-aria="pal.open"></ul>
     <p class="sr" id="pal-live" role="status" aria-live="polite"></p>
   </div>
@@ -966,6 +978,12 @@ function copyCommand() {
   navigator.clipboard?.writeText(cmd)?.catch?.(() => {});
   RESTART.copiedAt = Date.now(); renderStatus(); setTimeout(renderStatus, 2100);
 }
+// A health finding (shipfloor_health.findings) in the page's language: what is wrong and what the owner can do.
+function healthText(a) {
+  if (typeof a === "string") return esc(a);  // a server from before the findings had keys
+  const s = t(`health.${a.key}`, { project: esc(a.project || ""), stage: esc(stageName(a.stage)), cycles: a.cycles, used: a.used, limit: a.limit, what: esc(a.what || ""), m: a.min, every: a.every });
+  return s === `health.${a.key}` ? esc(a.line || a.key || "") : s;  // a key this page does not know: the line as the health log has it
+}
 // The alerts line exists only while something is wrong.
 function renderFlags() {
   if (S.refused) return;
@@ -980,7 +998,7 @@ function renderFlags() {
   if (o?.usage_limited) add("bad", t("alert.usage"), t("alert.usage.text"));
   if (o && !o.paused && o.hours && !o.hours.open) add("warn", t("alert.hours"), t("alert.hours.text", { at: esc(o.hours.next) }));  // a paused factory shows only the pause
   for (const x of o?.projects || []) if (x.skipped) add("bad", t("alert.skipped", { project: esc(x.slug), since: when(x.skipped.since) }), t("alert.skipped.text", { reason: esc(x.skipped.reason) }));
-  for (const a of o?.alerts || []) add("warn", t("alert.health"), t("alert.health.text", { what: esc(a) }));
+  for (const a of o?.alerts || []) add("warn", t("alert.health"), t("alert.health.text", { what: healthText(a) }));
   const orphans = (o?.runs || []).filter((r) => r.orphan);
   if (orphans.length) add("warn", t("alert.orphans", { n: orphans.length }), esc(orphans.map((r) => `${r.stage}-${r.issue}.lock`).join(", ")));
   if ((o?.stacks || []).some((x) => x.state === "stuck")) add("warn", t("alert.stuck"), t("alert.stuck.text"));
@@ -1147,6 +1165,7 @@ function loadDay() {
     if (R.at) renderBoard();
   })();
 }
+const firstMin = () => !R.lines || R.slug !== S.project ? null : R.lines.length ? minuteOf(R.lines[0].at) : nowMin();  // none today: all of it
 const ensureDay = async () => { if (!R.lines || R.slug !== S.project) await loadDay(); };
 const lineAt = () => R.lines.reduce((best, l) => l.at <= R.at ? l : best, null);
 function markText(m) {
@@ -1159,6 +1178,10 @@ function renderScrub() {
   const nowM = nowMin(), min = R.at ? atMin() : nowM, pct = (m) => `${(m / 14.4).toFixed(2)}%`;
   R.minute = nowM;
   $("ph").style.left = pct(min); $("fut").style.left = pct(nowM);
+  // before the day's first board line there is nothing to replay: hatched like the future, and the needle stops at it
+  if (!$("pre")) $("lane").insertAdjacentHTML("afterbegin", '<div class="pre" id="pre" aria-hidden="true"></div>');
+  const first = firstMin();
+  $("pre").hidden = first == null; if (first != null) $("pre").style.width = pct(Math.min(first, nowM));
   $("ph").setAttribute("aria-valuenow", min); $("ph").setAttribute("aria-valuetext", R.at ? hm4(min) : t("scrub.now"));
   setHTML($("marks"), R.marks.map((m) => { const d = new Date(m.t), text = esc(markText(m));
     return `<i class="mk ${m.kind === "decision" ? "dec" : m.kind === "bad" ? "bad" : "ok"}" style="left:${pct(d.getHours() * 60 + d.getMinutes())}" title="${text}"><span class="vh">${text}</span></i>`; }).join(""));
@@ -1204,7 +1227,8 @@ function setAddress(min, push) {
 // Puts the needle at a minute of today. At or after now it is live. how: "drag" swaps the belt instantly, any other travels.
 function needle(min, how, fromUrl) {
   if (min >= nowMin()) return backToLive(false, fromUrl);
-  min = Math.max(0, Math.round(min));
+  const first = R.lines?.length && R.slug === S.project ? minuteOf(R.lines[0].at) : null;
+  min = Math.max(first ?? 0, Math.round(min));
   const entering = !R.at;
   if (entering) { if ($("band").classList.contains("maxed")) maximize($("band"), false); S.editing = null; if (L.hold) letGo(true); }
   R.at = dayStart() + min * 60000; R.note = ""; R.dragging = how === "drag";
@@ -1243,7 +1267,7 @@ $("band").addEventListener("keydown", (e) => {  // Esc in the belt panel leaves 
   let down = false;
   const lane = $("lane"), minuteAt = (x) => { const r = lane.getBoundingClientRect(); return r.width ? Math.min(1440, Math.max(0, Math.round((x - r.left) / r.width * 1440))) : null; };
   const to = (e, how) => { const m = minuteAt(e.clientX); if (m != null) needle(m, how); };
-  lane.addEventListener("pointerdown", (e) => { if (e.button) return; down = true; lane.setPointerCapture?.(e.pointerId); $("ph").focus({ preventScroll: true }); to(e, "drag"); });
+  lane.addEventListener("pointerdown", (e) => { if (e.button) return; e.preventDefault(); down = true; lane.setPointerCapture?.(e.pointerId); $("ph").focus({ preventScroll: true }); to(e, "drag"); });  // preventDefault: the press does not move the focus off the needle, so Esc still reaches the panel
   lane.addEventListener("pointermove", (e) => { if (down) to(e, "drag"); });
   lane.addEventListener("pointerup", (e) => { if (down) { down = false; to(e, "release"); } });  // releasing travels; in the future it is live
   lane.addEventListener("pointercancel", () => { down = false; R.dragging = false; });
@@ -1345,7 +1369,7 @@ function renderLanes(p, by, key, labels) {
     return `<div class="cw" data-cw="${esc(k)}"><button class="chip ${c.column === "Done" ? "" : kind}${lock ? " locked" : ""}${L.only && !can ? " dimc" : ""}" data-key="${esc(k)}" data-open="${esc(k)}"${can ? ' draggable="true"' : ""}${can ? ' data-mvok aria-pressed="false"' : ""}${lock ? ' aria-disabled="true"' : ""}>${pos}<b class="g">#${c.issue}</b>${c.title ? esc(c.title) : UNTITLED}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}</button>${can ? `<button class="btn ghost mvb" data-mv="${esc(k)}">${t("chip.move")}</button>` : ""}${rord}</div>`; };
   const was = Object.fromEntries([...$("lanes").querySelectorAll(".chip")].map((el) => [el.dataset.key, el.getBoundingClientRect()]));
   const changed = setHTML($("lanes"), LANES.map(([lane, a, b]) => `<h2 class="lane g">${t(lane)}<small>${t(`${lane}.what`)}</small></h2><div class="lcols">${COLS.slice(a, b).map((col) =>
-    `<div class="lcol" data-col="${esc(col.name)}"${col.stage ? ` data-stage="${col.stage}"` : ""}><div class="lab">${col.stage ? `<b class="g">${esc(stageName(col.stage))}</b>` : `<span class="q">${esc(col.name)}</span>`}<span class="d">${labels[col.name]}</span></div><div class="accl"></div>${shown[col.name].map(chip).join("")}</div>`).join("")}</div>`).join(""));
+    `<div class="lcol" data-col="${esc(col.name)}"${col.stage ? ` data-stage="${col.stage}"` : ""}><div class="lab">${col.stage ? `<b class="g">${esc(stageName(col.stage))}</b>` : `<span class="q">${esc(colName(col.name))}</span>`}<span class="d">${labels[col.name]}</span></div><div class="accl"></div>${shown[col.name].map(chip).join("")}</div>`).join("")}</div>`).join(""));
   if (changed && !still.matches) $("lanes").querySelectorAll(".chip").forEach((el) => {  // a chip that changed place slides there
     const a = was[el.dataset.key]; if (!a) return; const z = el.getBoundingClientRect(), dx = a.left - z.left, dy = a.top - z.top;
     if (dx || dy) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 150, easing: "ease-out" });
@@ -1885,13 +1909,14 @@ function palCards(q, cards) {
   return cards.filter((c) => { const h = fold(`${c.issue} ${c.title}`); return words.every((w) => h.includes(w)); });
 }
 function palette(query, cards, actions) {
-  const q = fold(query).trim().replace(/^#/, ""), acts = actions || [], rows = [];
+  const q = fold(query).trim().replace(/^#/, ""), acts = actions || [], rows = [], late = [];
   const min = q && acts.some((a) => a.id === "at") ? palTime(q) : null;
   if (min != null) rows.push({ kind: "action", id: "at", min, label: t("pal.at", { time: hm4(min) }) });
-  for (const a of acts) if (a.id !== "at" && (!q || fold(a.label).includes(q))) rows.push({ kind: "action", id: a.id, label: a.label });
+  // what acts on the whole factory (pause, resume) comes after the cards, never first under Enter, and is never cut
+  for (const a of acts) if (a.id !== "at" && (!q || fold(a.label).includes(q))) (a.id === "pause" || a.id === "resume" ? late : rows).push({ kind: "action", id: a.id, label: a.label });
   for (const c of palCards(q, cards || [])) rows.push({ kind: "card", key: c.key, issue: c.issue, title: c.title || "", column: c.column, waits: palWait(c) });
-  if (!rows.length) rows.push({ kind: "none", label: t("pal.none") });
-  return rows.slice(0, 9);
+  if (!rows.length && !late.length) rows.push({ kind: "none", label: t("pal.none") });
+  return rows.slice(0, 9 - late.length).concat(late);
 }
 function paintRun(v) {
   const c = v.cur, key = c.key, [slug] = key.split("/"), run = runOf(slug, c), of = STEP_COUNT[c.running], step = run?.step, acts = run?.activity || [];
@@ -2087,14 +2112,17 @@ function renderTelem(p) {
   const spentTxt = T.unpriced ? money(null) : `<b>${usd(spent)}</b>`;
   let charts;
   if (d.unit === "hour") {
-    const W = big ? 1100 : 360, top = 4, floor = Hh - 16, band = W / Math.max(bs.length, 6), bw = Math.min(big ? 64 : 18, band - 4);
-    const chart = (label, max, marks) => `<svg class="chart" style="height:${Hh}px" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${esc(label)}"><defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="color-mix(in srgb, var(--bad) 22.0%, transparent)"/><rect width="2" height="4" fill="var(--bad)"/></pattern></defs><line class="base" x1="0" x2="${W}" y1="${floor + .5}" y2="${floor + .5}"/>${bs.map((h, i) => {
+    // the drawing is as wide as the panel draws it (one unit a pixel), so the bars fill it and the hour labels keep their size
+    const W = Math.round(el.clientWidth) || (big ? 1100 : 360), top = 4, floor = Hh - 16, band = W / Math.max(bs.length, 6), bw = Math.min(big ? 64 : 18, band - 4);
+    H.w = W;
+    const chart = (label, max, marks, defs = "") => `<svg class="chart" style="height:${Hh}px" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${esc(label)}">${defs}<line class="base" x1="0" x2="${W}" y1="${floor + .5}" y2="${floor + .5}"/>${bs.map((h, i) => {
       const x = i * band + (band - bw) / 2, sc = (v) => v / max * (floor - top);
       return `<g>${marks(h, x, sc)}${big || i === 0 || i === bs.length - 1 || h.h % 3 === 0 ? `<text x="${x + bw / 2}" y="${Hh - 3}" text-anchor="middle">${t("chart.hour", { h: h.h })}</text>` : ""}</g>`; }).join("")}</svg>`;
     const rect = (x, y, h, fill, tip) => h > 0 ? `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${fill}"><title>${esc(tip)}</title></rect>` : "";
+    const hatch = `<defs><pattern id="hhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="color-mix(in srgb, var(--bad) 22.0%, transparent)"/><rect width="2" height="4" fill="var(--bad)"/></pattern></defs>`;  // one pattern, one id, in the one chart that uses it
     const runs = chart(t("hist.chart.runs_h", { ok, failed }), Math.max(1, ...bs.map((h) => h.ok + h.failed)), (h, x, sc) => {
       const a = sc(h.ok), b = sc(h.failed), gap = a && b ? 2 : 0, tip = t("chart.runs.tip", { h: h.h, ok: h.ok, failed: h.failed });
-      return rect(x, floor - a, a, "var(--ok)", tip) + rect(x, floor - a - gap - b, b, "url(#hatch)", tip); });  // failed runs are hatched as well as coloured
+      return rect(x, floor - a, a, "var(--ok)", tip) + rect(x, floor - a - gap - b, b, "url(#hhatch)", tip); }, hatch);  // failed runs are hatched as well as coloured
     const cost = chart(t("hist.chart.spend_h", { spent: usd(spent) }), Math.max(.01, ...bs.map((h) => h.cost)), (h, x, sc) => rect(x, floor - sc(h.cost), sc(h.cost), "var(--text)", t("chart.spend.tip", { h: h.h, spent: usd(h.cost) })));
     charts = [t("today.runs"), runs, t("today.spend"), cost];
   } else {
@@ -2180,13 +2208,20 @@ function renderDrawer() {
   const column = c?.column || ov?.column || "";
   const onTitle = document.activeElement?.id === "tip-title";
   if (setHTML($("d-head"), headHtml(c, ov, p, n, column)) && onTitle) $("tip-title").focus({ preventScroll: true });
-  const tabs =[["live", ""], ["sessions", c ? c.sessions.length : ""], ["log", c ? new Set(c.runs.map((x) => x.log)).size || "" : ""], ["gates", c?.reports.length || ""], ["review", ""]];
+  const tabs =[["live", ""], ["sessions", c ? c.sessions.length : ""], ["log", c ? new Set(c.runs.map((x) => x.log)).size || "" : ""], ["gates", c ? (c.reports.at(-1)?.failed_gates || []).length || "" : ""], ["review", ""]];
   setHTML($("d-tabs"), tabs.map(([id, b]) => `<button role="tab" id="tab-${id}" aria-controls="pane" aria-selected="${S.tab === id}" tabindex="${S.tab === id ? 0 : -1}" data-tab="${id}">${t(`tab.${id}`)}${b !== "" ? `<span class="b num">${b}</span>` : ""}</button>`).join(""));
   $("pane").setAttribute("aria-labelledby", `tab-${S.tab}`);
   const fresh = setHTML($("pane"), c ? pane(c, p, n, column) : '<div class="skeleton"></div><div class="skeleton" style="width:70%"></div>');
   if (fresh && S.tab === "log" && $("log")) $("log").textContent = S.logText || t("log.loading");
   if (fresh) paintLive(true);
+  $("pane").querySelectorAll(".tscroll").forEach(edges);
 }
+function edges(el) {  // which sides of a scrolling table hide columns
+  const rest = el.scrollWidth - el.clientWidth - el.scrollLeft;
+  el.classList.toggle("more-l", el.scrollLeft > 1); el.classList.toggle("more-r", rest > 1);
+}
+document.addEventListener("scroll", (e) => { if (e.target.classList?.contains("tscroll")) edges(e.target); }, true);
+window.addEventListener("resize", () => document.querySelectorAll(".tscroll").forEach(edges));
 // The card's weight, from its spec header (none yet before Refine ends): it picks the model of each run.
 const weightTag = (c) => c?.weight ? `<span class="tag"${c.weight_set ? "" : ` title="${ta("weight.none")}"`}>${t("weight.tag", { weight: wlow(c.weight) })}</span>` : "";
 const capModel = (m) => m ? ["opus", "sonnet", "haiku", "fable"].includes(m) ? m[0].toUpperCase() + m.slice(1) : m : t("model.default");  // only Claude's aliases are capitalized
@@ -2242,7 +2277,7 @@ function headHtml(c, ov, p, n, column) {
       <div class="total"><dt>${t("head.cost")} ${EST}</dt><dd class="num gold">${c ? money(c.total) : "–"}</dd></div>
       <div><dt>${t("head.sessions")}</dt><dd class="num">${c ? sessions.length : "–"}</dd></div>
       <div><dt>${t("head.span")}</dt><dd class="num">${span}</dd></div>
-      <div class="report"><dt>${t("head.report")}</dt><dd>${rep ? `${esc(rep.pipeline)} <span class="${outcome(rep.outcome)}">${esc(rep.outcome)}</span>${earlier}` : `<span class="muted">${t("head.report.none")}</span>`}</dd></div>
+      <div class="report"><dt>${t("head.report")}</dt><dd>${rep ? `${esc(stageName(rep.pipeline))} <span class="${outcome(rep.outcome)}">${outcomeName(rep.outcome)}</span>${earlier}` : `<span class="muted">${t("head.report.none")}</span>`}</dd></div>
     </dl>
 </div>`;
 }
@@ -2342,15 +2377,15 @@ function sessionsPane(c) {
     const subs = s.subagents.length ? `<button class="subtoggle" data-sub="${esc(s.id)}" aria-expanded="${!!S.expanded[s.id]}">${t("sessions.subs", { n: s.subagents.length })}</button>` : "";
     const live = s.exit == null && s.log && s === last(c.sessions, s.stage) && liveRun(c.project, c.issue, s.stage);
     const exit = s.exit == null ? (s.log ? `<span class="muted">${t("kind.run")}</span>` : "–") : s.exit === 0 ? `<span class="ok">${t("exit.ok")}</span>` : `<span class="bad">${t("exit.n", { n: s.exit })}</span>`;
-    let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(FULL.format(new Date(s.start)))}">${when(s.start)}</td><td class="l">${esc(s.stage)} <span class="muted">${esc(m.map(model).join(", "))}</span>${s.stepped ? ` <span class="tag" title="${ta("sessions.stepped.title", { model: capModel(s.stepped.from), gates: (s.stepped.gates || []).join(", ") })}">${t("sessions.stepped")}</span>` : ""}${subs}</td>
+    let html = `<tr class="session" data-log="${esc(s.log || "")}" title="${esc(m.map(model).join(", "))}"><td class="l num" title="${esc(FULL.format(new Date(s.start)))}">${when(s.start)}</td><td class="l">${esc(stageName(s.stage))} <span class="muted">${esc(m.map(model).join(", "))}</span>${s.stepped ? ` <span class="tag" title="${ta("sessions.stepped.title", { model: capModel(s.stepped.from), gates: (s.stepped.gates || []).join(", ") })}">${t("sessions.stepped")}</span>` : ""}${subs}</td>
       <td class="num">${tok(tk.input)}</td><td class="num">${tok(tk.output)}</td><td class="num" title="${esc(cacheTitle(tk))}">${cache(tk)}</td>
       <td class="num">${live ? clock(live, true) : dur(s.start, s.end)}</td><td>${exit}</td><td class="num gold">${money(s.cost)}</td></tr>`;
     if (S.expanded[s.id]) html += s.subagents.map((a) => { const u = sum(a.tokens); return `<tr class="sub"><td class="l"></td><td class="l">${t("sessions.subagent")} <span class="muted">${esc(Object.keys(a.tokens).map(model).join(", "))}</span></td>
       <td class="num">${tok(u.input)}</td><td class="num">${tok(u.output)}</td><td class="num" title="${esc(cacheTitle(u))}">${cache(u)}</td><td></td><td></td><td class="num">${money(a.cost)}</td></tr>`; }).join("");
     return html;
   }).join("");
-  return `<div class="section-k">${t("sessions.h")}</div><table><thead><tr><th class="l">${t("th.start")}</th><th class="l">${t("th.stage_model")}</th><th>${t("th.input")}</th><th>${t("th.output")}</th><th title="${ta("th.cache.title")}">${t("th.cache")}</th><th>${t("th.time")}</th><th>${t("th.result")}</th><th>${t("th.cost")} ${EST}</th></tr></thead>
-    <tbody>${rows}<tr class="total"><td class="l" colspan="7">${t("sessions.total")}</td><td class="num gold">${money(c.total)}</td></tr></tbody></table>`;
+  return `<div class="section-k" id="sess-h">${t("sessions.h")}</div><div class="tscroll" role="region" tabindex="0" aria-labelledby="sess-h"><table><thead><tr><th class="l">${t("th.start")}</th><th class="l">${t("th.stage_model")}</th><th>${t("th.input")}</th><th>${t("th.output")}</th><th title="${ta("th.cache.title")}">${t("th.cache")}</th><th>${t("th.time")}</th><th>${t("th.result")}</th><th>${t("th.cost")} ${EST}</th></tr></thead>
+    <tbody>${rows}<tr class="total"><td class="l" colspan="7">${t("sessions.total")}</td><td class="num gold">${money(c.total)}</td></tr></tbody></table></div>`;
 }
 // The latest session as it happens. The stream is painted apart from the pane, so a new line never
 // takes what the owner is typing; a message is read by the run after the tool call it is in.
@@ -2404,13 +2439,17 @@ function logPane(c) {
   return `<div class="logwrap"><div class="logbar">${t("tab.log")} <select id="logsel" aria-label="${ta("log.file")}">${logs.map((l) => `<option ${l === S.log ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><span>${t("log.follows")}</span></div>
     <pre class="log" id="log" tabindex="0"></pre></div>`;
 }
-const gateChips = (r) => { const failed = new Set(r?.failed_gates || []); return Object.entries(r?.gates || {}).map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`).join(""); };
+// A gate's result: the report's gates map when it has one, and every gate it lists as failed (gates_failed) even when it has none
+const gateChips = (r) => { const failed = new Set(r?.failed_gates || []), gates = r?.gates || {};
+  return [...Object.entries(gates).map(([g, v]) => `<span class="gate ${v === "pass" && !failed.has(g) ? "pass" : "fail"}">${esc(g)} ${esc(v)}</span>`),
+    ...[...failed].filter((g) => !(g in gates)).map((g) => `<span class="gate fail">${esc(g)} ${t("gates.failed")}</span>`)].join(""); };
+const outcomeName = (o) => ["ok", "blocked", "infra"].includes(o) ? t(`outcome.${o}`) : esc(o || "");
 function gatesPane(c) {
   if (!c.reports.length) return `<p class="placeholder">${t("gates.none")}</p>`;
   return [...c.reports].reverse().map((r) => {
-    const list = gateChips(r);
-    return `<div class="gate-run"><div class="h"><b>${esc(r.pipeline)}</b><span class="${outcome(r.outcome)}">${esc(r.outcome)}</span></div>
-      ${list ? `<div class="gate-list">${list}</div>` : r.notes ? "" : `<div class="notes">${t("gates.stage_none")}</div>`}
+    const list = gateChips(r), none = r.pipeline === "refine" ? (r.notes ? "" : t("gates.stage_none")) : t("gates.none_failed");  // refine runs no gate
+    return `<div class="gate-run"><div class="h"><b>${esc(stageName(r.pipeline))}</b><span class="${outcome(r.outcome)}">${outcomeName(r.outcome)}</span></div>
+      ${list ? `<div class="gate-list">${list}</div>` : none ? `<div class="notes">${none}</div>` : ""}
       ${r.notes ? `<div class="notes">${esc(r.notes)}</div>` : ""}</div>`;
   }).join("");
 }
@@ -2486,7 +2525,7 @@ function cycleStatus(d) {
     next = left > 0 && d.dispatcher.every_min < 1 ? ` · ${t("disp.next_in_s", { s: Math.max(1, Math.ceil(left * 60)) })}`  // 30 s: whole minutes would always say 1
       : left > 0 ? ` · ${t("disp.next_in", { m: Math.max(1, Math.ceil(left)) })}` : left > -1 ? ` · ${t("disp.overdue")}` : ` · <span class="late">${t("disp.overdue_by", { m: Math.floor(-left) })}</span>`;
   }
-  const ago = dur(d.cycle.at, new Date()), took = d.cycle.took_s, exit = d.cycle.exit;
+  const secs = (Date.now() - new Date(d.cycle.at)) / 1000, ago = secs < 60 ? t("dur.s", { s: Math.max(1, Math.floor(secs)) }) : dur(d.cycle.at, new Date()), took = d.cycle.took_s, exit = d.cycle.exit;  // under a minute in seconds, never "0m"
   return `${t(took != null ? exit ? "disp.cycle_took_exit" : "disp.cycle_took" : exit ? "disp.cycle_exit" : "disp.cycle", { ago, took, exit })}${next}${warn}`;
 }
 async function loadSettings() {
@@ -2509,7 +2548,7 @@ function renderSettings() {
   $("disp").classList.toggle("off", d.paused); $("disp").classList.toggle("idle", outside);
   const field = document.activeElement?.id === "hours-in" ? document.activeElement : null, caret = field && [field.selectionStart, field.selectionEnd];
   if (setHTML($("disp"), `<div class="who"><h1 class="g"><i class="sdot"></i>${t("disp.h")}</h1><p>${cycleStatus(d)}</p></div>
-    ${dp ? `<label class="sfl">${t("disp.every")} ${dp.can_set ? pace : `<span class="sknob">${pace}<small>${esc(dp.why || t("disp.no_task"))}</small></span>`}</label>` : ""}
+    ${dp ? `<label class="sfl">${t("disp.every")} ${dp.can_set ? pace : `<span class="sknob">${pace}<small>${dp.why_msg ? t(dp.why_msg.key, dp.why_msg.params) : esc(dp.why || t("disp.no_task"))}</small></span>`}</label>` : ""}
     <label class="sfl hrs">${t("disp.hours")}<input type="text" id="hours-in" class="${"hours" in SET.draft ? "dirty" : ""}" value="${esc(hv)}" placeholder="${ta("disp.always")}" spellcheck="false" autocomplete="off" title="${esc(helper)}" aria-describedby="hours-help"${bad ? ' aria-invalid="true"' : ""}></label><span class="vh" id="hours-help">${helper}</span>
     <label class="sfl">${t("disp.pause")}${sw("", d.paused, t("disp.pause"))}</label>`) && field) { const n = $("hours-in"); n.focus({ preventScroll: true }); n.setSelectionRange(...caret); }  // the rewrite took the focus and the caret with it
   const secs = ["sessions", "models", "projects", "costs", "themes", "notify", "language"];
@@ -2526,7 +2565,7 @@ function renderSettings() {
         ${row(t("sessions.at_once"), `${t("sessions.ceiling")}${now ? ` ${t("sessions.now", { n: now.used })}` : ""}`, stepper("pool", 1, 64))}
         ${stages.map((st) => row(esc(stageName(st)), `${stageHelp(st)}${usual[st] ? ` ${t("sessions.usually", { m: Math.max(1, Math.round(usual[st] / 60)) })}` : ""}${now?.stages[st] ? ` ${t("sessions.now", { n: now.stages[st].running })}` : ""}`, stepper("stages." + st, 0, 64))).join("")}
         <div class="spool"><div class="sbar" aria-hidden="true">${stages.map((st) => `<i style="--k:${STAGE_HUE[st]};width:${setVal("stages." + st) / w * 100}%"></i>`).join("")}</div>
-          <div class="key">${stages.map((st) => `<span style="--k:${STAGE_HUE[st]}"><i></i>${st}</span>`).join("")}<span style="--k:var(--edge)"><i></i>${t("sessions.never")}</span></div>
+          <div class="key">${stages.map((st) => `<span style="--k:${STAGE_HUE[st]}"><i></i>${esc(stageName(st))}</span>`).join("")}<span style="--k:var(--edge)"><i></i>${t("sessions.never")}</span></div>
           <p class="note${sum > pool ? " warn" : ""}">${sum > pool ? t("sessions.over", { sum, pool }) : sum < pool ? t("sessions.under", { sum, idle: pool - sum, pool }) : t("sessions.equal", { pool })}</p></div></div>
       <div class="sgroup panel"><h2>${t("sessions.envs")} <code>config.yml · stacks</code></h2>
         ${row(t("sessions.stacks"), `${t("sessions.stacks.help")}${S.overview?.stacks ? ` ${t("sessions.stacks.now", { i: S.overview.stacks.filter((x) => x.state !== "free").length, n: S.overview.stacks.length })}` : ""}`, stepper("stacks", 1, 16))}
@@ -2967,6 +3006,7 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 for (const id of ["pane", "wk-swap"]) $(id).addEventListener("load", (e) => { const f = e.target; if (f.tagName === "IFRAME") setTimeout(() => { if (f.heard) f.classList.add("themed"); else f.classList.add("plain"); }, 200); }, true);
 $("history").addEventListener("scroll", fit);
 window.addEventListener("resize", fit);
+window.addEventListener("resize", () => { const el = $("telem"); if (H.w && el && el.clientWidth && Math.abs(Math.round(el.clientWidth) - H.w) > 8 && S.show.history) renderTelem(project()); });  // the hourly charts follow the panel's width
 document.addEventListener("click", (e) => {  // Restart shows the command and runs nothing; Copy puts it on the clipboard
   if (e.target.closest("[data-restart]")) restart(!RESTART.open);
   else if (e.target.closest("[data-copy]")) copyCommand();
@@ -2976,7 +3016,7 @@ const hot = (e, on) => { const k = e.target.closest?.("[data-key]")?.dataset.key
 for (const [ev, on] of [["mouseover", true], ["focusin", true], ["mouseout", false], ["focusout", false]]) document.addEventListener(ev, (e) => hot(e, on));
 
 // The palette's box (#183): the same handlers as the buttons it stands for; the page's own keys wait while it is open
-const PAL = { open: false, rows: [], i: -1, from: null, timer: 0, reading: false };
+const PAL = { open: false, rows: [], i: -1, from: null, timer: 0, reading: false, ask: false };
 const ADDR = { boot: null };
 function palPageCards() {  // the project on screen, in board order
   const p = project(); if (!p) return [];
@@ -2987,6 +3027,7 @@ function palActions() {  // what the page's buttons offer right now
   if (R.at) out.push({ id: "live", label: t("pal.live") });
   if (v && v.mode === "decide" && deciding() && !W.hold) out.push({ id: "next", label: t("pal.next") });
   if (o && !o.paused && !o.silent) out.push({ id: "pause", label: t("pal.pause") });
+  if (o?.paused && S.resuming === null) out.push({ id: "resume", label: t("pal.resume") });
   if (o) out.push({ id: "at", label: t("pal.at", { time: "" }) });
   return out;
 }
@@ -2994,7 +3035,7 @@ function palRow(r, i) {
   const base = `role="option" id="pal-o${i}" aria-selected="${i === PAL.i}"`;
   if (r.kind === "none") return `<li class="pal-row none" role="option" id="pal-o${i}" aria-disabled="true" aria-selected="false">${esc(r.label)}</li>`;
   if (r.kind === "card") return `<li class="pal-row card" ${base} data-pal="${i}"><span class="g n${r.waits ? " w" : ""}">#${r.issue}</span><span class="ttl">${esc(r.title)}</span><span class="col">${esc(colName(r.column))}</span></li>`;
-  return `<li class="pal-row action" ${base} data-pal="${i}">${esc(r.label)}</li>`;
+  return `<li class="pal-row action${r.id === "pause-yes" ? " yes" : ""}" ${base} data-pal="${i}">${esc(r.label)}</li>`;
 }
 function palActive(i) {  // the active row: the field names it for a screen reader, the list keeps it in view
   PAL.i = i;
@@ -3004,7 +3045,10 @@ function palActive(i) {  // the active row: the field names it for a screen read
 }
 function palDraw() {  // every change of the field: the first row is the active one
   PAL.reading = !S.overview;
-  PAL.rows = PAL.reading ? [] : palette($("pal-in").value, palPageCards(), palActions());
+  // Pause asks first, in the box: "keep it running" is the active row, so Enter twice changes nothing
+  $("pal-ask").hidden = !PAL.ask; $("pal-ask").textContent = PAL.ask ? t("pal.pause_ask") : "";
+  $("pal-in").setAttribute("aria-describedby", PAL.ask ? "pal-ask" : "");
+  PAL.rows = PAL.reading ? [] : PAL.ask ? [{ kind: "action", id: "pause-no", label: t("pal.pause_no") }, { kind: "action", id: "pause-yes", label: t("pal.pause_yes") }] : palette($("pal-in").value, palPageCards(), palActions());
   const list = $("pal-list"), html = PAL.reading ? `<li class="pal-row none" role="option" id="pal-o0" aria-disabled="true" aria-selected="false">${t("msg.reading")}</li>` : PAL.rows.map(palRow).join("");
   if (list._html !== html) { list._html = html; list.innerHTML = html; }
   palActive(PAL.rows.length && PAL.rows[0].kind !== "none" ? 0 : -1);
@@ -3015,7 +3059,7 @@ function palMove(to) {
 }
 function palOpen() {
   if (PAL.open || S.refused) return;
-  PAL.from = document.activeElement; PAL.open = true;
+  PAL.from = document.activeElement; PAL.open = true; PAL.ask = false;
   $("pal").hidden = false; $("pal-in").value = ""; $("pal-live").textContent = ""; palDraw(); $("pal-in").focus();
 }
 function palBack() {  // the focus goes back to where it was; to the page when that element is gone
@@ -3024,15 +3068,21 @@ function palBack() {  // the focus goes back to where it was; to the page when t
 }
 function palClose(restore = true) {
   if (!PAL.open) return;
-  PAL.open = false; clearTimeout(PAL.timer); $("pal").hidden = true;
+  PAL.open = false; PAL.ask = false; clearTimeout(PAL.timer); $("pal").hidden = true;
   if (restore) palBack();
 }
 async function palPause() {  // the Settings switch for the whole factory, applied at once
   const r = await api("/api/settings/pause", { method: "POST", body: JSON.stringify({ project: null, paused: true }) });
   if (r.status === 200) { if (SET.data) { SET.data = r.body; renderSettings(); } loadOverview(); } else setError(told(r.body, "set.pause_failed"));
 }
+function palAsk(on) {  // the pause's question in the box, or back to the list
+  PAL.ask = on; palDraw(); $("pal-in").focus();
+  $("pal-live").textContent = on ? t("pal.pause_ask") : "";
+}
 function palRun(i) {
   const r = PAL.rows[i]; if (!r || r.kind === "none") return;
+  if (r.id === "pause") return palAsk(true);
+  if (r.id === "pause-no") return palAsk(false);
   palClose(false);
   if (r.kind === "card") {
     if (S.view !== "board") setView("board");
@@ -3040,13 +3090,14 @@ function palRun(i) {
     document.querySelector(`[data-pick="${CSS.escape(r.key)}"]`)?.focus({ preventScroll: true });
   } else if (r.id === "live") backToLive(true);
   else if (r.id === "next") workAct("skip", {});
-  else if (r.id === "pause") palPause();
+  else if (r.id === "pause-yes") palPause();
+  else if (r.id === "resume") resume("");
   else if (r.id === "at") needle(r.min, "key");
   if (document.activeElement === document.body || document.activeElement === $("pal-in")) palBack(); else PAL.from = null;  // an action that moved the focus keeps it there
 }
 function palKey(e) {
   e.stopPropagation();  // A, R, N and the digits are inert while the palette is open
-  if (e.key === "Escape") { e.preventDefault(); palClose(); }
+  if (e.key === "Escape") { e.preventDefault(); if (PAL.ask) palAsk(false); else palClose(); }
   else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); palMove(e.key === "ArrowDown" ? 1 : -1); }
   else if (e.key === "Home" || e.key === "End") { e.preventDefault(); palMove(e.key === "Home" ? "first" : "last"); }
   else if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); if (PAL.i >= 0) palRun(PAL.i); }
@@ -3057,7 +3108,7 @@ document.addEventListener("keydown", (e) => {  // before every other key: Ctrl K
   if (PAL.open) palKey(e);
 }, true);
 $("pal-in").addEventListener("input", () => {
-  palDraw();
+  PAL.ask = false; palDraw();
   clearTimeout(PAL.timer); PAL.timer = setTimeout(() => { $("pal-live").textContent = t("pal.count", { n: PAL.rows.filter((r) => r.kind !== "none").length }); }, 250);
 });
 $("pal-list").addEventListener("click", (e) => { const li = e.target.closest("[data-pal]"); if (li) palRun(+li.dataset.pal); });
