@@ -19,7 +19,7 @@ import time
 
 import runtimes
 
-from . import proc, project, text
+from . import proc, project, state, text
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SF = os.path.join(SCRIPTS, "sf.py")
@@ -244,6 +244,10 @@ def run_cycle(home):
     finally:
         claim.release()
         _record(home, start, rc, claim.overlap)
+        try:  # once a day: import the files, retention, backup; never the cycle's exit
+            state.maintain(home, int(time.time()))
+        except Exception as e:
+            sys.stderr.write("state: maintain: %s\n" % e)
     return rc
 
 
