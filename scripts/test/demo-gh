@@ -147,6 +147,10 @@ elif args[:2] == ["api", "-X"] and args[2] == "DELETE":
     labels.remove(m.group(3))
     save(state)
     out([])
+elif args[:1] == ["api"] and len(args) > 1 and re.match(r"repos/[^/]+/[^/]+/pulls(\?|$)", args[1]):  # the merged pull requests of the Logbook's day chart
+    url = urlparse(args[1])
+    r = repo_of(state, "/".join(url.path.split("/")[1:3]))
+    out(r.get("pulls", []) if parse_qs(url.query).get("page", ["1"])[0] == "1" else [])
 elif args[:1] == ["api"] and len(args) > 1 and args[1].startswith("repos/"):
     url = urlparse(args[1])
     m = re.fullmatch(r"repos/([^/]+/[^/]+)/issues(?:/(\d+)(/comments)?)?", url.path)

@@ -222,6 +222,10 @@ def main():
         says("The coupon removal clears the discount but not the cached total; fixing the cart service."),
         tool("Edit", file_path="app/cart/service.py"), tool("Bash", description="Run the cart tests")])
 
+    # a run that began yesterday evening and ended after midnight: the Logbook's belt draws it from the left edge
+    start = day(1, 23, 48)
+    run_log(home, a, 101, "deploy", [(start, MIDNIGHT + timedelta(minutes=8), 0)])
+
     review_page(home, a, 127, [
         {"id": "open-questions", "t": "Open questions", "intro": "", "items": ["Should signed-in tokens get a higher limit than anonymous ones?"], "ro": False},
         {"id": "product", "t": "Product", "intro": "", "ro": True, "items": [
@@ -249,8 +253,23 @@ def main():
         (52, "atlas: validate 122 failed: the stack did not come back, labelled blocked:infra"), (38, "atlas: develop 1204 started"),
         (30, "beacon: paused, skipped this cycle"), (15, "atlas: refine 131 started"), (1, "cycle end: 2 runs, 1 card waiting"))))
     write(home / "logs" / "stacks.log", f"{minute(55)} slot 0 up for atlas validate 122 at http://127.0.0.1:20000/\n")
-    write(home / "logs" / f"health-{NOW:%Y-%m}.jsonl", json.dumps({"ts": iso(NOW), "cycle": {"s": 6, "exit": 0, "overlap": False}, "paused": False,
-          "usage_limited": False, "pool": {"size": 6, "used": 2}, "idle": [], "over": []}) + "\n")
+    # the health log: one line per dispatcher cycle, yesterday's evening and today up to now (the last is the live one); one
+    # cycle read GitHub's limit and one hit the usage limit, so the Logbook's day chart has both stripes
+    refine, develop = {"refine": 1}, {"develop": 1}
+    cycles = [(day(1, 20, 0), 1, develop, False, False), (day(1, 20, 30), 2, {"develop": 1, "validate": 1}, False, False),
+              (day(1, 21, 0), 0, {}, False, False), (day(1, 23, 30), 1, {"deploy": 1}, False, False)]
+    for m, used, running, github, cut in ((110, 1, refine, False, False), (95, 2, {**refine, **develop}, False, False),
+                                          (80, 3, {"refine": 1, "develop": 2}, False, False), (65, 3, {"develop": 2, "validate": 1}, True, False),
+                                          (50, 2, {"develop": 1, "validate": 1}, False, False), (35, 3, {"refine": 1, "develop": 1, "validate": 1}, False, True),
+                                          (20, 2, {**refine, **develop}, False, False), (10, 2, {**refine, **develop}, False, False), (0, 2, {**refine, **develop}, False, False)):
+        cycles.append((NOW if m == 0 else today(NOW - timedelta(minutes=m)), used, running, github, cut))
+    health = {}
+    for at, used, running, github, cut in cycles:
+        health.setdefault(f"{at:%Y-%m}", []).append(json.dumps({"ts": iso(at), "cycle": {"s": 6, "exit": 0, "overlap": False}, "paused": False,
+            "github_limited": github, "usage_limited": cut, "stages": {k: {"running": n} for k, n in running.items()},
+            "pool": {"size": 6, "used": used}, "idle": [], "over": []}) + "\n")
+    for month, lines in health.items():
+        write(home / "logs" / f"health-{month}.jsonl", "".join(lines))
 
     # the gh stand-in's data: the board, the issues, their labels and comments, the pull request
     blocked_note = ("Factory validate, step 2 (gates): blocked.\n"
@@ -272,6 +291,16 @@ def main():
                                               "additions": 412, "deletions": 187, "changedFiles": 14,
                                               "statusCheckRollup": [{"conclusion": "SUCCESS"}, {"conclusion": "SUCCESS"}]}} if slug == "atlas" else {}}
                   for slug, p in PROJECTS.items()}}
+    # the merged pull requests GitHub's REST list returns (newest update first): two of today merged three minutes apart, so
+    # their marks sit on top of each other and the chart groups them; two of yesterday
+    merged = [(342, "feat(sync): Queue consumer for the sync worker", today(NOW - timedelta(minutes=18))),
+              (341, "fix(cart): Keep the total right when a coupon is removed", today(NOW - timedelta(minutes=21))),
+              (339, "docs: Describe the retry policy of the webhooks", today(NOW - timedelta(minutes=70))),
+              (340, "test(checkout): Cover the half-up rounding of the total", today(NOW - timedelta(minutes=100))),
+              (338, "fix(search): Escape the quotes in the query", day(1, 16, 20)),
+              (337, "feat(audit): Paginate the audit log", day(1, 11, 5))]
+    state_json["repos"]["demo/atlas"]["pulls"] = [{"number": n, "title": title, "merged_at": zulu(at), "updated_at": zulu(at), "state": "closed"}
+                                                  for n, title, at in merged]
     write(gh / "state.json", json.dumps(state_json, ensure_ascii=False))
 
 
