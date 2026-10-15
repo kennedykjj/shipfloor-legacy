@@ -504,6 +504,8 @@ class Cycle:
                     status = 1
         if self.deps_seen:
             self.save_deps()
+        if not self.finish_closed():
+            status = 1
         # Off by default: every refresh push reruns the whole CI (Actions minutes on GitHub Free).
         rc, out = self.cfg("get", "deploy.refresh_staged", quiet=True)
         if _t(out).rstrip("\n") == "true" and not self.refresh_staged():
@@ -934,6 +936,22 @@ class Cycle:
         return True
 
     # --- the scripts that keep cards moving without an agent slot
+    def finish_closed(self):
+        """A card in Ready for Prod whose issue is closed (its PR was merged by hand, so the deploy never finishes it)
+        goes to Done: nothing is left to deploy, and the card would wait there for good."""
+        rc, cards = _cap(_board("closed", STAGE_COLUMNS["deploy"][0]))
+        if rc != 0:
+            return False
+        ok = True
+        for n in cards.split():
+            if self.card_busy(n):
+                continue
+            if _run(_board("move", n, "Done"), out=DEVNULL)[0] == 0:
+                self.say("dispatch: #%s is closed and in Ready for Prod; moved to Done" % n)
+            else:
+                ok = False
+        return ok
+
     def refresh_staged(self):
         """Keep approved-to-be PRs on top of main: deploy.sh --refresh, a script, no agent slot."""
         rc, cards = _cap(_board("eligible", "Staged"))
@@ -1135,23 +1153,25 @@ def supervise(spec):
     return 0
 
 
-def wake_dispatcher():
+def wake_dispatcher(home=None):
     """The run's lock is gone and its slot free: ask the machine's scheduler for a cycle now, not at its next tick. The
     installer writes the command, one argument a line, to <shipfloor home>/dispatcher.wake: systemd starts the cycle's
     service, launchd kickstarts its agent. cron and the Windows task have none (started there beside a running cycle, a
     second one would stop as an overlap and alert the owner) and keep their interval alone. It only asks: the cycle still decides (PAUSE, the limits, the slots). A
-    request while a cycle runs joins that one, and the interval catches what it misses. Never waited on."""
+    request while a cycle runs joins that one, and the interval catches what it misses. Never waited on here: the process
+    started is returned (None when there is no command), for a caller that lives on and reaps it (the dashboard)."""
     try:
-        with open(os.path.join(project.shipfloor_home(), "dispatcher.wake"), encoding="utf-8") as f:
+        with open(os.path.join(home or project.shipfloor_home(), "dispatcher.wake"), encoding="utf-8") as f:
             argv = [a for a in f.read().splitlines() if a]
     except OSError:
-        return
+        return None
     if not argv:
-        return
+        return None
     try:
-        subprocess.Popen(argv, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, close_fds=True)
+        return subprocess.Popen(argv, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, close_fds=True)
     except OSError as e:
         _write(sys.stderr, "dispatch: cannot ask for a cycle: %s\n" % (e.strerror or e))
+        return None
 
 
 def _outcome(spec, log, offset, rc):

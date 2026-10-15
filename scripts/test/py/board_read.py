@@ -102,6 +102,18 @@ class Eligible(BoardCase):
         self.assertIn(LABELS(25), self.gh.calls, "labels are read by REST, one card at a time")
         self.assertFalse([c for c in self.gh.calls if c[:2] == ["issue", "view"]], "labels read by GraphQL issue view")
 
+    def test_closed(self):
+        "closed lists the column's cards whose issue is closed, in board order, one REST read each; a failed read fails it"
+        self.scene([("30", "🤖 Ready for Prod"), ("31", "🤖 Ready for Prod"), ("32", "🤖 Ready for Prod"), ("33", "🤖 Coding")],
+                   flags=("rest-fail", "closed-30", "closed-33"))
+        r = self.board("closed", "Ready for Prod")
+        self.ok(r)
+        self.assertEqual(r.out, "30\n")
+        self.assertEqual([c for c in self.gh.calls if c[:1] == ["api"] and "issues/33" in c[1]], [], "other columns are not read")
+        self.scene([("30", "🤖 Ready for Prod")], flags=("rest-fail", "fail-labels-30"))
+        r = self.board("closed", "Ready for Prod")
+        self.assertEqual((r.rc, r.out), (1, ""))
+
     def test_all_blocked(self):
         "every card blocked: first prints nothing, exit 0; a blocked label among 3000 still counts"
         self.scene(files={"labels-25": "blocked\n", "labels-26": "blocked\n"})

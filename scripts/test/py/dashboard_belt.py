@@ -343,7 +343,7 @@ class BeltRender(Scene):
         self.assertEqual([s["S"]["open"] for s in r["results"][1:]], [None] * 4, "no drawer opens")
 
     def test_blocked_for_the_owner_can_be_sent_back_or_accepted(self):
-        "#182 AC-7: a card blocked for the owner offers send-back (and, at the acceptance-intact gate, accept) in the work area: both need the note and go after 5 s"
+        "#182 AC-7: a card blocked for the owner offers send-back (and, at the acceptance-intact gate, accept) in the work area: both need the note and go at once"
         card = {"project": "shop", "issue": 42, "title": "Title 42", "column": "Validation", "review": False, "sessions": [], "runs": [], "reports": [], "weight": "standard"}
         decide = {"block": {"gate": "acceptance-intact", "kind": "gate"}}
         tok = {"op": "clickx", "within": "cells", "sel": 'button[data-key="%s"]' % (KEY % 42)}
@@ -359,7 +359,7 @@ class BeltRender(Scene):
             self.assertIn("Accept the tests and continue", labels)
             posts = [p for p in sent["posts"] if p["path"].endswith("/42/" + action)]
             self.assertEqual([p["body"] for p in posts], [{"column": "Validation", "text": "the edits are right", "move_only": False}], action)
-            self.assertEqual(early["posts"], [], "nothing leaves inside the 5 s")
+            self.assertEqual([p["path"] for p in sent["posts"]].count("/api/card/shop/42/" + action), 1, "left on the click, once")
         empty = bp.run(setup + [{"op": "clickx", "within": "work", "text": "Send back to Coding"}, {"op": "advancew", "ms": 6000}])
         self.assertEqual(empty["results"][-1]["posts"], [], "without the note nothing is sent")
 
