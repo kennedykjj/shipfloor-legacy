@@ -413,7 +413,7 @@ class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
         self._transcripts, self._titles, self._blocked, self._reasons, self._boards = {}, {}, {}, {}, {}
-        self._diffs, self._prs, self._opened = {}, {}, {}
+        self._diffs, self._prs, self._opened, self._merged = {}, {}, {}, {}
         self._stacks = (0.0, [], 0)
         self._configs = {}
         self._snap, self._reading, self._retry = {}, set(), {}
@@ -1577,6 +1577,85 @@ class Factory:
                          for r in mine[(page - 1) * HISTORY_PAGE:page * HISTORY_PAGE]],
                 "runs_total": len(mine), "page": page, "pages": pages, "cards": cards, "empty": not mine}
 
+    def merged_prs(self, p, day):
+        """([{number, title, merged_at, kind}], error) of the pull requests merged into the main branch on a local day
+        (YYYY-MM-DD), by GitHub's REST list (outside the GraphQL quota), newest update first, at most 3 pages. Kept
+        120 s for today and 1 h for a past day; a failed read is not kept."""
+        hit = self._merged.get((p, day))
+        if hit and time.time() - hit[0] < (120 if day == datetime.now().date().isoformat() else 3600):
+            return hit[1], None
+        repo = shipfloor_config.dotted(self.config(p), "project.repo")
+        row = next((c for c in (l.split("\t") for l in self.registry()) if c[0] == p), [])
+        base = row[3] if len(row) > 3 and row[3] else "main"
+        out = []
+        for page in range(1, 4):
+            rows, err = gh_json("api", f"repos/{repo}/pulls?state=closed&base={base}&sort=updated&direction=desc&per_page=100&page={page}")
+            if err or not isinstance(rows, list):
+                return [], err or "gh did not print a list"
+            for r in rows:
+                try:
+                    at = parse_ts(r["merged_at"].replace("Z", "+00:00")).astimezone() if r.get("merged_at") else None
+                except (ValueError, AttributeError, TypeError):
+                    at = None
+                if at and at.date().isoformat() == day:
+                    title = str(r.get("title") or "")
+                    kind = re.match(r"([a-z]+)(?:\([^)]*\))?!?:", title)
+                    kind = kind.group(1) if kind and kind.group(1) in ("feat", "fix", "test", "docs") else "other"
+                    out.append({"number": r.get("number"), "title": title, "merged_at": r["merged_at"], "kind": kind})
+            stamps = [r.get("updated_at") or r.get("merged_at") for r in rows]
+            try:
+                older = bool(stamps) and all(s and parse_ts(s.replace("Z", "+00:00")).astimezone().date().isoformat() < day for s in stamps[-1:])
+            except (ValueError, AttributeError, TypeError):
+                older = False
+            if len(rows) < 100 or older:
+                break
+        self._merged[(p, day)] = (time.time(), out)
+        return out, None
+
+    def factory_day(self, p, day):
+        """One local day (YYYY-MM-DD) of the factory: the dispatcher's cycles (health log), the runs that overlap it
+        and the pull requests merged in it."""
+        d = date.fromisoformat(day)
+        a = datetime.combine(d, datetime.min.time()).astimezone()
+        b = datetime.combine(d + timedelta(days=1), datetime.min.time()).astimezone()
+        cycles = []
+        try:
+            with open(self.home / "logs" / f"health-{day[:7]}.jsonl", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    try:
+                        c = json.loads(line)
+                        at = parse_ts(c["ts"]).astimezone()
+                        if not a <= at < b:
+                            continue
+                        stages = c.get("stages") or {}
+                        pool = c.get("pool") or {}
+                        cycles.append({"ts": c["ts"], "s": (c.get("cycle") or {}).get("s"), "exit": (c.get("cycle") or {}).get("exit"),
+                                       "pool": {"used": pool.get("used"), "size": pool.get("size")},
+                                       "running": {k: (stages.get(k) or {}).get("running", 0) for k in ("refine", "develop", "validate", "deploy")},
+                                       "github_limited": bool(c.get("github_limited")), "usage_limited": bool(c.get("usage_limited"))})
+                    except (ValueError, KeyError, TypeError, AttributeError):
+                        continue
+        except OSError:
+            pass
+        now = datetime.now().astimezone()
+        before = (d - timedelta(days=1)).isoformat()
+        found = [r for r in self.runs(p, day=before) + self.runs(p, day=day) if r["start"]]
+        mine = []
+        for r in found:
+            try:
+                if parse_ts(r["start"]).astimezone() < b and (parse_ts(r["end"]).astimezone() >= a if r["end"] else now >= a):
+                    mine.append(r)
+            except (ValueError, TypeError):
+                continue
+        live = {(x["issue"], x["stage"]) for x in self.live(p)}
+        titles = self.titles(p, [r["issue"] for r in mine])
+        runs = [{"issue": r["issue"], "title": titles.get(r["issue"], ""), "stage": r["stage"], "start": r["start"], "end": r["end"],
+                 "exit": r["exit"], "model": r["model"], "log": r["log"], "running": r["end"] is None and (r["issue"], r["stage"]) in live}
+                for r in mine]
+        prs, err = self.merged_prs(p, day)
+        return {"date": day, "now": now.isoformat(timespec="seconds"), "present": day == now.date().isoformat(),
+                "cycles": cycles, "runs": runs, "prs": prs, "prs_error": err}
+
     def rest_board(self, p):
         """The project's board through shipfloor_core.board, kept between calls: it holds the Status field's numeric id and the
         column option ids, asked once per project (reset by drop_ids when a write says they are wrong)."""
@@ -2198,6 +2277,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(400, {"error": why})
                 page = one("page") or "1"
                 return self.send(200, f.history(parts[2], per, int(page) if number(page) else 1))
+            if known and len(parts) == 3 and parts[:2] == ["api", "factory-day"]:
+                today = datetime.now().date()
+                asked = q["date"][0] if "date" in q else today.isoformat()
+                try:
+                    if not re.fullmatch(r"\d{4}-\d\d-\d\d", asked) or date.fromisoformat(asked) > today:
+                        raise ValueError
+                except ValueError:
+                    return self.send(400, {"error": "date must be a past or present YYYY-MM-DD"})
+                return self.send(200, f.factory_day(parts[2], asked))
             if known and len(parts) == 3 and parts[:2] == ["api", "day"]:
                 return self.send(200, f.day(parts[2]))
             if known and len(parts) == 4 and parts[:2] == ["api", "card"] and number(parts[3]):

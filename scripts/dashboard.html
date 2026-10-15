@@ -331,6 +331,13 @@ h1 { margin: 0; font-size: 34px; line-height: 1; font-weight: 600; }
 .telem h2 { margin: 16px 0 8px; font-size: 13px; font-weight: 500; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; } .telem h2 b { color: var(--text); font-weight: 600; }
 .chart { display: block; width: 100%; height: 62px; overflow: visible; } .chart text { font: 12px var(--sans); fill: var(--faint); } .chart .base { stroke: color-mix(in srgb, var(--ov) 14.9%, transparent); }
 .key { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 4px; } .key i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 8px; background: var(--k); }
+/* #261 the day's two charts: tokens only, no transition, so nothing animates */
+.fdread { margin: 0 0 4px; min-height: 18px; color: var(--soft); font-variant-numeric: tabular-nums; } .fdsec .chart text { font-variant-numeric: tabular-nums; } .fdsec .chart .fdl { fill: var(--soft); font-weight: 500; font-family: var(--mono); } .fdsec .chart .fdn { font-family: var(--mono); fill: var(--text); }
+.fdsec .chart :focus-visible { outline: 2px solid var(--text); outline-offset: 1px; } .fdsec .key { flex-wrap: wrap; gap: 4px 16px; } .fdsec .key i.dash { height: 0; border-top: 1px dashed var(--muted); border-radius: 0; background: none; } .fdsec .key i.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); border: 1px solid var(--warn); box-sizing: border-box; }
+.fdsec .key b { font-weight: 400; margin-right: 4px; color: var(--text); } .fdsec .key .mut b { color: var(--muted); } .fdsec .key .fnt b { color: var(--faint); }
+.fdbar { stroke: none; cursor: pointer; } .fdbar[data-exit]:not([data-exit="0"]):not([data-running]) { stroke: var(--bad); stroke-width: 1.5px; }
+.fdscroll { max-height: 300px; overflow-y: auto; } .fdsec .fdmuted { margin: 8px 0 0; color: var(--muted); } .fdsec .fdbad { margin: 8px 0 0; font-size: 12px; color: var(--bad); }
+@media (max-width: 600px) { .fdread { min-height: 36px; } }
 .usual { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center; font-size: 13px; } .usual i { height: 4px; border-radius: 2px; background: var(--muted); min-width: 2px; } .usual span:last-child { color: var(--soft); }
 /* History: the period control under the heading, the totals over the charts, the day slots that open a day */
 .hper { color: var(--muted); } .telem > h1 { padding-right: 64px; } .telem.maxed > h1 { padding-right: 40px; }
@@ -722,7 +729,7 @@ theme(); matchMedia("(prefers-color-scheme: light)").addEventListener("change", 
       </div>
     </div>
   </section>
-  <section class="feed panel" id="feed" aria-label="Logbook" data-i-aria="nav.feed" tabindex="0" hidden><section class="telem panel" id="history" data-maxable="history" aria-labelledby="ht" hidden><h1 class="g" id="ht"><span data-i="hist.h">Totals</span> <span class="hper" id="hper" aria-live="polite"></span></h1><button class="max fold" data-show="history" aria-controls="telem" aria-expanded="true" aria-label="Minimize the history" title="Minimize" data-i-aria="panel.history.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="hctl" id="hctl"></div><div class="hcus" id="hcus" hidden></div><p class="bad hbad" id="hbad" role="status"></p><div id="telem"></div></section><div id="flog"></div></section>
+  <section class="feed panel" id="feed" aria-label="Logbook" data-i-aria="nav.feed" tabindex="0" hidden><section class="telem panel" id="history" data-maxable="history" aria-labelledby="ht" hidden><h1 class="g" id="ht"><span data-i="hist.h">Totals</span> <span class="hper" id="hper" aria-live="polite"></span></h1><button class="max fold" data-show="history" aria-controls="telem" aria-expanded="true" aria-label="Minimize the history" title="Minimize" data-i-aria="panel.history.min" data-i-title="btn.minimize"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4"/></svg></button><div class="hctl" id="hctl"></div><div class="hcus" id="hcus" hidden></div><p class="bad hbad" id="hbad" role="status"></p><div id="telem"></div><div id="fday"></div></section><div id="flog"></div></section>
   <div class="peek mbox" id="mbox" role="dialog" aria-labelledby="mbox-h" hidden><h3 id="mbox-h"></h3><div class="iconf"><textarea id="mnote" aria-labelledby="mbox-h"></textarea><p class="ihint" id="mhint"></p><div class="macts"><button class="btn approve" id="mgo"></button><button class="btn ghost" id="mcancel" data-i="act.cancel">Cancel</button></div></div></div>
   <section class="settings" id="settings" aria-label="Settings" data-i-aria="nav.settings" hidden>
     <div class="disp panel" id="disp"></div>
@@ -2065,6 +2072,7 @@ function paintCalm(v) {
 // only: Today, 7 days and 30 days stay relative to now, a stepped or custom period keeps its dates.
 const HDAYS = 92;  // the longest period: the server refuses more too
 const H = { sel: { days: 1 }, custom: false, data: null, key: "", rows: [], page: 1, at: 0, busy: false, more: false, moreErr: false, bad: "", focus: {} };
+const FD = { req: "", proj: "", data: null, at: 0, busy: false, err: "", stage: "all", back: null, w: 0, tab: {} };  // the Logbook's two day charts (#261); the stage filter lasts until the page reloads
 try {
   const v = JSON.parse(localStorage.getItem("shipfloor.history")), day = /^\d{4}-\d\d-\d\d$/;
   if (v && Number.isInteger(v.days) && v.days >= 1 && v.days <= HDAYS) H.sel = { days: v.days };
@@ -2174,6 +2182,7 @@ function renderTelem(p) {
   renderHistCtl();
   setHTML($("hper"), periodName());
   loadHistory();
+  renderFday();
   const d = H.key === histKey() ? H.data : null, el = $("telem"), at = document.activeElement?.closest?.("#telem .dslot");
   if (!d) { setHTML(el, `<p class="empty">${t("hist.reading")}</p>`); return fit(); }
   const n = d.days;
@@ -2244,6 +2253,155 @@ $("telem").addEventListener("keydown", (e) => {  // a chart by day is one tab st
   e.preventDefault(); e.stopPropagation(); H.focus[b.parentElement.dataset.hkind] = j;
   all.forEach((x, k) => { x.tabIndex = k === j ? 0 : -1; }); all[j].focus();
 });
+// The Logbook's two charts of one day (#261): the factory's day (stages stacked per dispatcher cycle, the pool, the limits, the
+// PRs merged) and the cards on the belt (a bar per run). Hand-drawn SVG at the container's width, tokens only, nothing animated.
+// The line above each chart is its tooltip (aria-live); a bar opens its card maximized on the log of that run.
+const FD_STAGES = ["refine", "develop", "validate", "deploy"];
+const fdCap = (s) => s ? s[0].toUpperCase() + s.slice(1) : "";  // stage names stay literal
+const fdDate = () => { const { from, to, n } = histSpan(); return n === 1 && from === to ? from : ""; };  // only a one-day period has charts
+const fdSpan = (d) => [new Date(`${d.date}T00:00:00`).getTime(), new Date(`${shift(d.date, 1)}T00:00:00`).getTime()];
+const fdSel = (e) => { for (const a of ["data-fdstage", "data-cycle", "data-pr", "data-id"]) if (e.hasAttribute?.(a)) return `[${a}="${CSS.escape(e.getAttribute(a))}"]`; return ""; };
+async function loadFday() {
+  const date = fdDate(), key = `${S.project}|${date}`; if (!date || !S.project || FD.busy) return;
+  if (key === FD.req && (Date.now() - FD.at < 10000 || (!FD.err && date !== todayIso()))) return;  // today every 10 s, a past day once
+  FD.busy = true; FD.req = key;
+  const { status, body } = await api(`/api/factory-day/${encodeURIComponent(S.project)}?date=${date}`);
+  FD.busy = false; FD.at = Date.now();
+  if (key !== `${S.project}|${fdDate()}`) { FD.req = ""; return renderFday(); }  // the period moved while this one was read
+  if (status === 200) { FD.data = body; FD.proj = S.project; FD.err = ""; } else FD.err = body?.error || `HTTP ${status}`;  // the last valid content stays
+  renderFday();
+}
+function fdTicks(x, t0, t1, narrow, y) {
+  let o = "";
+  for (let h = 0; h <= 24; h += narrow ? 6 : 3) o += `<text x="${x(t0 + (t1 - t0) * h / 24).toFixed(1)}" y="${y}" text-anchor="${h === 0 ? "start" : h === 24 ? "end" : "middle"}">${t("chart.hour", { h })}</text>`;
+  return o;
+}
+function fdShape(kind, cx, yc) {  // the kind is the shape, the ink stays neutral
+  if (kind === "feat") return ["rect", `x="${cx - 4}" y="${yc - 4}" width="8" height="8" fill="var(--text)"`];
+  if (kind === "fix") return ["path", `d="M${cx} ${yc - 4}L${cx + 4} ${yc}L${cx} ${yc + 4}L${cx - 4} ${yc}Z" fill="var(--text)"`];
+  if (kind === "test") return ["rect", `x="${cx - 3.5}" y="${yc - 3.5}" width="7" height="7" fill="none" stroke="var(--muted)" stroke-width="1.5"`];
+  return ["rect", `x="${cx - 4}" y="${yc - 1.5}" width="8" height="3" fill="var(--faint)"`];
+}
+function fdDaySec(d, W) {
+  const head = `<h2><span>${t("fd.day.h")}</span></h2>`;
+  if (!d.cycles.length) return `<section class="fdsec">${head}<p class="cap fdmuted">${t("fd.none.cycles")}</p></section>`;
+  const narrow = W < 600, H = narrow ? 110 : 140, X0 = 52, X1 = W - 24, top = 6, base = H - 20;
+  const [t0, t1] = fdSpan(d), now = new Date(d.now).getTime();
+  const x = (ms) => X0 + Math.min(1, Math.max(0, (ms - t0) / (t1 - t0))) * (X1 - X0);
+  const cs = d.cycles.map((c) => ({ ...c, at: new Date(c.ts).getTime() })).sort((a, b) => a.at - b.at);
+  const gaps = cs.slice(1).map((c, i) => c.at - cs[i].at).sort((a, b) => a - b), gap = gaps[gaps.length >> 1] || 60000;
+  cs.forEach((c, i) => { c.end = Math.min(t1, cs[i + 1] ? cs[i + 1].at : d.present ? Math.max(now, c.at + 1) : c.at + gap); });  // a cycle holds until the next
+  const sums = cs.map((c) => FD_STAGES.reduce((s, k) => s + (c.running[k] || 0), 0));
+  const max = Math.max(1, ...cs.map((c) => c.pool.size || 0), ...sums);
+  const y = (v) => base - v / max * (base - top);
+  const verts = (vals) => cs.flatMap((c, i) => [[x(c.at), y(vals[i])], [x(c.end), y(vals[i])]]);
+  const pts = (a) => a.map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`).join(" ");
+  let cum = cs.map(() => 0), areas = "";
+  for (const k of FD_STAGES) {
+    const lo = cum; cum = cum.map((v, i) => v + (cs[i].running[k] || 0));
+    if (cs.some((c) => c.running[k])) areas += `<polygon data-area="${k}" points="${pts([...verts(cum), ...verts(lo).reverse()])}" style="fill: color-mix(in srgb, ${STAGE_HUE[k]} 70%, transparent)"/>`;
+  }
+  const pool = cs.some((c) => c.pool.size) ? `<polyline data-pool points="${pts(verts(cs.map((c) => c.pool.size || 0)))}" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 2"/>` : "";
+  const stripes = cs.map((c) => ["github", "usage"].filter((k) => c[`${k}_limited`]).map((k) => `<rect data-limit="${k}" x="${x(c.at).toFixed(1)}" y="${top}" width="${Math.max(1, x(c.end) - x(c.at)).toFixed(1)}" height="${base - top}" fill="color-mix(in srgb, var(--warn) 14%, transparent)"/>`).join("")).join("");
+  const nowLine = d.present && now >= t0 && now <= t1 ? `<line data-now x1="${x(now).toFixed(1)}" x2="${x(now).toFixed(1)}" y1="${top}" y2="${base}" stroke="var(--faint)" stroke-width="1"/>` : "";
+  const cur = Math.min(FD.tab.day ?? 0, cs.length - 1);
+  const hits = cs.map((c, i) => {
+    const say = [t("fd.cycle", { time: TIME.format(new Date(c.at)), r: c.running.refine || 0, d: c.running.develop || 0, v: c.running.validate || 0, p: c.running.deploy || 0, used: c.pool.used ?? "–", size: c.pool.size ?? "–" }), c.github_limited ? t("fd.cycle.github") : "", c.usage_limited ? t("fd.cycle.usage") : ""].filter(Boolean).join(" ");
+    return `<rect data-cycle="${i}" data-say="${esc(say)}" role="img" aria-label="${esc(say)}" tabindex="${i === cur ? 0 : -1}" x="${x(c.at).toFixed(1)}" y="${top}" width="${Math.max(1, x(c.end) - x(c.at)).toFixed(1)}" height="${base - top}" fill="none" pointer-events="all"><title>${esc(say)}</title></rect>`;
+  }).join("");
+  let prs = "", note = "";
+  if (d.prs_error) note = `<p class="cap fdmuted">${esc(t("fd.prs_err", { reason: d.prs_error }))}</p>`;
+  else if (d.prs.length) {
+    const yc = H + 10, cl = [];
+    for (const p of d.prs.map((p) => ({ ...p, px: x(new Date(p.merged_at).getTime()) })).sort((a, b) => a.px - b.px)) {  // marks closer than 10px merge into one with a count
+      const c = cl[cl.length - 1];
+      if (c && p.px - c.px < Math.max(10, 8 + 3 + 7 * String(c.items.length + 1).length + 2)) c.items.push(p); else cl.push({ px: p.px, items: [p] });
+    }
+    const curPr = Math.min(FD.tab.pr ?? 0, cl.length - 1);
+    prs = cl.map((c, i) => {
+      const p = c.items[0], many = c.items.length > 1, at = TIME.format(new Date(p.merged_at));
+      const say = many ? `${t("fd.prs", { n: c.items.length, time: at })}: ${c.items.map((q) => `#${q.number} ${q.title}`).join("; ")}` : t("fd.pr", { n: p.number, time: at, title: p.title });
+      const a = `data-pr="${c.items.map((q) => q.number).join(" ")}" data-kind="${esc(p.kind)}" data-say="${esc(say)}" role="img" aria-label="${esc(say)}" tabindex="${i === curPr ? 0 : -1}"`, ti = `<title>${esc(say)}</title>`;
+      if (many) return `<g ${a}><rect x="${c.px - 4}" y="${yc - 4}" width="8" height="8" fill="var(--soft)" pointer-events="all"/><text class="fdn" x="${c.px + 7}" y="${yc + 4}">${c.items.length}</text>${ti}</g>`;
+      const [tag, attrs] = fdShape(p.kind, c.px, yc);
+      return `<${tag} ${a} ${attrs} pointer-events="all">${ti}</${tag}>`;
+    }).join("");
+  }
+  const hh = H + (prs ? 20 : 0);
+  const kinds = d.prs.length ? `<span><b aria-hidden="true">■</b>feat</span><span><b aria-hidden="true">◆</b>fix</span><span class="mut"><b aria-hidden="true">□</b>test / ci</span><span class="fnt"><b aria-hidden="true">–</b>docs / chore</span>` : "";
+  return `<section class="fdsec">${head}<p class="cap fdread" aria-live="polite" data-hint="${ta("fd.hint.day")}">${t("fd.hint.day")}</p>
+    <svg class="chart" data-fd="day" data-date="${d.date}" width="${W}" height="${hh}" style="height:${hh}px" role="group" aria-label="${ta("fd.day.h")}"><line class="base" x1="${X0}" x2="${X1}" y1="${base + .5}" y2="${base + .5}"/>${stripes}${areas}${pool}${nowLine}<text x="${X0 - 8}" y="${top + 10}" text-anchor="end">${max}</text><text x="${X0 - 8}" y="${base}" text-anchor="end">0</text>${fdTicks(x, t0, t1, narrow, H - 4)}${hits}${prs}</svg>${note}
+    <div class="key">${FD_STAGES.map((k) => `<span style="--k:${STAGE_HUE[k]}"><i></i>${fdCap(k)}</span>`).join("")}<span><i class="dash"></i>${t("fd.pool")}</span><span><i class="warn"></i>${t("fd.limit.github")}</span><span><i class="warn"></i>${t("fd.limit.usage")}</span>${kinds}</div></section>`;
+}
+function fdBeltSec(d, W, stage) {
+  const head = `<h2><span>${t("fd.belt.h")}</span></h2>`;
+  if (!d.runs.length) return `<section class="fdsec">${head}<p class="cap fdmuted">${t("fd.none.runs")}</p></section>`;
+  const narrow = W < 600, [t0, t1] = fdSpan(d), now = new Date(d.now).getTime(), X0 = 52, X1 = W - 24, ROW = 22;
+  const x = (ms) => X0 + Math.min(1, Math.max(0, (ms - t0) / (t1 - t0))) * (X1 - X0);
+  const by = new Map();
+  for (const r of [...d.runs].sort((a, b) => new Date(a.start) - new Date(b.start))) { if (!by.has(r.issue)) by.set(r.issue, []); by.get(r.issue).push(r); }  // a card's row, in the order of the first start
+  const rows = [...by].map(([issue, rs]) => [issue, stage === "all" ? rs : rs.filter((r) => r.stage === stage)]).filter(([, rs]) => rs.length);
+  const tools = `<div class="ftools"><div role="group" aria-label="${ta("fd.stage")}">${["all", ...FD_STAGES].map((k) => `<button data-fdstage="${k}" aria-pressed="${stage === k}">${k === "all" ? t("fd.all") : fdCap(k)}</button>`).join("")}</div></div>`;
+  const id = (r) => `${r.log || ""}|${r.start}`, ids = rows.flatMap(([, rs]) => rs.map(id));
+  const cur = ids.includes(FD.tab.belt) ? FD.tab.belt : ids[0];
+  const bar = (r, yy) => {
+    const s = new Date(r.start).getTime(), e = r.end ? new Date(r.end).getTime() : d.present ? now : t1;
+    const xs = x(s), xe = x(Math.max(e, s)), w = Math.max(3, xe - xs), bx = r.running ? xe - w : xs;  // a running one ends on the now line
+    const v = { stage: fdCap(r.stage), start: TIME.format(new Date(s)), end: r.end ? TIME.format(new Date(r.end)) : "–", dur: dur(r.start, new Date(e)), model: r.model || t("model.default"), rc: r.exit ?? "–" };
+    const say = r.running ? t("fd.run.live", v) : t("fd.run", v), name = t("fd.run.name", { n: r.issue, ...v });
+    return `<rect class="fdbar" data-run data-id="${esc(id(r))}" data-stage="${esc(r.stage)}"${r.running ? " data-running" : ` data-exit="${r.exit ?? ""}"`}${r.log ? ` data-open="${esc(S.project)}/${r.issue}" data-log="${esc(r.log)}"` : ""} data-say="${esc(say)}" role="${r.log ? "button" : "img"}" aria-label="${esc(r.log ? name : say)}" tabindex="${id(r) === cur ? 0 : -1}" x="${bx.toFixed(1)}" y="${yy + 6}" width="${w.toFixed(1)}" height="10" rx="2" fill="${STAGE_HUE[r.stage] || "var(--muted)"}"><title>${esc(say)}</title></rect>`
+      + (r.running ? `<line x1="${xe.toFixed(1)}" x2="${xe.toFixed(1)}" y1="${yy + 5}" y2="${yy + 17}" stroke="var(--text)" stroke-width="1.5" stroke-dasharray="2 2"/>` : "");
+  };
+  let body;
+  if (!rows.length) body = `<p class="cap fdmuted">${t("fd.none.stage", { stage: fdCap(stage) })}</p>`;
+  else {
+    const hh = rows.length * ROW, grid = [...Array(25).keys()].filter((h) => h % (narrow ? 6 : 3) === 0).map((h) => `<line class="base" x1="${x(t0 + (t1 - t0) * h / 24).toFixed(1)}" x2="${x(t0 + (t1 - t0) * h / 24).toFixed(1)}" y1="0" y2="${hh}"/>`).join("");
+    body = `<svg class="chart" width="${W}" height="18" style="width:${W}px;height:18px" aria-hidden="true">${fdTicks(x, t0, t1, narrow, 13)}</svg>
+      <div class="fdscroll" style="max-height:${12 * ROW}px"><svg class="chart" data-fd="belt" data-date="${d.date}" width="${W}" height="${hh}" style="width:${W}px;height:${hh}px" role="group" aria-label="${ta("fd.belt.h")}">${grid}${rows.map(([issue, rs], i) => `<g data-row="${issue}"><text class="fdl" x="0" y="${i * ROW + 15}">#${issue}</text>${rs.map((r) => bar(r, i * ROW)).join("")}</g>`).join("")}</svg></div>`;
+  }
+  return `<section class="fdsec">${head}${tools}<p class="cap fdread" aria-live="polite" data-hint="${ta("fd.hint.belt")}">${t("fd.hint.belt")}</p>${body}</section>`;
+}
+function renderFday() {
+  const el = $("fday"); if (!el || !S.show.history || S.view !== "feed") return;
+  if (!fdDate()) return void setHTML(el, `<p class="cap fdmuted">${t("fd.open")}</p>`);
+  loadFday();
+  const d = FD.proj === S.project ? FD.data : null, bad = FD.err ? `<p class="fdbad" role="status">${esc(t("fd.err", { error: FD.err }))}</p>` : "";
+  if (!d) return void setHTML(el, bad || `<p class="cap fdmuted">${t("fd.reading")}</p>`);
+  const W = FD.w = Math.max(280, Math.floor(el.clientWidth) || 600), at = document.activeElement, sel = at && el.contains(at) ? fdSel(at) : "";
+  if (setHTML(el, `${fdDaySec(d, W)}${fdBeltSec(d, W, FD.stage)}${bad}`) && sel) el.querySelector(sel)?.focus({ preventScroll: true });  // a redraw keeps the focus
+}
+{
+  const el = $("fday");
+  const read = (e, on) => { const r = e.target.closest?.(".fdsec")?.querySelector(".fdread"); if (!r) return; const it = on ? e.target.closest("[data-say]") : null; r.textContent = it ? it.getAttribute("data-say") : r.dataset.hint; };
+  el.addEventListener("mouseover", (e) => read(e, true));
+  el.addEventListener("focusin", (e) => read(e, true));
+  el.addEventListener("focusout", (e) => read(e, false));
+  el.addEventListener("mouseleave", () => el.querySelectorAll(".fdread").forEach((r) => { r.textContent = r.dataset.hint; }));
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest?.("[data-fdstage]"); if (b) { FD.stage = b.dataset.fdstage; renderFday(); return; }
+    const r = e.target.closest?.("[data-run]"); if (r) FD.back = r.dataset.id;  // the bar the card was opened from
+  });
+  el.addEventListener("keydown", (e) => {  // each chart is a tab stop (roving); the arrows, Home and End move inside it; Enter opens a bar
+    const it = e.target.closest?.("[data-cycle],[data-pr],[data-run]"); if (!it || e.ctrlKey || e.metaKey || e.altKey) return;
+    if ((e.key === "Enter" || e.key === " ") && it.hasAttribute("data-open")) { e.preventDefault(); it.dispatchEvent(new MouseEvent("click", { bubbles: true })); return; }
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) return;
+    const svg = it.closest("svg"), kind = it.hasAttribute("data-cycle") ? "day" : it.hasAttribute("data-pr") ? "pr" : "belt", vert = e.key === "ArrowUp" || e.key === "ArrowDown";
+    const pick = (n, i) => e.key === "Home" ? 0 : e.key === "End" ? n - 1 : Math.max(0, Math.min(n - 1, i + (e.key === "ArrowRight" ? 1 : -1)));
+    let all, j, group;
+    if (kind !== "belt") { if (vert) return; group = all = [...svg.querySelectorAll(kind === "day" ? "[data-cycle]" : "[data-pr]")]; j = pick(all.length, all.indexOf(it)); }
+    else {
+      group = [...svg.querySelectorAll("[data-run]")];
+      const rows = [...svg.querySelectorAll("[data-row]")], row = it.closest("[data-row]"), ri = rows.indexOf(row);
+      if (vert) {
+        const nr = rows[Math.max(0, Math.min(rows.length - 1, ri + (e.key === "ArrowDown" ? 1 : -1)))]; e.preventDefault(); if (nr === row) return;
+        all = [...nr.querySelectorAll("[data-run]")]; const cx = +it.getAttribute("x"); j = all.reduce((b, r, i) => Math.abs(+r.getAttribute("x") - cx) < Math.abs(+all[b].getAttribute("x") - cx) ? i : b, 0);
+      } else { all = [...row.querySelectorAll("[data-run]")]; j = pick(all.length, all.indexOf(it)); }
+    }
+    e.preventDefault(); group.forEach((g) => { g.tabIndex = -1; }); all[j].tabIndex = 0; all[j].focus();
+    if (kind === "belt") FD.tab.belt = all[j].dataset.id; else FD.tab[kind] = kind === "day" ? +all[j].dataset.cycle : j;
+  });
+  new ResizeObserver(() => { const w = Math.floor(el.clientWidth); if (w && w !== FD.w) renderFday(); }).observe(el);
+}
 $("hcus").addEventListener("change", histDates);
 /* the wide card view: Sessions, Log, Gates, Review and Live of one card, over the page */
 // The tab a card opens on when none is asked for (or Review is, and the card has no page): a card waiting for the owner
@@ -2267,7 +2425,7 @@ async function openCard(key, tab) {
 }
 function closeCard() {
   const key = S.open; S.open = null; S.card = null; S.full = false; S.unseen = null; renderBoard(); renderDrawer();
-  if (key) $("wk-title")?.focus({ preventScroll: true });
+  if (key) { const back = FD.back; FD.back = null; (back && document.querySelector(`#fday [data-id="${CSS.escape(back)}"]`) || $("wk-title"))?.focus({ preventScroll: true }); }  // a bar of the belt gets its focus back
 }
 async function loadCard() {
   if (!S.open) return;
