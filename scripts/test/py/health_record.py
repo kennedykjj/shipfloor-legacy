@@ -381,6 +381,66 @@ class Alerts(HealthCase):
         self.assertEqual(shipfloor_health.alerts(self.H, skip_silence=True), ["two dispatcher cycles ran at once"])
 
 
+class Findings(HealthCase):
+    """UI review M7: the alerts as data the dashboard words in every language; `shipfloor doctor` keeps the English lines"""
+    def lines(self, *cycles):
+        for idle, over, overlap in cycles:
+            self.put_line({"ts": datetime.now().astimezone().isoformat(timespec="seconds"), "cycle": {"s": 5, "exit": 0, "overlap": overlap},
+                           "idle": idle, "over": over})
+
+    def test_findings_are_keyed(self):
+        "each finding has a key and its values (idle: project, stage, cycles; over: what, used, limit; overlap); text() is the doctor's English line"
+        over = ["refine 3/2", "shop/deploy 2/1", "pool 7/6", "memory 950/1000 MB", "something odd"]
+        self.lines((["shop/develop"], over, False), (["shop/develop"], [], False), (["shop/develop"], [], True))
+        got = shipfloor_health.findings(self.H)
+        self.assertEqual([{k: v for k, v in f.items() if k != "line"} for f in got], [
+            {"key": "idle", "project": "shop", "stage": "develop", "cycles": 3},
+            {"key": "over_stage", "stage": "refine", "used": 3, "limit": 2},
+            {"key": "over_project", "project": "shop", "stage": "deploy", "used": 2, "limit": 1},
+            {"key": "over_pool", "used": 7, "limit": 6},
+            {"key": "over_memory", "used": 950, "limit": 1000},
+            {"key": "over", "what": "something odd"},
+            {"key": "overlap"}])
+        self.assertEqual([shipfloor_health.text(f) for f in got], self.alerts())
+        self.assertEqual(self.alerts(), [IDLE, "refine 3/2: more runs than the limit", "shop/deploy 2/1: more runs than the limit",
+                                         "pool 7/6: more runs than the limit", "memory 950/1000 MB: more runs than the limit",
+                                         "something odd: more runs than the limit", "two dispatcher cycles ran at once"])
+        json.dumps(got)  # the overview sends them as they are
+
+    def status(self, out, code=0):
+        """SHIPFLOOR_INSTALLER_STATUS: a stand-in for install-dispatcher.sh --status that prints out and exits code"""
+        f = self.put("status%d.sh" % len(os.listdir(self.H)), "#!/usr/bin/env bash\nprintf '%%s' '%s'\nexit %d\n" % (out, code))
+        os.environ["SHIPFLOOR_INSTALLER_STATUS"] = '"%s" "%s"' % (shutil.which("bash"), f)
+
+    def test_registration(self):
+        "UI review M9: the registration's kind, limits and pace are read from install-dispatcher.sh --status; nothing registered or nothing to read is told apart"
+        self.status("registered: systemd\nlimits: none\npace: every 30 seconds\n")
+        reg = shipfloor_health.registration()
+        self.assertEqual(reg, {"kind": "systemd", "pace_s": 30, "limits": "limits: none"})
+        self.assertEqual(shipfloor_health.registered_every(reg), 0.5)
+        self.status("registered: cron\nlimits: not supported (cron)\npace: every 300 seconds\n")
+        self.assertEqual(shipfloor_health.registered_every(shipfloor_health.registration()), 5)
+        self.status("not registered; register it with: bash x\n", 1)
+        self.assertEqual(shipfloor_health.registration(), {"kind": None, "pace_s": None, "limits": None})
+        self.assertIsNone(shipfloor_health.registered_every(shipfloor_health.registration()))
+        self.status("", 2)
+        self.assertIsNone(shipfloor_health.registration(), "a status it could not give")
+        os.environ["SHIPFLOOR_INSTALLER_STATUS"] = "none"
+        self.assertIsNone(shipfloor_health.registration())
+
+    def test_silence_uses_the_registered_pace(self):
+        "UI review M9: the silence alarm counts 3 x the pace the registration runs at, not dispatcher.every_min of config.yml"
+        self.put("config.yml", "dispatcher: {every_min: 10}\n")
+        self.put_line({"ts": (datetime.now().astimezone() - timedelta(minutes=20)).isoformat(timespec="seconds"),
+                       "cycle": {"s": 5, "exit": 0, "overlap": False}, "idle": [], "over": []})
+        self.assertIsNone(shipfloor_health.silence(self.H), "config.yml alone: 20 min is under 3 x 10")
+        self.status("registered: systemd\nlimits: none\npace: every 60 seconds\n")
+        got = shipfloor_health.silence(self.H)
+        self.assertEqual((int(got["min"]), got["every"]), (20, 1))
+        self.assertEqual([f["key"] for f in shipfloor_health.findings(self.H)], ["silence"])
+        self.assertIsNone(shipfloor_health.silence(self.H, every=10), "a pace given wins")
+
+
 class Probes(HealthCase):
     def windll(self, **kernel32):
         saved = getattr(ctypes, "windll", None)

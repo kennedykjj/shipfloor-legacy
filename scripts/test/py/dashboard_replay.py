@@ -160,13 +160,17 @@ class Replay(db.Scene):
 
     # ---------------------------------------------------------------------------------------------------------- AC-5
     def test_ac5_before_the_first_line_there_is_no_history_for_that_hour(self):
-        "AC-5 with the needle before today's first line the belt shows no cards and says there is no history for that hour"
-        _, res = self.page(press("Home") + press("ArrowLeft") + [{"op": "query", "sel": SLIDER},
-                           {"op": "find", "needle": "No history for 07:55. The first record today is at 08:00."}])
+        "AC-5 (UI review m9) before today's first line there is nothing to replay: the lane is hatched up to 08:00 and the needle stops there"
+        _, res = self.page(press("Home") + press("ArrowLeft") + [{"op": "query", "sel": SLIDER}, {"op": "query", "sel": "#pre"},
+                           {"op": "find", "needle": "No history for 07:55."}])
         n = 2
-        self.assertEqual(self.slider(res[n])["aria-valuetext"], "07:55")
-        self.assertEqual(bp.tokens(res[n - 1]), [], "no cards before the first record")
-        self.assertTrue(res[n + 1], "the belt says: No history for 07:55. The first record today is at 08:00.")
+        self.assertEqual(self.slider(res[n])["aria-valuetext"], "08:00", "the needle stops at the first record")
+        self.assertTrue(bp.tokens(res[n - 1]), "the belt shows the first record's cards")
+        pre = res[n + 1]
+        self.assertEqual(len(pre), 1, "one hatch before the first record")
+        self.assertNotIn("hidden", pre[0]["attrs"])
+        self.assertEqual(pre[0]["css"].get("width"), "33.33%", "08:00 is a third of the day")
+        self.assertFalse(res[n + 2], "no 'No history' sentence: the needle never stands before the first record")
 
     def test_ac5_with_no_history_today_the_belt_says_so(self):
         "AC-5 with no line at all today the belt says there is no board history for today yet"

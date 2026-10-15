@@ -98,7 +98,13 @@ addEventListener("load",function(){
 RV_LABELS = (shipfloor_config.Msg("rv.new", "New"), shipfloor_config.Msg("rv.changed", "Changed"),
              shipfloor_config.Msg("rv.removed", "Removed"), shipfloor_config.Msg("rv.before", "Before"),
              shipfloor_config.Msg("rv.request", "Your request"),
-             shipfloor_config.Msg("rv.since", "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"))
+             shipfloor_config.Msg("rv.since", "{n, plural, one {# statement changed since your request} other {# statements changed since your request}}"),
+             # the page's own controls: the counter, Copy review, Clear marks and each statement's Keep / Change
+             shipfloor_config.Msg("rv.of", "of {n} reviewed"), shipfloor_config.Msg("rv.copy", "Copy review"),
+             shipfloor_config.Msg("rv.copied", "copied"), shipfloor_config.Msg("rv.selected", "selected: press Ctrl+C"),
+             shipfloor_config.Msg("rv.clear", "Clear marks"), shipfloor_config.Msg("rv.clear_confirm", "Confirm clear"),
+             shipfloor_config.Msg("rv.keep", "Keep"), shipfloor_config.Msg("rv.change", "Change"),
+             shipfloor_config.Msg("rv.what", "What to change?"))
 # The moves the owner makes from the dashboard, M1 to M7 of #125: from -> [(to, a note is required)]. Nothing else moves
 # a card from here. In Spec Review and Staged the move without a note is Approve, the one with a note Request changes.
 OWNER_MOVES = {"Inbox": [("Ready for Refinement", False)],
@@ -227,23 +233,56 @@ def bash():
     return _bash
 
 
-NO_SCHEDULER = ("Windows only: this machine has no ShipfloorDispatcher scheduled task. "
-                "Its pace is set by whatever schedules the dispatcher here.")
+Msg = shipfloor_config.Msg
+NO_TASK = Msg("disp.no_task", "Windows only: this machine has no ShipfloorDispatcher scheduled task. "
+              "Its pace is set by whatever schedules the dispatcher here.")
+NO_INSTALLER = Msg("disp.no_installer", "installer/install-dispatcher.sh is not on this machine, so the dispatcher's pace "
+                   "cannot be changed from here. Its pace is set by whatever schedules the dispatcher.")
+NOT_REGISTERED = Msg("disp.not_registered", "The dispatcher is not registered on this machine. Register it with "
+                     "bash installer/install-dispatcher.sh, then set its pace here.")
+_reg = {"at": 0.0, "value": None, "env": None}
+_reg_lock = threading.Lock()
+
+
+def registration():
+    """The installed registration (shipfloor_health.registration), read again at most every 15 s: the overview asks for
+    it every 2 s and the status runs the installer."""
+    env = os.environ.get("SHIPFLOOR_INSTALLER_STATUS")
+    with _reg_lock:
+        if time.monotonic() - _reg["at"] > 15 or _reg["at"] == 0.0 or _reg["env"] != env:
+            _reg["env"] = env
+            try:
+                sh = bash()
+            except SystemExit:
+                sh = None
+            _reg["value"], _reg["at"] = shipfloor_health.registration(sh), time.monotonic()
+        return _reg["value"]
+
+
+def forget_registration():
+    with _reg_lock:
+        _reg["at"] = 0.0
 
 
 def scheduler():
-    """(the command that sets the dispatcher's pace, None) or (None, why there is none). The minutes go last.
-    SHIPFLOOR_SCHEDULER (split like a command line) overrides; "none" says there is no scheduler; else the
-    installer script re-registers the Windows task."""
+    """(the command that sets the dispatcher's pace, None) or (None, why there is none, a Msg). The minutes go last.
+    SHIPFLOOR_SCHEDULER (split like a command line) overrides; "none" says there is no scheduler; else on Windows the
+    installer script re-registers the task, on Linux and macOS install-dispatcher.sh re-registers its timer, agent or
+    cron line (only one that is registered: Settings never registers the dispatcher by itself)."""
     given = os.environ.get("SHIPFLOOR_SCHEDULER")
     if given is not None:
         try:
             parts = [] if given.strip() == "none" else shlex.split(given)
         except ValueError:
             parts = []
-        return (parts, None) if parts else (None, NO_SCHEDULER)
+        return (parts, None) if parts else (None, NO_TASK if os.name == "nt" else NO_INSTALLER)
     if os.name != "nt":
-        return None, NO_SCHEDULER
+        script = installer_script()
+        if not script.is_file():
+            return None, NO_INSTALLER
+        if not (registration() or {}).get("kind"):  # nothing registered, or a status it could not read
+            return None, NOT_REGISTERED
+        return [bash(), str(script), "--every-min"], None
     try:  # the installed copy records the checkout it came from; a checkout is its own source
         source = (HERE / ".source").read_text(encoding="utf-8").strip() or str(HERE.parent)
     except OSError:
@@ -252,9 +291,18 @@ def scheduler():
             str(Path(source) / "installer" / "install-dispatcher.ps1"), "-EveryMin"], None
 
 
-def dispatcher_choices():
-    """The paces Settings offers: Windows' Task Scheduler repeats at most once a minute, so it has no 30 seconds."""
-    return [c for c in shipfloor_config.DISPATCHER_EVERY if os.name != "nt" or c >= 1]
+def pace_now(home):
+    """The minutes between cycles the dispatcher runs at: the installed registration's pace where it can be read, else
+    dispatcher.every_min of config.yml (Windows, or nothing registered)."""
+    return shipfloor_health.registered_every(registration()) or shipfloor_config.dispatcher_every(read_yaml(Path(home) / "config.yml"))
+
+
+def dispatcher_choices(now=None):
+    """The paces Settings offers: Windows' Task Scheduler and cron repeat at most once a minute, so they have no 30 seconds;
+    a pace the registration runs at that is not a choice is offered too, so the select can show it."""
+    reg = registration() if os.name != "nt" else None
+    out = [c for c in shipfloor_config.DISPATCHER_EVERY if c >= 1 or (os.name != "nt" and (reg or {}).get("kind") != "cron")]
+    return sorted(out + [now]) if now is not None and now not in out else out
 
 
 NO_LIMITS = "Resource limits are applied on Linux with systemd only. They are saved but not applied here."
@@ -286,11 +334,7 @@ def limits_in_effect():
     such unit or this system has no limits to read."""
     if not sys.platform.startswith("linux"):
         return None
-    try:
-        r = subprocess.run([bash(), str(installer_script()), "--status"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
-    except (OSError, subprocess.TimeoutExpired, SystemExit):
-        return None
-    line = next((l.strip() for l in r.stdout.splitlines() if l.startswith("limits:")), "")
+    line = ((registration() or {}).get("limits") or "").strip()
     if line == "limits: none":
         return dict.fromkeys(shipfloor_config.LIMIT_KEYS)
     pairs = dict(w.split("=", 1) for w in line[len("limits:"):].split() if "=" in w)
@@ -301,8 +345,8 @@ def limits_in_effect():
 
 def silent_banner(home):
     """The overview's "silent": how long the dispatcher has been quiet and the platform's commands to check and
-    reinstall its scheduled job; None while the newest health line is within 3x the pace."""
-    s = shipfloor_health.silence(home)
+    reinstall its scheduled job; None while the newest health line is within 3x the pace (the one it runs at)."""
+    s = shipfloor_health.silence(home, pace_now(home))
     if not s:
         return None
     try:  # as scheduler(): the installed copy records the checkout it came from
@@ -809,7 +853,7 @@ class Factory:
             if not m:  # a report not stamped with its time (the demo's 01-refine.json) marks nothing
                 continue
             try:
-                at = datetime.strptime(m["ts"], "%Y-%m-%dT%H%M%S").astimezone() if m else None
+                at = datetime.strptime(m["ts"], "%Y-%m-%dT%H%M%S").astimezone()
                 outcome = json.loads(f.read_text(encoding="utf-8")).get("outcome")
                 issue = int(f.parent.name.split("-")[0])
             except (OSError, ValueError, AttributeError):
@@ -982,7 +1026,7 @@ class Factory:
                                           "set": repo.get("language") is not None, "file": ".shipfloor/factory.yml"},
                              "layers": [{k: l.get(k) for k in ("name", "path", "stack", "build", "test", "tests", "tests_only", "needs_stack")}
                                         for l in cfg.get("layers") or [] if isinstance(l, dict)]})
-        every = shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml"))
+        every = pace_now(self.home)
         if cycle and cycle["at"] and cycle["took_s"] is not None:  # the next one starts `every` minutes after the last one started
             try:
                 cycle["next_at"] = (parse_ts(cycle["at"]) - timedelta(seconds=cycle["took_s"]) + timedelta(minutes=every)).isoformat()
@@ -996,7 +1040,10 @@ class Factory:
                   "supported": limits_applier() is not None, "why": None if limits_applier() else NO_LIMITS}
         return {"machine": {**{k: m[k] for k in ("pool", "stages", "stacks", "stack_wait", "notify")}, "windows": os.name == "nt", "language": m.get("language") or "en", "costs": self.costs(), "limits": limits},
                 "languages": catalogs(), "paused": (self.home / "PAUSE").exists(),
-                "dispatcher": {"every_min": every, "choices": dispatcher_choices(), "can_set": bool(command), "why": why},
+                "dispatcher": {"every_min": every, "choices": dispatcher_choices(every), "can_set": bool(command),
+                               "why": str(why) if why else None, "why_msg": why.as_json() if why else None,
+                               "configured": shipfloor_config.dispatcher_every(read_yaml(self.home / "config.yml")),
+                               "registered": (registration() or {}).get("kind")},
                 "cycle": cycle, "projects": projects, "prices": self.prices(), "models": self.models(), "hours": self.hours(), "unpriced": unpriced}
 
     def project_agents(self):
@@ -1160,19 +1207,24 @@ class Factory:
         if errs:
             return 400, refused(errs)
         every = shipfloor_config.dispatcher_every(new)
-        if every != shipfloor_config.dispatcher_every(read_yaml(path)):  # the task is told first: if it refuses, nothing is saved
+        asked = isinstance(changes.get("dispatcher"), dict) and "every_min" in changes["dispatcher"]
+        # the task is told first: if it refuses, nothing is saved. A pace asked for that config.yml already has is told
+        # too when the registration runs at another one (it was installed by hand, or before the config changed).
+        if every != shipfloor_config.dispatcher_every(read_yaml(path)) or (asked and every != pace_now(self.home)):
             command, why = scheduler()
             if not command:
-                return 409, {"error": why}
+                return 409, refused([why])
             try:
                 r = subprocess.run([*command, str(every)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
                 lines = [l.strip() for l in (r.stdout + "\n" + r.stderr).splitlines() if l.strip()]
-                if r.returncode != 0:
-                    return 409, {"error": (lines or [f"the scheduler exited {r.returncode}"])[-1]}
+                if r.returncode != 0:  # the scheduler's own last line, as it says it
+                    return 409, {"error": lines[-1]} if lines else refused([Msg("err.sched.exit", f"the scheduler exited {r.returncode}", code=r.returncode)])
             except subprocess.TimeoutExpired:
-                return 409, {"error": "the scheduler did not answer in 60 seconds"}
+                return 409, refused([Msg("err.sched.timeout", "the scheduler did not answer in 60 seconds")])
             except OSError as e:
-                return 409, {"error": f"the scheduler could not start: {e}"}
+                return 409, refused([Msg("err.sched.start", f"the scheduler could not start: {e}", error=str(e))])
+            finally:
+                forget_registration()
         want = shipfloor_config.machine_limits(new.get("limits"))
         if want != shipfloor_config.machine_limits(old.get("limits")):  # told first, as the pace: if it refuses, nothing is saved
             command = limits_applier()
@@ -1427,7 +1479,7 @@ class Factory:
         return {"pool": {"size": size, "used": sum(used.values()),
                          "stages": {st: {"slots": slots[st], "running": used[st], "by_project": mine[st]} for st in slots}},
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
-                "alerts": shipfloor_health.alerts(self.home, skip_silence=True), "silent": silent_banner(self.home),
+                "alerts": shipfloor_health.findings(self.home, skip_silence=True), "silent": silent_banner(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
                 "moves": {f: [{"to": to, "note": note} for to, note in m] for f, m in OWNER_MOVES.items()}, "ordered": list(ORDERED),
                 "take_back": {f: list(m) for f, m in BLOCKED_MOVES.items()},
