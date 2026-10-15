@@ -1,0 +1,1 @@
+{"issue":264,"slug":"shipfloor-accept-tambem-registra-o-aceit","pipeline":"validate","started_at":"2026-10-14T23:05:00-03:00","finished_at":"2026-10-14T23:20:00-03:00","outcome":"ok","agents":[],"rounds":{},"gates_failed":["green factory scripts/test/py/cli_registry.py (seletor errado; reexecutado com cli.test.sh e passou)"],"flaky":[],"gates_reused":[],"manual_edit":false}
