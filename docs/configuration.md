@@ -109,7 +109,7 @@ runtime:
   stages: {validate: claude-code}   # a stage here wins over default
 ```
 
-`factory.yml` wins over `config.yml` key by key: `default` and each stage are resolved on their own. Unset means `claude-code`. The known runtimes are `claude-code` and `codex` (the Codex CLI). A value that is not a known runtime, or a map with any key other than `default`, `stages`, `models`, `ladder` and `provider`, makes the config invalid and the dispatch exits 2. The dispatcher's log lines carry `runtime=` and `outcome=` for each run.
+`factory.yml` wins over `config.yml` key by key: `default` and each stage are resolved on their own. Unset means `claude-code`. The known runtimes are `claude-code`, `codex` (the Codex CLI) and `opencode` (opencode 2.x). A value that is not a known runtime, or a map with any key other than `default`, `stages`, `models`, `ladder` and `provider`, makes the config invalid and the dispatch exits 2. The dispatcher's log lines carry `runtime=` and `outcome=` for each run.
 
 ### Runtime: Codex
 
@@ -183,6 +183,18 @@ launchctl setenv SF_LLM_KEY ...                    # macOS
 ```
 
 On Windows set it as a user environment variable and start the dispatcher again.
+
+### Runtime: opencode
+
+With `runtime: opencode` a stage runs as `opencode run --standalone --auto --agent sf-<stage> --format json` in the control checkout, with the permissions the factory generates (a directory outside the worktrees, `tmp` and `reviews` of the project is denied, the factory's own folder is read-only, `webfetch` and `websearch` are denied). The gates hold as with the other runtimes. It needs opencode 2.x: `shipfloor doctor` says `FAIL` for 1.x (`opencode-ai`) with the instruction to move to 2.x. The factory has its own `OPENCODE_CONFIG_DIR`, `SHIPFLOOR_OPENCODE_HOME` or `~/.shipfloor/runtimes/opencode`, which `shipfloor install` generates (`opencode.json`, one `agents/sf-<stage>.md` per stage and one agent per file of the plugin's `agents/`); your personal `~/.config/opencode` and the repository's own `.opencode/` are never read. Run `shipfloor install` again after changing `runtime.models.agents`.
+
+The model of a stage goes under `runtime.models` as `provider/model` (`anthropic/claude-sonnet-4`, `sf/qwen3-coder`); a name without the slash makes the config invalid. `runtime.ladder` works as for Codex.
+
+**Codex or opencode?** Both run any stage. Choose `codex` for OpenAI's models and for an endpoint that serves the Responses API. Choose `opencode` for the many providers it knows (log in with `opencode auth login`) and for a self-hosted endpoint that serves chat completions only, which is what vLLM, Ollama, LM Studio and most company gateways offer.
+
+With `runtime.provider` (same keys as in [Runtime: Codex](#runtime-codex): `base_url`, `api_key_env`, `models`, `ladder`) the run uses the provider `sf` of the generated config, as an `@ai-sdk/openai-compatible` provider, and only that provider may serve it; name the model `sf/<name the endpoint serves>`. The key reaches opencode only as `{env:<api_key_env>}`, never in a file. `shipfloor doctor` prints a line for each case: the endpoint is not answering, a model is missing from `GET /models`, the key variable is not set, and the endpoint has no `/chat/completions` (it asks it a one-token completion); without a `provider`, it checks that `opencode auth list` has a credential for the provider of each configured model.
+
+The cost of an opencode run is measured from opencode's own database (`~/.local/share/opencode/opencode.db`, or `OPENCODE_DB`), read-only: the tokens per model, reasoning counted as output. The price comes from `prices.yml`; a model with no price there uses the cost opencode itself calculated for the session when it is above zero, always as an estimate; with neither, the dashboard shows `$ ?` with the tokens, never `$0`, and no card or day limit counts it. A run that ends with a provider `quota` or `rate-limit` error counts as a usage limit and pauses new launches. Commits carry `Co-Authored-By: opencode <noreply@opencode.ai>`.
 
 ## Language
 

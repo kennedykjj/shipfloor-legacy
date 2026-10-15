@@ -376,6 +376,26 @@ def _generate_codex_home(src, inst, home, bad):
     _out("codex: CODEX_HOME %s: %d file%s written" % (codex.data_dir(), n, "" if n == 1 else "s"))
 
 
+def _generate_opencode_home(src, home, bad):
+    """The factory's OPENCODE_CONFIG_DIR, when a runtime of the machine or of a project is opencode (runtimes/opencode_gen.py)."""
+    from runtimes import opencode, opencode_gen
+    import shipfloor_config
+    try:
+        import yaml
+        with open(os.path.join(home, "config.yml"), encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+    except Exception:  # missing, or YAML that does not parse: doctor and validate say so
+        raw = None
+    models = shipfloor_config.runtime_setting(raw, None, "models") or {}
+    agents = models.get("agents") if isinstance(models, dict) and isinstance(models.get("agents"), dict) else {}
+    try:
+        n = opencode_gen.generate(src, opencode.data_dir(), agents)
+    except (OSError, ValueError) as e:
+        bad("OPENCODE_CONFIG_DIR (%s)" % (getattr(e, "strerror", None) or e))
+        return
+    _out("opencode: OPENCODE_CONFIG_DIR %s: %d file%s written" % (opencode.data_dir(), n, "" if n == 1 else "s"))
+
+
 def cmd_install(args):
     src, force, kind = source_dir(), False, "verified"
     for a in args:
@@ -474,6 +494,8 @@ def cmd_install(args):
             bad(".source")
     if counts["bad"] == 0 and "codex" in _runtimes_in_use():
         _generate_codex_home(src, inst, home, bad)
+    if counts["bad"] == 0 and "opencode" in _runtimes_in_use():
+        _generate_opencode_home(src, home, bad)
     _out("installed %s → %s: %d replaced, %d added, %d removed" % (src, inst, counts["replaced"], counts["added"],
                                                                   counts["removed"]))
     if re.match(r"(MINGW|MSYS|CYGWIN)", proc.uname_s()):

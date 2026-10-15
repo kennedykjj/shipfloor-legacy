@@ -390,6 +390,21 @@ def page_source():
     return html.replace("/*@dashboard-fonts*/\n", fonts, 1)
 
 
+def clean_deploys(runs):
+    """{issue: end} of the last clean deploy each card had among these runs: what "done" means in the History's totals
+    and on the belt (#B2)."""
+    done = {}
+    for r in runs:
+        if r["stage"] == "deploy" and r["exit"] == 0 and r["end"] and (r["issue"] not in done or parse_ts(r["end"]) > parse_ts(done[r["issue"]])):
+            done[r["issue"]] = r["end"]
+    return done
+
+
+def done_on(runs, day):
+    """The cards done on a local date (YYYY-MM-DD): a clean deploy that ended that day, as the History's Today counts them."""
+    return clean_deploys([r for r in runs if r["end"] and parse_ts(r["end"]).astimezone().date().isoformat() == day])
+
+
 class Factory:
     def __init__(self, home, claude_dir):
         self.home, self.claude_dir = Path(home), Path(claude_dir)
@@ -398,6 +413,7 @@ class Factory:
         self._stacks = (0.0, [], 0)
         self._configs = {}
         self._snap, self._reading, self._retry = {}, set(), {}
+        self._entered = {}
 
     def projects(self):
         try:
@@ -834,7 +850,7 @@ class Factory:
         reports = {}
         for f in (self.pdir(p) / "reports-wt" / "reports").glob("*-*/*.json"):
             m = re.fullmatch(r"(?P<stage>.+)-(?P<ts>\d{4}-\d\d-\d\dT\d{6})\.json", f.name)
-            if not m:  # a report without the stage-time name (an old or a hand-written one) has no moment to place
+            if not m:  # a report not stamped with its time (the demo's 01-refine.json) marks nothing
                 continue
             try:
                 at = datetime.strptime(m["ts"], "%Y-%m-%dT%H%M%S").astimezone()
@@ -894,7 +910,7 @@ class Factory:
             main = max(s["tokens"].items(), key=lambda kv: sum(v or 0 for v in kv[1].values()), default=(None, {}))[0]
             sessions.append({"id": s["id"], "stage": s["stage"], "start": s["start"], "end": s["end"],
                              "tokens": s["tokens"], "cost": None if c is None else round(c, 4),
-                             "subagents": [{"tokens": a["tokens"], "cost": cost(a["tokens"], prices)} for a in s["subagents"]],
+                             "subagents": [{"tokens": a["tokens"], "cost": cost(a["tokens"], prices, a.get("cost"))} for a in s["subagents"]],
                              "exit": run and run["exit"], "log": run and run["log"],
                              "model": (run and run.get("model")) or main, "stepped": run and run.get("stepped")})
         total = dashboard_cost.spend(found, prices, datetime.now().date().isoformat())["cards"].get(n, {"total": 0.0})["total"]
@@ -1345,6 +1361,34 @@ class Factory:
                     return name
         return None
 
+    def entered(self, p, columns):
+        """{n: ISO time} of when each card came into its board column, from the board history (#184); a card whose column
+        the history does not show yet (it moved after the last line) or that never changed column there has none. The
+        history is read again only when one of its files changed."""
+        sig = tuple((f.name, f.stat().st_size, f.stat().st_mtime) for f in sorted((self.pdir(p) / "logs").glob("board-*.jsonl")))
+        hit = self._entered.get(p)
+        if not hit or hit[0] != sig:
+            hit = self._entered[p] = (sig, board_history.entered(str(self.pdir(p))), board_history._last_cards(str(self.pdir(p))) or {})
+        _, at, last = hit
+        return {n: at[str(n)] for n, col in columns.items() if str(n) in at and last.get(str(n)) == col}
+
+    def stop_hold(self, p, n, column):
+        """The dispatcher's hold on a card whose last two runs stopped without doing their stage (stopped/<n>, #264):
+        {why, stage, column, at, times} while it holds, as dispatch.stopped_hold decides (two marks or more, and the card
+        still in the column the last run started from); None otherwise."""
+        try:
+            rows = [l.split("\t") for l in (self.pdir(p) / "stopped" / str(n)).read_text(encoding="utf-8").split("\n")]
+        except (OSError, UnicodeDecodeError):
+            return None
+        rows = [r for r in rows if len(r) == 4]
+        if len(rows) < 2 or (rows[-1][3] and column and column != rows[-1][3]):
+            return None
+        try:
+            at = datetime.fromtimestamp(int(rows[-1][0])).astimezone().isoformat(timespec="seconds")
+        except (ValueError, OverflowError, OSError):
+            at = None
+        return {"why": rows[-1][2], "stage": rows[-1][1], "column": rows[-1][3], "at": at, "times": len(rows)}
+
     @staticmethod
     def card_deps(record, columns, n):
         """A card's dependencies from the dispatcher's record (deps.json), each in its board column, "closed", or "open"
@@ -1360,18 +1404,13 @@ class Factory:
             out.append({"n": d["n"], "title": str(d.get("title") or ""), "state": state})
         return {"deps": out, "deps_unread": entry.get("read") is False}
 
-    def shipped(self, p, columns, titles, since, per_card, today):
-        """The cards that reached Done today, newest first: {issue, title, pr, at, cost}. `at` is when the card's last run ended,
-        `pr` the last pull request a report names, `cost` its Inbox-to-now estimate (None when unpriced)."""
+    def shipped(self, p, columns, titles, done, per_card):
+        """The cards done today (done_on) that are in Done, newest first: {issue, title, pr, at, cost}. `at` is when the
+        card's clean deploy ended, `pr` the last pull request a report names, `cost` its Inbox-to-now estimate (None when unpriced)."""
         out = []
         for n, col in columns.items():
-            at = since.get(n)
+            at = done.get(n)
             if col != "Done" or not at:
-                continue
-            try:
-                if parse_ts(at).astimezone().date().isoformat() != today:
-                    continue
-            except (ValueError, TypeError):
                 continue
             pr = next((r["pr"] for r in reversed(self.reports(p, n)) if isinstance(r.get("pr"), int)), None)
             out.append({"issue": n, "title": titles.get(n, ""), "pr": pr, "at": at, "cost": rounded(per_card.get(n, 0.0))})
@@ -1400,15 +1439,18 @@ class Factory:
             for n, col in columns.items():  # columns come in board order: a card's place in line is its rank there
                 if col in LINED:
                     line[col] = place[n] = line.get(col, 0) + 1
-            # how long a stage usually takes (its clean runs) and when each card's last run ended
+            # how long a stage usually takes (its clean runs); since when each card is where it is: when it came into its
+            # column by the board history (#184), else when its last run ended
             took, since = {}, {}
             for r in all_runs:
                 if r["end"]:
                     since[r["issue"]] = r["end"]
                     if r["exit"] == 0:
                         took.setdefault(r["stage"], []).append((parse_ts(r["end"]) - parse_ts(r["start"])).total_seconds())
+            since.update(self.entered(p, columns))
+            done = done_on(all_runs, today)
             projects.append({"slug": p, "paused": (self.pdir(p) / "PAUSE").exists(), "board_age_s": age,
-                             "skipped": self.skipped(p),
+                             "skipped": self.skipped(p), "done_today": len(done),
                              "typical_s": {st: round(statistics.median(v)) for st, v in took.items()},
                              "repo": (self.config(p).get("project") or {}).get("repo"), "board_url": self.board_url(p),
                              "cards": [{"issue": n, "title": titles.get(n, ""), "column": col, "since": since.get(n),
@@ -1419,17 +1461,23 @@ class Factory:
                                         "review": col in AWAITING and (self.pdir(p) / "reviews" / f"{n}.html").is_file(),
                                         "lock": "run" if n in running else {"infra": "infra", "owner": "blocked"}.get(blocked.get(n)),
                                         "opened": opened.get(n), "position": place.get(n),
-                                        "blocked": blocked.get(n), **self.brief_row(p, n, col),
+                                        "blocked": blocked.get(n), "done_at": done.get(n),
+                                        "stopped": None if n in running or blocked.get(n) == "infra" else self.stop_hold(p, n, col),  # infra: the factory retries it
+                                        **self.brief_row(p, n, col),
                                         **self.block_brief(p, n, blocked.get(n)),
                                         **self.card_deps(record, columns, n)}
                                        for n, col in columns.items()],
-                             "shipped": self.shipped(p, columns, titles, since, per_card, today)})
+                             "shipped": self.shipped(p, columns, titles, done, per_card)})
             finished += [r for r in self.runs(p, day=today) if r["end"]]
         used = {st: sum(1 for r in live if r["stage"] == st and not r["orphan"]) for st in slots}
+        mine = {st: {} for st in slots}  # the slots are shared by every project: who holds each one
+        for r in live:
+            if not r["orphan"] and r["stage"] in mine:
+                mine[r["stage"]][r["project"]] = mine[r["stage"]].get(r["project"], 0) + 1
         stacks, queue = self.stacks()
         day_stopped = dashboard_cost.over({"cards": {}, "today": today_cost}, limits, {})["day_stop"]
         return {"pool": {"size": size, "used": sum(used.values()),
-                         "stages": {st: {"slots": slots[st], "running": used[st]} for st in slots}},
+                         "stages": {st: {"slots": slots[st], "running": used[st], "by_project": mine[st]} for st in slots}},
                 "paused": (self.home / "PAUSE").exists(), "usage_limited": self.usage_limited(), "hours": self.hours(),
                 "alerts": shipfloor_health.findings(self.home, skip_silence=True), "silent": silent_banner(self.home),
                 "runs": live, "projects": projects, "stacks": stacks, "queue": queue,
@@ -1469,10 +1517,7 @@ class Factory:
         opened = self._opened.get(p, {})
 
         def figures(rs):
-            done = {}
-            for r in rs:  # newest first: a card's clean deploy is the last one it had in the period
-                if r["stage"] == "deploy" and r["exit"] == 0:
-                    done.setdefault(r["issue"], r["end"])
+            done = clean_deploys(rs)
             waits = []
             for n, end in done.items():
                 try:  # a card whose creation GitHub did not give is left out of the median
@@ -1641,7 +1686,8 @@ class Factory:
     def take_back(self, p, n, to, text):
         """A card blocked for the owner goes back to Ready for Dev, Ready for Refinement or the Inbox (#127), in this order:
         the comment (when there is one), the card's open pull request closed (Inbox only, its branch kept), the move, the
-        block off. A failure stops there and leaves the card blocked where it was, so the same move can be repeated."""
+        block off. A failure stops there and leaves the card blocked where it was, so the same move can be repeated.
+        A card the dispatcher holds after two stopped runs (stop_hold) is taken back the same way, and its marks go."""
         if not isinstance(to, str) or to not in BLOCKED_MOVES["Coding"]:
             return 400, {"error": f"a blocked card goes to {', '.join(BLOCKED_MOVES['Coding'])}, not {to or 'nowhere'}"}
         rows, err = self.board_rows(p)
@@ -1654,7 +1700,8 @@ class Factory:
         locked, err = self.lock(p, n)  # read now: a card unblocked a moment ago must not be moved as blocked
         if err:
             return 502, {"error": err}
-        if locked != "blocked":
+        held = None if locked else self.stop_hold(p, n, column)
+        if locked != "blocked" and not held:
             why = LOCKED[locked] if locked else "it is not blocked now"
             return 409, {"error": why, "column": column, "locked": locked}
         if to == column or to not in BLOCKED_MOVES.get(column, BLOCKED_MOVES["*"]):
@@ -1691,6 +1738,9 @@ class Factory:
         if err:
             return 502, {"error": err, "commented": commented, "pr_closed": closed}
         self.keep_rows(p, [[r[0], to, r[2]] if r is row else r for r in rest])
+        if held:  # the dispatcher would drop the marks at its next cycle, seeing the new column: gone now, so the page agrees
+            (self.pdir(p) / "stopped" / str(n)).unlink(missing_ok=True)
+            return 200, {"moved_to": to, "commented": commented, "pr_closed": closed, "unblocked": False}
         code, body = self.unblock(p, n)
         if code != 200:
             return 502, {"error": "moved, but the block did not come off: " + body.get("error", ""), "commented": commented,

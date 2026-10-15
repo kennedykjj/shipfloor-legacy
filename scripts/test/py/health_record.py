@@ -283,6 +283,23 @@ class Deps(HealthCase):
         self.assertEqual(self.idle_after((26, "Ready for Dev"), (27, "Ready for Dev"), deps={"26": {"read": True, "deps": [self.OPEN]}}),
                          ["shop/develop"])
 
+    def test_stop_marked(self):
+        "M2 a card the dispatcher holds after two stopped runs (stopped/<n>, still in the column the last one started from) is not queued"
+        two = "1792019421\tdevelop\tno-report\tReady for Dev\n1792019492\tdevelop\tno-report\tReady for Dev\n"
+        self.setup()
+        self.board((26, "Ready for Dev"))
+        self.put("projects/shop/stopped/26", two)
+        d = self.record()
+        self.assertEqual((d["idle"], d["projects"]["shop"]["stages"]["develop"]["queue"]), ([], 0))
+        self.setup()
+        self.board((26, "Ready for Dev"))
+        self.put("projects/shop/stopped/26", two.splitlines()[0] + "\n")  # one stop does not hold the card
+        self.assertEqual(self.record()["idle"], ["shop/develop"])
+        self.setup()
+        self.board((26, "Ready for Dev"))
+        self.put("projects/shop/stopped/26", two.replace("Ready for Dev", "Coding"))  # moved since: the dispatcher drops the marks
+        self.assertEqual(self.record()["idle"], ["shop/develop"])
+
     def test_orphan_held(self):
         "AC-5 an orphan (a card left in Coding with no run) on an open dependency is not resumed, so not idle"
         self.assertEqual(self.idle_after((30, "Coding"), deps={"30": {"read": True, "deps": [self.OPEN]}}), [])

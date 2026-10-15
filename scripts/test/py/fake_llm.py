@@ -2,7 +2,8 @@
 127.0.0.1, on a port of the OS's choosing, in a thread of the test process.
 
 modes: "ok" (both answer), "no-responses" (/v1/responses is 404, as an endpoint with chat completions only),
-"429" (/v1/responses answers 429 Too Many Requests), "down" (nothing listens: the port was taken and given back).
+"429" (/v1/responses answers 429 Too Many Requests), "chat-only" (#152: /v1/models and POST /v1/chat/completions
+answer, everything else is 404; the bodies of the POSTs are in .bodies), "down" (nothing listens: the port was taken and given back).
 The Authorization header of every request is recorded in .auth, the paths in .paths; the value of the key is
 never printed."""
 import json
@@ -14,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 class FakeLLM:
     def __init__(self, mode="ok", models=("qwen3-coder",)):
         self.mode, self.models = mode, list(models)
-        self.auth, self.paths = [], []
+        self.auth, self.paths, self.bodies = [], [], []
         self.server = None
         if mode == "down":
             s = socket.socket()
@@ -50,8 +51,19 @@ class FakeLLM:
             def do_POST(self):
                 self._note()
                 n = int(self.headers.get("Content-Length") or 0)
-                self.rfile.read(n)
-                if self.path.rstrip("/") != "/v1/responses" or fake.mode == "no-responses":
+                raw = self.rfile.read(n)
+                try:
+                    fake.bodies.append(json.loads(raw))
+                except ValueError:
+                    fake.bodies.append(None)
+                path = self.path.rstrip("/")
+                if fake.mode == "chat-only":  # vLLM, Ollama, LM Studio: chat completions, no Responses API
+                    if path == "/v1/chat/completions":
+                        self._send(200, {"id": "chatcmpl-1", "object": "chat.completion", "choices": [
+                            {"index": 0, "finish_reason": "length", "message": {"role": "assistant", "content": "p"}}]})
+                    else:
+                        self._send(404, {"error": "not found"})
+                elif self.path.rstrip("/") != "/v1/responses" or fake.mode == "no-responses":
                     self._send(404, {"error": "not found"})
                 elif fake.mode == "429":
                     self._send(429, {"error": {"message": "rate limit exceeded"}})

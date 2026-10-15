@@ -71,3 +71,34 @@ def day(home, date):
             if isinstance(row, dict) and t.astimezone().date() == date:
                 out.append(row)
     return out
+
+
+def entered(home):
+    """{"<number>": ISO time} of when each card of the newest line came into the column it has there: the time of the
+    first line of its current stay. A card that has the same column in every line has no entry (when it came there is
+    not on record). Lines that are not JSON are skipped."""
+    newest, out, cur = None, {}, None
+    for path in reversed(_files(home)):
+        try:
+            with open(path, encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for line in reversed(lines):
+            try:
+                row = json.loads(line)
+                cards, t = row.get("cards"), row["t"]
+            except (ValueError, KeyError, TypeError, AttributeError):
+                continue
+            if not isinstance(cards, dict) or not isinstance(t, str):
+                continue
+            if newest is None:
+                newest, cur = cards, {n: t for n in cards}
+                continue
+            for n in [n for n in cur if cards.get(n) != newest[n]]:
+                out[n] = cur.pop(n)  # the line after this one is where its stay began
+            for n in cur:
+                cur[n] = t
+            if not cur:
+                return out
+    return out

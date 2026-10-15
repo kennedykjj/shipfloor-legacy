@@ -48,10 +48,10 @@ class Config(cs.ConfigCase):
         return names(out)
 
     def test_AC1_no_runtime_is_claude_code(self):
-        "AC-1 no runtime anywhere: claude-code runs every stage; the contract names claude-code first, then codex"
+        "AC-1 no runtime anywhere: claude-code runs every stage; the contract names claude-code first, then codex and opencode"
         self.assertEqual(self.of(None), ["claude-code"] * 4)
         self.assertEqual(self.of("pool: 4"), ["claude-code"] * 4)
-        self.assertEqual(runtimes().NAMES, ("claude-code", "codex"))
+        self.assertEqual(runtimes().NAMES, ("claude-code", "codex", "opencode"))
         self.assertEqual(runtimes().get("claude-code").NAME, "claude-code")
 
     def test_AC1_string_and_map(self):

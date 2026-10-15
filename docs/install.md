@@ -4,7 +4,7 @@ What the machine needs, how a repository joins the factory, and the dispatcher o
 
 ## Requirements
 
-Python 3.11+ with PyYAML (`pip install pyyaml`), Git, an authenticated gh, Claude Code (`claude`) and, only for a config that uses `runtime: codex`, the Codex CLI (`codex`, 0.50 or newer), and Git Bash on Windows for the wrappers and the scheduler. Any bash runs the wrappers: there is no minimum version.
+Python 3.11+ with PyYAML (`pip install pyyaml`), Git, an authenticated gh, Claude Code (`claude`) and, only for a config that uses `runtime: codex`, the Codex CLI (`codex`, 0.50 or newer), only for `runtime: opencode`, opencode 2.x (`opencode`), and Git Bash on Windows for the wrappers and the scheduler. Any bash runs the wrappers: there is no minimum version.
 
 ## The short path
 
@@ -35,6 +35,13 @@ To run stages on Codex (see [Runtime: Codex](configuration.md#runtime-codex)): s
 ```bash
 CODEX_HOME=~/.shipfloor/runtimes/codex codex login    # or export CODEX_API_KEY
 shipfloor doctor                                      # ok/FAIL for codex, its login and the generated CODEX_HOME
+```
+
+To run stages on opencode (see [Runtime: opencode](configuration.md#runtime-opencode)): install opencode 2.x (opencode 1.x is not supported; `shipfloor doctor` says `FAIL` and how to move), set `runtime: opencode` and the models as `provider/model` under `runtime.models`, run `shipfloor install` again (it generates the factory's `OPENCODE_CONFIG_DIR`, `SHIPFLOOR_OPENCODE_HOME` or `~/.shipfloor/runtimes/opencode`), then pick where the model comes from: log in to a provider with `opencode auth login`, or set `runtime.provider` to your own endpoint (chat completions is enough) and export its `api_key_env` variable. Use `codex` for OpenAI's models and Responses API endpoints, `opencode` for the rest.
+
+```bash
+opencode auth login      # a provider's credential, when there is no runtime.provider
+shipfloor doctor         # ok/FAIL for opencode 2.x, the generated config and the credential or the endpoint
 ```
 
 Dispatcher on Windows: `powershell -File <plugin>/installer/install-dispatcher.ps1` registers the `ShipfloorDispatcher` task. It runs every 3 minutes unless you choose 1, 5 or 10: pick it in Settings in the dashboard ("Looks for work every"), or pass `-EveryMin` to `installer/install-dispatcher.ps1`. The value lives in `~/.shipfloor/config.yml` as `dispatcher.every_min`.
