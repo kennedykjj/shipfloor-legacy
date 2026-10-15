@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # shipfloor install and doctor's view of the installed copy. The behavior is in py/install_copy.py, in process
 # (shipfloor_core/cli.py: renames, counts, kills and refusals, the source check, .source/.origin, doctor); here the
 # wrapper's contract through a real process: the real plugin installed into a temp SHIPFLOOR_HOME, what goes to stdout

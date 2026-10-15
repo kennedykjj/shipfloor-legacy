@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # docs/contracts.md covers every script: a section per file that lists each subcommand of its usage line, as the doc's
 # top says this test enforces. Reads: scripts/*.sh, scripts/lib/*.sh, scripts/shipfloor, docs/contracts.md.
 source "$(dirname "$0")/lib.sh"

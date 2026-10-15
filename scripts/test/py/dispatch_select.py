@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import time
+from unittest import mock
 
 import dispatch_support as ds
 from shipfloor_core import cycle as cyclemod, dispatch, project
@@ -49,6 +50,89 @@ class Queues(Base):
         self.board(queues={"Ready for Dev": "26 27 28"}, counts={"Coding": 3})
         self.cycle(runs=False)
         self.assertEqual(self.started(), ["develop 26"], "one WIP slot left: one run")
+
+    def test_a_full_wip_says_so_once(self):
+        "a full WIP column with cards waiting starts nothing and says which column is full; nothing waiting, nothing said"
+        self.board(queues={"Ready for Dev": "40 41"}, counts={"Coding": 4})
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), [])
+        self.assertIn("dispatch: develop: Coding + Validation is full (limits.develop.wip 4); 2 cards wait", self.out)
+        self.board(queues={"Ready for Dev": ""})
+        self.cycle(runs=False)
+        self.assertNotIn("is full", self.out)
+
+    def test_wip_zero_is_no_limit(self):
+        "limits.develop.wip: 0 is no limit: a card starts however many are in Coding + Validation (the agent's step 1 reads it so too)"
+        self.project_cfg(text=open(ds.FIXTURE_CONFIG, encoding="utf-8").read() + "\nlimits:\n  develop: {wip: 0}\n")
+        self.board(queues={"Ready for Dev": "40"}, counts={"Coding": 9})
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), ["develop 40"])
+        self.assertNotIn("is full", self.out)
+
+    def test_low_disk_starts_nothing(self):
+        "under the machine's disk floor (free GB, free inodes %) no run starts and the line says where and how much"
+        self.board(queues={"Ready for Dev": "40", "Ready for Refinement": "25"})
+        with mock.patch.object(dispatch, "_disk_free", lambda path: (int(0.5 * 2 ** 30), 50.0)):
+            self.cycle(runs=False)
+        self.assertEqual(self.started(), [])
+        self.assertRegex(self.out, r"dispatch: .* has 0\.5 GB free, the floor is 2 GB; no run starts until there is space")
+        self.again()
+        with mock.patch.object(dispatch, "_disk_free", lambda path: (50 * 2 ** 30, 4.0)):
+            self.cycle(runs=False)
+        self.assertEqual(self.started(), [])
+        self.assertRegex(self.out, r"has 4% of its inodes free, the floor is 10%")
+        self.again()
+        with mock.patch.object(dispatch, "_disk_free", lambda path: (50 * 2 ** 30, None)):  # Windows: no inodes
+            self.cycle(runs=False)
+        self.assertEqual(sorted(self.started()), ["develop 40", "refine 25"])
+
+    def test_disk_floor_off_and_set(self):
+        "min_free_gb 0 turns the space check off; the machine's own floor replaces the default"
+        self.board(queues={"Ready for Dev": "40"})
+        free = lambda path: (int(1.5 * 2 ** 30), 50.0)
+        self.machine_cfg(ds.POOL8 + "\ndisk: {min_free_gb: 0}")
+        with mock.patch.object(dispatch, "_disk_free", free):
+            self.cycle(runs=False)
+        self.assertEqual(self.started(), ["develop 40"])
+        self.again()
+        self.machine_cfg(ds.POOL8 + "\ndisk: {min_free_gb: 1}")
+        with mock.patch.object(dispatch, "_disk_free", free):
+            self.cycle(runs=False)
+        self.assertEqual(self.started(), ["develop 40"])
+        self.again()
+        self.machine_cfg(ds.POOL8 + "\ndisk: {min_free_gb: 1.6}")
+        with mock.patch.object(dispatch, "_disk_free", free):
+            self.cycle(runs=False)
+        self.assertEqual(self.started(), [])
+
+    def test_two_stops_hold_the_card(self):
+        "a card whose last two runs stopped without doing their stage waits for the owner: moving the card frees it"
+        mark = os.path.join(self.home, "stopped", "40")
+        self.write(mark, "1\tdevelop\tno-report\tReady for Dev\n1\tdevelop\towner-only\tReady for Dev\n")
+        self.board(queues={"Ready for Dev": "40"}, snapshot="40\tReady for Dev\tx\n")
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), [])
+        self.assertIn("dispatch: #40 stopped twice in a row (owner-only); not started again until you move the card or delete " + mark, self.out)
+        self.board(snapshot="40\tCoding\tx\n")  # the owner moved it
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), ["develop 40"])
+        self.assertFalse(os.path.exists(mark))
+        self.assertEqual(self.launches[0]["col"], "Coding", "the run records the column it started from")
+
+    def test_one_stop_does_not_hold(self):
+        "one mark is a retry: the card starts again"
+        self.write(os.path.join(self.home, "stopped", "40"), "1\tdevelop\tno-report\tReady for Dev\n")
+        self.board(queues={"Ready for Dev": "40"}, snapshot="40\tReady for Dev\tx\n")
+        self.cycle(runs=False)
+        self.assertEqual(self.started(), ["develop 40"])
+
+    def test_marks_go_with_the_card(self):
+        "a stop mark whose card left the board goes with the cycle"
+        mark = os.path.join(self.home, "stopped", "40")
+        self.write(mark, "1\tdevelop\tno-report\tReady for Dev\n")
+        self.board(snapshot="41\tDone\tx\n")
+        self.cycle(runs=False)
+        self.assertFalse(os.path.exists(mark))
 
     def test_stage_slots_and_in_flight_runs(self):
         "develop runs 2 at once by default, a live run takes a slot, and a run not yet in a WIP column takes a WIP slot"
@@ -342,9 +426,9 @@ class Locks(Base):
         info = {}
         real = dispatch._work
 
-        def work(spec, agent, deploy, log):
+        def work(spec, agent, deploy, log, *rest):
             info["line"] = open(os.path.join(spec["dir"], "info")).read()
-            return real(spec, agent, deploy, log)
+            return real(spec, agent, deploy, log, *rest)
         before = int(time.time())
         with ds.mock.patch.object(dispatch, "_work", work):
             self.cycle()

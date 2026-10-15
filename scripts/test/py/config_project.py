@@ -2,7 +2,9 @@
 shipfloor_config): get, layers, layer, regex, layer-of, describe, language and overrides.yml, and validate's every
 refusal with the line it prints."""
 import os
+import re
 
+from support import SCRIPTS
 from config_support import ConfigCase, FIXTURE_YML, BOARD, LAYER
 
 from shipfloor_core import text
@@ -64,6 +66,14 @@ class Queries(ConfigCase):
                            [".shipfloor/factory.yml", ".github/w.yml", ".claude/x.md", "CLAUDE.md", "api/.env",
                             "web/.env.local", "docs/engineering/x.md"],
                            ["api/env.kt", "docs/CLAUDE.md.bak"])
+        self.assertMatches(self.out("regex", "forbidden").strip(),
+                           [".codex/x", ".opencode/x", ".agents/x", "AGENTS.md", "AGENTS.override.md", "opencode.json",
+                            "opencode.jsonc"],
+                           ["AGENTS.md.bak", "opencode.jsonx", "api/codex/x"])
+        guard = open(os.path.join(os.path.dirname(SCRIPTS), "templates", "factory-guard.yml"), encoding="utf-8").read()
+        pattern = re.search(r"grep -E '([^']+)'", guard).group(1)
+        self.assertMatches(pattern, [".codex/x", ".opencode/x", ".agents/x", "AGENTS.md", "AGENTS.override.md", "opencode.json",
+                                     "opencode.jsonc", ".claude/x.md"], ["api/env.kt", "AGENTS.md.bak"])
         self.assertMatches(self.out("regex", "migrations", "api").strip(),
                            ["api/src/main/resources/db/migration/V2__add.sql"],
                            ["api/src/main/resources/db/migration/sub/V2__add.sql"])
@@ -162,6 +172,15 @@ class Validate(ConfigCase):
         ]
         for case in cases:
             self.refused(*case)
+
+    def test_AC1_runtime_provider_refusals(self):
+        "AC-1 a runtime.provider with a bad base_url, api_key_env, models, ladder or an unknown key is refused with a line naming each key"
+        self.refused(BOARD + LAYER + "runtime: {provider: {base_url: 'ftp://x/v1', api_key_env: 'A-B'}}\n",
+                     "runtime.provider.base_url", "runtime.provider.api_key_env")
+        self.refused(BOARD + LAYER + "runtime: {provider: {base_url: 'http://x/v1', ladder: 'm', models: {stages: {develop: ''}}, nope: 1}}\n",
+                     "runtime.provider.ladder", "runtime.provider.models", "runtime.provider.nope")
+        ok = self.yml(BOARD + LAYER + "runtime: {provider: {base_url: 'http://x/v1', api_key_env: K, models: {stages: {develop: m}}, ladder: [m]}}\n")
+        self.assertEqual(self.raw("validate", config=ok), (0, "", ""))
 
     def test_not_yaml(self):
         "a file that is not YAML is refused by validate (exit 1) and unusable for a query (exit 2)"

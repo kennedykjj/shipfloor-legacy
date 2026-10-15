@@ -3,6 +3,7 @@ stage runs, stack slots, notify, costs, working hours, the dispatcher's pace, an
 on (stage-models, models-check, describe's `agent models:` line)."""
 import os
 import re
+from unittest import mock
 
 from config_support import ConfigCase, FIXTURE_YML
 
@@ -151,6 +152,25 @@ class Costs(MachineCase):
         self.assertEqual(self.mach("values", "costs.card_block")[0], 2, "an invalid costs section is never read as a limit")
 
 
+class Disk(MachineCase):
+    """disk: the floor under which the dispatcher starts no run (min_free_gb 2, min_free_inodes_pct 10 by default)."""
+
+    def test_read(self):
+        "the defaults read back; a file's values win; 0 is allowed (that check is off)"
+        self.assertEqual(self.values("disk.min_free_gb", "disk.min_free_inodes_pct", sep="|"), "2|10|")
+        self.good("disk: {min_free_gb: 5.5, min_free_inodes_pct: 0}")
+        self.assertEqual(self.values("disk.min_free_gb", "disk.min_free_inodes_pct", sep="|"), "5.5|0|")
+
+    def test_refused(self):
+        "a negative or non-number floor, inodes above 100, an unknown key or a disk that is no mapping is refused"
+        self.bad("disk: {min_free_gb: -1}", "disk.min_free_gb must be a number from 0")
+        self.bad("disk: {min_free_gb: lots}", "disk.min_free_gb must be a number from 0")
+        self.bad("disk: {min_free_inodes_pct: 101}", "disk.min_free_inodes_pct must be a number from 0 to 100")
+        self.bad("disk: {min_free_gb: true}", "disk.min_free_gb must be a number from 0")
+        self.bad("disk: {free: 1}", "disk.free: unknown key (use min_free_gb, min_free_inodes_pct)")
+        self.bad("disk: 5", "disk must be a mapping of min_free_gb, min_free_inodes_pct")
+
+
 class Limits(MachineCase):
     """limits: the dispatcher's optional memory and CPU ceilings; `machine limits` prints the systemd lines."""
 
@@ -240,7 +260,7 @@ class Hours(MachineCase):
 
 
 class Dispatcher(MachineCase):
-    """the dispatcher's pace: 1, 3, 5 or 10 minutes, 3 when missing; anything else names the key and the values."""
+    """the dispatcher's pace: 0.5 (30 seconds), 1, 3, 5 or 10 minutes, 3 when missing; anything else names the key and the values."""
 
     def test_pace(self):
         "AC-5 every_min defaults to 3 and reads back 1, 3, 5 and 10"
@@ -251,10 +271,17 @@ class Dispatcher(MachineCase):
             self.assertEqual(shipfloor_config.dispatcher_every({"dispatcher": {"every_min": v}}), v)
         self.assertEqual(shipfloor_config.dispatcher_every({"dispatcher": {"every_min": True}}), 3)
 
+    def test_pace_30_seconds(self):
+        "every_min: 0.5 is 30 seconds: valid, read back as 0.5 (what the installer takes), kept as a float; 1.0 or 3.0 are not the integers"
+        self.good("dispatcher: {every_min: 0.5}")
+        self.assertEqual(self.values("dispatcher.every_min"), "0.5 ")
+        self.assertEqual(shipfloor_config.dispatcher_every({"dispatcher": {"every_min": 0.5}}), 0.5)
+        self.assertEqual([shipfloor_config.dispatcher_every({"dispatcher": {"every_min": v}}) for v in (1.0, 3.0, 0.25, "0.5")], [3, 3, 3, 3])
+
     def test_refused(self):
         "AC-5 any other every_min, or a dispatcher that is no mapping, is a machine problem"
-        for v in ("0", "2", "7", "15", "true", '"5"', "3.5"):
-            self.bad("dispatcher: {every_min: %s}" % v, "dispatcher.every_min must be 1, 3, 5 or 10")
+        for v in ("0", "2", "7", "15", "true", '"5"', "3.5", "0.25", "3.0", "30", '"0.5"'):
+            self.bad("dispatcher: {every_min: %s}" % v, "dispatcher.every_min must be 0.5, 1, 3, 5 or 10")
         self.bad("dispatcher: 5", "dispatcher must be a mapping")
 
 
@@ -294,6 +321,26 @@ class Models(MachineCase):
         self.conf("models:\n  stages: {develop: {light: haiku}}")
         self.assertEqual(self.sm(), "sonnet|sonnet|sonnet|haiku|sonnet|opus|" + "sonnet|" * 6)
         self.assertEqual([self.mach("model-up", m)[1] for m in ("haiku", "sonnet", "opus", "fable")], ["sonnet\n", "opus\n", "", ""])
+
+    def test_runtime_models_and_ladder(self):
+        "a stage off claude-code takes runtime.models (a name as written, no model = none) and climbs runtime.ladder; the project's over the machine's"
+        names = ("claude-code", "codex")
+        with mock.patch.object(shipfloor_config.runtimes, "NAMES", names):
+            machine = {"runtime": {"default": "codex", "models": {"stages": {"develop": "gpt-6-mini", "refine": "gpt-6"}},
+                                   "ladder": ["gpt-6-mini", "gpt-6-sol"]}}
+            self.assertEqual(shipfloor_config.runtime_problems(machine["runtime"]), [])
+            got = shipfloor_config.runtime_stage_models(machine, {"runtime": {"stages": {"deploy": "claude-code"},
+                                                                              "models": {"stages": {"develop": {"heavy": "gpt-6-sol"}}}}})
+            self.assertEqual(got["refine"], dict.fromkeys(shipfloor_config.WEIGHTS, "gpt-6"))
+            self.assertEqual(got["develop"], {"light": "", "standard": "", "heavy": "gpt-6-sol"})
+            self.assertEqual(got["validate"], dict.fromkeys(shipfloor_config.WEIGHTS, ""))
+            self.assertNotIn("deploy", got)
+            ladder = tuple(shipfloor_config.runtime_setting(machine, None, "ladder"))
+            self.assertEqual([shipfloor_config.model_up(m, ladder) for m in ("gpt-6-mini", "gpt-6-sol", "other")], ["gpt-6-sol", None, None])
+            self.assertEqual(shipfloor_config.model_up("x", ()), None)
+            for bad in ({"ladder": "gpt-6"}, {"ladder": [""]}, {"models": {"stages": {"develop": ""}}}, {"models": {"nope": {}}},
+                        {"models": {"stages": {"build": "x"}}}, {"models": {"stages": {"refine": {"light": "x"}}}}):
+                self.assertTrue(shipfloor_config.runtime_problems(bad), bad)
 
     def test_constants(self):
         "the shipped models and every plugin agent's default, which agents/*.md's model: line must match"
@@ -372,3 +419,78 @@ class Models(MachineCase):
         rc, _, err = self.mach("bogus")
         self.assertEqual(rc, 2)
         self.assertIn("usage: machine validate | values <key>... | show | hours | set <key> <int>", err)
+
+
+class Provider(MachineCase):
+    """runtime.provider (#151): the endpoint a codex run talks to, in the machine's config.yml and, key by key over it, in
+    the project's factory.yml."""
+    URL = "http://127.0.0.1:8000/v1"
+
+    def provider(self, *project):
+        rc, out, err = self.mach("provider", *project)
+        return rc, out, err
+
+    def test_AC1_valid_provider_is_accepted(self):
+        "AC-1 a provider with a base_url, an api_key_env, models and a ladder is a valid config"
+        self.good("runtime:\n  default: codex\n  provider:\n    base_url: %s\n    api_key_env: LLM_KEY\n"
+                  "    models: {stages: {develop: 'Qwen/Qwen3-Coder-30B-A3B', validate: 'llama3.1:8b'}}\n"
+                  "    ladder: ['llama3.1:8b', 'Qwen/Qwen3-Coder-30B-A3B']\n" % self.URL)
+        self.good("runtime: {default: codex, provider: {base_url: 'https://llm.corp.example:8443/v1'}}")
+
+    def test_AC1_invalid_provider_names_the_key(self):
+        "AC-1 a base_url that is not http(s)://, an api_key_env that is not a variable name, models or a ladder in the wrong shape or with a name that cannot go in a -c, an unknown key or no base_url: invalid, the message names the key"
+        cases = [
+            ("{base_url: 'ftp://x/v1'}", "runtime.provider.base_url"),
+            ("{base_url: 'llm.local/v1'}", "runtime.provider.base_url"),
+            ("{base_url: 'http://a b/v1'}", "runtime.provider.base_url"),
+            ("{base_url: 'http://a/\"v1'}", "runtime.provider.base_url"),
+            ("{base_url: \"http://a/'v1\"}", "runtime.provider.base_url"),
+            ("{base_url: 3}", "runtime.provider.base_url"),
+            ("{base_url: '%s', api_key_env: '1BAD'}" % self.URL, "runtime.provider.api_key_env"),
+            ("{base_url: '%s', api_key_env: 'A-B'}" % self.URL, "runtime.provider.api_key_env"),
+            ("{base_url: '%s', api_key_env: 'sk-secret value'}" % self.URL, "runtime.provider.api_key_env"),
+            ("{base_url: '%s', models: {stages: {develop: ''}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', models: {nope: {}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', models: {stages: {build: x}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', models: {stages: {develop: 'a\"b'}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', models: {stages: {develop: 'a b'}}}" % self.URL, "runtime.provider.models"),
+            ("{base_url: '%s', ladder: qwen}" % self.URL, "runtime.provider.ladder"),
+            ("{base_url: '%s', ladder: ['a b']}" % self.URL, "runtime.provider.ladder"),
+            ("{base_url: '%s', nope: 1}" % self.URL, "runtime.provider.nope"),
+            ("x", "runtime.provider"),
+        ]
+        for provider, key in cases:
+            self.bad("runtime: {default: codex, provider: %s}" % provider, key)
+            self.conf("runtime: {default: codex, provider: %s}" % provider)
+            self.assertEqual(self.provider()[0], 2, "an invalid config is never read: %s" % provider)
+
+    def test_AC1_provider_query(self):
+        "AC-1 machine provider prints base_url and the NAME of api_key_env (never a value) split by NUL, nothing without a provider; the project's factory.yml over the machine's key by key"
+        self.conf("pool: 4")
+        self.assertEqual(self.provider(), (0, "", ""))
+        self.conf("runtime: {default: codex, provider: {base_url: '%s', api_key_env: LLM_KEY}}" % self.URL)
+        rc, out, err = self.provider()
+        self.assertEqual((rc, out.rstrip("\0").split("\0")), (0, [self.URL, "LLM_KEY"]), err)
+        project = self.yml(open(FIXTURE_YML, encoding="utf-8").read()
+                           + "\nruntime:\n  provider: {base_url: 'https://llm.corp.example/v1'}\n")
+        rc, out, err = self.provider(project)
+        self.assertEqual((rc, out.rstrip("\0").split("\0")), (0, ["https://llm.corp.example/v1", "LLM_KEY"]), err)
+        self.conf("pool: 4")
+        rc, out, err = self.provider(project)
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(out.split("\0")[0], "https://llm.corp.example/v1", "a project alone can name the provider")
+        bad = self.yml(open(FIXTURE_YML, encoding="utf-8").read() + "\nruntime:\n  provider: {base_url: 'ftp://x'}\n", "bad.yml")
+        self.assertEqual(self.provider(bad)[0], 2, "an invalid project config is never read")
+
+    def test_AC3_provider_models_win_over_runtime_models(self):
+        "AC-3 with a provider the stage models and the ladder are the provider's (the project's over the machine's name by name), runtime.models and runtime.ladder are ignored"
+        machine = {"runtime": {"default": "codex", "models": {"stages": {"develop": "ignored", "validate": "ignored"}},
+                               "ladder": ["ignored", "ignored-up"],
+                               "provider": {"base_url": self.URL, "models": {"stages": {"develop": "p-low", "validate": "p-val"}},
+                                            "ladder": ["p-low", "p-high"]}}}
+        project = {"runtime": {"provider": {"models": {"stages": {"develop": {"heavy": "p-high"}}}}}}
+        self.assertEqual(shipfloor_config.runtime_problems(machine["runtime"]), [])
+        got = shipfloor_config.runtime_stage_models(machine, project)
+        self.assertEqual(got["develop"], {"light": "", "standard": "", "heavy": "p-high"})
+        self.assertEqual(got["validate"], dict.fromkeys(shipfloor_config.WEIGHTS, "p-val"))
+        self.assertEqual(got["refine"], dict.fromkeys(shipfloor_config.WEIGHTS, ""), "runtime.models is not a fallback")

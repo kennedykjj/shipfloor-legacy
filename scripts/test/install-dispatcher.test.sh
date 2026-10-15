@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # installer/install-dispatcher.sh registers the dispatcher on Linux (systemd user timer, else crontab) and
 # macOS (launchd user agent), removes it with --uninstall and reports it with --status.
 # Nothing here touches the machine's timers: a temp HOME and SHIPFLOOR_HOME, and stand-ins for systemctl,
@@ -111,6 +112,33 @@ assert_contains "$(cat "$TMR" 2>/dev/null)" "OnCalendar=*:0/10"
 fresh; run --every-min 7
 [ "$rc" -eq 2 ] && pass "AC-1 --every-min 7 exits 2" || fail "AC-1 --every-min 7 exited $rc (want 2): $out"
 [ ! -e "$TMR" ] && [ ! -e "$SF_ST/systemctl.log" ] && pass "AC-1 a refused pace registers nothing" || fail "AC-1 --every-min 7 still registered something"
+# 30 seconds (0.5): systemd fires on the half minute with a 1 s accuracy (the default 1 min would blur it), launchd
+# every 30 s; cron cannot go below a minute and refuses it (exit 2) instead of rounding; the minute paces' timers are as before
+fresh; run --every-min 0.5
+[ "$rc" -eq 0 ] && pass "30s: --every-min 0.5 on systemd exits 0" || fail "30s: --every-min 0.5 on systemd exited $rc: $out"
+tm="$(cat "$TMR" 2>/dev/null)"
+case "$tm" in *"OnCalendar=*:*:0/30"*"AccuracySec=1s"*) pass "30s: the timer fires every 30 s with AccuracySec=1s" ;; *) fail "30s: timer: $tm" ;; esac
+assert_contains "$out" "every 30 seconds"
+run --status
+assert_contains "$out" "pace: every 30 seconds"
+fresh; printf 'dispatcher: {every_min: 0.5}\n' > "$SHIPFLOOR_HOME/config.yml"; run
+assert_contains "$(cat "$TMR" 2>/dev/null)" "OnCalendar=*:*:0/30"
+fresh; run --every-min 3
+case "$(cat "$TMR" 2>/dev/null)" in *AccuracySec*) fail "30s: a minute pace's timer gained AccuracySec" ;; *) pass "30s: a minute pace's timer is unchanged (no AccuracySec)" ;; esac
+run --status
+assert_contains "$out" "pace: every 180 seconds"
+fresh; : > "$SF_ST/no-systemd"; printf '%s' "$OTHER_TABLE" > "$TABLE"; run --every-min 0.5
+[ "$rc" -eq 2 ] && pass "30s: cron refuses 0.5 with exit 2" || fail "30s: cron with 0.5 exited $rc (want 2): $out"
+assert_contains "$out" "cron cannot run the dispatcher more often than once a minute"
+[ "$(dispatcher_lines)" = 0 ] && [ "$(others)" = "$(printf '%s' "$OTHER_TABLE")" ] && [ ! -e "$SHIPFLOOR_HOME/dispatcher.path" ] && pass "30s: the refusal writes nothing" || fail "30s: cron refusal still wrote: $(cat "$TABLE")"
+fresh; : > "$SF_ST/no-systemd"; printf 'dispatcher: {every_min: 0.5}\n' > "$SHIPFLOOR_HOME/config.yml"; run --dry-run
+[ "$rc" -eq 2 ] && pass "30s: 0.5 from config.yml on cron is refused too, even in a dry run" || fail "30s: cron + config 0.5 exited $rc: $out"
+fresh; : > "$SF_ST/no-systemd"; run --every-min 1; run --status
+assert_contains "$out" "pace: every 60 seconds"
+fresh; SF_UNAME=Darwin run --every-min 0.5
+assert_contains "$(cat "$PLIST" 2>/dev/null)" "<key>StartInterval</key><integer>30</integer>"
+SF_UNAME=Darwin run --status
+assert_contains "$out" "pace: every 30 seconds"
 run --kind sysv
 [ "$rc" -eq 2 ] && pass "AC-1 --kind sysv exits 2" || fail "AC-1 --kind sysv exited $rc (want 2): $out"
 

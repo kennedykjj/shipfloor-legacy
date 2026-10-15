@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # review-page.sh (review_page.py, review-template.html). The behavior is in process: py/review_pages.py (the page,
 # its refusals, the incremental re-review and --diff, the template's theme and the catalog labels). Here, the wrapper's
 # contract through real processes, and the page the dashboard (dashboard.py) serves without embed=1.

@@ -11,7 +11,7 @@ pool: 4
 stages: {refine: 2, develop: 2, validate: 2, deploy: 1}
 ```
 
-`shipfloor pool` shows it and the runs in progress; `shipfloor pool set 6` and `shipfloor pool stage validate 3` change it. A project runs one deploy at a time (merges into main are serial); its `limits.<stage>.wip` in `factory.yml` caps the cards waiting in Spec Review (refine, default 2) and in Coding + Validation (develop, default 4).
+`shipfloor pool` shows it and the runs in progress; `shipfloor pool set 6` and `shipfloor pool stage validate 3` change it. A project runs one deploy at a time (merges into main are serial); its `limits.<stage>.wip` in `factory.yml` caps the cards waiting in Spec Review (refine, default 2) and in Coding + Validation (develop, default 4); `0` is no cap (the dispatcher starts cards however many are there, and so does the agent's first step). With the column full and cards waiting, the cycle says so (`dispatch: develop: Coding + Validation is full (limits.develop.wip 4); 2 cards wait`) and starts none.
 
 ## Cost limits
 
@@ -39,6 +39,28 @@ models:
 ```
 
 A model is `opus`, `sonnet`, `haiku` or `fable`. A card's weight (`light`, `standard` or `heavy`) is the `**Weight:**` line Refine writes in its spec header, which the owner can change in Spec Review; a card with no weight line runs as `standard`. A stage, weight or agent left out keeps the model the plugin ships with: refine on Sonnet; develop on Sonnet for light and standard cards and Opus for heavy ones; validate and deploy on Sonnet for every weight; each agent on its frontmatter model. A develop run that ends on a failed gate runs once more one model up (haiku → sonnet → opus; `fable` is not on the ladder), from the next dispatcher cycle; the run's log, the Feed and the card's Sessions tab say so. A bad model, weight or name does not stop the factory: `shipfloor doctor` warns about it, the run uses the shipped model, and the dashboard's Settings section "Agents and models" edits it, with the average cost per card of the last 7 days next to each stage.
+
+## Disk floor
+
+A run that cannot write has nothing to do but stop, and it still pays for its start. The machine config sets how much room the disks a run writes to must have before the dispatcher starts one:
+
+```yaml
+disk: {min_free_gb: 2, min_free_inodes_pct: 10}   # the defaults; 0 turns a check off
+```
+
+Each cycle checks the folder the runs' `TMPDIR` is made in (`<home>/tmp`), the machine's temp folder (`TMPDIR`) and the worktrees' folder, once per filesystem. Under the floor no run starts (the rest of the cycle still runs) and one line says where and how much: `dispatch: /tmp has 0.5 GB free, the floor is 2 GB; no run starts until there is space`. Windows has no inode count, so only the space is checked there; a filesystem that does not count inodes (btrfs) is skipped for that check.
+
+## Runs that stop
+
+An agent can end without doing its stage: it finds a limit, a rate limit or a change only the owner may make, writes a report saying so, and exits 0. The run's `== end` line then carries `stopped=<why>` (and `runs.jsonl` the same field), so these runs are counted apart from the ones that did the work:
+
+| `stopped=` | What the run's report says |
+|---|---|
+| `blocked`, `infra` | outcome `blocked` or `infra` with no round done (the agent stopped at its first steps). The label it puts on the card already holds the card |
+| `owner-only` | `blocked` and its words say the change is the owner's (`owner-only`) |
+| `no-report` | the agent ended well and wrote no report for this run (read only where the project has a `reports-wt`) |
+
+A run that crashed (non-zero exit) or ended on the usage limit is not judged. `owner-only` and `no-report` also leave a mark in `<home>/stopped/<n>` (the stage, the reason and the column the run started from). Two marks in a row hold the card: the dispatcher says `#<n> stopped twice in a row` and does not start it until you move it to another column or delete the mark. A run that did its stage clears the marks, and so does the card leaving the board. `shipfloor_health.py` puts today's counts per project in the health line (`stopped_runs`).
 
 ## Notifications
 
@@ -72,6 +94,95 @@ To get the push, pick a topic that is long and random: anyone who knows the topi
 ```yaml
 hours: ["08:00-23:00"]
 ```
+
+## Runtime
+
+`runtime` names the agent runtime that runs a stage's session. It goes in `~/.shipfloor/config.yml` or in a project's `.shipfloor/factory.yml`, as a string for every stage or as a map with only `default` and `stages` (`refine`, `develop`, `validate`, `deploy`):
+
+```yaml
+runtime: claude-code            # every stage
+```
+
+```yaml
+runtime:
+  default: claude-code
+  stages: {validate: claude-code}   # a stage here wins over default
+```
+
+`factory.yml` wins over `config.yml` key by key: `default` and each stage are resolved on their own. Unset means `claude-code`. The known runtimes are `claude-code` and `codex` (the Codex CLI). A value that is not a known runtime, or a map with any key other than `default`, `stages`, `models`, `ladder` and `provider`, makes the config invalid and the dispatch exits 2. The dispatcher's log lines carry `runtime=` and `outcome=` for each run.
+
+### Runtime: Codex
+
+With `runtime: codex` (for every stage, or for some under `stages`) a stage's session runs as `codex exec` in the `workspace-write` sandbox: it writes in the control checkout and in the worktrees, `tmp` and `reviews` folders, and nowhere else. The gates (`forbidden`, `scope`, `acceptance-intact`) hold the same as with Claude Code. The factory has its own `CODEX_HOME`, `SHIPFLOOR_CODEX_HOME` or `~/.shipfloor/runtimes/codex`: `shipfloor install` generates it (the config, the agents and each stage's prompt, from the plugin's own skills and agents) whenever a config on the machine or in a project uses `codex`. The owner's personal `~/.codex` is never used. Log in with `CODEX_HOME=<that folder> codex login`, or set `CODEX_API_KEY`; see [Installing](install.md).
+
+The model of a Codex stage and of its agents goes under `runtime.models`; the name is free, whatever `codex -m` takes. Leave a stage out and Codex uses its own default.
+
+```yaml
+runtime:
+  default: codex
+  models:
+    stages:
+      refine: gpt-5.5                       # refine runs before the card has a weight: one model
+      develop: {light: gpt-5.5-mini, standard: gpt-5.5, heavy: gpt-5.5}
+      validate: gpt-5.5
+    agents: {engineer: gpt-5.5, qa-engineer: gpt-5.5}   # an agent's model: its Claude alias is not copied
+  ladder: [gpt-5.5-mini, gpt-5.5]           # lowest first
+```
+
+After a failed gate, a Codex develop run takes the model one up `runtime.ladder`; with no ladder, or at the top of it, it does not climb. `models.stages` (Settings > Agents and models) is Claude Code's alone: for a stage on another runtime it does nothing, and `shipfloor doctor` warns about it. In the dashboard those stages take a free-text model field instead of the list. `runtime.models` merges name by name, and `runtime.ladder` is replaced as a whole, with the project's `factory.yml` over `config.yml`. `runtime.models.agents` is read from `~/.shipfloor/config.yml` when the Codex home is generated, so run `shipfloor install` again after changing it.
+
+The cost of a Codex run is measured from its rollouts under `<CODEX_HOME>/sessions`, priced from `prices.yml`, which lists the OpenAI models the factory knows. A model without a price shows `$ ?` with its tokens, never zero; a card with a priced part and an unpriced part shows `$ ?` for the total. A run that ends on a Codex usage limit pauses new launches for 30 minutes, like Claude's; the dispatcher's line and the notification name the runtime (`Codex usage limit hit recently; waiting`). Commits made by a Codex run carry `Co-Authored-By: Codex <noreply@openai.com>`.
+
+### Runtime: Own models
+
+`runtime.provider` points the `codex` runtime at an OpenAI-compatible endpoint you run yourself (vLLM, Ollama, LM Studio, or your company's), so no code goes to an LLM provider on the internet. It goes in `~/.shipfloor/config.yml` or in a project's `.shipfloor/factory.yml`; `factory.yml` wins key by key:
+
+```yaml
+runtime:
+  default: codex
+  provider:
+    base_url: http://127.0.0.1:8000/v1   # http(s)://, no spaces or quotes
+    api_key_env: SF_LLM_KEY              # optional: the NAME of an environment variable, never the key
+    models:
+      stages:
+        refine: qwen3-coder-30b
+        develop: {light: qwen3-coder-30b, standard: qwen3-coder-30b, heavy: qwen3-coder-480b}
+        validate: qwen3-coder-30b
+      agents: {engineer: qwen3-coder-30b}
+    ladder: [qwen3-coder-30b, qwen3-coder-480b]   # lowest first
+```
+
+`base_url` must match `^https?://[^\s"'\\]+$`, `api_key_env` is a variable name, and `models` and `ladder` have the shape of `runtime.models` and `runtime.ladder` (a model name uses only letters, digits and `. _ : / @ -`). Any other key under `provider` makes the config invalid and the dispatch exits 2. With a `provider`, its `models` and `ladder` are the ones that count, for each stage's model, for the climb after a failed gate and for the agents; `runtime.models` and `runtime.ladder` are ignored (`shipfloor doctor` warns when both are set).
+
+Examples of `base_url` (the model names are whatever the server lists in `GET /models`):
+
+| Server | `base_url` |
+|---|---|
+| vLLM | `http://127.0.0.1:8000/v1` |
+| Ollama | `http://127.0.0.1:11434/v1` |
+| LM Studio | `http://127.0.0.1:1234/v1` |
+| Company endpoint | `https://llm.example.internal/v1`, with `api_key_env` |
+
+The run is `codex exec` on a provider named `sf` with `wire_api="responses"`, and the `-c` switches for analytics, OpenTelemetry, feedback, the update check and web search are turned off, so the only host the run talks to is the endpoint (the sandbox network itself stays on, as for any Codex run). The key's value reaches Codex through the environment alone and is written nowhere under `~/.shipfloor`.
+
+What the model needs:
+
+- tool calling, since the agents run commands and edit files through tools;
+- a large context, more than 30k tokens;
+- the Responses API: the server must answer `POST /v1/responses`, not only chat completions. Which versions of vLLM, Ollama and LM Studio serve `/v1/responses` was not confirmed for this release, so no minimum version is promised here; check your server's release notes. `shipfloor doctor` tests the endpoint itself and, when `/responses` answers 404 or 405, fails with a line that suggests the opencode runtime.
+
+`shipfloor doctor` with a `provider` prints a separate line for each case: the endpoint is not answering, a configured model is missing from `GET /models`, the `api_key_env` variable is not set, and the endpoint has no `/responses`; with everything right the lines are `ok`.
+
+Cost: a self-hosted model has no price in `prices.yml`, so the dashboard shows `$ ?` with its tokens (never `$0`) and the card and day limits of [Cost limits](#cost-limits) do not count it. To have it counted, add the model's name, exactly as in `-m`, with a price to `~/.shipfloor/prices.yml` (the same format as the models already there). A run that ends with `exceeded retry limit, last status: 429` or `rate limit exceeded` counts as a usage limit: new launches wait, as for Codex's.
+
+The key's variable has to exist in the dispatcher's environment, and the scheduled dispatcher does not inherit your shell's. If it is missing, the run stops with `provider: <VAR> is not set` in its log, without calling Codex. Give it to the scheduler, never in a file under `~/.shipfloor`:
+
+```bash
+systemctl --user set-environment SF_LLM_KEY=...   # Linux (systemd)
+launchctl setenv SF_LLM_KEY ...                    # macOS
+```
+
+On Windows set it as a user environment variable and start the dispatcher again.
 
 ## Language
 

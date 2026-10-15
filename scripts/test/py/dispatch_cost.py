@@ -268,6 +268,25 @@ class Estimate(Base):
         self.assertEqual((round(m["baseline"], 2), round(m["total"], 2), round(sum(m["stages"].values()), 2)),
                          (41.0, 82.0, 41.0))
 
+    def test_AC4_old_cost_cache_is_discarded(self):
+        "AC-4 a cost-cache.json from before the runtime contract (no version) is reread, never trusted and never an error; the new one says version 2"
+        self.costs("card_block: 40")
+        self.tx("s1", 77, "develop", 41)
+        path = os.path.join(self.claude_dir, "projects", "C--x--shipfloor-projects-shop-control", "s1.jsonl")
+        self.assertEqual(self.limits(), "block\t77\n")
+        parsed = dashboard_cost.parse_transcript(dashboard_cost.Path(path))
+        st = os.stat(path)
+        stale = {"stage": parsed["stage"], "issue": parsed["issue"], "start": parsed["start"],
+                 "tokens": {m: dict.fromkeys(dashboard_cost.TOKEN_KINDS, 0) for m in parsed["tokens"]}}
+        cache = os.path.join(self.shome, "cost-cache.json")
+        with open(cache, "w") as f:  # what the old code wrote: {path: [size, mtime_ns, parsed]}, no version
+            json.dump({path: [st.st_size, st.st_mtime_ns, stale]}, f)
+        self.assertEqual(self.limits(), "block\t77\n", "the stale entry is not believed")
+        self.assertEqual(json.load(open(cache)).get("version"), 2)
+        with open(cache, "w") as f:
+            f.write("not json at all")
+        self.assertEqual(self.limits(), "block\t77\n")
+
     def test_day_stop(self):
         "day_stop is today's estimate across every project (>=), and a new local day starts again"
         self.costs("day_stop: 80")
@@ -311,6 +330,116 @@ class Estimate(Base):
         self.costs("card_block: 40")
         got["card_block: 40"] = self.limits()
         self.assertEqual(got, dict.fromkeys(got, ""))
+
+
+KINDS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
+GPT = "gpt-6-sol: {input: 10.00, output: 40.00, cache_read: 1.00}\n"
+
+
+def tokens(**kw):
+    return dict.fromkeys(KINDS, 0, ) | kw
+
+
+class CodexCost(Base):
+    """Codex rollouts (one .jsonl per session under the factory's CODEX_HOME/sessions) read for the Sessions, the Live
+    and the cost, over the same fake home as the Claude transcripts."""
+
+    def setUp(self):
+        super().setUp()
+        self.codex_home = os.environ["SHIPFLOOR_CODEX_HOME"] = self.path("codex-home")
+        self.control = os.path.join(self.shome, "projects", "shop", "control")
+        self.write(os.path.join(self.shome, "prices.yml"), PRICES + GPT)
+
+    def rollout(self, sid, **kw):
+        return ds.support.codex_rollout(self.codex_home, sid, kw.pop("cwd", self.control), **kw)
+
+    def sessions(self, issue=77):
+        import dashboard
+        return dashboard.Factory(self.shome, self.claude_dir).sessions("shop", issue)
+
+    def cli(self, *argv):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            rc = dashboard_cost.cli(list(argv))
+        return rc, out.getvalue()
+
+    def test_AC6_sessions_and_live_of_a_codex_run(self):
+        "AC-6 a finished Codex run shows in Sessions with its tokens per model (cached input apart) and its subagents, and in Live with what it said and ran; another folder's session is not the project's"
+        self.rollout("lead-1", stage="develop", issue=77, model="gpt-6-sol", usage=(1000000, 400000, 100000),
+                     says=["Planning the work."], commands=["git status"])
+        self.rollout("sub-1", model="gpt-6-mini", usage=(50000, 10000, 5000), parent="lead-1", says=["Checking the tests."])
+        self.rollout("mine", cwd="/home/owner/personal", stage="develop", issue=77, usage=(1, 0, 1))
+        found = self.sessions()
+        self.assertEqual(len(found), 1, "the subagent is not a session of its own, the owner's own use of codex is not the factory's")
+        s = found[0]
+        self.assertEqual((s["runtime"], s["stage"], s["issue"]), ("codex", "develop", 77))
+        self.assertEqual(s["tokens"], {"gpt-6-sol": tokens(input=600000, cache_read=400000, output=100000)})
+        self.assertEqual([a["tokens"] for a in s["subagents"]], [{"gpt-6-mini": tokens(input=40000, cache_read=10000, output=5000)}])
+        import dashboard
+        events = dashboard.Factory(self.shome, self.claude_dir).session("shop", 77)["events"]
+        lead = [(e["kind"], e["text"]) for e in events if not e.get("sub")]
+        self.assertIn(("says", "Planning the work."), lead)
+        self.assertTrue([k for k, t in lead if k != "says" and "git status" in t], "the command it ran: %s" % lead)
+        self.assertIn(("says", "Checking the tests."), [(e["kind"], e["text"]) for e in events if e.get("sub")])
+        self.assertFalse([e for e in events if "instructions" in e["text"]], "the stage prompt is not something the agent said")
+
+    def test_AC7_priced_model_costs_in_dollars(self):
+        "AC-7 a Codex session on a model with a price costs its tokens at that price (US$ 10.40 here), the card_block limit sees it, and the shipped table prices OpenAI models"
+        import dashboard_cost as dc
+        self.rollout("lead-1", stage="develop", issue=77, model="gpt-6-sol", usage=(1000000, 400000, 100000))
+        self.assertAlmostEqual(dc.session_cost(self.sessions()[0], dc.load_prices(self.shome)), 10.40, places=2)
+        self.machine_cfg(ds.POOL8 + "\ncosts:\n  card_block: 10\n")
+        rc, out = self.cli("limits", "--home", self.shome, "--project", "shop", "--claude-dir", self.claude_dir)
+        self.assertEqual((rc, out), (0, "block\t77\n"))
+        shipped = dc.load_prices(self.path("empty"))
+        openai = {m: p for m, p in shipped.items() if not m.startswith("claude-")}
+        self.assertTrue(openai, "templates/prices.yml prices some OpenAI models")
+        self.assertTrue(all(p.get("input") and p.get("output") for p in openai.values()), openai)
+
+    def test_AC7_unpriced_model_is_unknown_never_zero(self):
+        "AC-7 a Codex session on a model with no price has no cost (None, shown as $ ?), a card with one such session has no total, and no limit judges it"
+        import dashboard_cost as dc
+        self.rollout("a", stage="develop", issue=77, model="gpt-6-sol", usage=(1000000, 0, 0))
+        self.rollout("b", stage="validate", issue=77, model="gpt-no-price", usage=(2000000, 0, 10), start=None)
+        self.rollout("c", stage="develop", issue=78, model="gpt-no-price", usage=(900000000, 0, 0))
+        prices = dc.load_prices(self.shome)
+        by_card = {n: self.sessions(n) for n in (77, 78)}
+        self.assertEqual([dc.session_cost(s, prices) is None for s in by_card[77]].count(True), 1, "the unpriced session alone")
+        self.assertIsNone(dc.session_cost(by_card[78][0], prices))
+        spent = dc.spend(by_card[77] + by_card[78], prices, "1999-01-01")
+        self.assertEqual((spent["cards"][77]["total"], spent["cards"][78]["total"]), (None, None))
+        self.machine_cfg(ds.POOL8 + "\ncosts:\n  card_warn: 1\n  card_block: 1\n")
+        self.assertEqual(self.cli("limits", "--home", self.shome, "--project", "shop", "--claude-dir", self.claude_dir), (0, ""))
+        self.assertEqual(self.cli("block", "--home", self.shome, "--project", "shop", "--issue", "78", "--out",
+                                  self.path("body", "78.md"))[0], 1)
+
+
+    def test_AC6_self_hosted_model_is_unknown_until_it_has_a_price(self):
+        "AC-6 a run on a self-hosted model without a price keeps its tokens but has no cost (never 0), counts for no card or day limit; with the model in prices.yml it costs and the limits see it"
+        import dashboard_cost as dc
+        names = ("Qwen/Qwen3-Coder-30B-A3B", "llama3.1:8b")
+        self.rollout("a", stage="develop", issue=77, model=names[0], usage=(900000000, 0, 1000000))
+        self.rollout("b", stage="validate", issue=78, model=names[1], usage=(900000000, 0, 1000000))
+        s = self.sessions(77)[0]
+        self.assertEqual(s["tokens"], {names[0]: tokens(input=900000000, output=1000000)}, "the tokens stay")
+        prices = dc.load_prices(self.shome)
+        self.assertIsNone(dc.session_cost(s, prices))
+        today = datetime.date.today().isoformat()
+        spent = dc.spend(self.sessions(77) + self.sessions(78), prices, today)
+        self.assertEqual((spent["cards"][77]["total"], spent["cards"][78]["total"], spent["today"]), (None, None, 0.0))
+        self.machine_cfg(ds.POOL8 + "\nruntime:\n  default: codex\n  provider:\n    base_url: http://127.0.0.1:8000/v1\n"
+                         "    models: {stages: {develop: 'Qwen/Qwen3-Coder-30B-A3B'}}\n"
+                         "costs:\n  card_warn: 1\n  card_block: 1\n  day_stop: 1\n")  # the machine that runs them has a provider
+        limits = ("limits", "--home", self.shome, "--project", "shop", "--claude-dir", self.claude_dir)
+        self.assertEqual(self.cli(*limits), (0, ""))
+        self.write(os.path.join(self.shome, "prices.yml"), PRICES + GPT
+                   + '"Qwen/Qwen3-Coder-30B-A3B": {input: 0.50, output: 1.00}\n"llama3.1:8b": {input: 0.10, output: 0.20}\n')
+        prices = dc.load_prices(self.shome)
+        self.assertAlmostEqual(dc.session_cost(self.sessions(77)[0], prices), 451.0, places=2)
+        rc, out = self.cli(*limits)
+        self.assertEqual(rc, 0)
+        self.assertIn("block\t77\n", out)
+        self.assertRegex(out, r"(?m)^day_stop\t")
 
 
 class EndToEnd(Base):

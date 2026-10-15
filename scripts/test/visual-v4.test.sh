@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: integration
 # The visual system v4 (#180): IBM Plex embedded and nothing from the network (AC-3), no uppercase transforms beyond
 # the exceptions DESIGN.md lists (AC-4), no text under 12px, and the font license cited and shipped (AC-8).
 # AC-5 (byte growth in the PR body) and AC-6 (nothing clipped) are checked by hand in review.
@@ -9,13 +10,14 @@ import os, re, sys
 root = sys.argv[1]
 rd = lambda p: open(os.path.join(root, p), encoding="utf-8", newline=None).read()
 html = rd("scripts/dashboard.html")
+fonts = rd("scripts/fonts/dashboard-fonts.css")  # the page's @font-face rules live beside the OFL license (dashboard.py splices them in)
 design = rd("DESIGN.md")
 readme = rd("README.md")
 res = []
 def check(name, cond, why): res.append(("PASS " + name) if cond else ("FAIL " + name + ": " + why))
 
 # ---- AC-3: the fonts
-style = html[html.index("<style>") + 7:html.index("</style>")]
+style = html[html.index("<style>") + 7:html.index("</style>")] + fonts
 faces = re.findall(r"@font-face\s*\{([^}]*)\}", style)
 def face(b):
     fam = re.search(r"font-family\s*:\s*[\"']?([^\"';]+?)[\"']?\s*;", b)

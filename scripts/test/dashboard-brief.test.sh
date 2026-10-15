@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
+# suite: integration
 # The decision brief on today's screen (#179). A Spec Review or Staged card with a brief (<reviews>/<n>.brief.json,
-# made by #178) shows it in the drawer above the decision: verdict, what you approve, what needs your eyes, what changed
-# since the request, what the gates proved, the folded rest; each block with its origin. The server reads it
-# defensively (card()'s brief, the overview's verdict and flags); the list row says the verdict in one word.
-# Server cases run a real dashboard on a fixture home; page cases run briefHTML and passHtml in node when there is one.
+# made by #178) shows it in the work area, beside Your decision (#182): verdict, what you approve, what needs your eyes,
+# what changed since the request, what the gates proved, the folded rest; each block with its origin. The server reads it
+# defensively (card()'s brief, the overview's verdict and flags).
+# Server cases run a real dashboard on a fixture home; page cases run briefHTML in node when there is one.
 source "$(dirname "$0")/lib.sh"
 nat() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
 PY=python3; $PY -c '' 2>/dev/null || PY=python
@@ -60,7 +61,7 @@ want "AC-7 no brief: no verdict" "$(row 9)" "None|0"
 want "AC-7 an unreadable brief: no verdict" "$(row 10)" "None|0"
 want "AC-7 a card the factory holds has no verdict, brief or not" "$(row 12)" "None|0"
 
-# the page, in node: briefHTML and passHtml are run on their own
+# the page, in node: briefHTML is run on its own
 cat > "$FAKE_GH_DIR/page.js" <<'JS'
 const fs = require("fs");
 const [, , htmlPath, enPath] = process.argv;
@@ -139,35 +140,17 @@ if (render) {
   check("AC-6 the button's title says nothing is sent", !!sug[0] && sug[0][0].includes('title="Fills the note. Nothing is sent."'), sug[0]?.[0]);
 }
 
-// ---- the click, the placement and the row (page source)
-const rd = grab(/^function renderDecide\(/gm);
-check("AC-1 renderDecide draws the brief inside .decide, above the decision row, from S.card.brief",
-  /briefHTML\(/.test(rd) && /S\.card\??\.brief/.test(rd) && rd.indexOf("briefHTML(") < rd.indexOf('class="decide-a"') && rd.indexOf("briefHTML(") > rd.indexOf('class="decide"'), rd.slice(0, 120));
-check("AC-2 the brief is drawn only when the card has one", /S\.card\??\.brief\s*(\?|&&)/.test(rd) || /\bbriefHTML\(S\.card\??\.brief\)/.test(rd), "no guard on S.card.brief");
+// ---- the click and the placement (page source; the work area itself is run by dashboard_work.py)
+const rd = grab(/^function paintDecide\(/gm);
+check("AC-1 paintDecide draws the brief in the work area's reading column, from the card's payload",
+  /briefHTML\(/.test(rd) && /data\??\.brief/.test(rd) && /wk-read/.test(rd), rd.slice(0, 120));
+check("AC-2 the brief is drawn only when the card has one", /data\??\.brief\s*(\?|&&)/.test(rd), "no guard on the card's brief");
 const body = h.slice(h.indexOf("<script>"));
-const hit = [...body.matchAll(/(\[data-suggest\]|dataset\.suggest|data-suggest)/g)].map((m) => m.index).filter((i) => !/function brief/.test(body.slice(Math.max(0, i - 3000), i).split("\n}").pop()));
-const win = hit.length ? body.slice(hit[0], hit[0] + 1100) : "";
-check("AC-6 a data-suggest click handler exists", hit.length > 0, "nothing in the page handles data-suggest");
-check("AC-6 the click fills #changes, unfolds it, focuses it with the cursor at the end", /changes/.test(win) && /\.value\s*=/.test(win) && /\bshow\b/.test(win) && /focus\(\)/.test(win) && /setSelectionRange|selectionStart/.test(win), win.slice(0, 200));
-check("AC-6 the click sends nothing and writes the notice", !/\bapi\(|act\(|request-changes|fetch\(/.test(win) && /notice/i.test(win), win.slice(0, 200));
-
-// ---- the Yours row
-const psrc = grab(/^function passHtml\(/gm);
-if (psrc) {
-  let pass = null;
-  try {
-    pass = new Function("$", "esc", "S", "OWNER", "colName", "usd", "dur", "gh", "UNTITLED", "costLine", core + psrc + "return passHtml;")(dollar, esc,
-      { pending: {}, note: {}, editing: null }, { "Spec Review": ["Coding", "Spec"], Staged: ["Done", "Coding"] }, (c) => c, (x) => "$" + x, () => "", () => "", "", () => "");
-  } catch (e) { check("passHtml loads with stubs", false, String(e)); }
-  if (pass) {
-    const card = (extra) => Object.assign({ key: "shop/7", issue: 7, title: "T", column: "Spec Review", cost: 0, since: null, blocked: null }, extra);
-    const meta = (c) => { const html = pass(c), i = html.indexOf('class="cap"'); return i < 0 ? "" : strip(html.slice(i, html.indexOf('<span class="ptext"', i))).replace(/\s+/g, " ").trim(); };
-    check("AC-7 a routine card's row says '· routine' after the column", meta(card({ verdict: "routine", flags: 0 })) === "Spec Review · routine" || /· routine$/.test(meta(card({ verdict: "routine", flags: 0 }))), meta(card({ verdict: "routine", flags: 0 })));
-    check("AC-7 a card with one flag says '· 1 point'", /· 1 point$/.test(meta(card({ verdict: "look", flags: 1 }))), meta(card({ verdict: "look", flags: 1 })));
-    check("AC-7 a card with 3 flags says '· 3 points'", /· 3 points$/.test(meta(card({ verdict: "look", flags: 3, column: "Staged" }))), meta(card({ verdict: "look", flags: 3, column: "Staged" })));
-    check("AC-7 without a brief the row is unchanged", pass(card({})) === pass(card({ verdict: null, flags: 0 })) && !/routine|point/.test(meta(card({ verdict: null, flags: 0 }))), meta(card({ verdict: null, flags: 0 })));
-  }
-} else check("AC-7 passHtml exists", false, "no passHtml");
+const at = body.indexOf('closest("[data-suggest]")');
+const win = at >= 0 ? body.slice(at, at + 500) : "", fill = grab(/^function fillNote\(/gm);
+check("AC-6 a data-suggest click handler exists", at >= 0, "nothing in the page handles data-suggest");
+check("AC-6 the click fills the note, unfolds Request changes, focuses it with the cursor at the end", /fillNote\(/.test(win) && /\.notes\[/.test(fill) && /W\.req\s*=/.test(fill) && /focus\(/.test(fill) && /setSelectionRange/.test(fill), fill.slice(0, 200));
+check("AC-6 the click sends nothing and writes the notice", !/\bapi\(|request-changes|fetch\(/.test(win + fill) && /brief\.filled/.test(fill), fill.slice(0, 200));
 console.log(out.join("\n"));
 JS
 if command -v node >/dev/null; then

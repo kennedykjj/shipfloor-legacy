@@ -60,6 +60,8 @@ class Run:
 
     def feed(self, raw, at=None):
         """One stdout line: the bytes for the run log now (b"" for none)."""
+        if self.meta.get("raw"):  # a runtime whose stream is not Claude's: the log keeps it as it comes
+            return raw
         at = self.clock() if at is None else at
         stripped = raw.strip()
         if not stripped.startswith(b"{"):
@@ -168,7 +170,7 @@ def _append_line(path, obj):
         pass
 
 
-def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None):
+def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None, stopped=None):
     """Start the agent with `prompt` on stdin, its stdout read as a stream into `log` (see the module's docstring),
     its stderr straight to `log`. The agent's exit code (128 - signal for a signal, 127 when it cannot start, with the
     shell's line in the log), as `dispatch._run` gives it."""
@@ -186,7 +188,7 @@ def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None):
         events = None
         run = Run(meta)
         for raw in iter(p.stdout.readline, b""):
-            if run.events_file is None and events is None and raw.lstrip().startswith(b"{"):
+            if run.events_file is None and events is None and not meta.get("raw") and raw.lstrip().startswith(b"{"):
                 try:
                     events = run.events_file = open(events_path(log), "a", encoding="utf-8")
                 except OSError:
@@ -210,5 +212,11 @@ def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None):
         if iso:
             meta = dict(meta, end=iso())
             run.meta = meta
-        _append_line(runs, run.summary(rc))
+        row = run.summary(rc)
+        if stopped:  # why the run did not do its stage ("" = it did; None = not judged)
+            try:
+                row["stopped"] = stopped(rc) or ""
+            except Exception:
+                row["stopped"] = ""
+        _append_line(runs, row)
     return rc
