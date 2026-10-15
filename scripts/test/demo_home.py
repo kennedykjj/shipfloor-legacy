@@ -294,12 +294,16 @@ def main():
                   for slug, p in PROJECTS.items()}}
     # the merged pull requests GitHub's REST list returns (newest update first): two of today merged three minutes apart, so
     # their marks sit on top of each other and the chart groups them; two of yesterday
-    merged = [(342, "feat(sync): Queue consumer for the sync worker", today(NOW - timedelta(minutes=18))),
-              (341, "fix(cart): Keep the total right when a coupon is removed", today(NOW - timedelta(minutes=21))),
-              (339, "docs: Describe the retry policy of the webhooks", today(NOW - timedelta(minutes=70))),
-              (340, "test(checkout): Cover the half-up rounding of the total", today(NOW - timedelta(minutes=100))),
-              (338, "fix(search): Escape the quotes in the query", day(1, 16, 20)),
-              (337, "feat(audit): Paginate the audit log", day(1, 11, 5))]
+    # Shortly after midnight the day has no room for four marks (the chart spans 24 h, marks closer than ~10 px merge), and
+    # clamping them all to the first minute would merge them into one: then only #342 is kept, alone on its mark.
+    early = NOW - MIDNIGHT < timedelta(minutes=101)
+    merged = [(342, "feat(sync): Queue consumer for the sync worker", today(NOW - timedelta(minutes=18)))]
+    if not early:
+        merged += [(341, "fix(cart): Keep the total right when a coupon is removed", NOW - timedelta(minutes=21)),
+                   (339, "docs: Describe the retry policy of the webhooks", NOW - timedelta(minutes=70)),
+                   (340, "test(checkout): Cover the half-up rounding of the total", NOW - timedelta(minutes=100))]
+    merged += [(338, "fix(search): Escape the quotes in the query", day(1, 16, 20)),
+               (337, "feat(audit): Paginate the audit log", day(1, 11, 5))]
     state_json["repos"]["demo/atlas"]["pulls"] = [{"number": n, "title": title, "merged_at": zulu(at), "updated_at": zulu(at), "state": "closed"}
                                                   for n, title, at in merged]
     write(gh / "state.json", json.dumps(state_json, ensure_ascii=False))
