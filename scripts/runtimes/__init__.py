@@ -14,7 +14,7 @@ _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _HERE not in sys.path:  # `python -I` leaves the script's folder out of the path
     sys.path.insert(0, _HERE)
 
-NAMES = ("claude-code", "codex")
+NAMES = ("claude-code", "codex", "opencode")
 TOKEN_KINDS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
 OUTCOMES = ("ok", "fail", "usage_limit")
 _OUTCOME = re.compile(r"^== end .* outcome=(\w+)\s*$", re.M)

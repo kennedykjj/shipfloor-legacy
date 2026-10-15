@@ -157,7 +157,29 @@ def runtime_problems(raw, where="runtime"):
                 errs += [f"{e} (known runtimes: {known})" for e in provider_problems(v, f"{where}.provider")]
             else:
                 errs.append(f"{where}.{k}: unknown setting (use default, stages, models, ladder, provider; known runtimes: {known})")
+        if not errs and "opencode" in [raw.get("default"), *(raw.get("stages") or {}).values()]:
+            errs += opencode_model_problems(raw, where)
     return errs
+
+
+PROVIDER_MODEL = re.compile(r"^[^/\s]+/[^\s]+$")
+
+
+def opencode_model_problems(raw, where):
+    """With the opencode runtime in use, every model and ladder name is `provider/model` (opencode's -m)."""
+    names = []  # (where, name)
+    for scope, cfg in ((where, raw), (where + ".provider", raw.get("provider"))):
+        if not isinstance(cfg, dict):
+            continue
+        models = cfg.get("models") if isinstance(cfg.get("models"), dict) else {}
+        for group in ("stages", "agents"):
+            for key, v in (models.get(group) or {}).items():
+                for w, m in (v.items() if isinstance(v, dict) else [(None, v)]):
+                    names.append((f"{scope}.models.{group}.{key}" + (f".{w}" if w else ""), m))
+        for i, m in enumerate(cfg.get("ladder") or []):
+            names.append((f"{scope}.ladder[{i}]", m))
+    return [f"{at}: {m!r} must be provider/model for the opencode runtime (e.g. acme/mini)"
+            for at, m in names if not (isinstance(m, str) and PROVIDER_MODEL.match(m))]
 
 
 BASE_URL = re.compile(r"^https?://[^\s\"'\\]+$")  # it goes inside an inline TOML table in a -c: no quote, no space
