@@ -719,3 +719,154 @@ class CodexModels(ds.CodexCase):
     def start_line(self, p, n):
         lines = [l for l in self.log(p, n).splitlines() if l.startswith("== start")]
         return lines[-1] if lines else ""
+
+
+OC_MODELS = """runtime:
+  default: opencode
+  models:
+    stages:
+      develop: acme/mini
+      validate: {light: acme/mini, standard: acme/mini, heavy: acme/sol}
+"""
+
+
+class OpencodeSandbox(ds.OpencodeCase):
+    def test_AC2_opencode_runs_with_the_factorys_config_and_permissions(self):
+        "AC-2 an opencode run has the factory's OPENCODE_CONFIG_DIR and OPENCODE_DISABLE_PROJECT_CONFIG=1, and its generated permissions deny external_directory outside the worktrees, tmp and reviews, edit on the installed factory and reports-wt (which it may read), and webfetch and websearch"
+        os.makedirs(os.path.join(self.home, "reports-wt"))
+        self.board(queues={"Ready for Dev": 54})
+        self.assertEqual(self.cycle(), 0, self.err)
+        call = self.opencode_calls()[0]
+        self.assertEqual(call["env"]["OPENCODE_CONFIG_DIR"], self.opencode_home, "the factory's, never the owner's")
+        self.assertEqual(call["env"]["OPENCODE_DISABLE_PROJECT_CONFIG"], "1")
+        rules = self.config_of(call)["permissions"]  # a list of {permission, pattern, action}; the last match wins
+        self.assertIsInstance(rules, list)
+        decide = lambda permission, path: self.decide(rules, permission, path)
+        wt = os.environ["FACTORY_WT_ROOT"]
+        for root in (wt, self.home + "/tmp", self.home + "/reviews"):
+            self.assertEqual(decide("external_directory", root + "/54/src/x.py"), "allow", root)
+            self.assertNotEqual(decide("edit", root + "/54/src/x.py"), "deny", root)
+        for outside in ("/etc/passwd", os.path.expanduser("~/.ssh/id_ed25519"), self.home + "/logs/x.log"):
+            self.assertEqual(decide("external_directory", outside), "deny", outside)
+        for guarded in (SCRIPTS, self.home + "/reports-wt"):
+            self.assertEqual(decide("external_directory", guarded + "/a/b.sh"), "allow", "it may read " + guarded)
+            self.assertEqual(decide("edit", guarded + "/a/b.sh"), "deny", "it may not write " + guarded)
+        for tool in ("webfetch", "websearch"):
+            self.assertEqual(decide(tool, "https://example.com/x"), "deny", tool)
+
+
+class OpencodeModels(ds.OpencodeCase):
+    def models(self, machine=OC_MODELS, queues=None):
+        """{'<n>': the -m flag (None: no flag)} of one cycle's launches."""
+        self.machine_cfg(ds.POOL8 + "\n" + machine)
+        self.board(queues=queues or {"Ready for Dev": "54 55", "Validation": 60, "Ready for Refinement": 70})
+        self.launches, self.pending = [], []
+        for d in os.listdir(os.path.join(self.home, "locks")):
+            os.rmdir(os.path.join(self.home, "locks", d))
+        self.assertEqual(self.cycle(), 0, self.err)
+        out = {}
+        for c in self.opencode_calls()[-len(self.launches):]:
+            out[c["stdin"].split("Card: #")[-1].strip()] = self.flag(c, "-m")
+        return out
+
+    def failing_develop(self, machine, snapshot="54\tCoding\tI_1\n"):
+        self.machine_cfg(ds.POOL8 + "\n" + machine)
+        self.board(queues={"Ready for Dev": 54}, snapshot=snapshot)
+        self.set_fake(opencode={"verdict": "FAIL", "gate": "build"})
+        self.cycle()
+        self.assertTrue(self.opencode_calls(), "the develop run ran on opencode: %s %s" % (self.out, self.err))
+        return self.log("develop", 54)
+
+    def test_AC4_the_configured_model_is_the_run_model(self):
+        "AC-4 runtime.models gives an opencode run `-m <provider/model>` for its stage (one weight of it too), as written; no model configured is no -m flag"
+        self.card(54, "light")
+        self.card(55, "heavy")
+        self.card(60, "heavy")
+        self.assertEqual(self.models(), {"54": "acme/mini", "55": "acme/mini", "60": "acme/sol", "70": None})
+        self.assertIn("model=acme/mini", self.start_line("develop", 54))
+        self.assertEqual(self.models("runtime: opencode"), {"54": None, "55": None, "60": None, "70": None})
+
+    def test_AC4_a_model_that_is_not_provider_slash_model_is_invalid(self):
+        "AC-4 with runtime opencode a model or ladder name without a provider (`mini`) is an invalid config: exit 2, nothing started"
+        self.board(queues={"Ready for Dev": 54})
+        for text in ("runtime: {default: opencode, models: {stages: {develop: mini}}}",
+                     "runtime: {default: opencode, ladder: [acme/mini, sol]}"):
+            self.machine_cfg(ds.POOL8 + "\n" + text)
+            self.assertEqual(self.cycle(), 2, (text, self.err, self.out))
+        self.assertEqual(self.opencode_calls(), [])
+        self.machine_cfg(ds.POOL8 + "\n" + OC_MODELS + "  ladder: [acme/mini, acme/sol]")
+        self.assertEqual(self.cycle(), 0, self.err)
+        self.assertTrue(self.opencode_calls(), "provider/model names are valid")
+
+    def test_AC4_a_failed_gate_steps_up_the_ladder(self):
+        "AC-4 a develop run that ends on a failed gate runs again one rung up runtime.ladder (-m of the next model), once"
+        log = self.failing_develop(OC_MODELS + "  ladder: [acme/mini, acme/sol]")
+        self.assertRegex(log, r"== step-up /sf:develop 54 acme/mini -> acme/sol: gate build failed %s\n" % ds.ISO)
+        self.board(queues={"Coding": 54}, snapshot="54\tCoding\tI_1\n")
+        self.set_fake(opencode={"verdict": "FAIL", "gate": "green"})
+        self.cycle()
+        self.assertEqual(self.flag(self.opencode_calls()[1], "-m"), "acme/sol")
+        self.assertEqual(self.log("develop", 54).count("== step-up"), 1, "a stepped-up run steps no further")
+
+    def test_AC4_no_ladder_no_step_up(self):
+        "AC-4 without a ladder, on its top rung or off it, a failed gate steps nothing up"
+        for name, machine in (("no ladder", OC_MODELS),
+                              ("top rung", OC_MODELS.replace("develop: acme/mini", "develop: acme/sol") + "  ladder: [acme/mini, acme/sol]"),
+                              ("off the ladder", OC_MODELS + "  ladder: [acme/nano, acme/sol]")):
+            if os.path.exists(os.path.join(self.home, "stepup", "54")):
+                os.unlink(os.path.join(self.home, "stepup", "54"))
+            log = self.failing_develop(machine)
+            self.assertNotIn("== step-up", log, name)
+            self.assertFalse(os.path.exists(os.path.join(self.home, "stepup", "54")), name)
+
+    def test_AC4_the_providers_models_and_ladder_count_too(self):
+        "AC-4 provider.models and provider.ladder give the run its -m and the step-up, as runtime.models and runtime.ladder do"
+        os.environ["SF_LLM_KEY"] = "sk-test"
+        provider = ("runtime:\n  default: opencode\n  provider:\n    base_url: http://127.0.0.1:9/v1\n    api_key_env: SF_LLM_KEY\n"
+                    "    models: {stages: {develop: sf/mini}}\n    ladder: [sf/mini, sf/sol]\n")
+        log = self.failing_develop(provider)
+        self.assertEqual(self.flag(self.opencode_calls()[0], "-m"), "sf/mini")
+        self.assertRegex(log, r"== step-up /sf:develop 54 sf/mini -> sf/sol: gate build failed %s\n" % ds.ISO)
+
+    def start_line(self, p, n):
+        lines = [l for l in self.log(p, n).splitlines() if l.startswith("== start")]
+        return lines[-1] if lines else ""
+
+
+class OpencodeProvider(ds.OpencodeCase):
+    KEY, SECRET = "SF_LLM_KEY", "sk-opencode-152-9d1f"
+
+    def test_AC5_the_provider_is_an_openai_compatible_one_and_the_key_stays_in_the_environment(self):
+        "AC-5 with runtime.provider the generated config points an openai-compatible provider at the base_url, experimental.policies allows only it, the key is `{env:<api_key_env>}` and nowhere as a value, and the run has OPENCODE_DISABLE_MODELS_FETCH=1 and OPENCODE_DISABLE_AUTOUPDATE=1"
+        import fake_llm
+        llm = fake_llm.FakeLLM("chat-only", ("qwen3-coder",))
+        self.addCleanup(llm.stop)
+        os.environ[self.KEY] = self.SECRET
+        self.machine_cfg(ds.POOL8 + "\nruntime:\n  default: opencode\n  provider:\n    base_url: %s\n    api_key_env: %s\n"
+                         "    models: {stages: {develop: sf/qwen3-coder}}" % (llm.base_url, self.KEY))
+        self.board(queues={"Ready for Dev": 54})
+        self.assertEqual(self.cycle(), 0, self.err)
+        call = self.opencode_calls()[0]
+        self.assertEqual(self.flag(call, "-m"), "sf/qwen3-coder")
+        env = call["env"]
+        self.assertEqual((env["OPENCODE_DISABLE_MODELS_FETCH"], env["OPENCODE_DISABLE_AUTOUPDATE"]), ("1", "1"))
+        config = self.config_of(call)
+        sf = config["providers"]["sf"]
+        self.assertIn("openai-compatible", sf["package"])
+        self.assertEqual(sf["settings"]["baseURL"], llm.base_url)
+        self.assertEqual(sf["settings"]["apiKey"], "{env:%s}" % self.KEY)
+        model = next((v for k, v in sf["models"].items() if k.endswith("qwen3-coder")), None)
+        self.assertTrue(model and model["capabilities"]["tools"] is True, sf["models"])
+        uses = []
+
+        def walk(o):
+            for k, v in (o.items() if isinstance(o, dict) else enumerate(o) if isinstance(o, list) else ()):
+                if k == "use":
+                    uses.append(v)
+                walk(v)
+        walk(config["experimental"]["policies"])
+        self.assertEqual(uses, [["sf"]], "the policies let the run use the provider sf and no other")
+        self.assertEqual(env[self.KEY], self.SECRET, "the key comes through the inherited environment")
+        for where, text in (("config", env["OPENCODE_CONFIG_CONTENT"]), ("argv", json.dumps(call["argv"])), ("stdin", call["stdin"])):
+            self.assertNotIn(self.SECRET, text, where)
+        self.assertNotIn(self.SECRET, self.out + self.err + self.log("develop", 54))

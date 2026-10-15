@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import dashboard_support
 import support
@@ -152,10 +152,11 @@ class Browser(support.Case):
         self.ready(page)
         overview = page.evaluate("async t => (await fetch('/api/overview', {headers: {'X-Shipfloor-Token': t}})).json()", TOKEN)
         cards = next(p for p in overview["projects"] if p["slug"] == "atlas")["cards"]
-        want = ["atlas/%d" % c["issue"] for c in sorted((c for c in cards if c.get("awaiting")), key=lambda c: c.get("since") or "~")]
+        owed = lambda c: c["column"] != "Done" and not c.get("running") and (c.get("awaiting") or c.get("blocked") == "owner" or c.get("stopped"))  # M4 needsOwner
+        want = ["atlas/%d" % c["issue"] for c in sorted((c for c in cards if owed(c)), key=lambda c: c.get("since") or "~")]
         keys = self.waiting_keys(page)
         self.assertEqual(keys, want)
-        self.assertTrue({"atlas/120", "atlas/127", "atlas/129"} <= set(keys), keys)  # Staged and Spec Review wait for the owner
+        self.assertTrue({"atlas/120", "atlas/127", "atlas/129", "atlas/118"} <= set(keys), keys)  # Staged and Spec Review wait for the owner, and so does a card blocked for them
         self.assertFalse({"atlas/124", "atlas/131"} & set(keys), keys)  # a queued card and a card in the factory's hands do not
         self.assertIn("#%s" % keys[0].split("/")[1], page.inner_text("#work .wk-id"))  # Decide opens on the oldest
 
@@ -256,6 +257,81 @@ class Browser(support.Case):
         self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),
                         page.evaluate("[document.documentElement.scrollWidth, window.innerWidth]"))
 
+    # ---- the UI review: the belt never hides the work area (B1, B2), the phone (M11), the header's state (M3)
+    def many_done(self, n=80):
+        """n more cards in atlas's Done, each with a clean deploy that ended today: the belt's done today"""
+        now = datetime.now().astimezone().replace(microsecond=0)
+        start = max(now - timedelta(hours=2), now.replace(hour=0, minute=2, second=0))
+        logs = os.path.join(self.home, "projects", "atlas", "logs")
+        with open(os.path.join(self.home, "projects", "atlas", "board.tsv"), "a", encoding="utf-8") as board:
+            for i in range(n):
+                k, at = 500 + i, start + timedelta(seconds=60 * i)
+                board.write("%d\tDone\tPVTI_atlas_%d\n" % (k, k))
+                with open(os.path.join(logs, "%s-%d-deploy.log" % (at.date().isoformat(), k)), "w", encoding="utf-8") as f:
+                    f.write("== start /sf:deploy %d %s pid=1\n== end /sf:deploy %d exit=0 %s\n"
+                            % (k, (at - timedelta(seconds=50)).isoformat(), k, at.isoformat()))
+        state = self.state()  # the stand-in's board too: the dashboard reads it again once board.tsv is 10 s old
+        state["projects"]["1"]["items"] += [[500 + i, "\U0001F916 Done", "PVTI_atlas_%d" % (500 + i)] for i in range(n)]
+        with open(os.path.join(self.gh_dir, "state.json"), "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False)
+
+    def test_ui_review_work_area_stays_reachable_with_80_done_cards(self):
+        """B1/B2 at 1440x900 with 80 cards done today the band stays under 45% of the screen, Done shows today's newest five and
+        +75 (which opens the whole line), and the work area and its decision are on the screen"""
+        self.many_done()
+        page = self.open_page(width=1440, height=900)
+        self.ready(page)
+        done = page.locator("#cells .seg.done")
+        expect(done.locator("button.tok[data-key]")).to_have_count(5)
+        self.assertEqual(done.locator("button.tok[data-key]").first.get_attribute("data-key"), "atlas/579", "the newest first")
+        expect(done.locator("button.tok.more")).to_have_text("+75")
+        expect(done.locator(".smeta")).to_have_text("80 today")
+        band, work = page.locator("#band").bounding_box(), page.locator("#work").bounding_box()
+        self.assertLessEqual(band["height"], 900 * 0.45 + 1, band)
+        self.assertGreater(work["height"], 200, work)
+        self.assertLess(work["y"], 900 - 200, "the work area starts on the screen: %s" % work)
+        decide = page.locator("#wk-dec")
+        expect(decide).to_be_visible()
+        decide.scroll_into_view_if_needed()
+        box = decide.bounding_box()
+        self.assertTrue(box["y"] >= 0 and box["y"] + 40 <= 900, "the decision is reachable: %s" % box)
+        done.locator("button.tok.more").click()
+        expect(page.locator("#band.maxed")).to_be_visible()
+        expect(page.locator('#lanes .lcol[data-col="Done"] .chip')).to_have_count(82)  # every Done card, the demo's two of last week too
+        self.assertEqual(page.locator('#lanes .lcol[data-col="Done"]').evaluate("(el) => getComputedStyle(el).overflowY"), "auto")
+
+    def test_ui_review_phone_puts_the_work_area_first(self):
+        """M11 under 600px the work area comes before the belt, the segments stack and the band keeps no 80px right padding"""
+        page = self.open_page(width=375, height=667)
+        self.ready(page)
+        self.assertLess(page.locator("#cols").bounding_box()["y"], page.locator("#band").bounding_box()["y"])
+        segs = page.locator("#cells .seg")
+        a, b = segs.nth(0).bounding_box(), segs.nth(1).bounding_box()
+        self.assertEqual(round(a["x"]), round(b["x"]))
+        self.assertGreater(b["y"], a["y"])
+        self.assertEqual(page.locator("#band").evaluate("(el) => getComputedStyle(el).paddingRight"), "16px")
+        self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
+
+    def test_ui_review_header_says_why_the_belt_holds(self):
+        """M3 usage-limited, the header says so (its own word and dot) instead of Running, and the rail stops; paused outranks it"""
+        def limited(paused):
+            def handle(route):
+                body = route.fetch().json()
+                body.update(usage_limited=True, paused=paused)
+                route.fulfill(json=body)
+            return handle
+        for paused, word, cls in ((False, "Waiting for the usage limit", "st-usage"), (True, "Paused", "st-paused")):
+            ctx = self.browser.new_context(viewport={"width": 1440, "height": 900})
+            self.addCleanup(ctx.close)
+            page = ctx.new_page()
+            page.route("**/api/overview", limited(paused))
+            page.goto("http://127.0.0.1:%d/?t=%s" % (self.port, TOKEN))
+            self.ready(page)
+            expect(page.locator("#status")).to_contain_text(word)
+            self.assertNotIn("Running", page.inner_text("#status"))
+            self.assertIn(cls, page.get_attribute("#stat", "class"))
+            self.assertIn("paused", page.get_attribute("#cells .rail", "class"))
+
     def test_codex_stage_model_is_a_text_field_kept_literal(self):
         """#150 a stage on Codex has a text field (placeholder, trimmed, dirty, saved under runtime.models, name shown literally, unpriced warned); claude-code stages keep their select"""
         with open(os.path.join(self.home, "config.yml"), "a", encoding="utf-8") as f:
@@ -276,6 +352,80 @@ class Browser(support.Case):
         page.click('[data-set="save"]')
         self.until("the model saved", lambda: "gpt-6-sol" in self.machine_config())
         self.assertIn("models:", self.machine_config().split("runtime:")[1])
+
+    # ---- UI review (M6, M7, M9)
+    def test_palette_pause_asks_first_and_resume_is_offered(self):
+        """M6 Ctrl K: Pause the factory comes after the cards and asks before it pauses (Enter twice changes nothing); paused, Resume the factory is offered"""
+        pause = os.path.join(self.home, "PAUSE")
+        page = self.open_page()
+        self.ready(page)
+        page.keyboard.press("Control+k")
+        expect(page.locator("#pal-in")).to_be_focused()
+        rows = page.eval_on_selector_all("#pal-list [data-pal]", "els => els.map(e => e.textContent)")
+        self.assertEqual(rows[-1], "Pause the factory", rows)
+        self.assertNotEqual(page.inner_text("#pal-list [aria-selected=true]"), "Pause the factory")
+        page.keyboard.type("pause")
+        page.keyboard.press("Enter")
+        expect(page.locator("#pal-ask")).to_be_visible()
+        expect(page.locator("#pal-list [aria-selected=true]")).to_have_text("No, keep it running")
+        page.keyboard.press("Enter")
+        expect(page.locator("#pal-ask")).to_be_hidden()
+        self.assertFalse(os.path.exists(pause), "Enter, Enter: nothing paused")
+        page.keyboard.press("Enter")
+        expect(page.locator("#pal-ask")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator("#pal-ask")).to_be_hidden()
+        expect(page.locator("#pal")).to_be_visible()
+        page.keyboard.press("Enter")
+        page.keyboard.press("ArrowDown")
+        expect(page.locator("#pal-list [aria-selected=true]")).to_have_text("Yes, pause the factory")
+        page.keyboard.press("Enter")
+        self.until("the PAUSE file", lambda: os.path.exists(pause))
+        expect(page.locator("#pal")).to_be_hidden()
+        page.wait_for_function("S.overview && S.overview.paused", timeout=SLOW)
+        page.keyboard.press("Control+k")
+        page.keyboard.type("resume")
+        expect(page.locator("#pal-list [aria-selected=true]")).to_have_text("Resume the factory")
+        page.keyboard.press("Enter")
+        self.until("the PAUSE file gone", lambda: not os.path.exists(pause))
+
+    def test_health_banner_in_the_pages_language(self):
+        """M7 a health alert is worded by the catalog: in pt-BR it says what is wrong and what to do, with the stage's name, no English"""
+        with open(os.path.join(self.home, "config.yml"), encoding="utf-8") as f:
+            text = f.read()
+        with open(os.path.join(self.home, "config.yml"), "w", encoding="utf-8") as f:
+            f.write(text.replace("language: en", "language: pt-BR"))
+        log = sorted(os.listdir(os.path.join(self.home, "logs")))
+        log = os.path.join(self.home, "logs", next(n for n in log if n.startswith("health-")))
+        ts = datetime.now().astimezone().isoformat(timespec="seconds")
+        with open(log, "a", encoding="utf-8") as f:
+            for _ in range(3):
+                f.write(json.dumps({"ts": ts, "cycle": {"s": 5, "exit": 0, "overlap": True}, "idle": ["atlas/develop"], "over": ["pool 7/6"]}) + "\n")
+        page = self.open_page()
+        expect(page.locator("html")).to_have_attribute("lang", "pt-BR", timeout=SLOW)
+        alerts = page.locator("#alerts")
+        expect(alerts).to_contain_text("uma vaga livre e cards esperando há 3 ciclos seguidos", timeout=SLOW)
+        text = alerts.inner_text()
+        for want in ("atlas · Desenvolver", "shipfloor doctor", "dois ciclos do dispatcher rodaram ao mesmo tempo", "7 execuções ao mesmo tempo, o pool permite 6"):
+            self.assertIn(want, text)
+        for english in ("a free slot", "more runs than the limit", "ran at once"):
+            self.assertNotIn(english, text)
+
+    def test_settings_shows_the_pace_the_registration_runs_at(self):
+        """M9 Settings shows the pace the installed registration runs at (30 s here, config.yml says 3), no Windows-only reason on Linux"""
+        status = os.path.join(self.tmp, "status.sh")
+        with open(status, "w", encoding="utf-8") as f:
+            f.write("#!/usr/bin/env bash\nprintf 'registered: systemd\\nlimits: none\\npace: every 30 seconds\\n'\n")
+        os.environ["SHIPFLOOR_INSTALLER_STATUS"] = '"%s" "%s"' % (shutil.which("bash"), status)
+        os.environ["SHIPFLOOR_SCHEDULER"] = '"%s" -c "exit 0" stub' % shutil.which("bash")  # never the real installer
+        page = self.open_page()
+        self.ready(page)
+        page.click('[data-view="settings"]')
+        sel = page.locator("#every")
+        expect(sel).to_be_enabled(timeout=SLOW)
+        self.assertEqual(sel.input_value(), "0.5")
+        self.assertEqual(sel.locator("option:checked").inner_text(), "30 seconds")
+        self.assertNotIn("Windows only", page.inner_text("#disp"))
 
     def machine_config(self):
         with open(os.path.join(self.home, "config.yml"), encoding="utf-8") as f:

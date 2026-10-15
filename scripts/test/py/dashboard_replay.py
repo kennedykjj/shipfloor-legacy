@@ -29,9 +29,9 @@ def hm(h, m=0):
     return CLOCK.replace(hour=h, minute=m).isoformat(timespec="seconds")
 
 
-# the board at three moments of the day: card 12 appears at 09:30, card 40 reaches the Staged gate at 10:15
-EARLY = {"11": "Inbox", "21": "Spec Review", "40": "Validation", "70": "Done"}
-MID = dict(EARLY, **{"12": "Inbox"})
+# the board at three moments of the day: card 12 appears and card 70 is done at 09:30, card 40 reaches the Staged gate at 10:15
+EARLY = {"11": "Inbox", "21": "Spec Review", "40": "Validation", "70": "Ready for Prod"}
+MID = dict(EARLY, **{"12": "Inbox", "70": "Done"})
 LATE = dict(MID, **{"40": "Staged", "71": "Done"})
 LINES = [{"t": hm(8), "cards": EARLY}, {"t": hm(9, 30), "cards": MID}, {"t": hm(10, 15), "cards": LATE}]
 
@@ -160,13 +160,17 @@ class Replay(db.Scene):
 
     # ---------------------------------------------------------------------------------------------------------- AC-5
     def test_ac5_before_the_first_line_there_is_no_history_for_that_hour(self):
-        "AC-5 with the needle before today's first line the belt shows no cards and says there is no history for that hour"
-        _, res = self.page(press("Home") + press("ArrowLeft") + [{"op": "query", "sel": SLIDER},
-                           {"op": "find", "needle": "No history for 07:55. The first record today is at 08:00."}])
+        "AC-5 (UI review m9) before today's first line there is nothing to replay: the lane is hatched up to 08:00 and the needle stops there"
+        _, res = self.page(press("Home") + press("ArrowLeft") + [{"op": "query", "sel": SLIDER}, {"op": "query", "sel": "#pre"},
+                           {"op": "find", "needle": "No history for 07:55."}])
         n = 2
-        self.assertEqual(self.slider(res[n])["aria-valuetext"], "07:55")
-        self.assertEqual(bp.tokens(res[n - 1]), [], "no cards before the first record")
-        self.assertTrue(res[n + 1], "the belt says: No history for 07:55. The first record today is at 08:00.")
+        self.assertEqual(self.slider(res[n])["aria-valuetext"], "08:00", "the needle stops at the first record")
+        self.assertTrue(bp.tokens(res[n - 1]), "the belt shows the first record's cards")
+        pre = res[n + 1]
+        self.assertEqual(len(pre), 1, "one hatch before the first record")
+        self.assertNotIn("hidden", pre[0]["attrs"])
+        self.assertEqual(pre[0]["css"].get("width"), "33.33%", "08:00 is a third of the day")
+        self.assertFalse(res[n + 2], "no 'No history' sentence: the needle never stands before the first record")
 
     def test_ac5_with_no_history_today_the_belt_says_so(self):
         "AC-5 with no line at all today the belt says there is no board history for today yet"
@@ -246,3 +250,11 @@ class Replay(db.Scene):
         self.assertRegex(contracts, r'"cards"')
         self.assertRegex(operation, r"(?i)replay")
         self.assertRegex(operation, r"(?i)back to live")
+
+    def test_a_time_hash_still_moves_the_replay_from_the_address(self):
+        "#183 fromAddress keeps its `else if` (time hash moves the needle) as code, not inside a // comment"
+        with open(os.path.join(support.SCRIPTS, "dashboard.html"), encoding="utf-8") as f:
+            lines = [l for l in f.read().splitlines() if "if (m == null) { if (R.at" in l]
+        self.assertEqual(len(lines), 1)
+        self.assertNotIn("//", lines[0])
+        self.assertIn("else if (!R.at || atMin() !== m) needle(m, \"key\", true);", lines[0])

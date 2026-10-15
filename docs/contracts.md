@@ -331,6 +331,7 @@ The record comment is posted **before** the push it records. Only the factory's 
 | `~/.shipfloor/logs/health-<YYYY-MM>.jsonl` | one JSON object per cycle | `shipfloor_health.py record` | `shipfloor doctor`, `shipfloor_notify.py`, `dashboard.py` |
 | `<reviews>/<n>.brief.json` | the card's brief: `verdict`, `flags`, `proven`, `facts`, `since_request`, `what`, `rest` (see `brief.sh`) | `brief.sh build`, from the refine and validate skills | `dashboard.py` |
 | `<home>/reports-wt/` | worktree of the `factory-reports` branch | `report.sh` | `metrics.sh`, `dashboard.py` |
+| `<home>/dashboard.port` | one line: the port the running dashboard listens on; removed on a clean exit | `dashboard.py` | `shipfloor_notify.py` (the `Click` link of a push) |
 | `~/.shipfloor/cost-cache.json`, `notify.json` | caches | `dashboard_cost.py`, `shipfloor_notify.py` | the same |
 
 Readers that parse what the scripts write, which a port must not break:
@@ -365,7 +366,7 @@ Readers that parse what the scripts write, which a port must not break:
 | `SHIPFLOOR_MACHINE_CONFIG` | `shipfloor_config.py` | the machine config file's path (set by `shipfloor_machine`) |
 | `CLAUDE_CONFIG_DIR` | `dashboard.py`, `dashboard_cost.py`, `shipfloor_health.py` | Claude Code's directory (default `~/.claude`) |
 | `SHIPFLOOR_BASH`, `SHIPFLOOR_SCHEDULER` | `dashboard.py` | the bash it uses to run scripts; the scheduler it asks |
-| `SHIPFLOOR_NOTIFY_SEND` | `shipfloor_notify.py` | a script that sends a notification; it receives channel, title and body |
+| `SHIPFLOOR_NOTIFY_SEND` | `shipfloor_notify.py` | a script that sends a notification; it receives channel, title, body and click (the link to the card on the owner's dashboard, `""` when there is none) |
 | `SNAPSHOT` | `setup-board.sh` | where the board's item-status snapshot goes |
 | `FAKE_GH_FAIL_AT` | `fake-gh`, `fake-gh-deploy` (tests) | `<n>`: the n-th call to the fake (counted in its `fail-count` file) exits 1 with `gh: injected failure`; unset: no effect |
 | `FAKE_GH_FAIL_CMD` | `fake-gh`, `fake-gh-deploy` (tests) | an ERE: every call whose argument line matches it exits 1 with `gh: injected failure`; unset: no effect |
