@@ -11,8 +11,11 @@ import runtimes
 from runtimes import claude_code
 
 warnings.simplefilter("ignore")  # ERE classes like [[:space:]] make Python's re warn
-sys.stdout.reconfigure(encoding="utf-8", newline="\n")
-sys.stderr.reconfigure(encoding="utf-8", newline="\n")
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", newline="\n")
+    except AttributeError:  # a stream that is not a text file (a test's StringIO): nothing to set
+        pass
 
 try:
     import yaml
@@ -148,9 +151,144 @@ def runtime_problems(raw, where="runtime"):
                         check(name, f"{where}.stages.{stage}")
             elif k == "stages":
                 errs.append(f"{where}.stages must be a mapping of stage: runtime (known runtimes: {known})")
+            elif k == "models":
+                errs += [f"{e} (known runtimes: {known})" for e in runtime_models_problems(v, f"{where}.models")]
+            elif k == "ladder":
+                if not is_str_list(v):
+                    errs.append(f"{where}.ladder must be a list of model names, lowest first (known runtimes: {known})")
+            elif k == "provider":
+                errs += [f"{e} (known runtimes: {known})" for e in provider_problems(v, f"{where}.provider")]
             else:
-                errs.append(f"{where}.{k}: unknown setting (use default, stages; known runtimes: {known})")
+                errs.append(f"{where}.{k}: unknown setting (use default, stages, models, ladder, provider; known runtimes: {known})")
+        if not errs and "opencode" in [raw.get("default"), *(raw.get("stages") or {}).values()]:
+            errs += opencode_model_problems(raw, where)
     return errs
+
+
+PROVIDER_MODEL = re.compile(r"^[^/\s]+/[^\s]+$")
+
+
+def opencode_model_problems(raw, where):
+    """With the opencode runtime in use, every model and ladder name is `provider/model` (opencode's -m)."""
+    names = []  # (where, name)
+    for scope, cfg in ((where, raw), (where + ".provider", raw.get("provider"))):
+        if not isinstance(cfg, dict):
+            continue
+        models = cfg.get("models") if isinstance(cfg.get("models"), dict) else {}
+        for group in ("stages", "agents"):
+            for key, v in (models.get(group) or {}).items():
+                for w, m in (v.items() if isinstance(v, dict) else [(None, v)]):
+                    names.append((f"{scope}.models.{group}.{key}" + (f".{w}" if w else ""), m))
+        for i, m in enumerate(cfg.get("ladder") or []):
+            names.append((f"{scope}.ladder[{i}]", m))
+    return [f"{at}: {m!r} must be provider/model for the opencode runtime (e.g. acme/mini)"
+            for at, m in names if not (isinstance(m, str) and PROVIDER_MODEL.match(m))]
+
+
+BASE_URL = re.compile(r"^https?://[^\s\"'\\]+$")  # it goes inside an inline TOML table in a -c: no quote, no space
+ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+MODEL_NAME = re.compile(r"^[A-Za-z0-9._:/@-]+$")
+
+
+def provider_problems(raw, where):
+    """`runtime.provider`: {base_url, api_key_env?, models?, ladder?}, the OpenAI-compatible endpoint a codex run talks to."""
+    if not isinstance(raw, dict):
+        return [f"{where} must be a mapping of base_url, api_key_env, models and ladder"]
+    errs = []
+    for k, v in raw.items():
+        if k == "base_url":
+            if not isinstance(v, str) or not BASE_URL.match(v):
+                errs.append(f"{where}.base_url must be an http:// or https:// URL without spaces or quotes")
+        elif k == "api_key_env":
+            if not isinstance(v, str) or not ENV_NAME.match(v):
+                errs.append(f"{where}.api_key_env must be the NAME of an environment variable ([A-Za-z_][A-Za-z0-9_]*)")
+        elif k == "models":
+            errs += runtime_models_problems(v, f"{where}.models", MODEL_NAME)
+        elif k == "ladder":
+            if not is_str_list(v) or not all(MODEL_NAME.match(m) for m in v):
+                errs.append(f"{where}.ladder must be a list of model names ([A-Za-z0-9._:/@-]), lowest first")
+        else:
+            errs.append(f"{where}.{k}: unknown setting (use base_url, api_key_env, models, ladder)")
+    return errs
+
+
+def runtime_models_problems(raw, where, pattern=None):
+    """`runtime.models`: {stages: {<stage>: model | {light|standard|heavy: model}}, agents: {<name>: model}}. A model is
+    any non-empty name (the runtime's own CLI takes it); refine runs before the card has a weight, so it has one."""
+    if not isinstance(raw, dict):
+        return [f"{where} must be a mapping of stages and agents"]
+
+    def model(v, at):
+        if not (isinstance(v, str) and v.strip()):
+            return [f"{at} must be a model name (not empty)"]
+        if pattern and not pattern.match(v):
+            return [f"{at} must be a model name ({pattern.pattern[1:-2]} only)"]
+        return []
+
+    errs = []
+    for group, entries in raw.items():
+        if group not in ("stages", "agents"):
+            errs.append(f"{where}.{group}: unknown setting (use stages, agents)")
+        elif not isinstance(entries, dict):
+            errs.append(f"{where}.{group} must be a mapping")
+        elif group == "agents":
+            for name, v in entries.items():
+                errs += model(v, f"{where}.agents.{name}")
+        else:
+            for stage, v in entries.items():
+                at = f"{where}.stages.{stage}"
+                if stage not in STAGES:
+                    errs.append(f"{at}: unknown stage (use {', '.join(STAGES)})")
+                elif isinstance(v, dict) and stage != "refine":
+                    for weight, m in v.items():
+                        if weight not in WEIGHTS:
+                            errs.append(f"{at}.{weight}: not a weight ({', '.join(WEIGHTS)})")
+                        else:
+                            errs += model(m, f"{at}.{weight}")
+                else:
+                    errs += model(v, at)
+    return errs
+
+
+def runtime_setting(machine_raw, project_raw, key):
+    """What `runtime.<key>` (models, ladder) says: the project's over the machine's. models merge group by group and
+    name by name; a ladder is replaced as a whole. `provider` merges key by key (its models as `models` do). With an
+    effective provider (one with a base_url) its models and ladder are the ones that count and runtime's are ignored."""
+    if key in ("models", "ladder"):
+        provider = runtime_setting(machine_raw, project_raw, "provider")
+        if provider and provider.get("base_url"):
+            return provider.get(key)
+    out = None
+    for raw in (machine_raw, project_raw):
+        value = raw.get("runtime").get(key) if isinstance(raw, dict) and isinstance(raw.get("runtime"), dict) else None
+        if value is None:
+            continue
+        if key == "provider" and isinstance(value, dict):
+            out = dict(out or {})
+            for k, v in value.items():
+                out[k] = (_merge_models(out.get(k), v) if k == "models" and isinstance(out.get(k), dict) and isinstance(v, dict) else v)
+        elif key == "models" and isinstance(out, dict):
+            out = _merge_models(out, value)
+        else:
+            out = value
+    return out
+
+
+def _merge_models(base, over):
+    return {g: {**(base.get(g) or {}), **(over.get(g) or {})} for g in {*base, *over}}
+
+
+def runtime_stage_models(machine_raw, project_raw=None):
+    """Stage -> weight -> model of the stages that do not run on claude-code, from `runtime.models.stages`; '' = the
+    runtime's own default (no model flag). Call it on valid values."""
+    configured = (runtime_setting(machine_raw, project_raw, "models") or {}).get("stages") or {}
+    out = {}
+    for stage, rt in zip(STAGES, runtime_of(machine_raw, project_raw)):
+        if rt == "claude-code":
+            continue
+        m = configured.get(stage)
+        out[stage] = {w: (m.get(w, "") if isinstance(m, dict) else m or "") for w in WEIGHTS}
+    return out
 
 
 def runtime_of(machine_raw, project_raw=None):
@@ -538,16 +676,22 @@ STAGES = ("refine", "develop", "validate", "deploy")
 MACHINE_DEFAULTS = {"language": "en", "pool": 4, "stages": {"refine": 2, "develop": 2, "validate": 2, "deploy": 1},
                     "stacks": 3, "ports": {"base": 20000, "span": 20},
                     "stack_wait": 1800, "stack_stale": 90, "stack_hold_max": 2700, "dispatcher": {"every_min": 3},
+                    "disk": {"min_free_gb": 2, "min_free_inodes_pct": 10},
                     "notify": {"events": {"waiting": True, "blocked": True, "reminder": True, "stuck": True, "done": False},
                                "channels": {"toast": True, "ntfy": False}, "ntfy_topic": "", "reminder_min": 60, "quiet": ""}}
-DISPATCHER_EVERY = (1, 3, 5, 10)  # minutes between dispatcher cycles; the installer's trigger reads it
+DISPATCHER_EVERY = (0.5, 1, 3, 5, 10)  # minutes between dispatcher cycles (0.5: 30 seconds); the installer's trigger reads it
+
+
+def every_ok(every):
+    """A pace the config may set: the integers 1, 3, 5, 10 or the float 0.5 (True == 1 and 3.0 are not)."""
+    return (type(every) is int and every in DISPATCHER_EVERY) or (type(every) is float and every == 0.5)
 
 
 def dispatcher_every(raw):
     """The pace a raw machine config sets (minutes between cycles), or the default when it sets none or a bad one."""
     disp = raw.get("dispatcher") if isinstance(raw, dict) else None
     every = disp.get("every_min") if isinstance(disp, dict) else None
-    return every if type(every) is int and every in DISPATCHER_EVERY else MACHINE_DEFAULTS["dispatcher"]["every_min"]
+    return every if every_ok(every) else MACHINE_DEFAULTS["dispatcher"]["every_min"]
 
 
 MACHINE_INTS = ("pool", "stacks", "stack_wait", "stack_stale", "stack_hold_max")
@@ -592,10 +736,10 @@ STAGE_MODELS = {"refine": "sonnet", "develop": {"light": "sonnet", "standard": "
 PLUGIN_AGENTS = {"product-owner": "opus", "ux-designer": "opus", "qa-engineer": "sonnet", "engineer": "sonnet", "cybersec": "opus"}
 
 
-def model_up(model):
-    """The next model up the ladder; None for the top one or a model outside it."""
-    i = MODEL_LADDER.index(model) if model in MODEL_LADDER else len(MODEL_LADDER)
-    return MODEL_LADDER[i + 1] if i + 1 < len(MODEL_LADDER) else None
+def model_up(model, ladder=MODEL_LADDER):
+    """The next model up the ladder (claude-code's by default); None for the top one or a model outside it."""
+    i = ladder.index(model) if model in ladder else len(ladder)
+    return ladder[i + 1] if i + 1 < len(ladder) else None
 
 
 def model_problems(raw, project_agents=()):
@@ -668,6 +812,26 @@ def model_problem_line(p):
             return Msg("err.model.refine", f"{p['key']}: must be one model (Refine runs before the card has a weight)", key=p["key"])
         return Msg("err.model.shape", f"{p['key']}: must be a mapping", key=p["key"])
     return Msg("err.model.unknown", f"{p['key']}: \"{p['value']}\" is not a model the factory knows ({', '.join(MODELS)})", key=p["key"], value=p["value"], models=", ".join(MODELS))
+
+
+DISK_KEYS = ("min_free_gb", "min_free_inodes_pct")
+
+
+def disk_problems(disk):
+    """The machine's disk floor, under which the dispatcher starts no run: min_free_gb (a number >= 0) of free space on
+    the run's TMPDIR and on the worktrees' filesystem, min_free_inodes_pct (0..100) of free inodes where the OS
+    counts them. 0 turns a check off."""
+    if disk is None:
+        return []
+    if not isinstance(disk, dict):
+        return ["disk must be a mapping of min_free_gb, min_free_inodes_pct"]
+    errs = [f"disk.{k}: unknown key (use {', '.join(DISK_KEYS)})" for k in disk if k not in DISK_KEYS]
+    for k, top in (("min_free_gb", None), ("min_free_inodes_pct", 100)):
+        v = disk.get(k)
+        if k in disk and (isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0
+                          or (top is not None and v > top)):
+            errs.append(f"disk.{k} must be a number from 0" + (f" to {top}" if top else ""))
+    return errs
 
 
 COST_KEYS = ("card_warn", "card_block", "day_stop")
@@ -755,6 +919,7 @@ def machine_problems(raw):
         errs.append(lang_problem())
     errs += runtime_problems(raw["runtime"]) if "runtime" in raw else []
     errs += cost_problems(raw.get("costs"))
+    errs += disk_problems(raw.get("disk"))
     errs += limits_problems(raw.get("limits"))
     errs += notify_problems(raw["notify"]) if "notify" in raw else []
     pool = raw.get("pool", MACHINE_DEFAULTS["pool"])
@@ -793,8 +958,8 @@ def machine_problems(raw):
         errs.append("dispatcher must be a mapping {every_min}")
     else:
         every = disp.get("every_min", MACHINE_DEFAULTS["dispatcher"]["every_min"])
-        if type(every) is not int or every not in DISPATCHER_EVERY:  # True == 1: the type is checked too
-            errs.append(Msg("err.every_min", "dispatcher.every_min must be 1, 3, 5 or 10"))
+        if not every_ok(every):  # True == 1: the type is checked too
+            errs.append(Msg("err.every_min", "dispatcher.every_min must be 0.5, 1, 3, 5 or 10"))
     return errs
 
 
@@ -911,17 +1076,38 @@ def machine(rest):
         for line in limits_directives(limits):
             print(line)
         return 0
-    if cmd == "stage-models" and not args:  # each stage x light, standard, heavy
-        stages = models_of(raw)["stages"]
-        sys.stdout.write("".join(f"{stage_model(stages, s, w) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
-    if cmd == "runtimes" and len(args) <= 1:  # the runtime of each stage, NUL-terminated; the project's factory.yml over this file
-        project = load(args[0]) if args else None
+    def project_of(args):  # the project's factory.yml, when it is given and its runtime is valid
+        project = load(args[0]) if args and args[0] else None
         bad = runtime_problems(project["runtime"]) if isinstance(project, dict) and "runtime" in project else []
         if bad:
             raise Unusable(f"{args[0]} is invalid: " + "; ".join(bad))
-        sys.stdout.write("".join(f"{r}\0" for r in runtime_of(raw, project))); return 0
-    if cmd == "model-up" and len(args) == 1:
-        up = model_up(args[0])
+        return project
+    if cmd == "stage-models" and len(args) <= 1:  # each stage x light, standard, heavy; the project's factory.yml over this file
+        project = project_of(args)
+        stages = models_of(raw)["stages"]
+        other = runtime_stage_models(raw, project)  # a stage off claude-code: runtime.models, never models.stages
+        sys.stdout.write("".join(
+            f"{(other[s][w] if s in other else stage_model(stages, s, w)) or ''}\0" for s in STAGES for w in WEIGHTS)); return 0
+    if cmd == "provider" and len(args) <= 1:  # base_url NUL api_key_env (the NAME, never a value) NUL; nothing without a provider
+        provider = runtime_setting(raw, project_of(args), "provider")
+        if isinstance(provider, dict) and provider.get("base_url"):
+            sys.stdout.write(f"{provider['base_url']}\0{provider.get('api_key_env') or ''}\0")
+        return 0
+    if cmd == "runtimes" and len(args) <= 1:  # the runtime of each stage, NUL-terminated; the project's factory.yml over this file
+        sys.stdout.write("".join(f"{r}\0" for r in runtime_of(raw, project_of(args)))); return 0
+    if cmd == "models-stages-check" and len(args) <= 1:  # models.stages.<stage> that a stage on another runtime ignores
+        project = project_of(args)
+        stages = raw.get("models", {}).get("stages") if isinstance(raw.get("models"), dict) else None
+        for stage, rt in zip(STAGES, runtime_of(raw, project)):
+            if rt != "claude-code" and isinstance(stages, dict) and stage in stages:
+                print(f"models.stages.{stage} is ignored: {stage} runs on {rt}, which takes runtime.models.stages.{stage}")
+        return 0
+    if cmd == "model-up" and 1 <= len(args) <= 3:  # model-up <model> [<runtime> [<project factory.yml>]]
+        if len(args) == 1 or args[1] == "claude-code":
+            up = model_up(args[0])
+        else:  # another runtime climbs runtime.ladder; none = no step-up
+            ladder = runtime_setting(raw, project_of(args[2:]), "ladder")
+            up = model_up(args[0], tuple(ladder) if is_str_list(ladder) else ())
         if up:
             print(up)
         return 0
@@ -939,7 +1125,7 @@ def machine(rest):
             print(f"  {k}: {data['stages'][k]}")
         print(f"stacks: {data['stacks']}")
         return 0
-    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | models-check [<agent>...] | limits [--memory-max V] [--cpu-weight V] [--cpu-quota V]")
+    raise Unusable("usage: machine validate | values <key>... | show | hours | set <key> <int> | stage-models | model-up <model> | provider | models-check [<agent>...] | limits [--memory-max V] [--cpu-weight V] [--cpu-quota V]")
 
 
 def main(argv):

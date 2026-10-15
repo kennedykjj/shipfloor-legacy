@@ -8,6 +8,8 @@ import glob
 import json
 import os
 import re
+import subprocess
+import sys
 import time
 from unittest import mock
 
@@ -245,6 +247,24 @@ class TheCycle(CycleCase):
         self.assertIn("shipfloor: limite de uso do Claude atingido há pouco; aguardando", self.out)
         self.assertEqual(self.ran(), [])
 
+    def test_AC4_usage_limit_names_codex(self):
+        "AC-4 a recent Codex usage limit pauses the cycle and the line names Codex (Codex in pt-BR too); a Claude one still says Claude"
+        self.register()
+        log = os.path.join(self.shome, "projects", "blog", "logs", "x-5-develop.log")
+        start = "== start /sf:develop 5 2026-10-14T10:00:00-03:00 pid=1 model=gpt-6-sol weight=standard runtime=%s\n"
+        end = "== end /sf:develop 5 exit=1 2026-10-14T10:20:00-03:00 outcome=usage_limit\n"
+        self.write(log, start % "codex" + "some other words\n" + end)
+        self.assertEqual(self.run_cycle(), 0)
+        self.assertRegex(self.out, r"%s shipfloor: Codex usage limit hit recently; waiting\n" % ISO)
+        self.assertEqual(self.ran(), [])
+        self.write(os.path.join(self.shome, "config.yml"), "language: pt-BR\n")
+        self.run_cycle()
+        self.assertIn("shipfloor: limite de uso do Codex atingido há pouco; aguardando", self.out)
+        self.write(log, start % "claude-code" + "some other words\n" + end)
+        self.run_cycle()
+        self.assertIn("shipfloor: limite de uso do Claude atingido há pouco; aguardando", self.out)
+        self.assertNotIn("Codex", self.out)
+
     def test_github_limit(self):
         "a fresh GitHub-limit mark holds every project: exit 0 and says so"
         self.register()
@@ -308,6 +328,31 @@ class TheCycle(CycleCase):
         self.assertEqual([(h["cycle"]["exit"], h["cycle"]["overlap"]) for h in self.health()], [(0, True)])
         self.assertEqual(open(pid).read(), "%d\n" % os.getpid())
 
+    def test_overlap_at_30_seconds(self):
+        "every 30 s: a cycle still running past its 30 s (another process holding dispatch.pid, 45 s old) makes the next tick an overlap that dispatches nothing; once it ends, the next tick dispatches"
+        self.register()
+        pid = os.path.join(self.shome, "dispatch.pid")
+        go = os.path.join(self.tmp, "go")
+        holder = subprocess.Popen(
+            [sys.executable, "-c", "import os, sys, time; sys.path[:0] = sys.argv[3:]; from shipfloor_core import cycle\n"
+             "c = cycle.Claim(sys.argv[1]); c.take(); assert not c.overlap\n"
+             "while not os.path.exists(sys.argv[2]): time.sleep(0.05)\nc.release()", self.shome, go, *sys.path])
+        self.addCleanup(holder.kill)
+        for _ in range(200):
+            if os.path.exists(pid) and open(pid).read().strip() == str(holder.pid):
+                break
+            time.sleep(0.05)
+        os.utime(pid, (time.time() - 45,) * 2)  # the long cycle started 45 s ago: the 30 s tick came and went
+        self.assertEqual(self.run_cycle(), 0)
+        self.assertEqual(self.ran(), [])
+        self.assertEqual([(h["cycle"]["exit"], h["cycle"]["overlap"]) for h in self.health()], [(0, True)])
+        self.assertEqual(open(pid).read().strip(), str(holder.pid), "the running cycle's marker is left alone")
+        open(go, "w").close()
+        self.assertEqual(holder.wait(10), 0)
+        self.assertFalse(os.path.exists(pid))
+        self.run_cycle()
+        self.assertEqual([h["cycle"]["overlap"] for h in self.health()], [True, False], "the next tick runs")
+
     def test_claim(self):
         "dispatch.pid: a fresh one (live pid, or still empty) is a running cycle; one older than SHIPFLOOR_CYCLE_STALE_MIN (30) or with a dead pid is taken over"
         pid = os.path.join(self.shome, "dispatch.pid")
@@ -331,3 +376,130 @@ class TheCycle(CycleCase):
         c.take()
         self.assertEqual((c.overlap, open(pid).read()), (False, "%d\n" % os.getpid()), "none there: taken")
         self.assertEqual(wrong, [])
+
+
+class CodexPipeline(ds.CodexCase):
+    """`runtime: codex` over a fake `codex`: the dispatcher runs each stage on it."""
+
+    def test_AC1_a_card_goes_through_the_stages_on_codex(self):
+        "AC-1 runtime: codex with a fake codex: refine, develop and validate each run on it, with the sandbox, the generated prompt and the Codex trailer; claude is never started"
+        self.board(queues={"Ready for Refinement": 70, "Ready for Dev": 54, "Validation": 60})
+        self.assertEqual(self.cycle(), 0, self.err)
+        self.assertEqual(self.claude_calls(), [], "no fallback to Claude Code")
+        calls = {c["stdin"].split("Card: #")[-1].strip(): c for c in self.codex_calls()}
+        self.assertEqual(sorted(calls), ["54", "60", "70"])
+        for n, stage in (("70", "refine"), ("54", "develop"), ("60", "validate")):
+            call = calls[n]
+            self.assertEqual(call["argv"][0], "exec")
+            self.assertEqual(self.flag(call, "-s"), "workspace-write")
+            self.assertEqual(os.path.realpath(self.flag(call, "-C")), os.path.realpath(self.home + "/control"))
+            self.assertEqual(os.path.realpath(call["cwd"]), os.path.realpath(self.home + "/control"))
+            for flag in ("--json", "--skip-git-repo-check"):
+                self.assertIn(flag, call["argv"])
+            self.assertEqual(call["argv"][-1], "-", "the prompt comes on stdin")
+            self.assertTrue(self.flag(call, "-o").endswith(".last"), "the final message goes beside the log")
+            self.assertIn("PROMPT " + stage, call["stdin"], "the prompt is the stage's generated one")
+            self.assertEqual(call["env"]["CODEX_HOME"], self.codex_home, "the factory's CODEX_HOME, never the owner's")
+            self.assertEqual(call["env"]["SHIPFLOOR_TRAILER"], "Co-Authored-By: Codex <noreply@openai.com>")
+            self.assertEqual((call["env"]["SHIPFLOOR_FACTORY"], call["env"]["SHIPFLOOR_RUN_LOCK"]),
+                             ("1", "%s/locks/%s-%s.lock" % (self.home, stage, n)))
+            log = self.log(stage, n).splitlines()
+            self.assertRegex(log[0], r"^== start /sf:%s %s %s pid=\d+ .*runtime=codex$" % (stage, n, ISO))
+            self.assertRegex(log[-1], r"^== end /sf:%s %s exit=0 %s outcome=ok$" % (stage, n, ISO))
+
+
+class CodexUsageLimit(ds.CodexCase):
+    def test_AC4_the_limit_text_is_the_outcome_and_the_next_cycle_waits(self):
+        "AC-4 a Codex run that prints the usage limit ends on outcome=usage_limit, and the next cycle starts nothing and says Codex"
+        self.board(queues={"Ready for Dev": 54})
+        self.set_fake(codex={"say": "You’ve hit your usage limit. Upgrade to Plus to continue.", "exit": 1})
+        self.assertEqual(self.cycle(), 0, self.err)
+        self.assertRegex(self.log("develop", 54).splitlines()[-1], r"^== end /sf:develop 54 exit=1 %s outcome=usage_limit$" % ISO)
+        self.board(queues={"Ready for Dev": 55})
+        self.launches = []
+        self.cycle(runs=False)
+        self.assertEqual(self.launches, [], "new runs wait")
+        self.assertIn("Codex usage limit hit recently; waiting", self.out)
+
+    def test_AC4_outcome_of_the_adapter(self):
+        "AC-4 the adapter's outcome: usage_limit for the limit's wording (curly, escaped or plain apostrophe, credits, spend cap, quota, Plus, 429), ok on exit 0, fail otherwise"
+        import runtimes
+        outcome = runtimes.get("codex").outcome
+        for text in ("You’ve hit your usage limit. Try again at 6pm.", "{\"message\":\"You\\u2019ve hit your usage limit\"}",
+                     "You've hit your usage limit", "You are out of credits", "You hit your spend cap",
+                     "Quota exceeded for this account", "Please upgrade to Plus to keep going",
+                     "exceeded retry limit, last status: 429 Too Many Requests"):
+            for rc in (0, 1):
+                self.assertEqual(outcome(rc, "work\n" + text + "\nmore\n"), "usage_limit", (rc, text))
+        self.assertEqual(outcome(1, ("x\n" + "You’ve hit your usage limit").encode("utf-8")), "usage_limit", "a block as bytes")
+        self.assertEqual((outcome(0, "all fine\n"), outcome(2, "boom\n")), ("ok", "fail"))
+
+
+class OpencodePipeline(ds.OpencodeCase):
+    """`runtime: opencode` over a fake `opencode`: the dispatcher runs each stage on it."""
+
+    def test_AC1_a_card_goes_through_the_stages_on_opencode(self):
+        "AC-1 runtime: opencode with a fake opencode: refine, develop and validate each run `opencode run --standalone --auto --agent sf-<stage> --format json` in control with `Card: #<n>` on stdin, and end on outcome=ok; claude is never started"
+        self.board(queues={"Ready for Refinement": 70, "Ready for Dev": 54, "Validation": 60})
+        self.assertEqual(self.cycle(), 0, self.err)
+        self.assertEqual(self.claude_calls(), [], "no fallback to Claude Code")
+        calls = {c["stdin"].split("Card: #")[-1].strip(): c for c in self.opencode_calls()}
+        self.assertEqual(sorted(calls), ["54", "60", "70"])
+        control = os.path.realpath(self.home + "/control")
+        for n, stage in (("70", "refine"), ("54", "develop"), ("60", "validate")):
+            call = calls[n]
+            self.assertEqual(call["argv"], ["run", "--standalone", "--auto", "--agent", "sf-" + stage, "--format", "json"])
+            self.assertEqual(call["stdin"], "Card: #%s\n" % n)
+            self.assertEqual(os.path.realpath(call["cwd"]), control)
+            self.assertEqual(os.path.realpath(call["pwd"]), control)
+            self.assertEqual(call["env"]["SHIPFLOOR_TRAILER"], "Co-Authored-By: opencode <noreply@opencode.ai>")
+            self.assertEqual((call["env"]["SHIPFLOOR_FACTORY"], call["env"]["SHIPFLOOR_RUN_LOCK"]),
+                             ("1", "%s/locks/%s-%s.lock" % (self.home, stage, n)))
+            log = self.log(stage, n).splitlines()
+            self.assertRegex(log[0], r"^== start /sf:%s %s %s pid=\d+ .*runtime=opencode$" % (stage, n, ISO))
+            self.assertRegex(log[-1], r"^== end /sf:%s %s exit=0 %s outcome=ok$" % (stage, n, ISO))
+
+
+class OpencodeUsageLimit(ds.OpencodeCase):
+    def run_stream(self, card, stream, exit_code):
+        """One develop run on the card whose stdout is the events; the last line of its log. Earlier logs are cleared."""
+        for f in os.listdir(os.path.join(self.home, "logs")):
+            os.unlink(os.path.join(self.home, "logs", f))
+        self.board(queues={"Ready for Dev": card})
+        self.set_fake(opencode={"stream": stream, "exit": exit_code})
+        self.assertEqual(self.cycle(), 0, self.err)
+        return self.log("develop", card).splitlines()[-1]
+
+    def test_AC6_an_error_event_of_the_provider_limit_is_the_outcome_and_the_next_cycle_waits(self):
+        "AC-6 a run whose log has an error event of type provider.quota or provider.rate-limit ends on outcome=usage_limit, and new runs wait as for the current limit; another error with exit 1 is outcome=fail"
+        last = self.run_stream(54, [{"type": "error", "error": {"type": "provider.auth", "message": "bad key"}}], 1)
+        self.assertRegex(last, r"^== end /sf:develop 54 exit=1 %s outcome=fail$" % ISO)
+        last = self.run_stream(56, [{"type": "text", "text": "working"},
+                                    {"type": "error", "error": {"type": "provider.rate-limit", "message": "slow down"}}], 1)
+        self.assertRegex(last, r"^== end /sf:develop 56 exit=1 %s outcome=usage_limit$" % ISO)
+        last = self.run_stream(57, [{"type": "error", "error": {"type": "provider.quota", "message": "limit reached"}}], 1)
+        self.assertRegex(last, r"^== end /sf:develop 57 exit=1 %s outcome=usage_limit$" % ISO)
+        self.board(queues={"Ready for Dev": 55})
+        self.launches = []
+        self.cycle(runs=False)
+        self.assertEqual(self.launches, [], "new runs wait")
+        self.assertRegex(self.out, r"(?i)opencode usage limit hit recently; waiting")
+
+    def test_AC6_outcome_of_the_adapter(self):
+        "AC-6 the adapter's outcome reads the JSON lines: usage_limit for an error event of the two limit types (whatever the exit code, bytes too), fail for another error or a nonzero exit, ok on exit 0, and a text that merely says the type is not an error event"
+        import runtimes
+        outcome = runtimes.get("opencode").outcome
+
+        def block(*events):
+            return "\n".join(e if isinstance(e, str) else json.dumps(e) for e in events) + "\n"
+
+        for kind in ("provider.quota", "provider.rate-limit"):
+            b = block({"type": "text", "text": "hi"}, {"type": "error", "error": {"type": kind}}, "not json at all")
+            for rc in (0, 1):
+                self.assertEqual(outcome(rc, b), "usage_limit", (kind, rc))
+            self.assertEqual(outcome(1, b.encode("utf-8")), "usage_limit", "a block as bytes")
+        says = block({"type": "text", "text": 'the error type is "provider.quota"'},
+                     {"type": "tool", "output": {"type": "error", "error": {"type": "provider.quota"}}})
+        self.assertEqual(outcome(0, says), "ok", "what the agent says or reads is not the CLI speaking")
+        other = block({"type": "error", "error": {"type": "provider.auth"}})
+        self.assertEqual((outcome(1, other), outcome(0, "all fine\n"), outcome(2, "boom\n")), ("fail", "ok", "fail"))

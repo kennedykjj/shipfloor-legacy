@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import time
+from datetime import datetime, timedelta
 
 import dashboard_support as ds
 from dashboard_support import opt, slash
@@ -28,7 +29,7 @@ class Decisions(ds.Dash):
         self.assertIn("--id PVTI_7 --field-id FLD_x --single-select-option-id opt5", self.gh("edits"))
         self.assertEqual(self.card_post(9, "request-changes", {"column": "Staged", "text": "fix the header"}).code, 200)
         self.assertIn("fix the header", self.gh("comments"))
-        c, m = self.line_of("issue comment 9"), next(i for i, l in enumerate(self.calls()) if "item-edit" in l and "PVTI_9" in l and "opt6" in l)
+        c, m = self.line_of("issue comment 9"), next(i for i, l in enumerate(self.calls()) if "-X PATCH" in l and "/items/1000009" in l)
         self.assertLess(c, m, "the comment first, then back to Coding")
 
     def test_approve_with_a_note(self):
@@ -95,7 +96,7 @@ class Decisions(ds.Dash):
         self.assertIn("restore the test", self.gh("comments"))
         calls = self.calls()
         self.assertIn("issue comment 7 --repo acme/shop --body-file -", calls)
-        self.assertTrue(any("--id PVTI_7 --field-id FLD_x --single-select-option-id opt6" in c for c in calls))
+        self.assertIn("--id PVTI_7 --field-id FLD_x --single-select-option-id opt6", self.gh("edits"))
         self.assertIn("api -X DELETE repos/acme/shop/issues/7/labels/blocked", calls)
 
     def test_cost_block_in_the_inbox(self):
@@ -146,6 +147,30 @@ class Live(ds.Dash):
         self.assertEqual(hook("{}", os.path.join(self.P, "locks", "none.lock"))[0], 0, "a lock with no inbox: exit 0")
 
 
+    def test_AC5_a_message_reaches_a_codex_run_and_shows_as_owner(self):
+        "AC-5 on a running Codex card a message waits in the inbox until the agent has read it (inbox.lead), and the message it was handed shows in Live as owner beside what it said and ran"
+        import inbox_hook
+        home = os.environ["SHIPFLOOR_CODEX_HOME"] = self.path("codex-home")
+        L = self.lock("develop-11", 11)
+        ds.support.codex_rollout(home, "s1", self.pdir("shop", "control"), stage="develop", issue=11, says=["Planning the work."],
+                                 commands=["ls -la"], owner=[inbox_hook.INTRO + "\n\nuse the old header"])
+        self.fresh()
+        def live():
+            s = self.get("/api/live/shop/11").json
+            return s["running"], [(e["kind"], e["text"]) for e in s["events"]], [m["text"] for m in s["pending"]]
+        running, events, pending = live()
+        self.assertTrue(running)
+        self.assertIn(("says", "Planning the work."), events)
+        self.assertIn(("owner", "use the old header"), events)
+        self.assertTrue([k for k, t in events if k not in ("says", "owner") and "ls -la" in t], "the command it ran: %s" % events)
+        self.assertEqual([t for k, t in events if k == "owner"], ["use the old header"], "only what the owner sent is the owner's")
+        self.assertEqual(pending, [])
+        self.assertEqual(self.card_post(11, "message", {"text": "keep the footer"}).code, 200)
+        self.assertEqual(live()[2], ["keep the footer"])
+        self.write(os.path.relpath(os.path.join(L, "inbox.lead"), self.tmp), "1")  # the agent read it and kept its count
+        self.assertEqual(live()[2], [])
+
+
 class Move(ds.Dash):
     def alone(self, col):
         self.items((9, col))
@@ -169,7 +194,7 @@ class Move(ds.Dash):
             self.assertEqual(self.move(frm, to, "do it again").code, 200)
             self.assertIn("do it again", self.gh("comments"))
             self.assertIn(opt(to), self.gh("edits"))
-            self.assertLess(self.line_of("issue comment"), self.line_of("item-edit"), "AC-2 the note goes before the move")
+            self.assertLess(self.line_of("issue comment"), self.line_of("-X PATCH"), "AC-2 the note goes before the move")
         self.reset_gh()
         self.memo_board()
         bad = []
@@ -311,7 +336,7 @@ class Reorder(ds.Dash):
             self.items((9, frm), (10, "Inbox"), (11, "Ready for Refinement"), (12, "Ready for Dev"), (13, "Coding"))
             self.assertEqual(self.card_post(9, "move", {"column": frm, "to": to, "text": text}).code, 200, "%s -> %s" % (frm, to))
             self.assertEqual(self.lastpos(), "PVTI_9 after " + last)
-            self.assertLess(self.line_of("updateProjectV2ItemPosition"), self.line_of("item-edit"), "the place is written before the Status")
+            self.assertLess(self.line_of("updateProjectV2ItemPosition"), self.line_of("-X PATCH"), "the place is written before the Status")
         self.assertEqual(self.ov_order("Ready for Refinement"), [(11, 1), (9, 2)])
         self.reset_gh(); self.items((9, "Spec Review"), (12, "Ready for Dev")); self.gh("fail-position", "")
         self.assertEqual(self.card_post(9, "move", {"column": "Spec Review", "to": "Ready for Dev"}).code, 502)
@@ -360,7 +385,7 @@ class TakeBack(ds.Dash):
         r = self.take("Ready for Dev", "the spec was right, the code was not")
         self.assertEqual(r.code, 200)
         self.assertIn("the spec was right", self.gh("comments"))
-        self.assertLess(self.line_of("issue comment"), self.line_of("item-edit"))
+        self.assertLess(self.line_of("issue comment"), self.line_of("-X PATCH"))
         self.assertIs(r.json.get("commented"), True)
         self.reset_gh(); self.blocked("Validation")
         self.assertEqual((self.take("Ready for Dev", "   ").code, self.gh("comments"), len(self.edits())), (200, "", 1))
@@ -377,7 +402,7 @@ class TakeBack(ds.Dash):
         self.assertEqual(len(closed), 1, "another card's pull request stays open")
         self.assertTrue(closed[0].startswith("pr close 42 "))
         self.assertNotIn("--delete-branch", closed[0])
-        self.assertLess(self.line_of("pr close"), self.line_of("item-edit"))
+        self.assertLess(self.line_of("pr close"), self.line_of("-X PATCH"))
         self.assertEqual(r.json.get("pr_closed"), 42)
         self.reset_gh(); self.blocked("Validation"); self.gh("prs", self.PRS); self.gh("fail-pr-close", "")
         self.assertEqual((self.take("Inbox").code, self.edits()), (502, []))
@@ -399,7 +424,7 @@ class TakeBack(ds.Dash):
         r = self.take("Ready for Refinement")
         self.assertEqual(r.code, 200)
         d = next(i for i, l in enumerate(self.calls()) if l.endswith("labels/blocked"))
-        self.assertGreater(d, self.line_of("item-edit"))
+        self.assertGreater(d, self.line_of("-X PATCH"))
         self.assertTrue(any("labels/blocked:infra" in l for l in self.calls()))
         self.gh("label-blocked", "[]")
         c = self.cards()[9]
@@ -764,3 +789,263 @@ class Amend(ds.Dash):
         self.gh("calls", "")
         self.assertEqual(self.card_post(8, "approve-amend", {}).code, 409)
         self.assertFalse(any("qa-amend-ok" in l for l in self.calls()))
+
+
+class BeltData(ds.Dash):
+    """What the belt and the work area read of the overview (the UI review's B2, M1, M2, M5): done today as History counts it,
+    a stage's runs per project, the dispatcher's stop marks and since when a card is in its column."""
+    PROJECTS = ("shop", "blog")
+
+    def logged(self, n, stage, start, end=None, code=0, p="shop"):
+        """a run in the dispatcher's log of card n: its == start line and, when it ended, its == end line"""
+        text = "== start /sf:%s %d %s pid=1\n" % (stage, n, start.isoformat(timespec="seconds"))
+        if end:
+            text += "== end /sf:%s %d exit=%d %s\n" % (stage, n, code, end.isoformat(timespec="seconds"))
+        self.log("%s-%d-%s.log" % (start.date().isoformat(), n, stage), text, p=p)
+
+    def test_done_today_is_the_history_count(self):
+        "B2/m2 done today is a clean deploy that ended today, as History's Today counts it: done_today, each card's done_at, shipped"
+        now = datetime.now().astimezone().replace(microsecond=0)
+        early = max(now - timedelta(minutes=30), now.replace(hour=0, minute=0, second=1))
+        yesterday = now - timedelta(days=1)
+        self.board({70: "Done", 71: "Done", 72: "Done", 73: "Done"})
+        self.logged(70, "deploy", early - timedelta(seconds=1), early)
+        self.logged(71, "deploy", early - timedelta(seconds=1), early, code=1)  # a failed deploy is not done
+        self.logged(72, "deploy", yesterday - timedelta(minutes=5), yesterday)  # done, but not today
+        self.logged(73, "validate", early - timedelta(seconds=1), early)  # a run of today that is not a deploy
+        ov = self.overview()
+        shop = next(p for p in ov["projects"] if p["slug"] == "shop")
+        cards = {c["issue"]: c for c in shop["cards"]}
+        self.assertEqual(shop["done_today"], 1)
+        self.assertEqual({n: c["done_at"] for n, c in cards.items()}, {70: early.isoformat(), 71: None, 72: None, 73: None})
+        self.assertEqual([x["issue"] for x in shop["shipped"]], [70])
+        self.assertEqual(self.get("/api/history/shop?days=1").json["totals"]["done"], shop["done_today"], "the Logbook's Today says the same")
+
+    def test_a_stage_counts_its_runs_per_project(self):
+        "M1 a stage's slots are the machine's: running is everyone's, by_project says whose"
+        self.config("pool: 6\nstages:\n  refine: 1\n  develop: 2\n  validate: 1\n  deploy: 1\n")
+        self.board({31: "Coding"})
+        self.board({5: "Coding", 6: "Validation"}, p="blog")
+        self.lock("develop-31", 31)
+        self.lock("develop-5", 5, p="blog")
+        self.lock("validate-6", 6, p="blog")
+        st = self.overview()["pool"]["stages"]
+        self.assertEqual(st["develop"], {"slots": 2, "running": 2, "by_project": {"shop": 1, "blog": 1}})
+        self.assertEqual(st["validate"], {"slots": 1, "running": 1, "by_project": {"blog": 1}})
+        self.assertEqual(st["refine"]["by_project"], {})
+
+    def test_a_card_held_after_two_stopped_runs(self):
+        "M2 stopped/<n> with two marks and the card still where the last run started is the card's stopped; one mark, or a card moved since, is none"
+        marks = "1792019421\tvalidate\tno-report\tValidation\n1792019492\tvalidate\tno-report\tValidation\n"
+        self.board({40: "Validation", 41: "Validation", 42: "Coding"})
+        self.write(os.path.relpath(self.pdir("shop", "stopped", "40"), self.tmp), marks)
+        self.write(os.path.relpath(self.pdir("shop", "stopped", "41"), self.tmp), marks.splitlines()[0] + "\n")
+        self.write(os.path.relpath(self.pdir("shop", "stopped", "42"), self.tmp), marks)
+        cards = self.cards()
+        held = cards[40]["stopped"]
+        self.assertEqual({k: held[k] for k in ("why", "stage", "column", "times")}, {"why": "no-report", "stage": "validate", "column": "Validation", "times": 2})
+        self.assertEqual(datetime.fromisoformat(held["at"]).timestamp(), 1792019492)
+        self.assertEqual((cards[41]["stopped"], cards[42]["stopped"]), (None, None))
+        self.assertEqual((cards[40]["running"], cards[40]["awaiting"], cards[40]["blocked"]), (None, False, None), "only the mark says it waits for the owner")
+        self.lock("validate-40", 40)
+        self.assertIsNone(self.cards()[40]["stopped"], "a card that runs again is not held")
+
+    def test_take_back_a_held_card(self):
+        "M2 a held card goes back through the take-back move, without a block label; its marks go; one mark is not a hold"
+        marks = "1792019421\tvalidate\tno-report\tValidation\n1792019492\tvalidate\tno-report\tValidation\n"
+        path = self.pdir("shop", "stopped", "9")
+        self.items((9, "Validation"))
+        self.write(os.path.relpath(path, self.tmp), marks)
+        r = self.card_post(9, "take-back", {"to": "Ready for Dev", "text": ""})
+        self.assertEqual((r.code, r.json.get("moved_to"), r.json.get("unblocked")), (200, "Ready for Dev", False))
+        self.assertIn(opt("Ready for Dev"), self.gh("edits"))
+        self.assertFalse(os.path.exists(path), "the marks go with the move")
+        self.assertFalse(any("labels/blocked" in c for c in self.calls()), "no label to take off")
+        self.reset_gh(); self.items((9, "Validation"))
+        self.write(os.path.relpath(path, self.tmp), marks.splitlines()[0] + "\n")
+        self.assertEqual((self.card_post(9, "take-back", {"to": "Ready for Dev"}).code, self.edits()), (409, []))
+
+    def test_since_is_when_the_card_came_into_its_column(self):
+        "M5 since is when the card came into its column by the board history (#184); without a change on record it is its last run's end"
+        now = datetime.now().astimezone().replace(microsecond=0)
+        t = [(now - timedelta(minutes=m)).isoformat(timespec="seconds") for m in (50, 40, 30, 20)]
+        lines = [{"30": "Ready for Dev", "31": "Spec Review", "32": "Inbox"}, {"30": "Coding", "31": "Spec Review", "32": "Inbox"},
+                 {"30": "Coding", "31": "Spec Review", "32": "Inbox", "33": "Inbox"}, {"30": "Coding", "31": "Spec Review", "32": "Inbox", "33": "Inbox", "34": "Inbox"}]
+        self.write(os.path.relpath(self.pdir("shop", "logs", "board-%s.jsonl" % now.strftime("%Y-%m")), self.tmp),
+                   "".join(json.dumps({"t": a, "cards": c}) + "\n" for a, c in zip(t, lines)) + "not json\n")
+        ended = now - timedelta(minutes=10)
+        self.logged(31, "refine", ended - timedelta(minutes=5), ended)
+        self.board({30: "Coding", 31: "Spec Review", 32: "Inbox", 33: "Inbox", 34: "Ready for Refinement"})
+        cards = self.cards()
+        self.assertEqual(cards[30]["since"], t[1], "came into Coding at the second line")
+        self.assertEqual(cards[33]["since"], t[2], "came onto the board at the third line")
+        self.assertEqual(cards[31]["since"], ended.isoformat(), "in Spec Review on every line: its last run's end")
+        self.assertIsNone(cards[32]["since"], "no change on record and no run")
+        self.assertIsNone(cards[34]["since"], "the board moved it after the last line: the history does not say when")
+
+
+class Responsive(ds.Dash):
+    """The owner's actions are one REST write on cached ids, with the dashboard's own read of the board when it is young,
+    and the factory is woken when a card enters a column it acts on."""
+
+    def setUp(self):
+        super().setUp()
+        self.wake_script = self.path("wake.sh")
+        self.write("wake.sh", '#!/usr/bin/env bash\necho woke >> "$FAKE_GH_DIR/wakes"\n')
+
+    def wake_with(self, *argv):
+        self.write("shome/dispatcher.wake", "".join(a + "\n" for a in argv))
+
+    def move(self, n, frm, to, text=""):
+        return self.card_post(n, "move", {"column": frm, "to": to, "text": text})
+
+    def wakes(self, expect, secs=5):
+        """whether the stub was run `expect` times (a negative one waits a little to show nothing came)"""
+        end = time.time() + (secs if expect else 0.6)
+        while time.time() < end and len(self.gh("wakes").split()) < expect:
+            time.sleep(0.05)
+        time.sleep(0.2)
+        return len(self.gh("wakes").split()) == expect
+
+    def test_a_move_is_one_patch_on_the_numeric_id(self):
+        "an approve is a PATCH on the item's numeric id: no GraphQL, no project command, no board.sh; the answer carries its timing"
+        self.items((9, "👤 Spec Review"), (10, "👤 Staged"))
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual(r.code, 200)
+        self.assertEqual(r.json.get("moved_to"), "Ready for Dev")
+        self.assertEqual(r.json["timing"].get("path"), "rest")
+        self.assertGreaterEqual(r.json["timing"]["total_ms"], 0)
+        calls = self.calls()
+        self.assertEqual([c for c in calls if "-X PATCH" in c and "projectsV2/7/items/1000009 " in c + " "].__len__(), 1)
+        self.assertEqual([c for c in calls if c.startswith("project ") or "graphql" in c], [], "no GraphQL, no gh project")
+        self.assertIn('"value": "opt5"', self.gh("patches"))
+        # the board is not read again for the next click while the dashboard's own read is young
+        self.gh("calls", "")
+        r = self.card_post(10, "approve", {"column": "Staged"})
+        self.assertEqual(r.code, 200)
+        calls = self.calls()
+        self.assertEqual(len(calls), 2, calls)  # the card's labels (the lock) and the PATCH
+        self.assertIn("-X PATCH", calls[1])
+        self.assertTrue(r.json["timing"].get("board_cached"))
+
+    def test_the_read_is_live_when_the_card_is_not_in_the_dashboards(self):
+        "a card that the dashboard's read lacks, or has in another column than the page saw, is read live before a 409"
+        self.items((9, "👤 Spec Review"))
+        f = self.dashboard.Handler.factory
+        f._live["shop"] = (time.time(), [["8", "Coding", "PVTI_8", "1000008"]])
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 200)
+        self.assertTrue(any("projectsV2/7/items" in c and "-X" not in c for c in self.calls()), "the board was read")
+        self.gh_rm("edits", "patches"); self.items((9, "👤 Staged"))
+        f._live["shop"] = (time.time(), [["9", "Coding", "PVTI_9", "1000009"]])
+        self.assertEqual(self.card_post(9, "approve", {"column": "Staged"}).code, 200, "the live read says Staged")
+        self.items((9, "👤 Ready for Dev"))  # moved on GitHub, and the dashboard's read says so too
+        f._live["shop"] = (time.time(), [["9", "Ready for Dev", "PVTI_9", "1000009"]])
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual((r.code, r.json.get("column")), (409, "Ready for Dev"), "the stale read is checked live before refusing")
+
+    def test_an_old_read_is_read_again(self):
+        "past BOARD_FRESH_S the dashboard's read is not trusted: the click reads the board"
+        self.items((9, "👤 Spec Review"))
+        f = self.dashboard.Handler.factory
+        f._live["shop"] = (time.time() - self.dashboard.BOARD_FRESH_S - 1, [["9", "Spec Review", "PVTI_9", "1000009"]])
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 200)
+        self.assertTrue(any("projectsV2/7/items" in c and "-X" not in c for c in self.calls()))
+
+    def test_the_ids_are_asked_once_and_dropped_when_wrong(self):
+        "the Status field and options are read once per project; an option they lack is read again, then PATCHed"
+        self.items((9, "👤 Spec Review"), (10, "👤 Spec Review"))
+        self.card_post(9, "approve", {"column": "Spec Review"})
+        self.card_post(10, "approve", {"column": "Spec Review"})
+        self.assertEqual(len([c for c in self.calls() if "/fields" in c]), 1, "one read of the fields for two moves")
+        self.dashboard.Handler.factory.rest_board("shop")._rest_field = ("4242", {"Coding": "x"})  # stale: no Ready for Prod
+        self.items((11, "👤 Staged"))
+        r = self.card_post(11, "approve", {"column": "Staged"})
+        self.assertEqual((r.code, r.json["timing"]["path"]), (200, "rest"))
+        self.assertEqual(len([c for c in self.calls() if "/fields" in c]), 2)
+        self.assertIn('11 {"fields": [{"id": 4242, "value": "opt9"}]}'.replace("11 ", "1000011 "), self.gh("patches"))
+
+    def test_rest_down_goes_by_graphql_as_before(self):
+        "REST failing everywhere: the board is read by board.sh and the card moves by project item-edit; the answer says so"
+        self.items((9, "👤 Spec Review"))
+        self.gh("fail-rest", "1")
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual((r.code, r.json["timing"]["path"]), (200, "graphql"))
+        self.assertIn("project item-edit", " ".join(self.calls()))
+        self.assertIn("--id PVTI_9 --field-id FLD_x --single-select-option-id opt5", self.gh("edits"))
+
+    def test_a_failed_patch_reads_the_board_and_falls_back(self):
+        "a PATCH that fails drops the ids, reads the board, tries once more, then moves the card by GraphQL; a refusal is still a 502"
+        self.items((9, "👤 Spec Review"))
+        self.gh("fail-patch", "1")
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual((r.code, r.json["timing"]["path"]), (200, "graphql"))
+        calls = self.calls()
+        self.assertEqual(len([c for c in calls if "-X PATCH" in c]), 2, "the PATCH was tried twice")
+        self.assertTrue(any("project item-edit" in c for c in calls))
+        self.gh_rm("edits"); self.items((9, "👤 Spec Review"))
+        self.gh("fail", "1")
+        r = self.card_post(9, "approve", {"column": "Spec Review"})
+        self.assertEqual(r.code, 502, "gh down: the move is refused, not faked")
+
+    def test_refusals_hold_with_the_dashboards_read(self):
+        "403, 409 and 423 are decided the same with a young read: nothing is written"
+        self.items((9, "👤 Spec Review"))
+        f = self.dashboard.Handler.factory
+        young = lambda col: f._live.__setitem__("shop", (time.time(), [["9", col, "PVTI_9", "1000009"]]))
+        young("Spec Review")
+        self.assertEqual(self.move(9, "Spec Review", "Done").code, 403)
+        self.assertEqual(self.card_post(9, "approve", {"column": "Coding"}).code, 409)
+        self.lock("refine-9", 26)
+        young("Spec Review")
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 423)
+        self.assertEqual((self.edits(), self.gh("patches")), ([], ""))
+
+    def test_the_factory_is_woken_for_the_columns_it_acts_on(self):
+        "a move into Ready for Refinement, Ready for Dev, Ready for Prod or Coding wakes the dispatcher once; Inbox does not"
+        self.wake_with("bash", self.wake_script)
+        self.items((9, "👤 Spec Review"), (10, "👤 Staged"), (11, "👤 Inbox"), (12, "👤 Ready for Refinement"), (13, "👤 Staged"))
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 200)
+        self.assertTrue(self.wakes(1), "Ready for Dev")
+        self.assertEqual(self.card_post(10, "approve", {"column": "Staged"}).code, 200)
+        self.assertTrue(self.wakes(2), "Ready for Prod")
+        self.assertEqual(self.card_post(13, "request-changes", {"column": "Staged", "text": "no"}).code, 200)
+        self.assertTrue(self.wakes(3), "Coding")
+        self.assertEqual(self.move(11, "Inbox", "Ready for Refinement").code, 200)
+        self.assertTrue(self.wakes(4), "Ready for Refinement")
+        self.assertEqual(self.move(12, "Ready for Refinement", "Inbox").code, 200)
+        self.assertTrue(self.wakes(4), "Inbox: the factory ignores it, no wake")
+        self.assertEqual(self.move(12, "Inbox", "Done").code, 403)
+        self.assertTrue(self.wakes(4), "a refused move wakes nothing")
+
+    def test_take_back_send_back_unblock_and_accept_wake_when_the_factory_acts(self):
+        "an unblock, a send-back and a take-back to a column the factory works wake it; a take-back to the Inbox does not"
+        self.wake_with("bash", self.wake_script)
+        self.items((9, "🤖 Coding"))
+        self.gh("labels-9", "blocked\n")
+        self.assertEqual(self.card_post(9, "take-back", {"to": "Inbox"}).code, 200)
+        self.assertTrue(self.wakes(0), "Inbox")
+        self.items((9, "🤖 Coding")); self.gh("labels-9", "blocked\n")
+        self.assertEqual(self.card_post(9, "take-back", {"to": "Ready for Dev"}).code, 200)
+        self.assertTrue(self.wakes(1), "Ready for Dev")
+        self.assertEqual(self.card_post(7, "unblock", {}).code, 200)
+        self.assertTrue(self.wakes(2), "unblock")
+
+    def test_a_failing_wake_does_not_fail_the_move(self):
+        "a wake command that does not exist, or a file with nothing in it, leaves the move a 200"
+        self.items((9, "👤 Spec Review"), (10, "👤 Staged"))
+        self.wake_with("/no/such/command", "x")
+        self.assertEqual(self.card_post(9, "approve", {"column": "Spec Review"}).code, 200)
+        self.wake_with()
+        self.assertEqual(self.card_post(10, "approve", {"column": "Staged"}).code, 200)
+        self.assertEqual(self.server_errors(), [])
+
+    def test_a_move_is_quick_when_gh_is_slow(self):
+        "with every gh call taking 300 ms an approve costs the lock's read and one PATCH, not the five calls of before"
+        self.items((9, "👤 Spec Review"), (10, "👤 Staged"))
+        os.environ["FAKE_GH_DELAY"] = "0.3"
+        self.addCleanup(os.environ.pop, "FAKE_GH_DELAY", None)
+        self.card_post(9, "approve", {"column": "Spec Review"})  # the first click reads the board and the ids
+        t0 = time.time()
+        r = self.card_post(10, "approve", {"column": "Staged"})
+        self.assertEqual(r.code, 200)
+        self.assertLess(time.time() - t0, 1.5, r.json["timing"])

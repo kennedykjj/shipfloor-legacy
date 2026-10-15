@@ -83,6 +83,10 @@ $gqlhits"
 [ -z "$gqlhits" ] && pass "#189 AC-3 the scan finds no forbidden command (file:line reported otherwise)" || fail "#189 AC-3 forbidden command at file:line:
 $gqlhits"
 
+# The skills tell the agent to use `gh api repos/...` (#189): a headless run has nobody to approve it, so the project's allowlist must let it
+# through, or validate ends with the card stopped (no-report) and the dispatcher idle
+grep -q '"Bash(gh api repos/\*)"' "$root/.claude/settings.json" && pass "#189 the allowlist lets a run call gh api repos/..." || fail "#189 .claude/settings.json does not allow gh api repos/*: validate and refine stop at the first REST call"
+
 # #189 AC-2: the skills that did those operations spell out the REST form (or name the factory script)
 refine="$(cat "$root/skills/refine/SKILL.md")"; validate="$(cat "$root/skills/validate/SKILL.md")"
 needs() { # <label> <text> <needle>

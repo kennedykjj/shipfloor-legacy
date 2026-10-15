@@ -7,7 +7,7 @@ import os
 import re
 import stat
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import dashboard_support as ds
 from dashboard_support import ast, cmd, slash
@@ -65,6 +65,20 @@ class Card(Views):
         s = self.overview()["projects"][0]["skipped"]
         self.assertEqual(s["since"], "2026-10-09T20:06:50-03:00")
         self.assertTrue(s["reason"].startswith("cannot bring the control checkout"))
+
+    def test_shipped_today(self):
+        "#182: the overview lists per project the cards that reached Done today, newest first, with their last PR and cost estimate; yesterday's and cards still before Done are left out"
+        clear_of_midnight(120)
+        now = datetime.now().astimezone()
+        at = lambda minutes: (now - timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        self.board({30: "Done", 31: "Done", 32: "Done", 33: "Staged"})
+        for n, ago in ((30, 20), (31, 10), (32, 24 * 60 + 10), (33, 5)):
+            day = (now - timedelta(minutes=ago)).strftime("%Y-%m-%d")
+            self.log("%s-%d-deploy.log" % (day, n), "== start /sf:deploy %d %s pid=1\n== end /sf:deploy %d exit=0 %s\n" % (n, at(ago + 5), n, at(ago)))
+        self.write("shome/projects/shop/reports-wt/reports/30-a/deploy-%sT100000.json" % now.strftime("%Y-%m-%d"), '{"outcome":"done","pr":66}\n')
+        shipped = self.overview()["projects"][0]["shipped"]
+        self.assertEqual([(s["issue"], s["pr"], s["at"]) for s in shipped], [(31, None, at(10)), (30, 66, at(20))])
+        self.assertEqual(sorted(shipped[0]), ["at", "cost", "issue", "pr", "title"])
 
     def test_live_step(self):
         "a live run tells its step, as its place among the stage's steps, and the last things its session did"
@@ -396,6 +410,96 @@ class History(Views):
         self.assertEqual((d["totals"]["unpriced"], d["empty"]), (1, False))
         d = self.h("from=%s&to=%s" % (D20, D20))
         self.assertEqual((d["runs"][0]["cost"], d["buckets"][10]["unpriced"]), (None, 1))
+
+
+class FactoryDay(Views):
+    """#261 AC-1: GET /api/factory-day/<p>?date=: one day's cycles (health), runs (run logs) and merged PRs (GitHub REST)"""
+
+    def setUp(self):
+        super().setUp()
+        d = lambda n: (datetime.now() - timedelta(days=n)).date()
+        self.D, self.E, self.F = d(3), d(4), d(5)  # the asked day, the day before it, the one before that
+        at = lambda day, hms: datetime.fromisoformat("%sT%s" % (day, hms)).astimezone().isoformat(timespec="seconds")
+        self.at = at
+
+        def cycle(day, hms, running, **flags):
+            r = dict(zip(("refine", "develop", "validate", "deploy"), running))
+            return json.dumps({"ts": at(day, hms), "cycle": {"s": 7, "exit": 0, "overlap": False}, "paused": False, "usage_limited": False,
+                               "github_limited": False, "pool": {"size": 6, "used": sum(running)}, "idle": [], "over": [],
+                               "stages": {k: {"slots": 2, "running": v} for k, v in r.items()}, **flags})
+        lines = {self.E: [cycle(self.E, "23:50:00", (1, 0, 0, 0))],
+                 self.D: [cycle(self.D, "00:10:00", (0, 1, 0, 0)), "{not json", cycle(self.D, "09:00:00", (1, 2, 1, 0), github_limited=True),
+                          cycle(self.D, "15:30:00", (0, 1, 1, 1), usage_limited=True)]}
+        by_month = {}
+        for day, rows in sorted(lines.items()):
+            by_month.setdefault(day.strftime("%Y-%m"), []).extend(rows)
+        for month, rows in by_month.items():
+            self.write("shome/logs/health-%s.jsonl" % month, "\n".join(rows) + "\n")
+        run = lambda day, n, stage, a, b, rc: "== start /sf:%s %d %s pid=1\n== end /sf:%s %d exit=%d %s\n" % (stage, n, at(*a), stage, n, rc, at(*b))
+        self.log("%s-7-develop.log" % self.D, run(self.D, 7, "develop", (self.D, "08:00:00"), (self.D, "08:10:00"), 0))
+        self.log("%s-8-refine.log" % self.D, run(self.D, 8, "refine", (self.D, "09:00:00"), (self.D, "09:05:00"), 1))
+        self.log("%s-9-validate.log" % self.E, run(self.E, 9, "validate", (self.E, "23:50:00"), (self.D, "00:20:00"), 0))  # crosses midnight into D
+        self.log("%s-10-deploy.log" % self.E, run(self.E, 10, "deploy", (self.E, "10:00:00"), (self.E, "10:05:00"), 0))  # only E
+        self.log("%s-11-refine.log" % self.F, run(self.F, 11, "refine", (self.F, "10:00:00"), (self.F, "10:05:00"), 0))  # neither
+        utc = lambda day, hms: datetime.fromisoformat("%sT%s" % (day, hms)).astimezone().astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.prs = [{"number": 41, "title": "feat: sync", "merged_at": utc(self.D, "10:00:00")},
+                    {"number": 42, "title": "fix(api): retry", "merged_at": utc(self.D, "16:00:00")},
+                    {"number": 43, "title": "chore: not merged", "merged_at": None},
+                    {"number": 40, "title": "docs: yesterday", "merged_at": utc(self.E, "12:00:00")}]
+        self.gh_stub = self.write("gh-stub", "#!/usr/bin/env bash\n[[ \"$*\" == *pulls* && \"$*\" == *page=1* ]] && cat <<'EOF'\n%s\nEOF\n[[ \"$*\" == *pulls* ]] && [[ \"$*\" != *page=1* ]] && echo '[]'\nexit 0\n"
+                                  % json.dumps(self.prs))
+        os.chmod(self.gh_stub, os.stat(self.gh_stub).st_mode | stat.S_IXUSR)
+        os.environ["FACTORY_GH"] = self.gh_stub
+        self.fresh()
+
+    def day(self, d):
+        return self.get("/api/factory-day/shop?date=%s" % d)
+
+    def test_ac1_the_day_has_its_cycles_runs_and_merged_prs_only(self):
+        "AC-1 the asked day's cycles, runs (the one that crossed midnight cut in, other days out) and merged PRs; no token, no answer"
+        r = self.day(self.D)
+        self.assertEqual(r.code, 200)
+        b = r.json
+        self.assertEqual((b["date"], b["present"]), (str(self.D), False))
+        self.assertEqual([c["ts"] for c in b["cycles"]], [self.at(self.D, h) for h in ("00:10:00", "09:00:00", "15:30:00")])  # the malformed line skipped
+        c = b["cycles"][1]
+        self.assertEqual((c["pool"], c["running"], c["github_limited"], c["usage_limited"], c["exit"], c["s"]),
+                         ({"used": 4, "size": 6}, {"refine": 1, "develop": 2, "validate": 1, "deploy": 0}, True, False, 0, 7))
+        self.assertEqual([(x["github_limited"], x["usage_limited"]) for x in b["cycles"]], [(False, False), (True, False), (False, True)])
+        self.assertEqual(sorted((x["issue"], x["stage"], x["exit"], x["running"]) for x in b["runs"]),
+                         [(7, "develop", 0, False), (8, "refine", 1, False), (9, "validate", 0, False)])
+        for k in ("title", "start", "end", "model", "log"):
+            self.assertIn(k, b["runs"][0])
+        self.assertEqual(sorted(p["number"] for p in b["prs"]), [41, 42])
+        self.assertEqual({p["number"]: p["kind"] for p in b["prs"]}, {41: "feat", 42: "fix"})
+        self.assertEqual(b["prs"][0].keys() >= {"number", "title", "merged_at", "kind"}, True)
+        self.assertIsNone(b["prs_error"])
+
+        e = self.day(self.E).json
+        self.assertEqual([x["ts"] for x in e["cycles"]], [self.at(self.E, "23:50:00")])
+        self.assertEqual(sorted(x["issue"] for x in e["runs"]), [9, 10])  # the midnight crosser shows on both days
+        self.assertEqual([p["number"] for p in e["prs"]], [40])
+        self.assertEqual(self.get("/api/factory-day/shop?date=%s" % self.D, token=False).code, 403)
+
+    def test_ac1_default_is_today_and_bad_requests_are_refused(self):
+        "AC-1 no date is today (present, now); a malformed or future date is 400, an unknown project 404"
+        b = self.get("/api/factory-day/shop").json
+        self.assertEqual((b["date"], b["present"]), (datetime.now().strftime("%Y-%m-%d"), True))
+        self.assertTrue(b["now"])
+        for q in ("date=12-10-2026", "date=x", "date=%s" % (datetime.now().date() + timedelta(days=1)), "date=2026-02-30"):
+            self.assertEqual(self.get("/api/factory-day/shop?" + q).code, 400, q)
+        self.assertEqual(self.get("/api/factory-day/nope").code, 404)
+        self.assertEqual(self.get("/api/factory-day/shop", token=False).code, 403)
+
+    def test_ac1_a_failing_github_leaves_the_rest_of_the_day(self):
+        "AC-1 when gh fails the day still answers its cycles and runs, with prs empty and prs_error the reason"
+        bad = self.write("gh-fail", "#!/usr/bin/env bash\necho 'rate limited' >&2\nexit 1\n")
+        os.chmod(bad, os.stat(bad).st_mode | stat.S_IXUSR)
+        os.environ["FACTORY_GH"] = bad
+        self.fresh()
+        b = self.day(self.D).json
+        self.assertEqual((len(b["cycles"]), len(b["runs"]), b["prs"]), (3, 3, []))
+        self.assertTrue(b["prs_error"])
 
 
 class Shell(ds.support.Case):

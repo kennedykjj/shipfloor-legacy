@@ -354,6 +354,48 @@ def source_state(src):
     return st
 
 
+def _generate_codex_home(src, inst, home, bad):
+    """The factory's CODEX_HOME, when a runtime of the machine or of a project is codex (runtimes/codex_gen.py)."""
+    from runtimes import codex, codex_gen
+    import shipfloor_config
+    try:
+        import yaml
+        with open(os.path.join(home, "config.yml"), encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+    except (OSError, ValueError, ImportError):
+        raw = None
+    except Exception:  # YAML that does not parse: doctor and validate say so
+        raw = None
+    models = shipfloor_config.runtime_setting(raw, None, "models") or {}
+    agents = models.get("agents") if isinstance(models, dict) and isinstance(models.get("agents"), dict) else {}
+    try:
+        n = codex_gen.generate(src, codex.data_dir(), inst, agents)
+    except (OSError, ValueError) as e:
+        bad("CODEX_HOME (%s)" % (getattr(e, "strerror", None) or e))
+        return
+    _out("codex: CODEX_HOME %s: %d file%s written" % (codex.data_dir(), n, "" if n == 1 else "s"))
+
+
+def _generate_opencode_home(src, home, bad):
+    """The factory's OPENCODE_CONFIG_DIR, when a runtime of the machine or of a project is opencode (runtimes/opencode_gen.py)."""
+    from runtimes import opencode, opencode_gen
+    import shipfloor_config
+    try:
+        import yaml
+        with open(os.path.join(home, "config.yml"), encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+    except Exception:  # missing, or YAML that does not parse: doctor and validate say so
+        raw = None
+    models = shipfloor_config.runtime_setting(raw, None, "models") or {}
+    agents = models.get("agents") if isinstance(models, dict) and isinstance(models.get("agents"), dict) else {}
+    try:
+        n = opencode_gen.generate(src, opencode.data_dir(), agents)
+    except (OSError, ValueError) as e:
+        bad("OPENCODE_CONFIG_DIR (%s)" % (getattr(e, "strerror", None) or e))
+        return
+    _out("opencode: OPENCODE_CONFIG_DIR %s: %d file%s written" % (opencode.data_dir(), n, "" if n == 1 else "s"))
+
+
 def cmd_install(args):
     src, force, kind = source_dir(), False, "verified"
     for a in args:
@@ -450,6 +492,10 @@ def cmd_install(args):
         # by rename too: other commands read it while an install runs
         if _put_text((src + "\n").encode("utf-8", "surrogateescape"), os.path.join(inst, ".source")) == "failed":
             bad(".source")
+    if counts["bad"] == 0 and "codex" in _runtimes_in_use():
+        _generate_codex_home(src, inst, home, bad)
+    if counts["bad"] == 0 and "opencode" in _runtimes_in_use():
+        _generate_opencode_home(src, home, bad)
     _out("installed %s → %s: %d replaced, %d added, %d removed" % (src, inst, counts["replaced"], counts["added"],
                                                                   counts["removed"]))
     if re.match(r"(MINGW|MSYS|CYGWIN)", proc.uname_s()):
@@ -632,6 +678,15 @@ def _runtimes_in_use():
     return found or [runtimes.NAMES[0]]
 
 
+def _pace_words(pace):
+    """'every 30 seconds' stays; 'every 180 seconds' reads 'every 3 minutes', 'every 60 seconds' 'every 1 minute'."""
+    m = re.fullmatch(r"every (\d+) seconds", pace)
+    if not m or int(m.group(1)) < 60 or int(m.group(1)) % 60:
+        return pace
+    n = int(m.group(1)) // 60
+    return "every %d minute%s" % (n, "" if n == 1 else "s")
+
+
 def cmd_doctor(args):
     bad, agents, warned = 0, [], False
     for t in ("git", "gh"):
@@ -641,11 +696,13 @@ def cmd_doctor(args):
             _out("FAIL %s not found" % t)
             bad = 1
     for name in _runtimes_in_use():
-        for found, line in runtimes.get(name).doctor():
-            if found:
+        for found, line, *failed in runtimes.get(name).doctor():  # a runtime may say its own FAIL text
+            if found == "WARN":
+                _out("WARN " + line)
+            elif found:
                 _out("ok   " + line)
             else:
-                _out("FAIL %s not found" % line)
+                _out("FAIL " + (failed[0] if failed else "%s not found" % line))
                 bad = 1
     try:
         import yaml  # noqa: F401  (the factory's Python is the one running this)
@@ -682,6 +739,9 @@ def cmd_doctor(args):
         got = rows[1][len("limits: "):] if len(rows) > 1 and rows[1].startswith("limits: ") else ""
         if got:
             _out("ok   dispatcher limits: " + _limits_hint(src, home, got))
+        pace = next((r[len("pace: "):] for r in rows if r.startswith("pace: ")), "")
+        if pace:
+            _out("ok   dispatcher pace: " + _pace_words(pace))
     elif dst == 1:
         _out("WARN no dispatcher registered; run: bash %s/installer/install-dispatcher.sh" % src)
     if os.path.isdir(inst):
@@ -729,6 +789,23 @@ def cmd_doctor(args):
         if line:
             _out("WARN models: " + line)
             warned = True
+    # models.stages is Claude Code's: set for a stage that runs on another runtime, it does nothing
+    seen = set()
+    cfgs = [""]
+    if os.path.isfile(reg) and os.path.getsize(reg) > 0:
+        for row in _rows():
+            slug, repo, wt, main = text.read_tab(row, 4)
+            if slug:
+                with _ProjectEnv(slug, repo, wt, main):
+                    cfg = os.environ.get("FACTORY_CONFIG", "")
+                    cfgs.append(proc.native_path(cfg) if cfg and os.path.isfile(cfg) else "")
+    for cfg in cfgs:
+        r = project.machine("models-stages-check", *([cfg] if cfg else []))
+        for line in _t(r.stdout).replace("\r", "").split("\n"):
+            if line and line not in seen:
+                seen.add(line)
+                _out("WARN models: " + line)
+                warned = True
     if not warned:
         _out("ok   models")
     return bad
@@ -972,7 +1049,7 @@ def cmd_accept(args):
     if not qa:
         die('no QA commit ("acceptance tests for #%s") on %s' % (n, _git("-C", wt, "rev-parse", "--abbrev-ref", "HEAD")[1]))
     accepted = os.path.join(home, "accepted.tsv")
-    took = False
+    todo = []
     # every QA commit's files, each with the newest QA commit that wrote it: acceptance-intact guards them all, so a
     # file only an earlier QA round wrote (and a merge from main later deleted or rewrote) must be acceptable too
     qas = _git("-C", wt, "log", "--format=%H", "-E", "--grep", "acceptance tests for #%s([^0-9]|$)" % n, "HEAD")[1].split() or [qa]
@@ -996,15 +1073,46 @@ def cmd_accept(args):
             continue  # already accepted as it stands
         if _git("-C", wt, "status", "--porcelain", "--", f)[1]:
             die("%s has uncommitted changes in %s" % (f, wt))
-        when = datetime.now().astimezone().isoformat(timespec="seconds")
-        clean = reason.replace("\t", " ").replace("\r", " ").replace("\n", " ")
+        todo.append((f, key, blob, qa))
+    # all or nothing: every file was checked before the first line is written
+    when = datetime.now().astimezone().isoformat(timespec="seconds")
+    clean = reason.replace("\t", " ").replace("\r", " ").replace("\n", " ")
+    for f, key, blob, _qa in todo:
         with open(accepted, "a", encoding="utf-8", errors="surrogateescape", newline="\n") as out:
             out.write("%s\t%s\t#%s\t%s\t%s\n" % (f, key, n, when, clean))
         _out("accepted the deletion of %s" % f if blob == "deleted" else "accepted %s at %s" % (f, blob[:12]))
-        took = True
-    if not took:
+    if not todo:
         _out("nothing to accept: acceptance-intact already passes for card %s" % n)
+        return 0
+    lines = ["**shipfloor accept** — card #%s" % n, ""]
+    lines += ["- `%s` → `%s` (QA `%s`)" % (f, key, q[:12]) for f, key, _blob, q in todo]
+    lines += ["", "Reason: %s" % clean, "Date: %s" % when, ""]
+    problem = _post_accept_comment(n, "\n".join(lines))
+    if problem:
+        _err("accepted locally; the copy on issue #%s was not posted: %s" % (n, problem))
     return 0
+
+
+def _post_accept_comment(n, body):
+    """Posts the accept record on issue <n> through the REST API (not GraphQL); the reason it failed, or ''."""
+    repo = _cfg_value("get", "project.repo")[1]
+    if not repo:
+        return "project.repo is not set"
+    fd, path = tempfile.mkstemp(suffix=".md")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        try:
+            rc, out = _run(proc.gh_argv("api", "-X", "POST", "repos/%s/issues/%s/comments" % (repo, n), "-F", "body=@" + path),
+                           out=DEVNULL)
+        except OSError as e:
+            return str(e)
+        return "" if rc == 0 else "gh exited %s" % rc
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
 
 
 def _with_weight(lines, line):

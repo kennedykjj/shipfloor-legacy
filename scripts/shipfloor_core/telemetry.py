@@ -20,10 +20,24 @@ BASH_KINDS = (("gate", re.compile(r"\bgate\.sh\b")), ("board", re.compile(r"\bbo
               ("gh", re.compile(r"(^|[\s;&|(`$])gh\s")))
 # The Claude usage limit, as the run log's readers look for it (dispatch.usage_limited, cycle, the dashboard). In
 # stream-json it may come in an event whose text the log does not get (an assistant turn before the last, a system
-# event): seen anywhere in the stream, it is written to the log once, so those readers keep pausing the factory.
+# event): seen in the CLI's own events, it is written to the log once, so those readers keep pausing the factory.
 USAGE_LIMIT = b"hit your session limit"
 TOKENS = (("input", "input_tokens"), ("output", "output_tokens"), ("cache_read", "cache_read_input_tokens"),
           ("cache_creation", "cache_creation_input_tokens"))
+
+
+def _limit_in(ev, stripped):
+    """Whether the event says the usage limit itself. Content the agent read or wrote (a tool result, a tool call's
+    input) is not the CLI speaking: a run that reads a test or a doc quoting the message is not a run that hit it."""
+    kind = ev.get("type")
+    if kind == "user":
+        return False
+    if kind == "assistant":
+        content = (ev.get("message") or {}).get("content")
+        if isinstance(content, list):
+            text = "\n".join(b.get("text") or "" for b in content if isinstance(b, dict) and b.get("type") == "text")
+            return USAGE_LIMIT.decode() in text
+    return USAGE_LIMIT in stripped
 
 
 def events_path(log):
@@ -60,6 +74,8 @@ class Run:
 
     def feed(self, raw, at=None):
         """One stdout line: the bytes for the run log now (b"" for none)."""
+        if self.meta.get("raw"):  # a runtime whose stream is not Claude's: the log keeps it as it comes
+            return raw
         at = self.clock() if at is None else at
         stripped = raw.strip()
         if not stripped.startswith(b"{"):
@@ -88,7 +104,7 @@ class Run:
                 out = (text.rstrip("\n") + "\n").encode("utf-8", "surrogateescape")
         if USAGE_LIMIT in out:
             self.limit_logged = True
-        elif USAGE_LIMIT in stripped and not self.limit_logged:
+        elif not self.limit_logged and _limit_in(ev, stripped):
             self.limit_logged = True
             out += b"claude: " + USAGE_LIMIT + b" (from the agent's stream)\n"
         return out
@@ -168,7 +184,7 @@ def _append_line(path, obj):
         pass
 
 
-def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None):
+def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None, stopped=None):
     """Start the agent with `prompt` on stdin, its stdout read as a stream into `log` (see the module's docstring),
     its stderr straight to `log`. The agent's exit code (128 - signal for a signal, 127 when it cannot start, with the
     shell's line in the log), as `dispatch._run` gives it."""
@@ -186,7 +202,7 @@ def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None):
         events = None
         run = Run(meta)
         for raw in iter(p.stdout.readline, b""):
-            if run.events_file is None and events is None and raw.lstrip().startswith(b"{"):
+            if run.events_file is None and events is None and not meta.get("raw") and raw.lstrip().startswith(b"{"):
                 try:
                     events = run.events_file = open(events_path(log), "a", encoding="utf-8")
                 except OSError:
@@ -210,5 +226,11 @@ def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None):
         if iso:
             meta = dict(meta, end=iso())
             run.meta = meta
-        _append_line(runs, run.summary(rc))
+        row = run.summary(rc)
+        if stopped:  # why the run did not do its stage ("" = it did; None = not judged)
+            try:
+                row["stopped"] = stopped(rc) or ""
+            except Exception:
+                row["stopped"] = ""
+        _append_line(runs, row)
     return rc

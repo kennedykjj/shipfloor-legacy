@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+from unittest import mock
 
 import dashboard_support as ds
 
@@ -390,6 +391,24 @@ class Models(Settings):
         self.assertEqual(save({"stages": {"deploy": {"light": "gpt"}}}).code, 400)
         self.assertEqual(self.config_text(), before)
 
+    def test_codex_stage_takes_any_model_name(self):
+        "#150: a stage on a runtime with no model list is free text: priced by its exact name, saved under runtime.models, claude-code stages unchanged"
+        self.write("shome/prices.yml", self.PRICES + "gpt-5-codex: {input: 1.25, output: 10.00, cache_read: 0.125}\n")
+        self.config("pool: 6\nruntime:\n  default: claude-code\n  stages: {develop: codex}\n")
+        m = self.models()["stages"]
+        self.assertEqual([(m[s]["runtime"], m[s]["free"]) for s in m], [("claude-code", False), ("codex", True), ("claude-code", False), ("claude-code", False)])
+        self.assertEqual((m["develop"]["default"], m["develop"]["value"]), ({"light": None, "standard": None, "heavy": None}, {"light": None, "standard": None, "heavy": None}))
+        self.assertEqual(self.machine({"models": {"stages": {"develop": {"heavy": "  gpt-5-codex "}, "validate": "opus"}}}).code, 200)
+        c = self.read_config()
+        self.assertEqual(c["runtime"], {"default": "claude-code", "stages": {"develop": "codex"}, "models": {"stages": {"develop": {"heavy": "gpt-5-codex"}}}})
+        self.assertEqual(c["models"], {"stages": {"validate": "opus"}}, "the model of a claude-code stage stays in models")
+        m = self.models()["stages"]["develop"]
+        self.assertEqual((m["value"]["heavy"], m["priced"]), ("gpt-5-codex", {"light": True, "standard": True, "heavy": True}), "priced by the exact name")
+        self.assertEqual(self.machine({"models": {"stages": {"develop": {"light": "gpt-no-price"}}}}).code, 200)
+        self.assertFalse(self.models()["stages"]["develop"]["priced"]["light"], "a name with no price is flagged, still saved")
+        self.assertEqual(self.machine({"models": {"stages": {"develop": {"light": None, "heavy": "   "}}}}).code, 200)
+        self.assertNotIn("models", self.read_config()["runtime"], "empty is the runtime's default: nothing is kept")
+
 
 class Dispatcher(Settings):
     def disp(self):
@@ -397,7 +416,7 @@ class Dispatcher(Settings):
 
     def test_pace(self):
         "the dispatcher's pace: 3 by default of 1, 3, 5, 10; a save re-registers the task with the minutes last and leaves a running cycle alone; 7 is refused before anything runs"
-        self.assertEqual((self.disp()["every_min"], self.disp()["choices"], self.disp()["can_set"], self.disp()["why"]), (3, [1, 3, 5, 10], True, None))
+        self.assertEqual((self.disp()["every_min"], self.disp()["choices"], self.disp()["can_set"], self.disp()["why"]), (3, [0.5, 1, 3, 5, 10], True, None))
         sleeper = subprocess.Popen(["sleep", "300"])
         self.addCleanup(sleeper.kill)
         self.write("shome/dispatch.pid", "%d\n" % sleeper.pid)
@@ -413,6 +432,18 @@ class Dispatcher(Settings):
         os.unlink(os.path.join(self.tmp, "sched.calls"))
         self.assertEqual(self.machine({"dispatcher": {"every_min": 7}}).code, 400)
         self.assertEqual(self.sched_calls(), "", "the scheduler is not called")
+
+    def test_pace_30_seconds(self):
+        "30 seconds is offered and saved as every_min 0.5, the scheduler told 0.5; the next cycle is 30 s after the last one started; Windows offers no 30 s"
+        self.assertEqual(self.machine({"dispatcher": {"every_min": 0.5}}).code, 200)
+        self.assertEqual(self.sched_calls().strip(), "0.5")
+        self.assertEqual((self.read_config()["dispatcher"]["every_min"], self.disp()["every_min"]), (0.5, 0.5))
+        self.write("shome/logs/health-2026-10.jsonl", '{"ts":"2026-10-11T10:00:10+00:00","cycle":{"s":10,"exit":0,"overlap":false},"paused":false,"idle":[],"over":[]}\n')
+        from datetime import datetime, timezone
+        n = self.settings()["cycle"].get("next_at")
+        self.assertEqual(datetime.fromisoformat(n).astimezone(timezone.utc).isoformat(), "2026-10-11T10:00:30+00:00")
+        with mock.patch.object(ds.server()[0].os, "name", "nt"):
+            self.assertEqual(ds.server()[0].dispatcher_choices(), [1, 3, 5, 10])
 
     def test_scheduler_fails(self):
         "a failing re-register is a 409 with the scheduler's last line; config.yml stays byte for byte (the other limits are not saved either)"
@@ -441,6 +472,58 @@ class Dispatcher(Settings):
         self.assertEqual((self.disp()["can_set"], bool(self.disp()["why"])), (False, True))
         self.assertEqual(self.machine({"dispatcher": {"every_min": 5}}).code, 409)
         self.assertEqual(self.config_text(), "pool: 6\n")
+
+
+class Registered(Settings):
+    """UI review M9: the pace Settings shows is the one the installed registration runs at (install-dispatcher.sh --status,
+    a stand-in here through SHIPFLOOR_INSTALLER_STATUS), Linux and macOS set it through the installer, the reasons are keys"""
+    def status(self, out, code=0):
+        f = self.write("status%d.sh" % len(os.listdir(self.tmp)), "#!/usr/bin/env bash\nprintf '%%s' '%s'\nexit %d\n" % (out, code))
+        os.environ["SHIPFLOOR_INSTALLER_STATUS"] = '"%s" "%s"' % (ds.BASH, f)
+
+    def disp(self):
+        return self.settings()["dispatcher"]
+
+    def test_the_pace_is_the_registrations(self):
+        "systemd runs every 30 s while config.yml says 10: Settings shows 30 s, the next cycle is 30 s on and the silence alarm counts 30 s; choosing 10 tells the installer even though config.yml has it"
+        self.config("dispatcher:\n  every_min: 10\n")
+        self.status("registered: systemd\nlimits: none\npace: every 30 seconds\n")
+        d = self.disp()
+        self.assertEqual((d["every_min"], d["configured"], d["registered"], 0.5 in d["choices"]), (0.5, 10, "systemd", True))
+        from datetime import datetime, timedelta, timezone
+        at = datetime.now(timezone.utc) - timedelta(minutes=4)
+        self.write("shome/logs/health-%s.jsonl" % at.strftime("%Y-%m"), json.dumps({"ts": at.isoformat(timespec="seconds"), "cycle": {"s": 10, "exit": 0, "overlap": False}, "idle": [], "over": []}) + "\n")
+        nxt = datetime.fromisoformat(self.settings()["cycle"]["next_at"])
+        self.assertAlmostEqual((nxt - at).total_seconds(), 20, delta=1.5, msg="the last cycle started 10 s before it ended, the next one 30 s after that start")
+        silent = self.overview()["silent"]
+        self.assertEqual((silent or {}).get("every"), 0.5, "4 min of silence at a 30 s pace is past the 3 min floor; at config.yml's 10 it would not be")
+        self.assertEqual(self.machine({"dispatcher": {"every_min": 10}}).code, 200)
+        self.assertEqual(self.sched_calls().strip(), "10", "config.yml already says 10, the registration does not: the installer is told")
+        self.status("registered: cron\nlimits: not supported (cron)\npace: every 180 seconds\n")
+        d = self.disp()
+        self.assertEqual((d["every_min"], d["choices"]), (3, [1, 3, 5, 10]), "cron has no 30 seconds")
+
+    def test_linux_sets_the_pace_through_the_installer(self):
+        "with no SHIPFLOOR_SCHEDULER, Linux and macOS re-register through install-dispatcher.sh --every-min, only one that is registered; nothing registered or no installer is a reason the page translates"
+        dash = ds.server()[0]
+        os.environ.pop("SHIPFLOOR_SCHEDULER")
+        with mock.patch.object(dash.os, "name", "posix"):
+            self.status("registered: systemd\nlimits: none\npace: every 180 seconds\n")
+            command, why = dash.scheduler()
+            self.assertEqual((command[1:], why), ([str(dash.installer_script()), "--every-min"], None))
+            self.assertTrue(self.disp()["can_set"])
+            self.status("not registered; register it with: bash x\n", 1)
+            d = self.disp()
+            self.assertEqual((d["can_set"], d["why_msg"]["key"]), (False, "disp.not_registered"))
+            self.config("pool: 6\n")
+            r = self.machine({"dispatcher": {"every_min": 5}})
+            self.assertEqual((r.code, [e.get("key") for e in r.json["errors"]]), (409, ["disp.not_registered"]))
+            self.assertEqual(self.config_text(), "pool: 6\n")
+            with mock.patch.object(dash, "installer_script", lambda: dash.Path(self.tmp) / "nope.sh"):
+                self.assertEqual(self.disp()["why_msg"]["key"], "disp.no_installer")
+        with mock.patch.object(dash.os, "name", "nt"):
+            os.environ["SHIPFLOOR_SCHEDULER"] = "none"
+            self.assertEqual(dash.scheduler()[1].key, "disp.no_task")
 
 
 class Language(Settings):

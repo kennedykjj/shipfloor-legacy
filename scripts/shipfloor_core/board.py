@@ -16,7 +16,7 @@ OWNER_ONLY_SOURCES = ("Spec Review", "Staged")
 COLUMNS = ("Inbox", "Ready for Refinement", "Technical Refinement", "Spec Review", "Ready for Dev", "Coding",
            "Validation", "Staged", "Ready for Prod", "Done")
 
-USAGE = ("usage: board.sh items|status <n>|count <status>...|first <status>|move <n> <status>|infra|"
+USAGE = ("usage: board.sh items|status <n>|count <status>...|first <status>|closed <status>|move <n> <status>|infra|"
          "label <n> add|remove <label>|issue <n>")
 
 # Column names carry an owner mark ("👤 Spec Review", "🤖 Coding"); scripts use the plain name (the C-locale rule of awk).
@@ -326,6 +326,25 @@ class Board:
                 out.append(r[0])
         return out
 
+    def closed(self, status):
+        """The column's cards whose issue is closed: a PR merged outside the deploy closes its issue and leaves the card
+        in the column. The state is read by REST, one card at a time; a read that fails fails the command."""
+        rows = self.raw_items()
+        if rows is None:
+            return 1
+        out = []
+        for r in rows:
+            if len(r) < 2 or r[1] != status:
+                continue
+            rc, state, err = _gh("api", "repos/%s/issues/%s" % (self.repo, r[0]), "--jq", ".state")
+            if rc != 0:
+                _err(err)
+                return 1
+            if state.strip() == "closed":
+                out.append(r[0])
+        _out("".join(n + "\n" for n in out))
+        return 0
+
     def eligible(self, status):
         out = self.eligible_list(status)
         if out is None:
@@ -489,6 +508,8 @@ def main(argv):
         return b.first(arg(0))
     if cmd == "eligible":
         return b.eligible(arg(0))
+    if cmd == "closed":
+        return b.closed(arg(0))
     if cmd == "move":
         if len(args) < 2:
             _msg(USAGE)

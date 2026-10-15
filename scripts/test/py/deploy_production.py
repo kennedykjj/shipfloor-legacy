@@ -73,6 +73,13 @@ class Production(DeployCase):
         self.reverted("no 'CI' run on main for " + self.fg("merged").strip())
         self.assertTrue(self.on_main("api/A.kt"))
 
+    def test_local_ci_skips_ci_on_main(self):
+        "deploy.local_ci set: no GitHub run to wait for on main, so ci_workflow is not asked about and the card ships"
+        self.dcfg("{ci_workflow: CI, local_ci: 'true'}")
+        self.run_deploy(7)
+        self.assert_shipped()
+        self.assertFalse(self.posted("run list"))
+
     def test_ci_never_finishes(self):
         "a CI run on main that does not finish: reverted"
         self.ci("in_progress ")

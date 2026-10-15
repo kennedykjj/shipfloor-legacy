@@ -65,8 +65,8 @@ class Scene(ds.Dash):
         p = self.ov["projects"][0]
         for c in p["cards"]:  # how long each card has been where it is: Inbox 13 the longest, 11 the shortest
             c["since"] = ago({11: 60, 12: 120, 13: 180, 21: 30, 22: 90, 50: 20, 51: 80}.get(c["issue"], 45))
-            if c["column"] == "Done":
-                c["since"] = today_ago({70: 5, 71: 10}[c["issue"]])
+            if c["column"] == "Done":  # deployed clean today: the server's done_at (#B2)
+                c["since"] = c["done_at"] = today_ago({70: 5, 71: 10}[c["issue"]])
         p["done_today"] = 2
         self.ov["today"]["cost"] = 1.36
 
@@ -200,6 +200,9 @@ class BeltRender(Scene):
         snap = bp.run([{"op": "read", "overview": ov}])["results"][0]
         want = {c["issue"]: c["column"] for c in mine["cards"]}
         self.assertEqual(len(want), 10)
+        self.assertEqual(sorted(n for n, col in want.items() if col == "Done"), [96, 101])
+        self.assertEqual(mine["done_today"], 0, "the demo's Done cards shipped days ago")
+        want = {n: col for n, col in want.items() if col != "Done"}  # Done shows only what was done today: those two are in the whole line
         only_one(self, snap, ["atlas/%d" % n for n in want], "AC-1 demo")
         segs, idx = segment_names(snap)
         for n, col in want.items():
@@ -222,11 +225,11 @@ class BeltRender(Scene):
             blob = " ".join(str(v) for t, _ in bp.walk(tok[n]) for v in list(t["attrs"].values()) + list(t["css"].values()))
             self.assertTrue(re.search(pct, blob), "AC-2 the bar of #%d is as wide as its step over its steps (%s): %s" % (n, pct, blob[:300]))
         self.assertEqual(bp.attr(tok[31], "title"), "#31 Title 31 · step 4 of 7")
-        for n in (50, 42):  # a gate card and a blocked card waiting for the owner look the same
-            self.assertTrue(all(re.search(ACCENT, lk[n][g]) for g in ("background", "border", "color")) and "dashed" not in lk[n]["border"], "waits for you (#%d): %s" % (n, lk[n]))
+        self.assertTrue(all(re.search(ACCENT, wait[g]) for g in ("background", "border", "color")) and "dashed" not in wait["border"], "waits for you (#50): %s" % wait)
+        self.assertTrue(all(re.search(r"--bad", lk[42][g]) for g in ("background", "border", "color")), "m3 a blocked card has its own look, in --bad: %s" % lk[42])
         self.assertTrue(re.search(r"gradient", infra["background"]) and all(re.search(r"warn", infra[g]) for g in ("background", "border", "color")), "blocked by infrastructure: %s" % infra)
         self.assertTrue(all(re.search(r"var\(--ok\)|\bok\b", done[g]) for g in ("background", "border", "color")), "done today: %s" % done)
-        self.assertEqual(len({str(sorted(v.items())) for v in (q, run, wait, infra, done)}), 5, "the five states look alike")
+        self.assertEqual(len({str(sorted(v.items())) for v in (q, run, wait, infra, done, lk[42])}), 6, "the six states look alike")
         for n in (11, 31, 40, 50, 41, 42, 70):
             self.assertIn("#%d" % n, bp.text(tok[n]), "a token shows its number")
 
@@ -330,14 +333,35 @@ class BeltRender(Scene):
         self.assertTrue(re.search(r"2px", ring.get("outline", "") + ring.get("outline-width", "")) and re.search(ACCENT, ring.get("outline", "") + ring.get("outline-color", "")),
                         "the focused token has a 2px accent outline: %s" % {k: v for k, v in ring.items() if "outline" in k})
 
-    def test_ac6_enter_and_click_open_the_drawer(self):
-        "AC-6: a click or Enter on a token opens that card's drawer by today's routing (a running card maximized on Live)"
-        r = bp.run([{"op": "read", "overview": self.ov}, {"op": "click", "key": KEY % 50}, {"op": "press", "key": "Enter", "on": KEY % 21},
-                    {"op": "click", "key": KEY % 31}, {"op": "press", "key": "Enter", "on": KEY % 11}])
-        opened = [s["S"]["open"] for s in r["results"][1:]]
-        self.assertEqual(opened, [KEY % 50, KEY % 21, KEY % 31, KEY % 11], "AC-6 S.open after a click on #50, Enter on #21, a click on #31, Enter on #11")
-        live = r["results"][3]["S"]
-        self.assertEqual((live["tab"], live["full"]), ("live", True), "a running card opens maximized on Live")
+    def test_ac6_enter_and_click_pick_the_card_in_the_work_area(self):
+        "AC-6: a click or Enter on a token picks that card in the work area (#182) and opens no drawer; the picked token clicked again lets it go"
+        tok = lambda n, **more: dict({"within": "cells", "sel": 'button[data-key="%s"]' % (KEY % n)}, **more)
+        r = bp.run([{"op": "readw", "overview": self.ov}, tok(50, op="clickx"), tok(21, op="keyx", key="Enter"), tok(31, op="clickx"), tok(31, op="clickx")])
+        self.assertEqual(r["errors"], [])
+        picked = [s["S"]["work"]["key"] for s in r["results"][1:]]
+        self.assertEqual(picked, [KEY % 50, KEY % 21, KEY % 31, None], "AC-6 the picked card after a click on #50, Enter on #21, a click on #31 and another on #31")
+        self.assertEqual([s["S"]["open"] for s in r["results"][1:]], [None] * 4, "no drawer opens")
+
+    def test_blocked_for_the_owner_can_be_sent_back_or_accepted(self):
+        "#182 AC-7: a card blocked for the owner offers send-back (and, at the acceptance-intact gate, accept) in the work area: both need the note and go at once"
+        card = {"project": "shop", "issue": 42, "title": "Title 42", "column": "Validation", "review": False, "sessions": [], "runs": [], "reports": [], "weight": "standard"}
+        decide = {"block": {"gate": "acceptance-intact", "kind": "gate"}}
+        tok = {"op": "clickx", "within": "cells", "sel": 'button[data-key="%s"]' % (KEY % 42)}
+        by = lambda text: {"op": "clickx", "within": "work", "text": text}
+        setup = [{"op": "route", "path": "/api/card/shop/42", "body": card}, {"op": "route", "path": "/api/decide/shop/42", "body": decide}, {"op": "readw", "overview": self.ov}, tok]
+        for label, action in (("Send back to Coding", "send-back"), ("Accept the tests and continue", "accept")):
+            r = bp.run(setup + [{"op": "typex", "within": "work", "sel": "#wk-bnote", "value": "the edits are right"}, by(label), {"op": "advancew", "ms": 4900},
+                                {"op": "advancew", "ms": 200}])
+            self.assertEqual(r["errors"], [])
+            shown, _typed, _held, early, sent = r["results"][3:]
+            labels = [bp.squash(bp.text(n)) for n, _ in bp.walk(shown["work"]) if n["tag"] == "button"]
+            self.assertIn("Send back to Coding", labels)
+            self.assertIn("Accept the tests and continue", labels)
+            posts = [p for p in sent["posts"] if p["path"].endswith("/42/" + action)]
+            self.assertEqual([p["body"] for p in posts], [{"column": "Validation", "text": "the edits are right", "move_only": False}], action)
+            self.assertEqual([p["path"] for p in sent["posts"]].count("/api/card/shop/42/" + action), 1, "left on the click, once")
+        empty = bp.run(setup + [{"op": "clickx", "within": "work", "text": "Send back to Coding"}, {"op": "advancew", "ms": 6000}])
+        self.assertEqual(empty["results"][-1]["posts"], [], "without the note nothing is sent")
 
 
 # ------------------------------------------------------------------------------------------------------ AC-3, AC-4, AC-7
