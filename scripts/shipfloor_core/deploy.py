@@ -875,7 +875,7 @@ class Deploy:
             check = _cap(self.r("rev-parse", "origin/" + self.MAIN))[1]
         failure = deploy_url = faillog = ""
         main = self.MAIN
-        if self.CI_WORKFLOW:
+        if self.CI_WORKFLOW and not self.LOCAL_CI:  # local_ci already judged the merged head; GitHub has no run to wait for
             run = ""
             for _ in range(10):
                 run = _cap(self.gh("run", "list", "--repo", self.REPO, "--branch", main, "--commit", check, "--workflow",
