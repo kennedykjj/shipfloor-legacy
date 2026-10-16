@@ -341,6 +341,14 @@ class QaAmend(AcceptCase):
             bad.append("acceptance_assertions is the keep regex: %r" % r)
         self.assertFalse(bad, "\n".join(bad))
 
+    def test_lost_assertion_message_says_the_label_does_not_cover_it(self):
+        "qa-amend: the lost-assertion block says qa-amend-ok does not lift it and points at the stub marker"
+        self.impl()
+        self.amend(edit=lambda t: t.replace("  assertTrue(ok())\n", ""))
+        r = self.expect(1, "qa-amend", "5")
+        self.assertIn("qa-amend-ok does not cover this", r.err)
+        self.assertIn("shipfloor:qa-stub", r.err)
+
     def test_comments_are_not_assertions(self):
         "qa-amend: a removed comment that says 'assertion' is no lost assertion line; a removed code assertion still is"
         self.impl()

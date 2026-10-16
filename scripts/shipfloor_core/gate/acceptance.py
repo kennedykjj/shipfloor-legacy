@@ -497,7 +497,8 @@ def qa_amend(ctx, args):
     lost, gained = _count(ctx, keep, removed), _count(ctx, keep, added)
     if lost.isdigit() and gained.isdigit() and int(gained) < int(lost):
         ctx.err("qa-amend: the amendment removes %s assertion lines and adds %s; an amended test may check differently, "
-                "not less" % (lost, gained))
+                "not less. The label qa-amend-ok does not cover this (it only allows one more amendment): put the assertion back, "
+                "or, if the removed file was only a stub for the red gate, mark it with %s" % (lost, gained, STUB_MARK))
         return 1
     suffix = ""
     if approval is not None:
