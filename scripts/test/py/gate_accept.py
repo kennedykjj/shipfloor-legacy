@@ -162,6 +162,21 @@ class Intact(AcceptCase):
         os.unlink("api/src/test/ATest.kt")
         self.intact(qa, 1)
 
+    def test_marked_stub_deleted(self):
+        "acceptance-intact: a QA stub that carries shipfloor:qa-stub is deleted by the implementer with no owner record; an unmarked one still blocks"
+        self.repo()
+        self.put("api/src/test/ATest.kt", "test\n")
+        self.put("api/src/test/RedStubs.kt", "// shipfloor:qa-stub: the implementer deletes this file\nclass Stub\n")
+        self.put("api/src/test/OtherStubs.kt", "class Other\n")
+        qa = self.commit("qa")
+        self.git("rm", "-q", "api/src/test/RedStubs.kt")
+        self.commit("the real class replaces the stub", add=False)
+        r = self.intact(qa, 0)
+        self.git("rm", "-q", "api/src/test/OtherStubs.kt")
+        self.commit("another stub goes", add=False)
+        self.assertIn("api/src/test/OtherStubs.kt", self.intact(qa, 1).err)
+        self.assertNotIn("RedStubs.kt", self.intact(qa, 1).err)
+
     def test_acceptance_assertions(self):
         "acceptance-intact: with acceptance_assertions an edit that moves no assertion line passes and says why; others block"
         self.repo()
@@ -325,6 +340,32 @@ class QaAmend(AcceptCase):
         if r:
             bad.append("acceptance_assertions is the keep regex: %r" % r)
         self.assertFalse(bad, "\n".join(bad))
+
+    def test_comments_are_not_assertions(self):
+        "qa-amend: a removed comment that says 'assertion' is no lost assertion line; a removed code assertion still is"
+        self.impl()
+        self.amend("// compile and fail by assertion: the implementer deletes this")
+        self.back()
+        self.amend(edit=lambda t: t + "// compile and fail by assertion\n")
+        self.git("commit", "-q", "--allow-empty", "-m", "test(x): acceptance tests for #5")
+        # the comment now sits in the QA history; removing it in the next amendment must not count as lost
+        self.back()
+        self.amend("// fail by assertion")
+        self.amend(edit=lambda t: t.replace("// fail by assertion\n", ""))
+        r = self.says(0, "qa-amend: ok, 0 assertion lines replaced by 0")
+        self.assertFalse(r, r)
+        self.back()
+        self.amend(edit=lambda t: t.replace("  assertTrue(ok())\n", ""))
+        self.assertFalse(self.says(1, "removes 1 assertion lines and adds 0"))
+
+    def test_marked_stub_removed_is_no_lost_test(self):
+        "qa-amend: deleting a file marked shipfloor:qa-stub loses no assertion line, whatever its text"
+        self.put("api/src/test/RedStubs.kt", "// shipfloor:qa-stub\nfun s() { assertTrue(stub()) }\n")
+        self.commit("test(x): acceptance tests for #5")
+        self.impl()
+        self.git("rm", "-q", "api/src/test/RedStubs.kt")
+        self.commit("test(x): acceptance tests for #5", add=False)
+        self.assertFalse(self.says(0, "qa-amend: ok"), "a marked stub deleted")
 
     def test_amended_baseline(self):
         "qa-amend: a passing amendment is the QA commit acceptance-intact protects from then on"

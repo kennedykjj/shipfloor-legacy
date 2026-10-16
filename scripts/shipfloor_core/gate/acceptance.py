@@ -18,6 +18,8 @@ from .scope import grep, _bad
 # it touches only tests, it loses no assertion line, it switches no test off, and a card is amended at most twice.
 SKIP_MARKS = r"\.(skip|only|fixme|todo)\(|@Disabled|@Ignore|\b(xit|xdescribe|xtest)\(|\bt\.Skip\(|pytest\.mark\.skip"
 KEEP_DEFAULT = r"assert|expect\(|verify\(|should"
+STUB_MARK = "shipfloor:qa-stub"  # in a file QA wrote only so the red gate compiles: the implementer deletes it
+_COMMENT = re.compile(r"^[+-][ \t]*(//|/\*|\*|#|--|<!--)")  # a diff line that is only a comment
 _NUMBER = re.compile(r"[0-9]+")
 _QA_SUBJECT = re.compile(r"acceptance tests for #([0-9]+)")
 _BLANK = re.compile(rb"[ \t\n\r\f\v]*")
@@ -33,6 +35,12 @@ def _lines(data):
     if parts and parts[-1] == b"":
         parts.pop()
     return parts
+
+
+def is_stub(ctx, rev, path):
+    """The file at rev carries STUB_MARK: QA's temporary stub for the red gate, not an acceptance test."""
+    r = _quiet("show", "%s:%s" % (rev, path))
+    return r.returncode == 0 and STUB_MARK.encode() in r.stdout
 
 
 def _quiet(*args):
@@ -263,7 +271,7 @@ def check_acceptance_intact(ctx, qa, keep=None):
         for c in qa_commits(ctx, n, qa):
             names += _names(ctx, "--diff-filter=d", c)
     files = [_text(f) for f in changes._sort_u(names)]
-    files = [f for f in files if f and _ok("cat-file", "-e", "%s:%s" % (qa, f))]
+    files = [f for f in files if f and _ok("cat-file", "-e", "%s:%s" % (qa, f)) and not is_stub(ctx, qa, f)]
     if not files:
         ctx.err("acceptance-intact: QA commit %s has no files" % qa)
         return 1
@@ -473,11 +481,15 @@ def qa_amend(ctx, args):
     for c in every:
         names += _names(ctx, c)
     paths = [_text(f) for f in changes._sort_u(names)]
-    diff = _lines(changes.git(ctx, "diff", "-U0", prev, new, "--", *paths))
+    paths = [f for f in paths if not is_stub(ctx, prev, f) and not is_stub(ctx, new, f)]  # a stub deleted is no test lost
+    diff = _lines(changes.git(ctx, "diff", "-U0", prev, new, "--", *paths)) if paths else []
     d = [_text(l) for l in diff if l[:1] in (b"+", b"-") and not (l.startswith(b"+++ ") or l.startswith(b"--- "))]
     added = [l for l in d if l.startswith("+")]
     removed = [l for l in d if l.startswith("-")]
     off = _bad(grep(ctx, SKIP_MARKS, added))
+    # a comment is not an assertion, whatever words it uses ("fail by assertion"): count code lines only
+    added = [l for l in added if not _COMMENT.match(l)]
+    removed = [l for l in removed if not _COMMENT.match(l)]
     if off:
         ctx.err("qa-amend: the amendment switches a test off:")
         ctx.err(off)
