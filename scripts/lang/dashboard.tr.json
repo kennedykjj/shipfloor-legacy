@@ -247,6 +247,7 @@
     "why.queued": "{stage} aşaması için kuyrukta",
     "stop.line": "Stopped {times} times in a row without doing its stage ({why}). The factory will not start it again until you move it.",
     "stop.why.no_report": "no report",
+    "stop.why.permission": "permission denied",
     "stop.why.owner_only": "the change is yours to make",
     "stop.what": "Move it to start again from there.",
     "dur.min": "{m} dk",

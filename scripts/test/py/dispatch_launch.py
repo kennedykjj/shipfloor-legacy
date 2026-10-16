@@ -655,6 +655,24 @@ class Stopped(Base):
         self.assertEqual([r["stopped"] for r in rows], ["no-report"])
         self.assertEqual(marks, [["develop", "no-report", "Ready for Dev"]])
 
+    def test_permission_denied_then_no_report(self):
+        "a run that had a command refused by the permission gate and wrote no report: stopped=permission and a mark; without a refusal it stays no-report"
+        os.makedirs(os.path.join(self.home, "reports-wt", "reports"))
+        denied = {"type": "system", "subtype": "permission_denied", "tool_name": "Bash", "tool_use_id": "t1",
+                  "message": "This command requires approval"}
+        end, rows, marks = self.run54(_use("t1", "Bash", command="gh api repos/a/b/pulls/1"), denied, dict(RESULT))
+        self.assertIn(" stopped=permission outcome=ok", end)
+        self.assertEqual([r["stopped"] for r in rows], ["permission"])
+        self.assertEqual(marks, [["develop", "permission", "Ready for Dev"]])
+
+    def test_permission_denied_with_a_report_is_work_done(self):
+        "a refusal in a run that still wrote its report (and did its stage) is not a stop"
+        self.report(54, "done")
+        denied = {"type": "system", "subtype": "permission_denied", "tool_name": "Bash", "tool_use_id": "t1",
+                  "message": "This command requires approval"}
+        end, rows, marks = self.run54(denied, dict(RESULT))
+        self.assertNotIn("stopped=", end)
+
     def test_no_reports_wt_claims_nothing(self):
         "without a reports-wt there is nothing to read: the end line is the one it always was"
         end, rows, marks = self.run54()

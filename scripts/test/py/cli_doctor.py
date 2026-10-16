@@ -363,6 +363,24 @@ class Doctor(CliCase):
         self.assertIn("WARN shop: main does not require up-to-date branches", out)
         self.assertIn("WARN installed copy has no recorded commit", out)
 
+    def test_settings_allow_pipeline_gh(self):
+        "doctor: a project whose .claude/settings.json does not allow the gh api reads the pipelines run is warned, with the fix"
+        self.shop()
+        control = os.path.join(self.h, "control")
+        self.assertTrue(os.path.exists(os.path.join(control, ".git")), "the fixture's control checkout")
+        out = self.doctor()
+        self.assertIn("WARN shop: .claude/settings.json does not allow: gh api repos/acme/shop/pulls/1, "
+                      "gh api repos/acme/shop/commits/abc/check-runs, gh api repos/acme/shop/issues/1/comments;", out)
+        self.assertIn("(add Bash(gh api repos/acme/shop/*))", out)
+        os.makedirs(os.path.join(control, ".claude"), exist_ok=True)
+        self.write_file(os.path.join(control, ".claude", "settings.json"),
+                        '{"permissions": {"allow": ["Bash(gh api repos/acme/shop/issues/*/comments*)"]}}')
+        out = self.doctor()
+        self.assertIn("does not allow: gh api repos/acme/shop/pulls/1, gh api repos/acme/shop/commits/abc/check-runs;", out)
+        self.write_file(os.path.join(control, ".claude", "settings.json"),
+                        '{"permissions": {"allow": ["Bash(gh api repos/acme/shop/*)"]}}')
+        self.assertNotIn(".claude/settings.json does not allow", self.doctor())
+
     def test_project_lines(self):
         "doctor names stale tmp dirs, a project the dispatcher skips, a control checkout behind origin/main, the language and its source"
         self.shop()

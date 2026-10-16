@@ -1979,7 +1979,7 @@ function paintRun(v) {
     <span class="wk-clock">${clock(run?.started, true)}</span><span class="wk-cost">${t("work.cost_est", { cost: money(c.cost) })} ${flag(c)}</span>${linkRow(c, ["log"])}`);
 }
 // A card the factory does not run now, in words: where it is, what it waits for, or what became of it.
-const STOP_WHY = { "no-report": "stop.why.no_report", "owner-only": "stop.why.owner_only" };
+const STOP_WHY = { "no-report": "stop.why.no_report", "owner-only": "stop.why.owner_only", "permission": "stop.why.permission" };
 const stopLine = (c) => t("stop.line", { times: c.stopped.times || 2, why: STOP_WHY[c.stopped.why] ? t(STOP_WHY[c.stopped.why]) : c.stopped.why || "" });
 function stateWords(v, c) {
   if (c.moving) return t("head.moving", { column: esc(colName(S.moving[c.key])) });

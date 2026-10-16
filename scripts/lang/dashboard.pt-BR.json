@@ -247,6 +247,7 @@
     "why.queued": "Na fila para {stage}",
     "stop.line": "Parou {times} vezes seguidas sem fazer o estágio ({why}). A fábrica não o inicia de novo até você mover o card.",
     "stop.why.no_report": "sem relatório",
+    "stop.why.permission": "permissão negada",
     "stop.why.owner_only": "a mudança é sua",
     "stop.what": "Mova o card para recomeçar dali.",
     "dur.min": "{m} min",

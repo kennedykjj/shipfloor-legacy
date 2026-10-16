@@ -7,6 +7,7 @@ still runs as a process with the same argv.
 """
 import fnmatch
 import glob
+import json
 import os
 import re
 import shutil
@@ -563,6 +564,40 @@ def _validate():
     return ok
 
 
+def _bash_allowed(allow, cmd):
+    """Claude's permission rules `Bash(<pattern>)` against one command: `prefix:*` is a prefix, otherwise a glob."""
+    for rule in allow:
+        m = re.fullmatch(r"Bash\((.*)\)", rule) if isinstance(rule, str) else None
+        if not m:
+            continue
+        pat = m.group(1)
+        if (pat.endswith(":*") and cmd.startswith(pat[:-2])) or fnmatch.fnmatchcase(cmd, pat):
+            return True
+    return False
+
+
+# what the pipelines run through gh that the project's .claude/settings.json has to allow: a refused command ends a
+# headless run with nothing done (no human to approve it)
+_PIPELINE_GH = ("gh api repos/{repo}/pulls/1 --jq .mergeable",
+                "gh api repos/{repo}/commits/abc/check-runs --jq .check_runs",
+                "gh api repos/{repo}/issues/1/comments -F body=@x")
+
+
+def _settings_check(slug, control, repo):
+    allow = []
+    for name in ("settings.json", "settings.local.json"):  # the runs read both (--setting-sources project,local)
+        try:
+            with open(os.path.join(control, ".claude", name), encoding="utf-8") as f:
+                allow += (json.load(f).get("permissions") or {}).get("allow") or []
+        except (OSError, ValueError, AttributeError, TypeError):
+            pass
+    cmds = [x.format(repo=repo) for x in _PIPELINE_GH]
+    missing = [c.split(" --")[0].split(" -F")[0] for c in cmds if not _bash_allowed(allow, c)]
+    if missing:
+        _out("WARN %s: .claude/settings.json does not allow: %s; headless runs stop on 'requires approval' "
+             "(add Bash(gh api repos/%s/*))" % (slug, ", ".join(missing), repo))
+
+
 def _doctor_project(slug):
     """What doctor says about one valid project, in its own settings (the Bash subshell)."""
     before = os.environ.get("FACTORY_LANGUAGE")
@@ -590,6 +625,8 @@ def _doctor_project(slug):
         _out("WARN %s: control checkout is behind origin/%s; the next dispatcher cycle should move it "
              "(see ~/.shipfloor/logs/dispatcher.log if it does not)" % (slug, main))
     repo, b = _cfg_value("get", "project.repo")[1], _cfg_value("get", "project.main")[1]
+    if os.path.exists(os.path.join(control, ".git")):
+        _settings_check(slug, control, repo)
     rc, out = _run(proc.gh_argv("api", "repos/%s/branches/%s/protection" % (repo, b), "--jq",
                                 ".required_status_checks.strict"), out=PIPE, err=STDOUT)
     strict = _t(out).rstrip("\n") if out or rc != 127 else "command not found"  # no gh: what Bash said, after its last ": "
