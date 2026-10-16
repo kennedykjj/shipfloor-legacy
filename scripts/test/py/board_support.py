@@ -77,7 +77,7 @@ class FakeGh:
             nodes = [{"id": "PVTI_" + n, "content": {"number": int(n)} if n != "draft" else {},
                       "status": {"name": s} if s else None} for n, s in chunk]
             items = {"nodes": nodes}
-            if "no-pageinfo" not in self.flags:
+            if "no-pageinfo" not in self.flags and "pageInfo" in q:  # GitHub sends only what the query asks for
                 items["pageInfo"] = {"hasNextPage": (page + 1) * size < len(self.items), "endCursor": "c%d" % (page + 1)}
             return emit(json.dumps({"data": {"repositoryOwner": {"projectV2": {"items": items}}}}, ensure_ascii=False))
         if argv[:2] == ["project", "view"]:
