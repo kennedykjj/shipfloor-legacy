@@ -29,7 +29,7 @@ _QUERY = ('query { repositoryOwner(login: "%(owner)s") { ... on ProjectV2Owner {
           '  id\n'
           '  content { ... on Issue { number } ... on PullRequest { number } }\n'
           '  status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }\n'
-          '} } } } } }')
+          '} pageInfo { hasNextPage endCursor } } } } } }')
 _ROWS_JQ = r'.data.repositoryOwner.projectV2.items.nodes[] | select(.content.number != null) | "\(.content.number)\t\(.status.name // "")\t\(.id)"'
 _PAGE_MARK = "@@page"
 _PAGE_JQ = r'.data.repositoryOwner.projectV2.items.pageInfo | "@@page\t\(.hasNextPage)\t\(.endCursor // "")"'

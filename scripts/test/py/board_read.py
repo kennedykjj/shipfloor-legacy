@@ -78,6 +78,14 @@ class GraphqlRead(BoardCase):
         self.assertEqual([l.split("\t")[1] for l in self.board("items").out.split("\n") if l], [strip(x) for x in sts])
         self.assertEqual(self.board("status", "2").out, "Coding\n")
 
+    def test_query_asks_for_pageinfo(self):
+        "the GraphQL query asks for pageInfo (GitHub sends only what is asked): a 150-card board is read whole by items, status, first and count"
+        self.scene([(str(i), "🤖 Coding") for i in range(1, 151)], flags=("rest-fail",))
+        self.assertEqual(len(self.board("items").out.split("\n")[:-1]), 150)
+        self.assertEqual(self.board("status", "150").out, "Coding\n")
+        self.assertEqual(self.board("count", "Coding").out, "150\n")
+        self.assertTrue(all("pageInfo" in " ".join(c) for c in self.gql()), "a query without pageInfo reads 100 cards at most")
+
     def test_no_pageinfo(self):
         "a GraphQL answer without pageInfo is one page: 100 of 101 cards are read, the 101st is not on the board"
         self.scene([(str(i), "🤖 Coding") for i in range(1, 102)], flags=("rest-fail", "no-pageinfo"))
