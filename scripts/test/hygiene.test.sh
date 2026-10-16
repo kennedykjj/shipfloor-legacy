@@ -103,6 +103,9 @@ needs "validate (checks)" "$validate" 'commits/<sha>/check-runs'
 needs "validate (checks)" "$validate" '.head.sha'
 needs "validate (PR/issue comment)" "$validate" 'issues/<n>/comments'
 needs "validate (issue read)" "$validate" 'board.sh issue'
+deploy="$(cat "$root/skills/deploy/SKILL.md")"
+needs "deploy (fix check)" "$deploy" 'gate.sh -C <worktrees>/<n> build <layer>'
+needs "deploy (fix check)" "$deploy" 'Never run the build tool yourself'
 
 # ---- #171 (PY-18): every script is a wrapper or a shim; the logic is the Python package
 # AC-1/AC-2: test/fixtures/wrapper-check.py reads scripts/*.sh, scripts/shipfloor and scripts/lib/*.sh of a root and
