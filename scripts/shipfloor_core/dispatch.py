@@ -49,7 +49,7 @@ GH_LIMIT = re.compile(r"API rate limit|secondary rate limit", re.I)
 # A run that stops for these without doing its stage leaves a mark (stopped/<n>); two in a row hold the card. A report
 # of `blocked` or `infra` is not here: the label it comes with (or the infra retry) already holds the card, and the
 # owner who takes the label off wants the card to run.
-HOLD_STOPS = ("owner-only", "no-report")
+HOLD_STOPS = ("owner-only", "no-report", "permission")
 
 
 class Exit(Exception):
@@ -251,7 +251,7 @@ def _stops(home, n):
     return out
 
 
-def stopped_run(spec, t0):
+def stopped_run(spec, t0, denied=0):
     """Why a finished run did not do its stage ("" = it did, or nothing says it did not). The run's report
     (reports-wt/reports/<n>-*/<stage>-<time>.json, written by report.sh) says it: outcome `blocked` or `infra` with no
     round done is an agent that stopped at its first steps (`owner-only` when its words say the change is the owner's);
@@ -269,8 +269,8 @@ def stopped_run(spec, t0):
             at = None
         if at is not None and at >= t0 - 5:
             found = f
-    if found is None:
-        return "no-report"
+    if found is None:  # `permission`: it ended without a report after the permission gate refused a command; a retry cannot fix that
+        return "permission" if denied else "no-report"
     try:
         with open(found, encoding="utf-8") as f:
             r = json.load(f)
@@ -1098,12 +1098,12 @@ def supervise(spec):
     env = _run_env(spec["envs"], control)
     t0, judged = time.time(), {}
 
-    def why(rc):
+    def why(rc, denied=0):
         """Why the agent stopped without doing its stage ("" = it did; None = not judged: it crashed, or hit the usage
         limit). Judged once, when the agent has ended."""
         if "r" not in judged:
             ok = rc == 0 and _outcome(spec, log, offset, rc) == "ok"
-            judged["r"] = stopped_run(spec, t0) if ok else None
+            judged["r"] = stopped_run(spec, t0, denied) if ok else None
         return judged["r"]
 
     def agent():

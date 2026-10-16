@@ -72,6 +72,7 @@ class Run:
         self.tools, self.bash = {}, {}
         self.wrote_text = False
         self.limit_logged = False
+        self.denied = 0  # tool calls the permission gate refused: no human is there to approve them
 
     def feed(self, raw, at=None):
         """One stdout line: the bytes for the run log now (b"" for none)."""
@@ -89,6 +90,8 @@ class Run:
         if not isinstance(ev, dict):
             return raw
         self.events += 1
+        if ev.get("type") == "system" and ev.get("subtype") == "permission_denied":
+            self.denied += 1
         self._record(ev, at)
         try:
             self._account(ev, at)
@@ -278,7 +281,7 @@ def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None, stopped=None):
         row = run.summary(rc)
         if stopped:  # why the run did not do its stage ("" = it did; None = not judged)
             try:
-                row["stopped"] = stopped(rc) or ""
+                row["stopped"] = stopped(rc, denied=run.denied) or ""
             except Exception:
                 row["stopped"] = ""
         _append_line(runs, row)
