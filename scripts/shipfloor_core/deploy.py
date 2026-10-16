@@ -728,13 +728,13 @@ class Deploy:
         self.say("local CI failed on %s (exit %d)" % (sha, rc))
         return 1
 
-    def wait_checks(self, sha, pushed):  # 0 green, 1 red (CI_STATES), 2 timed out
+    def wait_checks(self, sha, pushed):  # 0 green, 1 red (CI_STATES), 2 timed out, 3 the PR head is no longer sha
         # pushed: this run pushed sha just now (main merged in, a renumbered migration, a fix). Right after a push
         # GitHub lists only the workflows registered so far, and a late one (or one chained on another's end) can
         # appear after the first ones went green: such a head has to be seen green on two polls. A head this run did
         # not push (the approved head, or a merge of main pushed by an earlier run or by --refresh) has had its
         # workflows registered long ago: all green on the first poll merges at once, with no poll more and no sleep.
-        empty = settle = 0
+        empty = settle = moved = 0
         need = 2 if pushed else 1
         states = ""
         for _ in range(self.polls(1800)):
@@ -743,6 +743,12 @@ class Deploy:
             head, sep, states = out.partition(" ")
             if not sep:
                 states = ""
+            # somebody else pushed to the PR (a hand merge of main, a rebase): sha's checks will never be listed.
+            # Three polls in a row, so that GitHub's lag right after our own push is not taken for it.
+            moved = moved + 1 if _sha(head) and head != sha else 0
+            if moved >= 3:
+                self.say("the PR head is now %s, no longer %s" % (head, sha))
+                return 3
             if head == sha:
                 if not states:
                     empty += 1
@@ -829,6 +835,8 @@ class Deploy:
                 raise DeployExit(0)
             rc = self.local_ci(sha) if self.LOCAL_CI else self.wait_checks(sha, pushed)
             if rc != 0:
+                if rc == 3:
+                    self.retry_later("the PR head changed while waiting for CI")
                 if not merged:
                     self.block("CI failed on the PR (%s)" % sha)
                 if rc != 1:

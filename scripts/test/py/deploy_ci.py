@@ -192,21 +192,24 @@ class Push(DeployCase):
             self.assertEqual(self.polls(), want)
 
     def test_other_head(self):
-        "only polls on the right head count: another head's red or green is ignored, and alone it never passes"
+        "only polls on the right head count: another head's red or green is ignored for two polls (GitHub's lag after a push); three in a row mean the PR moved"
         bogus = "0" * 40
         self.gh_with('case "$*" in *statusCheckRollup*) c=$(cat "$FG/polls" 2>/dev/null || echo 0); echo $((c+1)) > '
                      '"$FG/polls"\n  if [ "$c" = 0 ]; then L "$*"; echo "%s api=FAILURE"; exit 0; fi\n'
-                     '  if [ "$c" -lt 3 ]; then L "$*"; echo "%s api=SUCCESS"; exit 0; fi ;; esac' % (bogus, bogus))
+                     '  if [ "$c" -lt 2 ]; then L "$*"; echo "%s api=SUCCESS"; exit 0; fi ;; esac' % (bogus, bogus))
         self.run_deploy(7)
         self.shipped()
-        self.assertEqual(self.polls(), 4)
+        self.assertEqual(self.polls(), 3)
         self.assertNotIn("checks failed on", self.out)
         self.setUp()
         self.gh_with('case "$*" in *statusCheckRollup*) L "$*"; echo "%s api=SUCCESS"; exit 0 ;; esac' % bogus)
-        self.run_deploy(7, env={"FACTORY_POLLS": "4"})
-        self.assert_blocked("CI failed on the PR (")
-        self.assertIn("checks did not finish", self.out)
-        self.assertEqual(self.polls(), 4)
+        self.run_deploy(7, env={"FACTORY_POLLS": "9"})
+        self.want(2)
+        self.assertIn("the PR head is now %s, no longer " % bogus, self.out)
+        self.assertIn("the PR head changed while waiting for CI; will retry", self.out)
+        self.assertEqual(self.polls(), 3, "it does not wait out the 30 minutes for a head that is gone")
+        self.assertNotEqual(self.status(), "Done")
+        self.assertFalse(self.posted("pr merge"), "nothing merged")
 
     def test_timeout_after_merge(self):
         "CI that does not finish after merging main goes to Coding: the merge recorded, nothing merged, no fix round"
