@@ -1012,10 +1012,14 @@ def cleanup_processes(wt_root, n):
          out=DEVNULL, err=DEVNULL, env=env)
 
 
+# gates that judge a rule, not the model's capability: a bigger model cannot get past them (the owner decides)
+RULE_GATES = ("acceptance-intact", "qa-amend")
+
+
 def step_up(spec, model, log):
     """A develop run that ended on a failed gate runs once more, one model up. The verdict is the gate's own
     (<lock>/last-gate), never the agent's report. INFRA is the infra retry's; a card that already stepped up, a top
-    model or one off the ladder fails as before: it stays blocked for the owner."""
+    model or one off the ladder fails as before: it stays blocked for the owner, as does one that ended on a rule gate."""
     n, home = spec["n"], spec["home"]
     marker = os.path.join(home, "stepup", n)
     if not model or os.path.exists(marker):
@@ -1024,7 +1028,7 @@ def step_up(spec, model, log):
     if first is None or not first[1]:  # read fails on a line with no newline
         return
     name, verdict = text.read_tab(first[0], 2)
-    if verdict != "FAIL":
+    if verdict != "FAIL" or name in RULE_GATES:
         return
     r = project.machine("model-up", model, spec.get("runtime") or "claude-code", spec.get("config") or "")
     up = _t(r.stdout).rstrip("\n")

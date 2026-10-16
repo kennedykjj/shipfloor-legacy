@@ -342,6 +342,16 @@ class StepUp(Base):
         self.cycle()
         self.assertIn("== step-up /sf:develop 54 haiku -> sonnet: gate build failed", self.log("develop", 54))
 
+    def test_no_step_up_on_rule_gates(self):
+        "no step-up when the failed gate is acceptance-intact or qa-amend: a bigger model cannot change a rule"
+        wrong = []
+        for gate in ("acceptance-intact", "qa-amend"):
+            self.set_fake(claude={"verdict": "FAIL", "gate": gate})
+            self.cycle()
+            if "== step-up" in self.log("develop", 54) or self.marker():
+                wrong.append(gate)
+        self.assertFalse(wrong, wrong)
+
     def test_no_step_up(self):
         "no step-up on the top model, off the ladder, for INFRA, a pass, no verdict, an agent that failed, or a validate run"
         cases = [("heavy card", {"verdict": "FAIL"}, None), ("off the ladder", {"verdict": "FAIL"}, "fable"),
