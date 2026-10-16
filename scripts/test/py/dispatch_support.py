@@ -93,7 +93,7 @@ exit 0
 # claude: one JSON line per call in <tmp>/claude.calls (argv, stdin, cwd, PWD, env, parent pid, where its own temp file
 # went); then what <tmp>/fake.json's "claude" says (per card under "cards"): print (or "stream": stream-json lines and
 # pauses, "stderr": a line there), write a gate verdict to the run's lock, hand the lock to another owner, take a stack
-# slot, leave files in tmp/<n>/, exit with a code.
+# slot, leave files in tmp/<n>/, hang after its output, exit with a code.
 CLAUDE = r'''
 import json, os, sys, tempfile, time
 fake = json.load(open(%(fake)r)) if os.path.exists(%(fake)r) else {}
@@ -118,6 +118,8 @@ if "stream" in c:  # stream-json: each item a line (an object as JSON, a string 
         print(c["stderr"], file=sys.stderr, flush=True)
 else:
     print(c.get("say", "claude says hi"), flush=True)
+if c.get("hang"):  # the final result is out and the process stays: a claude waiting for background work
+    time.sleep(c["hang"])
 if c.get("verdict"):
     open(os.path.join(lock, "last-gate"), "w").write("%%s\t%%s\n" %% (c.get("gate", "build"), c["verdict"]))
 if c.get("steal_lock"):

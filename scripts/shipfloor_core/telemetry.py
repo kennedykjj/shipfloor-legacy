@@ -13,6 +13,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
 
 PIPE = subprocess.PIPE
@@ -184,6 +185,47 @@ def _append_line(path, obj):
         pass
 
 
+class _ResultGuard:
+    """Stops an agent that printed its final result and then neither exits nor says anything: a headless claude
+    that keeps waiting for background work holds the run's lock (and the card) until the lock's TTL. It fires only
+    after `result`, with no tool call unfinished, and SHIPFLOOR_RESULT_GRACE_SEC (default 300; 0 = never) of silence;
+    any later event (a background agent waking the session for another turn) restarts the wait."""
+
+    def __init__(self, p, run, clock=time.time):
+        try:
+            self.grace = int(os.environ.get("SHIPFLOOR_RESULT_GRACE_SEC", "300"))
+        except ValueError:
+            self.grace = 300
+        self.p, self.run, self.clock = p, run, clock
+        self.last = clock()
+        self.fired = False
+        self._done = threading.Event()
+
+    def touch(self):
+        self.last = self.clock()
+
+    def start(self):
+        if self.grace > 0:
+            threading.Thread(target=self._watch, daemon=True).start()
+
+    def stop(self):
+        self._done.set()
+
+    def _watch(self):
+        step = min(1.0, self.grace / 4.0)
+        while not self._done.wait(step):
+            if self.run.result is None or self.run.pending or self.clock() - self.last < self.grace:
+                continue
+            self.fired = True
+            try:
+                self.p.terminate()
+                if not self._done.wait(10):
+                    self.p.kill()
+            except OSError:
+                pass
+            return
+
+
 def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None, stopped=None):
     """Start the agent with `prompt` on stdin, its stdout read as a stream into `log` (see the module's docstring),
     its stderr straight to `log`. The agent's exit code (128 - signal for a signal, 127 when it cannot start, with the
@@ -201,7 +243,10 @@ def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None, stopped=None):
             pass
         events = None
         run = Run(meta)
+        guard = _ResultGuard(p, run)
+        guard.start()
         for raw in iter(p.stdout.readline, b""):
+            guard.touch()
             if run.events_file is None and events is None and not meta.get("raw") and raw.lstrip().startswith(b"{"):
                 try:
                     events = run.events_file = open(events_path(log), "a", encoding="utf-8")
@@ -213,7 +258,11 @@ def run_agent(argv, log, cwd, env, prompt, meta, runs, iso=None, stopped=None):
                 f.flush()
         p.stdout.close()
         rc = p.wait()
+        guard.stop()
         rc = 128 - rc if rc < 0 else rc
+        if guard.fired:  # the run had finished its work and only the process stayed: its result decides
+            f.write(("== agent still alive %ds after its result; stopped\n" % guard.grace).encode("utf-8"))
+            rc = 1 if (run.result or {}).get("is_error") else 0
         tail = run.finish()
         if tail:
             f.write(tail)

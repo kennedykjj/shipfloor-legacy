@@ -481,6 +481,33 @@ class Telemetry(Base):
         self.assertEqual(log[1], "All done: #54 is in Validation.")
         self.assertRegex(log[2], r"^== end /sf:develop 54 exit=0 %s outcome=ok$" % ds.ISO)
 
+    def test_result_then_hang_is_stopped(self):
+        "an agent that printed its result and stays alive is stopped after SHIPFLOOR_RESULT_GRACE_SEC: the run ends ok, its lock goes"
+        os.environ["SHIPFLOOR_RESULT_GRACE_SEC"] = "1"
+        self.addCleanup(os.environ.pop, "SHIPFLOOR_RESULT_GRACE_SEC", None)
+        t0 = time.time()
+        log, _, runs = self.stream(RESULT, hang=60)
+        self.assertLess(time.time() - t0, 30, "the run waited for the hanging process")
+        self.assertEqual(log[1], "All done: #54 is in Validation.")
+        self.assertRegex(log[2], r"^== agent still alive 1s after its result; stopped$")
+        self.assertRegex(log[3], r"^== end /sf:develop 54 exit=0 %s outcome=ok$" % ds.ISO)
+        self.assertEqual(runs[0]["exit"], 0)
+        self.assertFalse(os.path.exists(self.home + "/locks/develop-54.lock"))
+
+    def test_result_then_exit_is_untouched(self):
+        "an agent that exits on its own after the result is not reported as stopped"
+        os.environ["SHIPFLOOR_RESULT_GRACE_SEC"] = "1"
+        self.addCleanup(os.environ.pop, "SHIPFLOOR_RESULT_GRACE_SEC", None)
+        log, _, _ = self.stream(RESULT)
+        self.assertFalse([l for l in log if "still alive" in l])
+
+    def test_hang_before_result_is_not_stopped(self):
+        "silence before any result is work in progress: the guard waits for the result"
+        os.environ["SHIPFLOOR_RESULT_GRACE_SEC"] = "1"
+        self.addCleanup(os.environ.pop, "SHIPFLOOR_RESULT_GRACE_SEC", None)
+        log, _, _ = self.stream(_use("t1", "Bash", command="sleep 3"), 3, _done("t1"), RESULT)
+        self.assertFalse([l for l in log if "still alive" in l])
+
     def test_stream_events_file(self):
         "stream-json: every event goes to <log>.events.jsonl with when it arrived and the run's pid"
         _, events, _ = self.stream(_use("t1", "Read", file_path="a"), _done("t1"), RESULT)
